@@ -6,6 +6,7 @@ import {
   validateProject
 } from './storage/project-schema.js';
 import { downloadJson, loadAutosave, readJsonFile, saveAutosave } from './storage/project-storage.js';
+import './upgrades/v44.js';
 
 window.EFTStorage = {
   createPriceCatalogPayload,
