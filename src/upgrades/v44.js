@@ -1,4 +1,5 @@
 import { calculatePlanMetrics, calculateSipCutting, chooseDimensionSides, roofGeometry } from '../calculations/plan-metrics.js';
+import { calculateTerraceRoof, normalizeTerracePlatform } from '../calculations/terrace-model.js';
 
 const byId = (id) => document.getElementById(id);
 const value = (id, fallback = 0) => {
@@ -28,6 +29,14 @@ function installStyles() {
     .v44-roof-cut-field{margin-top:12px;max-width:320px}
     .v44-roof-help{display:block;margin-top:5px;color:var(--text-muted);font-size:10px;line-height:1.4;text-transform:none;letter-spacing:0}
     .v44-print-specs{display:none}
+    .v45-platform-section{grid-column:1/-1;border:1px solid var(--border);border-radius:9px;padding:10px;background:rgba(77,208,225,.035)}
+    .v45-platform-section h4{margin:0 0 9px;color:var(--text);font-size:12px}
+    .v45-platform-section .planner-field-row{margin-bottom:8px}
+    .v45-platform-section label{min-width:0}
+    .v45-platform-section input:disabled,.v45-platform-section select:disabled{opacity:.45;cursor:not-allowed}
+    .v45-roof-result{display:flex;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:7px;background:var(--info-bg);color:var(--text-muted);font-size:11px}
+    .v45-roof-result strong{color:var(--info);font-size:12px}
+    .v45-field-hidden{display:none!important}
     :root[data-theme="light"] .planner-shell,
     :root[data-theme="light"] .planner-topbar,
     :root[data-theme="light"] .planner-tools,
@@ -69,6 +78,147 @@ function installCuttingUi() {
     </div>
     <div class="v44-cutting" id="v44-cutting-table"></div>
   `);
+}
+
+function normalizeAllPlatforms(plan = window.fpState) {
+  if (!plan || !Array.isArray(plan.platforms)) return plan;
+  plan.platforms = plan.platforms.map((platform) => normalizeTerracePlatform(platform));
+  return plan;
+}
+
+function selectedPlatform() {
+  const selection = window.fpState?.selected;
+  if (selection?.type !== 'platform') return null;
+  return window.fpState.platforms?.find((platform) => platform.id === selection.id) || null;
+}
+
+function terraceMainSlopeCoefficient() {
+  const span = Math.max(0, Number(window.paramsData?.[1]?.val) || Number(window.fpState?.house?.h) || 0);
+  const ridgeHeight = Math.max(0, value('autoRoofCoeff', window.paramsData?.[6]?.val || 0));
+  return span > 0 ? Math.hypot(span / 2, ridgeHeight) / (span / 2) : 1;
+}
+
+function terraceRoofResult(platform) {
+  return calculateTerraceRoof(platform, window.fpState?.house, { mainSlopeCoefficient: terraceMainSlopeCoefficient() });
+}
+
+function installTerraceProjectUi() {
+  const host = byId('fpPlatformFields');
+  if (!host || byId('v45-platform-project')) return;
+  const includeRow = byId('fpPlatformInclude')?.closest('.planner-toggle-row');
+  const html = `
+    <section class="v45-platform-section" id="v45-platform-project">
+      <h4><i class="fas fa-layer-group"></i> Связь с фундаментом</h4>
+      <div class="planner-field-row">
+        <label>Свайное поле<select id="fpPlatformFoundationMode" onchange="window.eftV45UpdatePlatformOptions()"><option value="shared">Общее с домом</option><option value="separate">Отдельное</option><option value="none">Без свай</option></select></label>
+        <label>Обвязка<select id="fpPlatformBindingMode" onchange="window.eftV45UpdatePlatformOptions()"><option value="shared">Общая с домом</option><option value="separate">Отдельная</option><option value="none">Не учитывать</option></select></label>
+      </div>
+    </section>
+    <section class="v45-platform-section" id="v45-platform-roof">
+      <h4><i class="fas fa-house-chimney"></i> Кровля площадки</h4>
+      <div class="planner-field-row">
+        <label>Тип кровли<select id="fpPlatformRoofMode" onchange="window.eftV45UpdatePlatformOptions()"><option value="none">Без кровли</option><option value="cold">Холодная</option><option value="warm">Тёплая СИП</option></select></label>
+        <label>Форма<select id="fpPlatformRoofShape" onchange="window.eftV45UpdatePlatformOptions()"><option value="shed">Односкатная</option><option value="continuation">Продолжение крыши</option><option value="gable">Двускатная</option></select></label>
+      </div>
+      <div class="planner-field-row v45-roof-auto-field">
+        <label>Передний свес, м<input id="fpPlatformRoofFrontOverhang" type="number" min="0" step="0.05" onchange="window.eftV45UpdatePlatformOptions()"></label>
+        <label>Боковой свес, м<input id="fpPlatformRoofSideOverhang" type="number" min="0" step="0.05" onchange="window.eftV45UpdatePlatformOptions()"></label>
+      </div>
+      <div class="planner-field-row v45-roof-shed-field">
+        <label>Высота у стены, м<input id="fpPlatformRoofHighHeight" type="number" min="0" step="0.1" onchange="window.eftV45UpdatePlatformOptions()"></label>
+        <label>Высота края, м<input id="fpPlatformRoofLowHeight" type="number" min="0" step="0.1" onchange="window.eftV45UpdatePlatformOptions()"></label>
+      </div>
+      <div class="planner-field-row v45-roof-gable-field">
+        <label>Высота конька, м<input id="fpPlatformRoofRidgeHeight" type="number" min="0" step="0.1" onchange="window.eftV45UpdatePlatformOptions()"></label>
+        <label>Запас, %<input id="fpPlatformRoofWaste" type="number" min="0" step="1" onchange="window.eftV45UpdatePlatformOptions()"></label>
+      </div>
+      <div class="planner-field-row v45-roof-area-field">
+        <label>Площадь<select id="fpPlatformRoofAreaMode" onchange="window.eftV45UpdatePlatformOptions()"><option value="auto">Рассчитать автоматически</option><option value="manual">Задать вручную</option></select></label>
+        <label id="fpPlatformRoofManualWrap">Площадь, м²<input id="fpPlatformRoofManualArea" type="number" min="0" step="0.1" onchange="window.eftV45UpdatePlatformOptions()"></label>
+      </div>
+      <div class="v45-roof-result"><span>Кровля / с запасом</span><strong id="fpPlatformRoofAreaReadout">0,0 / 0,0 м²</strong></div>
+    </section>`;
+  if (includeRow) includeRow.insertAdjacentHTML('beforebegin', html);
+  else host.insertAdjacentHTML('beforeend', html);
+}
+
+function refreshTerraceFieldVisibility(platform) {
+  const roofEnabled = platform.roof.mode !== 'none';
+  const manual = platform.roof.areaMode === 'manual';
+  const shed = platform.roof.shape === 'shed';
+  const gable = platform.roof.shape === 'gable';
+  byId('fpPlatformRoofShape').disabled = !roofEnabled;
+  document.querySelectorAll('.v45-roof-auto-field,.v45-roof-area-field,.v45-roof-gable-field').forEach((row) => row.classList.toggle('v45-field-hidden', !roofEnabled));
+  document.querySelector('.v45-roof-shed-field')?.classList.toggle('v45-field-hidden', !roofEnabled || !shed);
+  byId('fpPlatformRoofRidgeHeight')?.closest('label')?.classList.toggle('v45-field-hidden', !gable);
+  byId('fpPlatformRoofManualWrap')?.classList.toggle('v45-field-hidden', !manual);
+  byId('fpPlatformBindingMode').disabled = platform.foundation.mode === 'none';
+  const result = terraceRoofResult(platform);
+  setText('fpPlatformRoofAreaReadout', `${format(result.netArea)} / ${format(result.purchaseArea)} м²`);
+}
+
+function populateTerraceProjectUi(platform) {
+  if (!platform || !byId('v45-platform-project')) return;
+  const normalized = normalizeTerracePlatform(platform);
+  Object.assign(platform, normalized);
+  setValue('fpPlatformFoundationMode', platform.foundation.mode);
+  setValue('fpPlatformBindingMode', platform.binding.mode);
+  setValue('fpPlatformRoofMode', platform.roof.mode);
+  setValue('fpPlatformRoofShape', platform.roof.shape);
+  setValue('fpPlatformRoofFrontOverhang', platform.roof.frontOverhang);
+  setValue('fpPlatformRoofSideOverhang', platform.roof.sideOverhang);
+  setValue('fpPlatformRoofHighHeight', platform.roof.highHeight);
+  setValue('fpPlatformRoofLowHeight', platform.roof.lowHeight);
+  setValue('fpPlatformRoofRidgeHeight', platform.roof.ridgeHeight);
+  setValue('fpPlatformRoofWaste', platform.roof.wastePercent);
+  setValue('fpPlatformRoofAreaMode', platform.roof.areaMode);
+  setValue('fpPlatformRoofManualArea', platform.roof.manualArea);
+  refreshTerraceFieldVisibility(platform);
+}
+
+window.eftV45UpdatePlatformOptions = function eftV45UpdatePlatformOptions() {
+  const platform = selectedPlatform();
+  if (!platform) return;
+  if (typeof window.fpPushHistory === 'function') window.fpPushHistory();
+  const foundationMode = byId('fpPlatformFoundationMode').value;
+  platform.foundation = { ...platform.foundation, mode: foundationMode };
+  platform.binding = { ...platform.binding, mode: foundationMode === 'none' ? 'none' : byId('fpPlatformBindingMode').value };
+  platform.roof = {
+    ...platform.roof,
+    mode: byId('fpPlatformRoofMode').value,
+    shape: byId('fpPlatformRoofShape').value,
+    frontOverhang: value('fpPlatformRoofFrontOverhang', 0.3),
+    sideOverhang: value('fpPlatformRoofSideOverhang', 0.3),
+    highHeight: value('fpPlatformRoofHighHeight', 2.6),
+    lowHeight: value('fpPlatformRoofLowHeight', 2.2),
+    ridgeHeight: value('fpPlatformRoofRidgeHeight', 0.8),
+    wastePercent: value('fpPlatformRoofWaste', 10),
+    areaMode: byId('fpPlatformRoofAreaMode').value,
+    manualArea: value('fpPlatformRoofManualArea')
+  };
+  Object.assign(platform, normalizeTerracePlatform(platform));
+  populateTerraceProjectUi(platform);
+  if (typeof window.fpSave === 'function') window.fpSave();
+  if (typeof window.fpRender === 'function') window.fpRender();
+};
+
+function installTerracePersistence() {
+  const originalEnsure = window.fpEnsurePlanState;
+  if (typeof originalEnsure === 'function') window.fpEnsurePlanState = function fpEnsurePlanStateV45(state) {
+    return normalizeAllPlatforms(originalEnsure(state));
+  };
+  const originalSave = window.fpSave;
+  if (typeof originalSave === 'function') window.fpSave = function fpSaveV45() {
+    normalizeAllPlatforms();
+    return originalSave();
+  };
+  const originalInspector = window.fpUpdateInspector;
+  if (typeof originalInspector === 'function') window.fpUpdateInspector = function fpUpdateInspectorV45() {
+    const result = originalInspector();
+    populateTerraceProjectUi(selectedPlatform());
+    return result;
+  };
+  normalizeAllPlatforms();
 }
 
 function updateCeilingNote() {
@@ -344,8 +494,9 @@ window.updateParam = function updateParamV44(index, next) {
 
 const originalBuildProjectSnapshot = window.buildProjectSnapshot;
 window.buildProjectSnapshot = function buildProjectSnapshotV44() {
+  normalizeAllPlatforms();
   const snapshot = typeof originalBuildProjectSnapshot === 'function' ? originalBuildProjectSnapshot() : {};
-  snapshot.version = 44;
+  snapshot.version = 45;
   if (window.fpState) snapshot.planMetrics = calculatePlanMetrics(window.fpState);
   return snapshot;
 };
@@ -361,16 +512,18 @@ function bindParameterSynchronization() {
 
 function init() {
   installStyles();
+  installTerraceProjectUi();
+  installTerracePersistence();
   installCuttingUi();
   updateCeilingNote();
   installRidgeHeightUi();
   installPrintSpecs();
   bindParameterSynchronization();
-  document.title = document.title.replace(/v4\d/gi, 'v44');
+  document.title = document.title.replace(/v4\d/gi, 'v45');
   const badge = document.querySelector('.v37-badge');
-  if (badge) badge.textContent = 'v44 · точный план и раскрой';
+  if (badge) badge.textContent = 'v45 · параметры террасы';
   const note = byId('v37-start-note');
-  if (note) note.innerHTML = '<i class="fas fa-circle-check"></i><b> EFT v44:</b> план передаёт чистые площади стен и перегородок, все проёмы, сваи и пристройки; раскрой объединяет пол, стены, потолок, перегородки и крышу.';
+  if (note) note.innerHTML = '<i class="fas fa-circle-check"></i><b> EFT v45:</b> каждая терраса хранит тип свайного поля, обвязки и кровли; параметры сохраняются вместе с планом и проектом.';
   window.autoFillRoof();
   window.eftV44RenderCutting();
   updatePrintSpecs();

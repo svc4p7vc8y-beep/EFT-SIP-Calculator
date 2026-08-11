@@ -1,6 +1,6 @@
 export const PROJECT_FORMAT = 'eft-project';
 export const PRICE_FORMAT = 'eft-price-catalog';
-export const PROJECT_SCHEMA_VERSION = 1;
+export const PROJECT_SCHEMA_VERSION = 2;
 export const PRICE_SCHEMA_VERSION = 1;
 
 function isObject(value) {
@@ -29,7 +29,7 @@ export function createProjectPayload(snapshot, extras = {}) {
     ...extras,
     format: PROJECT_FORMAT,
     schemaVersion: PROJECT_SCHEMA_VERSION,
-    appVersion: 43,
+    appVersion: 45,
     savedAt: new Date().toISOString()
   };
   return validateProject(payload);
@@ -48,7 +48,7 @@ export function createPriceCatalogPayload({ priceMat, priceLab, priceMode = 'cus
   return validatePriceCatalog({
     format: PRICE_FORMAT,
     schemaVersion: PRICE_SCHEMA_VERSION,
-    appVersion: 43,
+    appVersion: 45,
     savedAt: new Date().toISOString(),
     priceMode,
     priceMat,
