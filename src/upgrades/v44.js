@@ -1,4 +1,4 @@
-import { calculatePlanMetrics, calculateSipCutting, roofGeometry } from '../calculations/plan-metrics.js';
+import { calculatePlanMetrics, calculateSipCutting, chooseDimensionSides, roofGeometry } from '../calculations/plan-metrics.js';
 
 const byId = (id) => document.getElementById(id);
 const value = (id, fallback = 0) => {
@@ -142,6 +142,27 @@ window.fpOpeningSvg = function fpOpeningSvgV44(opening, layout) {
     ? `<line class="fp-opening-cut" style="stroke-width:${cut}" data-type="opening" data-id="${opening.id}" x1="${point.x}" y1="${point.y - half}" x2="${point.x}" y2="${point.y + half}"/>`
     : `<line class="fp-opening-cut" style="stroke-width:${cut}" data-type="opening" data-id="${opening.id}" x1="${point.x - half}" y1="${point.y}" x2="${point.x + half}" y2="${point.y}"/>`;
   return `<g data-type="opening" data-id="${opening.id}">${cutLine}<line class="${cssClass}" data-type="opening" data-id="${opening.id}" x1="${hingeX}" y1="${hingeY}" x2="${openX}" y2="${openY}"/><path class="${cssClass}" d="M ${closedX} ${closedY} A ${length} ${length} 0 0 ${sweep} ${openX} ${openY}"/>${tag}${size}</g>`;
+};
+
+window.fpOuterDimension = function fpOuterDimensionV44(x1, y1, x2, y2, millimeters) {
+  const layout = window.fpLayout();
+  const sides = chooseDimensionSides(window.fpState);
+  const vertical = Math.abs(x2 - x1) < 2;
+  const houseWidth = window.fpState.house.w * layout.s;
+  const houseHeight = window.fpState.house.h * layout.s;
+  const clearance = 30;
+  const label = Number(millimeters || 0).toLocaleString('ru-RU');
+  if (vertical) {
+    const side = sides.vertical;
+    const x = side === 'left' ? layout.ox - clearance : layout.ox + houseWidth + clearance;
+    const textX = side === 'left' ? x - 12 : x + 15;
+    const centerY = layout.oy + houseHeight / 2;
+    return `<g class="fp-outer-dimension" data-dimension-side="${side}"><line class="fp-dimension" x1="${x}" y1="${layout.oy}" x2="${x}" y2="${layout.oy + houseHeight}"/><line class="fp-dimension" x1="${x - 7}" y1="${layout.oy}" x2="${x + 7}" y2="${layout.oy}"/><line class="fp-dimension" x1="${x - 7}" y1="${layout.oy + houseHeight}" x2="${x + 7}" y2="${layout.oy + houseHeight}"/><text class="fp-dimension-text" transform="rotate(-90 ${textX} ${centerY})" x="${textX}" y="${centerY}">${label}</text></g>`;
+  }
+  const side = sides.horizontal;
+  const y = side === 'top' ? layout.oy - clearance : layout.oy + houseHeight + clearance;
+  const textY = side === 'top' ? y - 9 : y + 20;
+  return `<g class="fp-outer-dimension" data-dimension-side="${side}"><line class="fp-dimension" x1="${layout.ox}" y1="${y}" x2="${layout.ox + houseWidth}" y2="${y}"/><line class="fp-dimension" x1="${layout.ox}" y1="${y - 7}" x2="${layout.ox}" y2="${y + 7}"/><line class="fp-dimension" x1="${layout.ox + houseWidth}" y1="${y - 7}" x2="${layout.ox + houseWidth}" y2="${y + 7}"/><text class="fp-dimension-text" x="${layout.ox + houseWidth / 2}" y="${textY}">${label}</text></g>`;
 };
 
 window.fpPartitionMetrics = function fpPartitionMetrics() {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculatePlanMetrics, calculateSipCutting, roofGeometry } from '../src/calculations/plan-metrics.js';
+import { calculatePlanMetrics, calculateSipCutting, chooseDimensionSides, roofGeometry } from '../src/calculations/plan-metrics.js';
 
 test('shared and partially overlapping room walls count once', () => {
   const plan = {
@@ -49,4 +49,19 @@ test('ridge height determines slope and gable areas', () => {
   assert.equal(geometry.totalSlopeArea, 100);
   assert.equal(geometry.gableArea, 24);
   assert.equal(geometry.slopeCoefficient, 1.25);
+});
+
+test('house dimensions move to the free perimeter side', () => {
+  const leftTerrace = chooseDimensionSides({
+    house: { w: 10, h: 8 },
+    platforms: [{ x: -3, y: 0, w: 3, h: 8, steps: 3, tread: 0.3, stairSide: 'left' }]
+  });
+  assert.equal(leftTerrace.vertical, 'right');
+  assert.equal(leftTerrace.horizontal, 'top');
+
+  const topTerrace = chooseDimensionSides({
+    house: { w: 10, h: 8 },
+    platforms: [{ x: 0, y: -2, w: 10, h: 2, steps: 2, tread: 0.3, stairSide: 'top' }]
+  });
+  assert.equal(topTerrace.horizontal, 'bottom');
 });

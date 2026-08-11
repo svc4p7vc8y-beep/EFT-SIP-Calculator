@@ -181,3 +181,38 @@ export function roofGeometry({ span, ridgeLength, ridgeHeight }) {
     slopeCoefficient: round(halfSpan > 0 ? slopeLength / halfSpan : 1, 3)
   };
 }
+
+export function planFootprintBounds(plan) {
+  const bounds = { minX: 0, minY: 0, maxX: Number(plan?.house?.w) || 0, maxY: Number(plan?.house?.h) || 0 };
+  (plan?.platforms || []).forEach((platform) => {
+    let minX = Number(platform.x) || 0;
+    let minY = Number(platform.y) || 0;
+    let maxX = minX + (Number(platform.w) || 0);
+    let maxY = minY + (Number(platform.h) || 0);
+    const stairDepth = Math.max(0, Math.round(Number(platform.steps) || 0)) * Math.max(0, Number(platform.tread) || 0.3);
+    if (platform.stairSide === 'left') minX -= stairDepth;
+    if (platform.stairSide === 'right') maxX += stairDepth;
+    if (platform.stairSide === 'top') minY -= stairDepth;
+    if (platform.stairSide === 'bottom') maxY += stairDepth;
+    bounds.minX = Math.min(bounds.minX, minX);
+    bounds.minY = Math.min(bounds.minY, minY);
+    bounds.maxX = Math.max(bounds.maxX, maxX);
+    bounds.maxY = Math.max(bounds.maxY, maxY);
+  });
+  return bounds;
+}
+
+export function chooseDimensionSides(plan) {
+  const bounds = planFootprintBounds(plan);
+  const width = Number(plan?.house?.w) || 0;
+  const height = Number(plan?.house?.h) || 0;
+  const leftObstruction = Math.max(0, -bounds.minX);
+  const rightObstruction = Math.max(0, bounds.maxX - width);
+  const topObstruction = Math.max(0, -bounds.minY);
+  const bottomObstruction = Math.max(0, bounds.maxY - height);
+  return {
+    vertical: leftObstruction <= rightObstruction ? 'left' : 'right',
+    horizontal: topObstruction <= bottomObstruction ? 'top' : 'bottom',
+    bounds
+  };
+}
