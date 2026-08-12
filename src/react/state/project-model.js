@@ -144,6 +144,15 @@ function normalizePlan(plan) {
   };
 }
 
+function normalizeCatalog(items, defaults) {
+  if (!Array.isArray(items)) return clone(defaults);
+  const defaultById = new Map(defaults.map((item) => [item.id, item]));
+  return items.map((item) => {
+    const fallback = defaultById.get(item.id);
+    return Number(item.price) === 0 && Number(fallback?.price) > 0 ? { ...item, price: fallback.price } : item;
+  });
+}
+
 export function migrateProject(raw) {
   const base = createDefaultProject();
   if (!raw || typeof raw !== 'object') return base;
@@ -171,8 +180,8 @@ export function migrateProject(raw) {
       internal: { ...base.settings.internal, ...(raw.settings?.internal || {}) },
       external: { ...base.settings.external, ...(raw.settings?.external || {}) }
     },
-    priceMat: Array.isArray(raw.priceMat) ? raw.priceMat : base.priceMat,
-    priceLab: Array.isArray(raw.priceLab) ? raw.priceLab : base.priceLab,
+    priceMat: normalizeCatalog(raw.priceMat, base.priceMat),
+    priceLab: normalizeCatalog(raw.priceLab, base.priceLab),
     estimateOverrides: Array.isArray(raw.estimateOverrides) ? raw.estimateOverrides : []
   };
 }

@@ -48,3 +48,12 @@ test('migration preserves plan, services and price list independently', () => {
   assert.equal(restored.services.roof, false);
   assert.equal(restored.priceMat[0].price, 12345);
 });
+
+test('known empty starter rates are repaired from the current catalog', () => {
+  const project = createDefaultProject();
+  const roofWork = project.priceLab.find((item) => item.id === 'LAB-038');
+  const expected = roofWork.price;
+  roofWork.price = 0;
+  const restored = migrateProject(project);
+  assert.equal(restored.priceLab.find((item) => item.id === 'LAB-038').price, expected);
+});
