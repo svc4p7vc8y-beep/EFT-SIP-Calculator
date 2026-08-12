@@ -147,10 +147,12 @@ function normalizePlan(plan) {
 function normalizeCatalog(items, defaults) {
   if (!Array.isArray(items)) return clone(defaults);
   const defaultById = new Map(defaults.map((item) => [item.id, item]));
-  return items.map((item) => {
+  const normalized = items.map((item) => {
     const fallback = defaultById.get(item.id);
     return Number(item.price) === 0 && Number(fallback?.price) > 0 ? { ...item, price: fallback.price } : item;
   });
+  const existingIds = new Set(normalized.map((item) => item.id));
+  return normalized.concat(defaults.filter((item) => !existingIds.has(item.id)).map(clone));
 }
 
 export function migrateProject(raw) {

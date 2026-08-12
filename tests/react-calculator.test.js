@@ -57,3 +57,10 @@ test('known empty starter rates are repaired from the current catalog', () => {
   const restored = migrateProject(project);
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-038').price, expected);
 });
+
+test('new catalog rows are added to an older saved project', () => {
+  const project = createDefaultProject();
+  project.priceLab = project.priceLab.filter((item) => item.id !== 'LAB-108');
+  const restored = migrateProject(project);
+  assert.equal(restored.priceLab.find((item) => item.id === 'LAB-108').price, 1500);
+});
