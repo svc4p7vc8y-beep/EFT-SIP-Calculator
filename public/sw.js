@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v47-1';
+const CACHE_NAME = 'eft-calculator-react-v47-2';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

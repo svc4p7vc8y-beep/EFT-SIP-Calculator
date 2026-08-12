@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  allOpeningSegments, boundsOf, movePoints, nearestSegment, planIssues,
+  allOpeningSegments, boundsOf, dimensionOutsideHouse, movePoints, nearestSegment, planIssues,
   rectanglePoints, unifiedWallSegments
 } from '../src/react/planner/geometry.js';
 
@@ -59,4 +59,11 @@ test('plan diagnostics marks a gap between formerly adjacent rooms', () => {
   const issues = planIssues(plan);
   assert.ok(issues.some((issue) => issue.type === 'gap' && issue.roomIds.includes('a')));
   assert.ok(issues.some((issue) => issue.type === 'gap' && issue.roomIds.includes('b')));
+});
+
+test('new dimension lines are moved outside the house and keep their measured span', () => {
+  const horizontal = dimensionOutsideHouse({ x1: 2, y1: 3, x2: 8, y2: 3.2 }, { w: 10, h: 8 });
+  assert.deepEqual(horizontal, { x1: 2, y1: -0.8, x2: 8, y2: -0.8 });
+  const vertical = dimensionOutsideHouse({ x1: 7, y1: 2, x2: 7.1, y2: 7 }, { w: 10, h: 8 });
+  assert.deepEqual(vertical, { x1: 10.8, y1: 2, x2: 10.8, y2: 7 });
 });

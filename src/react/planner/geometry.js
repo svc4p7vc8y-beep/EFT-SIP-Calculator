@@ -32,6 +32,19 @@ export function rectanglePoints(a, b) {
   return [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }];
 }
 
+export function dimensionOutsideHouse(line, house, offset = 0.8) {
+  const next = { ...line };
+  const horizontal = Math.abs(next.x2 - next.x1) >= Math.abs(next.y2 - next.y1);
+  if (horizontal) {
+    const y = (next.y1 + next.y2) / 2 < house.h / 2 ? -offset : house.h + offset;
+    next.y1 = y; next.y2 = y;
+  } else {
+    const x = (next.x1 + next.x2) / 2 < house.w / 2 ? -offset : house.w + offset;
+    next.x1 = x; next.x2 = x;
+  }
+  return next;
+}
+
 export function collectSnapAxes(plan, excludeRoomId) {
   const wall = Number(plan.wallThickness) || 0.174;
   const xs = new Set([0, wall, plan.house.w - wall, plan.house.w]);

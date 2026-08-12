@@ -56,7 +56,7 @@ export function createDefaultPlan() {
     dimensions: [],
     platforms: [
       normalizeTerracePlatform({ id: 'terrace-main', kind: 'terrace', x: 0, y: 12.975, w: 8.66, h: 2.425, include: true, steps: 3, stairWidth: 1.6, riser: 0.18, tread: 0.3, stairSide: 'bottom', stairDirection: 'toward' }),
-      normalizeTerracePlatform({ id: 'porch-main', kind: 'porch', x: 8.66, y: 3.374, w: 1, h: 2.1, include: true, steps: 4, stairWidth: 1, riser: 0.175, tread: 0.28, stairSide: 'right', stairDirection: 'toward' })
+      normalizeTerracePlatform({ id: 'porch-main', kind: 'porch', x: 8.66, y: 3.374, w: 1, h: 2.1, include: true, steps: 3, stairWidth: 1, riser: 0.175, tread: 0.28, stairSide: 'right', stairDirection: 'toward' })
     ],
     pileRows: [
       { id: 'pile-top', name: 'Верхний ряд', x1: 0, y1: 0, x2: 8.66, y2: 0, count: 5, group: 'house' },

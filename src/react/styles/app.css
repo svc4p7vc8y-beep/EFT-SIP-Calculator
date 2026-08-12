@@ -170,22 +170,29 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .platform-shape.selected { fill:rgba(119,194,211,.25); stroke:#238fa5; }
 .platform-area { fill:#2f6570; font-size:10px; text-anchor:middle; }
 .platform-label { fill:#2f6570; font-size:11px; font-weight:700; text-anchor:middle; }
-.stairs { fill:none; stroke:#253326; stroke-width:2; vector-effect:non-scaling-stroke; }
-.opening-cut { stroke:#fff; stroke-width:.22; }
-.opening { fill:none; stroke:#17b8d2; stroke-width:4; vector-effect:non-scaling-stroke; }
+.stairs { fill:rgba(180,151,105,.12); stroke:#253326; stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
+.stairs line { stroke:#253326; stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.stairs .stair-direction { color:#426b2c; stroke:#426b2c; stroke-width:2; }
+.opening-cut { stroke:#fff; stroke-width:12; vector-effect:non-scaling-stroke; }
+.opening { fill:none; stroke:#00aeca; stroke-width:6; vector-effect:non-scaling-stroke; }
 .opening.door { stroke:#10a8c1; }
 .selected-opening .opening { stroke:#e49e2f; stroke-width:6; }
 .opening-tag { fill:#16abc5; stroke:#16abc5; stroke-width:.035; }
-.door-swing { fill:none; stroke:#16abc5; stroke-width:2; vector-effect:non-scaling-stroke; }
-.door-swing path { stroke-dasharray:4 3; opacity:.7; }
+.door-swing { fill:none; stroke:#008ba3; stroke-width:3; vector-effect:non-scaling-stroke; pointer-events:none; }
+.door-swing path { opacity:.9; }
 .pile-guide { stroke:#e3a643; stroke-width:2; stroke-dasharray:7 5; opacity:.85; vector-effect:non-scaling-stroke; }
 .pile-point { fill:#efbb61; stroke:#1a261b; stroke-width:2; vector-effect:non-scaling-stroke; }
 .pile-point.shared { fill:#7eb34f; }
+.pile-spacing-text { fill:#8b5b12; paint-order:stroke; stroke:#fff; stroke-width:4; font-size:9px; font-weight:800; text-anchor:middle; pointer-events:none; }
 .outer-dimensions,.custom-dimension { fill:none; stroke:#3d4b3f; stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.custom-dimension { color:#3d4b3f; cursor:move; }
+.custom-dimension.selected { stroke:#5d8f32; stroke-width:2.5; }
+.dimension-tick,.extension-line { stroke:#708075; stroke-width:1; vector-effect:non-scaling-stroke; }
+.extension-line { opacity:.7; }
 .outer-dimensions text,.dimension-text { fill:#243127; stroke:none; font-size:11px; font-weight:700; text-anchor:middle; }
 .polygon-draft,.draft-shape { fill:rgba(80,151,51,.11); stroke:#5d8f32; stroke-width:.04; stroke-dasharray:.12 .07; }
 .vertex-handle { fill:#fff; stroke:#5d8f32; stroke-width:.045; }
-.plan-grid-hit { fill:transparent; }
+.plan-grid-hit { fill:url(#planner-grid); }
 .plan-inspector { padding:15px; overflow-y:auto; color:#172018; border-left:1px solid #dce4dc; background:#f8faf7; }
 .plan-inspector h2 { margin:0 0 4px; font-size:14px; }
 .inspector-note { margin:0 0 15px; color:#6c776e; font-size:9px; line-height:1.5; }
