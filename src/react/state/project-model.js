@@ -1,7 +1,9 @@
 import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 
-export const REACT_PROJECT_VERSION = 46;
+export const REACT_PROJECT_VERSION = 47;
+// Keep the established storage namespace so upgrading the application does not
+// hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
 export const REACT_BACKUPS_KEY = 'eft-react-backups-v46';
 

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
-import { createDefaultProject, migrateProject, REACT_BACKUPS_KEY } from '../state/project-model.js';
+import { createDefaultProject, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney } from '../utils/format.js';
 
 const PlanScreen = lazy(() => import('../screens/PlanScreen.jsx'));
@@ -101,7 +101,7 @@ export function App() {
       <header className="app-header">
         <div className="brand">
           <img src="./icons/eft-logo.png" alt="Логотип ЭФТ" />
-          <div><strong>ЭнергоЭффективные Технологии</strong><span>React-конструктор СИП-домов · v46</span></div>
+          <div><strong>ЭнергоЭффективные Технологии</strong><span>React-конструктор СИП-домов · v{REACT_PROJECT_VERSION} · новый план</span></div>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div><span>Материалы</span><strong>{formatMoney(calculation.totals.materials)}</strong></div>
