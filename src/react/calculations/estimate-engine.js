@@ -141,6 +141,7 @@ function terraceSection(project, index) {
   const area = platforms.reduce((sum, platform) => sum + platform.w * platform.h, 0);
   const perimeter = platforms.reduce((sum, platform) => sum + 2 * (platform.w + platform.h), 0);
   const stairs = platforms.reduce((sum, platform) => sum + (Math.round(platform.steps) || 0), 0);
+  const staircases = platforms.filter((platform) => Number(platform.steps) > 0).length;
   return {
     area: round(area),
     lines: compact([
@@ -150,7 +151,7 @@ function terraceSection(project, index) {
       makeLine(index, 'terrace', 'Доска террасная 45×145 мм', area * 0.045 * 1.05, { key: 'deck', unit: 'м³', digits: 3 }),
       makeLine(index, 'terrace', 'Саморезы 4.2 x 75', area * 0.12, { key: 'screws', unit: 'кг' }),
       makeLine(index, 'terrace', 'Ступень лестницы', stairs, { key: 'steps' }),
-      makeLine(index, 'terrace', 'Монтаж лестницы', stairs, { key: 'steps-work', kind: 'labor' })
+      makeLine(index, 'terrace', 'Изготовление лестниц', staircases, { key: 'steps-work', kind: 'labor', unit: 'шт' })
     ])
   };
 }
