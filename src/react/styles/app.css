@@ -109,14 +109,14 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .room-shape { fill:rgba(249,247,226,.55); stroke:#172018; stroke-width:2.5; vector-effect:non-scaling-stroke; }
 .room-shape:hover,.room-shape.selected { fill:rgba(220,239,205,.62); stroke:#5d8f32; }
 .outer-wall { fill:none; stroke:#172018; stroke-width:.174; vector-effect:non-scaling-stroke; }
-.inner-wall { fill:rgba(245,247,237,.22); stroke:#172018; stroke-width:.1; vector-effect:non-scaling-stroke; }
-.room-name { fill:#172018; font-size:.25px; font-weight:800; text-anchor:middle; pointer-events:none; }
-.room-area { fill:#466d31; font-size:.19px; text-anchor:middle; pointer-events:none; }
+.inner-wall { fill:rgba(245,247,237,.22); stroke:#172018; stroke-width:3; vector-effect:non-scaling-stroke; }
+.room-name { fill:#172018; font-size:12px; font-weight:800; text-anchor:middle; pointer-events:none; }
+.room-area { fill:#466d31; font-size:10px; text-anchor:middle; pointer-events:none; }
 .platform-shape { fill:rgba(146,202,215,.14); stroke:#46b7cc; stroke-width:2; stroke-dasharray:7 5; vector-effect:non-scaling-stroke; }
 .platform-shape.selected { fill:rgba(119,194,211,.25); stroke:#238fa5; }
-.platform-area { fill:#2f6570; font-size:.18px; text-anchor:middle; }
-.platform-label { fill:#2f6570; font-size:.2px; font-weight:700; text-anchor:middle; }
-.stairs { fill:none; stroke:#253326; stroke-width:.035; }
+.platform-area { fill:#2f6570; font-size:10px; text-anchor:middle; }
+.platform-label { fill:#2f6570; font-size:11px; font-weight:700; text-anchor:middle; }
+.stairs { fill:none; stroke:#253326; stroke-width:2; vector-effect:non-scaling-stroke; }
 .opening-cut { stroke:#fff; stroke-width:.22; }
 .opening { fill:none; stroke:#17b8d2; stroke-width:4; vector-effect:non-scaling-stroke; }
 .opening.door { stroke:#10a8c1; }
@@ -124,11 +124,11 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .opening-tag { fill:#16abc5; stroke:#16abc5; stroke-width:.035; }
 .door-swing { fill:none; stroke:#16abc5; stroke-width:2; vector-effect:non-scaling-stroke; }
 .door-swing path { stroke-dasharray:4 3; opacity:.7; }
-.pile-guide { stroke:#e3a643; stroke-width:.035; stroke-dasharray:.12 .07; opacity:.85; }
+.pile-guide { stroke:#e3a643; stroke-width:2; stroke-dasharray:7 5; opacity:.85; vector-effect:non-scaling-stroke; }
 .pile-point { fill:#efbb61; stroke:#1a261b; stroke-width:2; vector-effect:non-scaling-stroke; }
 .pile-point.shared { fill:#7eb34f; }
-.outer-dimensions,.custom-dimension { fill:none; stroke:#3d4b3f; stroke-width:.018; }
-.dimension-text { fill:#243127; font-size:.17px; font-weight:700; text-anchor:middle; }
+.outer-dimensions,.custom-dimension { fill:none; stroke:#3d4b3f; stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.outer-dimensions text,.dimension-text { fill:#243127; stroke:none; font-size:11px; font-weight:700; text-anchor:middle; }
 .polygon-draft,.draft-shape { fill:rgba(80,151,51,.11); stroke:#5d8f32; stroke-width:.04; stroke-dasharray:.12 .07; }
 .vertex-handle { fill:#fff; stroke:#5d8f32; stroke-width:.045; }
 .plan-grid-hit { fill:transparent; }
