@@ -35,6 +35,24 @@ test('outer openings reduce exterior walls and interior doors reduce partitions'
   assert.equal(metrics.exteriorWallNetArea, 48.56);
 });
 
+test('explicit wall gaps are subtracted from wall and partition quantities', () => {
+  const plan = {
+    house: { w: 10, h: 8 }, wallHeight: 2.5, wallThickness: 0.174,
+    rooms: [
+      { id: 'a', points: [{ x: .174, y: .174 }, { x: 5, y: .174 }, { x: 5, y: 7.826 }, { x: .174, y: 7.826 }] },
+      { id: 'b', points: [{ x: 5, y: .174 }, { x: 9.826, y: .174 }, { x: 9.826, y: 7.826 }, { x: 5, y: 7.826 }] }
+    ], walls: [], openings: [], platforms: [],
+    wallGaps: [
+      { width: 1, x: 5, y: 4, orientation: 'v', outer: false },
+      { width: 1.2, x: 10, y: 4, orientation: 'v', outer: true }
+    ]
+  };
+  const metrics = calculatePlanMetrics(plan);
+  assert.equal(metrics.partitionLength, 6.65);
+  assert.equal(metrics.exteriorWallNetArea, 87);
+  assert.equal(metrics.wallGapLength, 2.2);
+});
+
 test('SIP cutting covers floor, walls, ceiling, partitions and roof', () => {
   const rows = calculateSipCutting({ floor: 50, walls: 80, ceiling: 50, partitions: 30, roof: 70 });
   assert.deepEqual(rows.map((row) => row.key), ['floor', 'walls', 'ceiling', 'partitions', 'roof']);

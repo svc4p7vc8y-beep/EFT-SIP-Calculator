@@ -95,6 +95,60 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .toggle-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 20px; }
 
 /* Планировщик всегда остаётся белым, независимо от темы интерфейса. */
+.plan-screen-v2 { --planner-wall:#172018; --planner-green:#5d8f32; }
+.plan-status-bar { display:grid; grid-template-columns:minmax(420px,1fr) auto auto; gap:18px; align-items:center; margin-bottom:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+.plan-house-fields { display:grid; grid-template-columns:repeat(3,minmax(110px,160px)); gap:10px; }
+.plan-view-switches { display:flex; gap:14px; }
+.plan-view-switches .toggle-row { min-height:36px; border:0; gap:7px; }
+.zoom-controls { display:flex; align-items:center; gap:7px; }
+.zoom-controls strong { min-width:42px; color:var(--ink); font-size:10px; text-align:center; }
+.planner-shell { height:720px; display:grid; grid-template-columns:94px minmax(0,1fr) 310px; overflow:hidden; border:1px solid #dce4dc; border-radius:12px; background:#fff; box-shadow:var(--shadow); }
+.planner-tools { z-index:2; padding:8px 6px; overflow-y:auto; border-right:1px solid #dce4dc; background:#f7f9f6; }
+.planner-tools button { width:100%; min-height:43px; margin-bottom:4px; padding:5px 3px; display:flex; align-items:center; gap:7px; color:#5f6a61; border:0; border-radius:7px; background:transparent; font-size:8px; text-align:left; }
+.planner-tools button svg { flex:0 0 16px; width:16px; height:16px; }
+.planner-tools button:hover,.planner-tools button.active { color:#37661f; background:#e5f1dd; }
+.polygon-actions { margin-top:8px; padding-top:8px; border-top:1px solid #dce4dc; }
+.planner-canvas { position:relative; min-width:0; overflow:hidden; background:#fff; }
+.planner-hint { position:absolute; left:12px; bottom:12px; max-width:520px; padding:7px 10px; border:1px solid #dbe4d9; border-radius:7px; color:#5d695f; background:rgba(255,255,255,.94); font-size:9px; box-shadow:0 3px 10px rgba(0,0,0,.06); pointer-events:none; }
+.planner-inspector { padding:15px; overflow-y:auto; color:#172018; border-left:1px solid #dce4dc; background:#f8faf7; }
+.planner-inspector h3 { margin:0 0 10px; font-size:13px; }
+.planner-inspector .field input,.planner-inspector .field select { color:#172018; background:#fff; }
+.planner-stats { margin-top:12px; grid-template-columns:repeat(6,minmax(0,1fr)); }
+.room-fill { fill:rgba(249,247,226,.5); stroke:none; cursor:move; }
+.room-fill:hover,.room-fill.selected { fill:rgba(220,239,205,.68); }
+.room-fill.invalid { fill:rgba(255,208,208,.58); }
+.room-dimensions { fill:#708075; font-size:8px; text-anchor:middle; pointer-events:none; }
+.unified-wall,.standalone-wall { stroke:var(--planner-wall); stroke-width:6; stroke-linecap:square; vector-effect:non-scaling-stroke; }
+.standalone-wall { cursor:move; }
+.standalone-wall.selected { stroke:var(--planner-green); stroke-width:8; }
+.wide-hit { stroke:transparent; stroke-width:22; cursor:move; vector-effect:non-scaling-stroke; }
+.endpoint-handle,.vertex-handle { fill:#fff; stroke:var(--planner-green); stroke-width:3; vector-effect:non-scaling-stroke; cursor:grab; }
+.binding-guide { fill:none; stroke:#d99d38; stroke-width:2; stroke-dasharray:8 5; vector-effect:non-scaling-stroke; pointer-events:none; }
+.binding-guide-line { stroke:#d99d38; stroke-width:2; stroke-dasharray:8 5; opacity:.75; vector-effect:non-scaling-stroke; pointer-events:none; }
+.manual-pile { fill:#efbb61; stroke:#1a261b; stroke-width:2; vector-effect:non-scaling-stroke; cursor:move; }
+.manual-pile.selected { fill:#fff; stroke:#5d8f32; stroke-width:4; }
+.wall-gap { stroke:#fff; stroke-width:11; vector-effect:non-scaling-stroke; cursor:move; }
+.wall-gap.selected { stroke:#f09b3d; }
+.draft-line { stroke:#5d8f32; stroke-width:3; stroke-dasharray:7 5; vector-effect:non-scaling-stroke; }
+.polygon-point { fill:#fff; stroke:#5d8f32; stroke-width:2; vector-effect:non-scaling-stroke; }
+.room-summary header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.room-summary header h3 { margin:0 0 4px; }
+.room-summary header p { margin:0 0 10px; color:#6c776e; font-size:9px; line-height:1.4; }
+.room-summary header>strong { color:#37661f; white-space:nowrap; }
+.room-summary-list { display:flex; flex-direction:column; gap:5px; }
+.room-summary-list button { min-height:38px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; color:#172018; border:1px solid #dce4dc; border-radius:7px; background:#fff; text-align:left; }
+.room-summary-list button:hover { border-color:#90b977; background:#f1f7ed; }
+.room-summary-list button.invalid { border-color:#e69696; background:#fff3f3; }
+.room-summary-list button span { display:flex; align-items:center; gap:7px; min-width:0; }
+.room-summary-list button i { width:20px; height:20px; display:grid; place-items:center; flex:0 0 20px; border-radius:50%; color:#fff; background:#6d8f59; font-size:8px; font-style:normal; }
+.room-summary-list button strong { overflow:hidden; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.room-summary-list button em { color:#466d31; font-size:9px; font-style:normal; white-space:nowrap; }
+.plan-warning,.plan-ok { margin:4px 0 10px; padding:8px; border-radius:7px; font-size:9px; }
+.plan-warning { display:flex; align-items:center; gap:6px; color:#9e3030; background:#ffeaea; }
+.plan-warning svg { width:14px; height:14px; }
+.plan-ok { color:#37661f; background:#eaf4e4; }
+.readout { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px; border-radius:7px; background:#eef4ea; font-size:9px; }
+.danger-button { color:#a43b32; border-color:#e4b4ae; background:#fff8f7; }
 .plan-workbench { height:690px; display:grid; grid-template-columns:64px minmax(0,1fr) 300px; overflow:hidden; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:var(--shadow); }
 .tool-rail { z-index:2; padding:9px 7px; overflow-y:auto; border-right:1px solid #dce4dc; background:#f7f9f6; }
 .tool-rail button { width:48px; min-height:47px; margin-bottom:5px; padding:5px 2px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color:#5f6a61; border:0; border-radius:7px; background:transparent; font-size:8px; }
@@ -195,6 +249,10 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .header-totals div { min-width:102px; }
   .app-layout { grid-template-columns:184px minmax(0,1fr); }
   .plan-workbench { grid-template-columns:58px minmax(0,1fr) 270px; }
+  .plan-status-bar { grid-template-columns:1fr auto; }
+  .plan-view-switches { grid-column:1; grid-row:2; }
+  .planner-shell { grid-template-columns:82px minmax(0,1fr) 270px; }
+  .planner-stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .stats-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .form-grid.four { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
@@ -217,6 +275,14 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .screen-actions { width:100%; flex-wrap:wrap; }
   .two-column-layout,.project-summary { grid-template-columns:1fr; }
   .plan-workbench { height:auto; min-height:740px; grid-template-columns:1fr; grid-template-rows:54px 560px auto; overflow:visible; }
+  .plan-status-bar { grid-template-columns:1fr; }
+  .plan-house-fields { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .plan-view-switches,.zoom-controls { grid-column:auto; grid-row:auto; }
+  .planner-shell { height:auto; min-height:800px; grid-template-columns:1fr; grid-template-rows:64px 570px auto; overflow:visible; }
+  .planner-tools { display:flex; gap:4px; padding:6px; overflow-x:auto; border:0; border-bottom:1px solid #dce4dc; }
+  .planner-tools button { flex:0 0 68px; min-height:48px; margin:0; flex-direction:column; justify-content:center; gap:3px; text-align:center; }
+  .polygon-actions { display:flex; margin:0; padding:0; border:0; }
+  .planner-inspector { border:0; border-top:1px solid #dce4dc; }
   .plan-top-controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .tool-rail { display:flex; gap:4px; overflow-x:auto; border:0; border-bottom:1px solid #dce4dc; }
   .tool-rail button { flex:0 0 48px; min-height:40px; margin:0; }
@@ -231,6 +297,9 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .span-2 { grid-column:auto; }
   .price-toolbar { grid-template-columns:1fr; }
   .plan-top-controls { grid-template-columns:1fr; }
+  .plan-house-fields { grid-template-columns:1fr; }
+  .plan-view-switches { flex-wrap:wrap; }
+  .planner-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .print-sheet { padding:14px; }
   .print-title { flex-direction:column; gap:16px; }
   .print-title>div:last-child { text-align:left; }

@@ -34,6 +34,8 @@ export function createDefaultPlan() {
     partitionThickness: 0.1,
     zoom: 100,
     showPiles: true,
+    showBinding: true,
+    showDimensions: true,
     rooms: [
       polygonRoom('room-1', 'Спальня / шкаф', [[e, e], [4.874, e], [4.874, 4.204], [e, 4.204]], { note: 'шкаф' }),
       polygonRoom('room-2', 'Спальня', [[4.874, e], [8.486, e], [8.486, 3.374], [4.874, 3.374]]),
@@ -69,7 +71,8 @@ export function createDefaultPlan() {
 export function createEmptyPlan() {
   return {
     house: { w: 10, h: 8 }, wallHeight: 2.5, wallThickness: 0.174, partitionThickness: 0.1,
-    zoom: 100, showPiles: true, rooms: [], walls: [], wallGaps: [], openings: [], dimensions: [], platforms: [], piles: [],
+    zoom: 100, showPiles: true, showBinding: true, showDimensions: true,
+    rooms: [], walls: [], wallGaps: [], openings: [], dimensions: [], platforms: [], piles: [],
     pileRows: [
       { id: 'pile-top', name: 'Верхний ряд', x1: 0, y1: 0, x2: 10, y2: 0, count: 6, group: 'house' },
       { id: 'pile-mid', name: 'Средний ряд', x1: 0, y1: 4, x2: 10, y2: 4, count: 6, group: 'house' },

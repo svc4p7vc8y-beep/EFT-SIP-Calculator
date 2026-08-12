@@ -117,6 +117,14 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
   });
 
   const wallHeight = Math.max(0, Number(plan.wallHeight) || 2.5);
+  let exteriorGapLength = 0;
+  let interiorGapLength = 0;
+  (plan.wallGaps || []).forEach((gap) => {
+    const width = Math.max(0, Number(gap.width) || 0);
+    if (inferOuterOpening(gap, plan, tolerance)) exteriorGapLength += width;
+    else interiorGapLength += width;
+  });
+  partitionLength = Math.max(0, partitionLength - interiorGapLength);
   const perimeter = 2 * ((Number(plan.house.w) || 0) + (Number(plan.house.h) || 0));
   const partitionGrossArea = partitionLength * wallHeight;
   const platformArea = (plan.platforms || []).reduce((sum, platform) => (
@@ -128,11 +136,12 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
     perimeter: round(perimeter, 2),
     exteriorWallGrossArea: round(perimeter * wallHeight, 2),
     exteriorOpeningsArea: round(exteriorOpeningsArea, 2),
-    exteriorWallNetArea: round(Math.max(0, perimeter * wallHeight - exteriorOpeningsArea), 2),
+    exteriorWallNetArea: round(Math.max(0, perimeter * wallHeight - exteriorOpeningsArea - exteriorGapLength * wallHeight), 2),
     partitionLength: round(partitionLength, 2),
     partitionGrossArea: round(partitionGrossArea, 2),
     interiorOpeningsArea: round(interiorOpeningsArea, 2),
     partitionNetArea: round(Math.max(0, partitionGrossArea - interiorOpeningsArea), 2),
+    wallGapLength: round(exteriorGapLength + interiorGapLength, 2),
     windowArea: round(windowArea, 2),
     doorArea: round(doorArea, 2),
     totalOpeningsArea: round(windowArea + doorArea, 2),
