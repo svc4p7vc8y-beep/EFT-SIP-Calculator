@@ -315,6 +315,8 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .door-swing { fill:none; stroke:#008ba3; stroke-width:3; vector-effect:non-scaling-stroke; pointer-events:none; }
 .door-swing path { opacity:.9; }
 .garage-gate { fill:none; stroke:#2679a5; stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
+.garage-gate .gate-mark { stroke:#2679a5; }
+.garage-door-swing { stroke:#126f9b; }
 .pile-guide { stroke:#e3a643; stroke-width:2; stroke-dasharray:7 5; opacity:.85; vector-effect:non-scaling-stroke; }
 .pile-guide.axis-aligned { stroke:#4f9636; }
 .pile-guide.axis-warning { stroke:#d7493e; stroke-width:3; opacity:1; }
@@ -410,9 +412,15 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .print-plan-svg .print-room .room-title { font-weight:800; }
 .print-plan-svg .print-outer-wall { fill:none; stroke:#182019; stroke-width:9; }
 .print-plan-svg .print-inner-wall { stroke:#182019; stroke-width:4; }
-.print-plan-svg .print-opening { stroke:#fff; stroke-width:9; }
-.print-plan-svg .print-opening.window { stroke:#46bfd3; stroke-width:5; }
-.print-plan-svg .print-opening.door { stroke:#b7772b; stroke-width:5; }
+.print-plan-svg .print-opening-cut { stroke:#fff; stroke-width:12; }
+.print-plan-svg .print-opening { fill:none; stroke:#0aaec8; stroke-width:6; }
+.print-plan-svg .print-opening.window { stroke:#00aeca; stroke-width:6; }
+.print-plan-svg .print-opening.door { stroke:#d97918; stroke-width:6; }
+.print-plan-svg .print-opening.garage { stroke:#2679a5; stroke-width:8; }
+.print-plan-svg .print-door-swing { fill:none; stroke:#d97918; stroke-width:2.5; }
+.print-plan-svg .print-door-swing.garage { stroke:#2679a5; stroke-width:2.8; }
+.print-plan-svg .print-opening-tag { fill:#b85a08; font-size:9px; font-weight:900; paint-order:stroke; stroke:#fff; stroke-width:3; }
+.print-plan-svg .print-opening-group.garage .print-opening-tag { fill:#1f668b; }
 .print-plan-svg .print-binding line,.print-plan-svg .print-binding rect { fill:none; stroke:#d89a28; stroke-width:3; stroke-dasharray:7 4; }
 .print-plan-svg .print-piles circle { fill:#f7ba57; stroke:#1e2820; stroke-width:2; }
 .print-plan-svg .print-house-dimensions line { stroke:#556057; stroke-width:1.5; }
@@ -586,6 +594,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 
 @media print {
   @page { size:A4 portrait; margin:10mm; }
+  body,.print-sheet,.print-diagrams,.print-diagrams article,.print-plan-svg,.print-roof-svg { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
   body { background:#fff!important; }
   .app-header,.sidebar,.project-summary-sidebar,.screen-header,.no-print,.estimate-screen>.stats-row { display:none!important; }
   .app-layout,.workspace,.screen { display:block!important; padding:0!important; margin:0!important; max-width:none!important; }

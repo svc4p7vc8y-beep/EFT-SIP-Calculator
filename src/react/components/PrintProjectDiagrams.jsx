@@ -5,6 +5,44 @@ import { formatNumber } from '../utils/format.js';
 
 const PLAN_VIEW = { width: 760, height: 470, margin: 52 };
 
+function doorSwingGeometry(opening, q, size, plan) {
+  const left = opening.hinge === 'left';
+  if (opening.orientation === 'h') {
+    const hingeX = q.x + (left ? -size / 2 : size / 2);
+    const closedX = q.x + (left ? size / 2 : -size / 2);
+    const inward = opening.outer ? (opening.y < plan.house.h / 2 ? 1 : -1) : 1;
+    const direction = opening.swing === 'out' ? -inward : inward;
+    const leafY = q.y + direction * size;
+    return { leaves: [{ x1: hingeX, y1: q.y, x2: hingeX, y2: leafY }], arcs: [`M ${closedX} ${q.y} A ${size} ${size} 0 0 ${left === (direction > 0) ? 1 : 0} ${hingeX} ${leafY}`] };
+  }
+  const hingeY = q.y + (left ? -size / 2 : size / 2);
+  const closedY = q.y + (left ? size / 2 : -size / 2);
+  const inward = opening.outer ? (opening.x < plan.house.w / 2 ? 1 : -1) : 1;
+  const direction = opening.swing === 'out' ? -inward : inward;
+  const leafX = q.x + direction * size;
+  return { leaves: [{ x1: q.x, y1: hingeY, x2: leafX, y2: hingeY }], arcs: [`M ${q.x} ${closedY} A ${size} ${size} 0 0 ${left === (direction < 0) ? 1 : 0} ${leafX} ${hingeY}`] };
+}
+
+function garageSwingGeometry(opening, q, size, plan) {
+  const half = size / 2;
+  if (opening.orientation === 'h') {
+    const inward = opening.outer ? (opening.y < plan.house.h / 2 ? 1 : -1) : 1;
+    const direction = opening.swing === 'out' ? -inward : inward;
+    const leafY = q.y + direction * half;
+    return {
+      leaves: [{ x1: q.x - half, y1: q.y, x2: q.x - half, y2: leafY }, { x1: q.x + half, y1: q.y, x2: q.x + half, y2: leafY }],
+      arcs: [`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${q.x - half} ${leafY}`, `M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${q.x + half} ${leafY}`]
+    };
+  }
+  const inward = opening.outer ? (opening.x < plan.house.w / 2 ? 1 : -1) : 1;
+  const direction = opening.swing === 'out' ? -inward : inward;
+  const leafX = q.x + direction * half;
+  return {
+    leaves: [{ x1: q.x, y1: q.y - half, x2: leafX, y2: q.y - half }, { x1: q.x, y1: q.y + half, x2: leafX, y2: q.y + half }],
+    arcs: [`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${leafX} ${q.y - half}`, `M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${leafX} ${q.y + half}`]
+  };
+}
+
 function planBounds(plan) {
   const points = [
     { x: 0, y: 0 }, { x: plan.house.w, y: plan.house.h },
@@ -38,19 +76,35 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
       ? { x1: q.x, y1: q.y - half, x2: q.x, y2: q.y + half }
       : { x1: q.x - half, y1: q.y, x2: q.x + half, y2: q.y };
   };
+  const renderOpening = (opening) => {
+    const q = p(opening.x, opening.y);
+    const size = Math.max(16, opening.width * scale);
+    const garage = opening.type === 'door' && opening.doorType === 'garage';
+    const geometry = opening.type === 'door' ? (garage ? garageSwingGeometry(opening, q, size, plan) : doorSwingGeometry(opening, q, size, plan)) : null;
+    const tag = garage ? 'ГВ' : opening.doorType === 'interior' ? 'МД' : 'ВХ';
+    return <g key={opening.id} className={`print-opening-group ${garage ? 'garage' : opening.type}`}>
+      <line className="print-opening-cut" {...openingLine(opening)} />
+      <line className={`print-opening ${garage ? 'garage' : opening.type}`} {...openingLine(opening)} />
+      {geometry ? <g className={`print-door-swing ${garage ? 'garage' : ''}`} aria-label={garage ? 'Двустворчатое открывание гаражных ворот' : 'Направление открывания двери'}>
+        {geometry.leaves.map((leaf, index) => <line key={`leaf-${index}`} {...leaf} />)}
+        {geometry.arcs.map((path, index) => <path key={`arc-${index}`} d={path} />)}
+      </g> : null}
+      {opening.type === 'door' ? <text className="print-opening-tag" x={q.x} y={q.y - 9}>{tag}</text> : null}
+    </g>;
+  };
   return <svg className="print-plan-svg" viewBox={`0 0 ${PLAN_VIEW.width} ${PLAN_VIEW.height}`} role="img" aria-label="План дома для печати">
     <defs><marker id="print-plan-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" /></marker></defs>
     {(plan.platforms || []).map((item) => { const q = p(item.x, item.y); return <g key={item.id} className="print-platform"><rect x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} /><text x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 - 3}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text><text x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + 13}>{formatNumber(item.w * item.h)} м²</text></g>; })}
     <rect className="print-house-fill" x={houseStart.x} y={houseStart.y} width={plan.house.w * scale} height={plan.house.h * scale} />
     {(plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(roomBounds.x + roomBounds.w / 2, roomBounds.y + roomBounds.h / 2); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" x={center.x} y={center.y - 7}>{room.name}</text><text x={center.x} y={center.y + 9}>{formatNumber(polygonArea(points))} м²</text></g>; })}
-    <rect className="print-outer-wall" x={houseStart.x} y={houseStart.y} width={plan.house.w * scale} height={plan.house.h * scale} />
-    {unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; })}
-    {(plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })}
-    {(plan.openings || []).map((opening) => <line key={opening.id} className={`print-opening ${opening.type}`} {...openingLine(opening)} />)}
     {showBinding ? <g className="print-binding" aria-label="Обвязка на печатном плане">
       {(plan.bindingLines || []).filter((item) => item.include !== false).map((item) => { const q = line(item); return <line key={item.id} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; })}
       {(plan.platforms || []).filter((item) => item.include !== false && item.binding?.mode !== 'none').map((item) => { const q = p(item.x, item.y); return <rect key={item.id} x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />; })}
     </g> : null}
+    <rect className="print-outer-wall" x={houseStart.x} y={houseStart.y} width={plan.house.w * scale} height={plan.house.h * scale} />
+    {unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; })}
+    {(plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })}
+    {(plan.openings || []).map(renderOpening)}
     {showPiles ? <g className="print-piles" aria-label="Сваи на печатном плане">{foundation.points.map((point, index) => { const q = p(point.x, point.y); return <circle key={index} cx={q.x} cy={q.y} r="5" />; })}</g> : null}
     {showDimensions ? <g className="print-house-dimensions" aria-label="Размеры на печатном плане">
       <line x1={houseStart.x} y1={houseStart.y - 24} x2={houseStart.x + plan.house.w * scale} y2={houseStart.y - 24} markerStart="url(#print-plan-arrow)" markerEnd="url(#print-plan-arrow)" />
