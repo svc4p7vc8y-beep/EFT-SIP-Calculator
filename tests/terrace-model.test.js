@@ -35,3 +35,27 @@ test('manual roof area is preserved and receives waste', () => {
   assert.equal(result.netArea, 20);
   assert.equal(result.purchaseArea, 23);
 });
+
+test('roofed terrace gets posts sized from the wall panel', () => {
+  const platform = {
+    x: 0, y: 8, w: 10, h: 2,
+    roof: { mode: 'cold', shape: 'shed', lowHeight: 2.2 }
+  };
+  const garage = calculateTerraceRoof(platform, { w: 10, h: 8 }, { wallPanelThickness: 124, postSpacing: 3 });
+  const house = calculateTerraceRoof(platform, { w: 10, h: 8 }, { wallPanelThickness: 174, postSpacing: 3 });
+  assert.equal(garage.postSection, '100x100');
+  assert.equal(house.postSection, '150x100');
+  assert.equal(house.postCount, 5);
+  assert.equal(house.postLength, 11);
+  assert.equal(house.postVolume, 0.165);
+});
+
+test('gable terrace returns exposed gable area and ridge length', () => {
+  const result = calculateTerraceRoof({
+    x: 0, y: 8, w: 6, h: 2,
+    roof: { mode: 'cold', shape: 'gable', ridgeHeight: 1, gableType: 'auto', gableCount: 1 }
+  }, { w: 10, h: 8 });
+  assert.equal(result.gableType, 'cold');
+  assert.equal(result.gableArea, 3.3);
+  assert.equal(result.ridgeLength, 2.3);
+});

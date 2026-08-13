@@ -27,6 +27,52 @@ test('warm main roof and terrace roofs are cut only in the roof section', () => 
   assert.equal(result.lines.filter((line) => line.id === 'roof:sip-panel').length, 1);
 });
 
+test('cold roof defaults to 50x150 rafters and includes cold gables', () => {
+  const project = createDefaultProject();
+  const result = calculateProject(project);
+  const rafters = result.lines.find((line) => line.id === 'roof:rafters');
+  assert.match(rafters.name, /50×150/);
+  assert.equal(rafters.catalogId, 'MAT-023');
+  assert.ok(result.roof.gableArea > 0);
+  assert.equal(result.roof.coldGableArea, result.roof.geometry.gableArea);
+  assert.ok(result.lines.some((line) => line.id === 'roof:gable-frame-work' && line.catalogId === 'LAB-027'));
+});
+
+test('main roof can count one exposed gable instead of two', () => {
+  const project = createDefaultProject();
+  project.settings.roof.gableCount = 1;
+  const result = calculateProject(project);
+  assert.equal(result.roof.gableArea, result.roof.geometry.gableArea / 2);
+});
+
+test('warm gables use wall SIP panels instead of a cold timber frame', () => {
+  const project = createDefaultProject();
+  project.settings.roof.type = 'sip';
+  project.settings.roof.gableType = 'auto';
+  project.settings.sip.wallThickness = '174';
+  const result = calculateProject(project);
+  assert.equal(result.roof.warmGableArea, result.roof.geometry.gableArea);
+  assert.ok(result.lines.some((line) => line.id === 'roof:gable-sip-panel' && line.name.includes('174')));
+  assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
+});
+
+test('terrace roof adds its slopes, posts and optional gable to the roof estimate', () => {
+  const project = createDefaultProject();
+  const terrace = project.plan.platforms[0];
+  terrace.roof.mode = 'cold';
+  terrace.roof.shape = 'gable';
+  terrace.roof.gableType = 'cold';
+  terrace.roof.gableCount = 1;
+  project.settings.sip.wallThickness = '124';
+  const result = calculateProject(project);
+  assert.ok(result.roof.terraceRoofs[0].result.netArea > 0);
+  assert.ok(result.roof.terraceRoofs[0].result.gableArea > 0);
+  assert.ok(result.roof.terracePostCount > 0);
+  const posts = result.lines.find((line) => line.id === 'roof:terrace-posts-100x100');
+  assert.equal(posts.catalogId, 'MAT-017');
+  assert.match(posts.name, /100×100/);
+});
+
 test('SIP joinery switches between thermobeam, board pack and solid beam', () => {
   const project = createDefaultProject();
   [['MAT-186', 'MAT-015'], ['MAT-187', 'MAT-013'], ['MAT-188', 'MAT-014']].forEach(([packageId, thermalId]) => {

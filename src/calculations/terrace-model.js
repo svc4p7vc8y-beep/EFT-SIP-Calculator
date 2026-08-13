@@ -3,6 +3,8 @@ const BINDING_MODES = new Set(['shared', 'separate', 'none']);
 const ROOF_MODES = new Set(['none', 'cold', 'warm']);
 const ROOF_SHAPES = new Set(['shed', 'continuation', 'gable']);
 const AREA_MODES = new Set(['auto', 'manual']);
+const GABLE_TYPES = new Set(['none', 'auto', 'cold', 'sip']);
+const POST_SECTIONS = new Set(['auto', '100x100', '150x100']);
 
 const positive = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -28,6 +30,9 @@ export const TERRACE_PROJECT_DEFAULTS = Object.freeze({
     highHeight: 2.6,
     lowHeight: 2.2,
     ridgeHeight: 0.8,
+    gableType: 'auto',
+    gableCount: 1,
+    postSection: 'auto',
     wastePercent: 10
   })
 });
@@ -54,6 +59,9 @@ export function normalizeTerracePlatform(platform = {}) {
       highHeight: positive(roof.highHeight, TERRACE_PROJECT_DEFAULTS.roof.highHeight),
       lowHeight: positive(roof.lowHeight, TERRACE_PROJECT_DEFAULTS.roof.lowHeight),
       ridgeHeight: positive(roof.ridgeHeight, TERRACE_PROJECT_DEFAULTS.roof.ridgeHeight),
+      gableType: choice(roof.gableType, GABLE_TYPES, TERRACE_PROJECT_DEFAULTS.roof.gableType),
+      gableCount: Math.min(2, Math.round(positive(roof.gableCount, TERRACE_PROJECT_DEFAULTS.roof.gableCount))),
+      postSection: choice(roof.postSection, POST_SECTIONS, TERRACE_PROJECT_DEFAULTS.roof.postSection),
       wastePercent: positive(roof.wastePercent, TERRACE_PROJECT_DEFAULTS.roof.wastePercent)
     }
   };
@@ -95,12 +103,31 @@ export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
     }
   }
   const netArea = roof.mode === 'none' ? 0 : (roof.areaMode === 'manual' ? roof.manualArea : automaticArea);
+  const resolvedGableType = roof.gableType === 'auto' ? (roof.mode === 'warm' ? 'sip' : 'cold') : roof.gableType;
+  const gableArea = roof.mode !== 'none' && roof.shape === 'gable' && resolvedGableType !== 'none'
+    ? roofWidth * roof.ridgeHeight / 2 * roof.gableCount
+    : 0;
+  const requestedSection = roof.postSection === 'auto'
+    ? (positive(options.wallPanelThickness, 174) <= 124 ? '100x100' : '150x100')
+    : roof.postSection;
+  const [postWidthMm, postDepthMm] = requestedSection.split('x').map(Number);
+  const postSpacing = Math.max(0.5, positive(options.postSpacing, 3));
+  const postCount = roof.mode === 'none' || !attachedLength ? 0 : Math.max(2, Math.ceil(attachedLength / postSpacing) + 1);
+  const postLength = postCount * Math.max(0, roof.lowHeight);
   return {
     side,
     attachedLength: round(attachedLength, 3),
     projection: round(projection, 3),
     netArea: round(netArea, 2),
     purchaseArea: round(netArea * (1 + roof.wastePercent / 100), 2),
+    ridgeLength: roof.mode !== 'none' && roof.shape === 'gable' ? round(roofRun, 3) : 0,
+    gableType: resolvedGableType,
+    gableArea: round(gableArea, 2),
+    gablePurchaseArea: round(gableArea * (1 + roof.wastePercent / 100), 2),
+    postSection: requestedSection,
+    postCount,
+    postLength: round(postLength, 2),
+    postVolume: round(postLength * postWidthMm / 1000 * postDepthMm / 1000, 3),
     wastePercent: roof.wastePercent
   };
 }

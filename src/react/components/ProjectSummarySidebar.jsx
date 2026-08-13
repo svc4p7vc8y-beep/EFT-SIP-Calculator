@@ -68,7 +68,7 @@ export default function ProjectSummarySidebar({ project, calculation, onNavigate
     </SummarySection>
 
     <SummarySection title="Кровля" icon={Ruler} target="roof" onNavigate={onNavigate}>
-      <div className="summary-grid"><SummaryValue label="Тип" value={ROOF_TYPES[project.settings.roof.type] || '—'} /><SummaryValue label="Высота конька" value={`${formatNumber(project.settings.roof.ridgeHeight)} м`} /><SummaryValue label="Длина конька" value={`${formatNumber(project.settings.roof.ridgeLength)} м`} /><SummaryValue label="Всего кровли" value={`${formatNumber(roof.totalArea)} м²`} /></div>
+      <div className="summary-grid"><SummaryValue label="Тип" value={ROOF_TYPES[project.settings.roof.type] || '—'} /><SummaryValue label="Стропила" value={(project.settings.roof.rafterSection || '50x150').replace('x', '×')} /><SummaryValue label="Скаты" value={`${formatNumber((roof.coldSlopeArea || 0) + (roof.warmSlopeArea || 0))} м²`} /><SummaryValue label="Фронтоны" value={`${formatNumber(roof.gableArea)} м²`} /><SummaryValue label="Столбы террас" value={`${roof.terracePostCount || 0} шт`} /><SummaryValue label="Всего" value={`${formatNumber(roof.totalArea)} м²`} /></div><p className="summary-detail">Конёк: высота {formatNumber(project.settings.roof.ridgeHeight)} м · длина {formatNumber(project.settings.roof.ridgeLength)} м</p>
     </SummarySection>
 
     <SummarySection title="Террасы и крыльцо" icon={Trees} target="terrace" onNavigate={onNavigate}>

@@ -2,7 +2,7 @@ import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 
-export const REACT_PROJECT_VERSION = 49;
+export const REACT_PROJECT_VERSION = 50;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -124,7 +124,7 @@ export function createDefaultProject() {
     settings: {
       piles: { spacing: 2.5, boardVolumePerMeter: 0.0225 },
       sip: { floorThickness: '224', wallThickness: '174', ceilingThickness: '224', connectorType: 'thermal', wastePercent: 5 },
-      roof: { type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0 },
+      roof: { type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0, rafterSection: '50x150', gableType: 'auto', gableCount: 2 },
       delivery: { distance: 30, trips: 2, cargoVolume: 40, baseTrip: 7000, perKm: 50, unloadingPerM3: 500 },
       engineering: { cableRoute: 120, electricPoints: 50, waterPipe: 100, waterPoints: 5, sewerLength: 20, sewerPoints: 5, ventDuct: 25, ventGrilles: 5 },
       internal: { wallArea: 300, ceilingArea: 72, laminateArea: 75, tileArea: 30, doors: 5 },
