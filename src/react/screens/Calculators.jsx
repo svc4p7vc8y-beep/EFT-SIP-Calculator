@@ -127,11 +127,13 @@ function RafterSystemPreview({ calculation }) {
             <line className="roof-scheme-support" x1="170" y1="42" x2="170" y2="127" />
             <line className="roof-scheme-support" x1="105" y1="85" x2="170" y2="127" />
             <line className="roof-scheme-support" x1="235" y1="85" x2="170" y2="127" />
-          </> : <line className="roof-scheme-support" x1="48" y1="124" x2="292" y2="124" />}
-          <text x="170" y="207" textAnchor="middle">{layered ? "Наслонная · прогон, стойка и подкосы" : truss ? "Стропильная ферма · пояс и решётка" : "Висячая система · затяжка"}</text>
+          </> : <line className="roof-scheme-support" x1="84" y1="100" x2="256" y2="100" />}
+          <text x="170" y="207" textAnchor="middle">{layered ? "Наслонная · прогон, стойка и подкосы" : truss ? "Стропильная ферма · пояс и решётка" : "Висячая система · поднятая затяжка A-frame"}</text>
         </g>
         <g className="roof-scheme-plan">
           <rect x="370" y="38" width="318" height="149" />
+          <line className="roof-scheme-mauerlat-line" x1="374" y1="45" x2="684" y2="45" />
+          <line className="roof-scheme-mauerlat-line" x1="374" y1="180" x2="684" y2="180" />
           <line className="roof-scheme-ridge" x1="370" y1="112" x2="688" y2="112" />
           {planRafters.map((x) => <line key={x} x1={x} y1="38" x2={x} y2="187" />)}
           <text x="529" y="207" textAnchor="middle">{structure.pairCount || 0} пар · шаг {formatNumber(structure.step || 0.6)} м</text>
@@ -819,6 +821,28 @@ export default function Calculators({ type }) {
                 step={1}
                 onChange={(value) => setSetting("roof", "wastePercent", value)}
               />
+              <NumberField
+                label="Карнизный свес · слева и справа"
+                value={project.settings.roof.eaveOverhang ?? 0.5}
+                suffix="м"
+                min={0}
+                max={2}
+                step={0.05}
+                onChange={(value) => setSetting("roof", "eaveOverhang", value)}
+              />
+              <NumberField
+                label="Торцевой свес · спереди и сзади"
+                value={project.settings.roof.gableOverhang ?? 0.3}
+                suffix="м"
+                min={0}
+                max={2}
+                step={0.05}
+                onChange={(value) => setSetting("roof", "gableOverhang", value)}
+              />
+              <div className="readout">
+                <span>Габарит кровли со свесами</span>
+                <strong>{formatNumber(calculation.roof.geometry?.roofLength)} × {formatNumber(calculation.roof.geometry?.roofSpan)} м</strong>
+              </div>
               {project.settings.roof.type === "combo" ? (
                 <NumberField
                   label="Тёплая часть"

@@ -152,6 +152,16 @@ test('flat main roof uses one horizontal plane without ridge or gables', () => {
   assert.equal(geometry.slopeCoefficient, 1);
 });
 
+test('main roof geometry includes independent eave and gable overhangs', () => {
+  const geometry = roofGeometry({ span: 8, ridgeLength: 10, ridgeHeight: 3, eaveOverhang: 0.5, gableOverhang: 0.3 });
+  assert.equal(geometry.roofSpan, 9);
+  assert.equal(geometry.roofLength, 10.6);
+  assert.equal(geometry.slopeLength, 5.408);
+  assert.equal(geometry.totalSlopeArea, 114.66);
+  assert.equal(geometry.gableArea, 24);
+  assert.equal(geometry.slopeCoefficient, 1.25);
+});
+
 test('house dimensions move to the free perimeter side', () => {
   const leftTerrace = chooseDimensionSides({
     house: { w: 10, h: 8 },

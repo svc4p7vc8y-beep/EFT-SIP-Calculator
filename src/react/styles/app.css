@@ -178,6 +178,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .rafter-scheme svg rect { fill:color-mix(in srgb,var(--panel) 86%,transparent); }
 .rafter-scheme svg .roof-scheme-ridge { stroke:#c88b24; stroke-width:7; }
 .rafter-scheme svg .roof-scheme-mauerlat,.rafter-scheme svg .roof-scheme-ridge-block { fill:#c88b24; stroke:#a56d12; stroke-width:1.5; }
+.rafter-scheme svg .roof-scheme-mauerlat-line { stroke:#c88b24; stroke-width:7; stroke-linecap:square; }
 .rafter-scheme svg .roof-scheme-support { stroke:var(--green); stroke-width:4; }
 .rafter-scheme svg text { fill:var(--muted); font-size:12px; font-weight:700; }
 .rafter-scheme-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }

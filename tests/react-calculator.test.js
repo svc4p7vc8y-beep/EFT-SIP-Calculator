@@ -137,12 +137,29 @@ test('gable roof includes mauerlat and adds the ridge board to matching rafter m
   assert.ok(result.lines.some((line) => line.id === 'roof:ridge-work' && line.catalogId === 'LAB-029'));
 });
 
+test('main roof overhangs increase covering, rafters, ridge, trims and gutter length', () => {
+  const project = createDefaultProject();
+  project.settings.roof.eaveOverhang = 0;
+  project.settings.roof.gableOverhang = 0;
+  project.settings.roof.includeGutter = true;
+  const withoutOverhangs = calculateProject(project);
+  project.settings.roof.eaveOverhang = 0.5;
+  project.settings.roof.gableOverhang = 0.3;
+  const withOverhangs = calculateProject(project);
+  assert.ok(withOverhangs.roof.geometry.totalSlopeArea > withoutOverhangs.roof.geometry.totalSlopeArea);
+  assert.ok(withOverhangs.roof.rafterLegLength > withoutOverhangs.roof.rafterLegLength);
+  assert.equal(withOverhangs.roof.ridgeBeamLength, withoutOverhangs.roof.ridgeBeamLength + 0.6);
+  assert.equal(withOverhangs.roof.mainEaveLength, withoutOverhangs.roof.mainEaveLength + 1.2);
+  assert.ok(withOverhangs.roof.mainVergeLength > withoutOverhangs.roof.mainVergeLength);
+  assert.equal(withOverhangs.roof.gutterLength, withOverhangs.roof.mainEaveLength);
+});
+
 test('main roof switches to one flat plane without ridge and gables', () => {
   const project = createDefaultProject();
   project.settings.roof.shape = 'flat';
   const result = calculateProject(project);
   assert.equal(result.roof.mainRoofShape, 'flat');
-  assert.equal(result.roof.geometry.totalSlopeArea, Math.round(project.plan.house.h * result.inputs.roof.ridgeLength * 100) / 100);
+  assert.equal(result.roof.geometry.totalSlopeArea, Math.round((project.plan.house.h + project.settings.roof.eaveOverhang * 2) * (result.inputs.roof.ridgeLength + project.settings.roof.gableOverhang * 2) * 100) / 100);
   assert.equal(result.roof.gableArea, 0);
   assert.equal(result.lines.some((line) => line.id === 'roof:ridge'), false);
   assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);

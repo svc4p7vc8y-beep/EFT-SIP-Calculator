@@ -57,7 +57,7 @@ function resolveRafterStructure(project, geometry, frameLength) {
       : ['hanging', 'layered', 'truss'].includes(roof.rafterSystem) ? roof.rafterSystem : 'hanging';
   const step = automatic ? 0.6 : Math.min(1.2, Math.max(0.3, Number(roof.rafterStep) || 0.6));
   const section = automatic
-    ? (geometry.slopeLength <= 7 ? '50x150' : '50x200')
+    ? ((geometry.wallSlopeLength || geometry.slopeLength) <= 7 ? '50x150' : '50x200')
     : (roof.rafterSection === '50x200' ? '50x200' : '50x150');
   const boardWidth = 0.05;
   const module = step + boardWidth;
@@ -178,7 +178,16 @@ function roofSection(project, metrics, index, inputs) {
   const { roof } = project.settings;
   const span = Number(project.plan.house.h) || 0;
   const mainRoofShape = roof.shape === 'flat' ? 'flat' : 'gable';
-  const geometry = roofGeometry({ span, ridgeLength: inputs.roof.ridgeLength, ridgeHeight: roof.ridgeHeight, shape: mainRoofShape });
+  const eaveOverhang = Math.max(0, Number(roof.eaveOverhang) || 0);
+  const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
+  const geometry = roofGeometry({
+    span,
+    ridgeLength: inputs.roof.ridgeLength,
+    ridgeHeight: roof.ridgeHeight,
+    shape: mainRoofShape,
+    eaveOverhang,
+    gableOverhang
+  });
   const mainArea = geometry.totalSlopeArea;
   const mainWarmPercent = roof.type === 'sip' ? 100 : roof.type === 'combo' ? roof.warmPercent : 0;
   const insulatedRafterArea = Math.min(mainArea, (metrics.openCeilingArea || 0) * geometry.slopeCoefficient);
@@ -229,7 +238,7 @@ function roofSection(project, metrics, index, inputs) {
   const mauerlatVolume = mauerlatBoardCount * 6 * 0.1 * 0.15;
   const anchorSpacing = Math.max(0.1, inputs.formulas.mauerlatAnchorSpacing);
   const mauerlatAnchors = mauerlatLength ? 2 * (Math.ceil(houseLength / anchorSpacing) + 1) : 0;
-  const ridgeBeamLength = mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength;
+  const ridgeBeamLength = mainRoofShape === 'flat' ? 0 : geometry.roofLength;
   const ridgeBeamPurchaseLength = ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
   const rafterReserve = rafterStructure.system === 'truss'
     ? inputs.formulas.trussRafterReserve
@@ -239,7 +248,7 @@ function roofSection(project, metrics, index, inputs) {
   const mainRafterBoardCount = mainRafterRequiredLength ? Math.ceil(mainRafterRequiredLength / 6) : 0;
   const mainRafterPurchaseLength = mainRafterBoardCount * 6;
   const mainRafterVolume = mainRafterPurchaseLength * 0.05 * rafterDepth;
-  const mainEaveLength = mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength * 2;
+  const mainEaveLength = mainRoofShape === 'flat' ? 0 : geometry.roofLength * 2;
   const mainVergeLength = mainRoofShape === 'flat' ? 0 : geometry.slopeLength * 4;
   const mainEaveTrimPurchaseLength = mainEaveLength * inputs.formulas.roofTrimReserve;
   const mainVergeTrimPurchaseLength = mainVergeLength * inputs.formulas.roofTrimReserve;
@@ -333,7 +342,7 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, 'roof', 'Монтаж кровельного покрытия — профлист С-21', mainConstructionArea, { key: 'cover-work', kind: 'labor', name: 'Монтаж профлиста основной кровли', unit: 'м²' }),
     makeLine(index, 'roof', 'Саморезы кровельные', Math.ceil(mainConstructionArea * inputs.formulas.roofScrewsPerM2), { key: 'roof-screws', unit: 'шт' }),
     makeLine(index, 'roof', 'Гвозди/саморезы для обрешётки', totalArea * inputs.formulas.roofGeneralFastenerKgPerM2, { key: 'general-fasteners', unit: 'кг', name: 'Сопутствующий крепёж кровли и фронтонов' }),
-    makeLine(index, 'roof', 'Планка конька', (mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength) * inputs.formulas.ridgeReserve, { key: 'ridge', unit: 'м.п.' }),
+    makeLine(index, 'roof', 'Планка конька', ridgeBeamLength * inputs.formulas.ridgeReserve, { key: 'ridge', unit: 'м.п.' }),
     makeLine(index, 'roof', 'Монтаж конька', ridgeBeamLength, { key: 'ridge-work', kind: 'labor', name: 'Монтаж планки конька' }),
     roof.includeRidgeSeal !== false ? makeLine(index, 'roof', 'Уплотнитель универсальный под конёк', ridgeBeamLength * inputs.formulas.ridgeReserve, { key: 'ridge-seal', unit: 'м.п.', name: 'Уплотнитель универсальный под конёк' }) : null,
     roof.includeEaveTrim !== false ? makeLine(index, 'roof', 'Планка карнизная', mainEaveTrimPurchaseLength, { key: 'eave-trim', unit: 'м.п.' }) : null,
@@ -378,6 +387,7 @@ function roofSection(project, metrics, index, inputs) {
     rafterLegLength: round(mainRafterLegLength, 3), rafterRequiredLength: round(mainRafterRequiredLength, 3),
     rafterBoardCount: mainRafterBoardCount, rafterPurchaseLength: round(mainRafterPurchaseLength, 3),
     mainEaveLength: round(mainEaveLength, 3), mainVergeLength: round(mainVergeLength, 3),
+    eaveOverhang: round(eaveOverhang, 3), gableOverhang: round(gableOverhang, 3),
     mainEaveTrimPurchaseLength: round(mainEaveTrimPurchaseLength, 3), mainVergeTrimPurchaseLength: round(mainVergeTrimPurchaseLength, 3),
     lathStep, mainLathRequiredLength: round(mainLathRequiredLength, 3), mainLathBoardCount,
     gutterLength: round(gutterLength, 3), gutterPieces, gutterConnectors, gutterEndCaps, gutterBrackets, gutterOutlets,
