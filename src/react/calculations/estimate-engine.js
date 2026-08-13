@@ -1,6 +1,7 @@
 import { calculatePlanMetrics, calculateSipCutting, roofGeometry } from '../../calculations/plan-metrics.js';
 import { calculateTerraceRoof } from '../../calculations/terrace-model.js';
 import { calculateFoundation } from './foundation-model.js';
+import { deriveLinkedInputs } from './calculation-links.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -47,7 +48,7 @@ function sipPanelName(thickness) {
   return `СИП-панель 2500×1250×${thickness} мм`;
 }
 
-function sipSection(project, metrics, index, warmRoofArea = 0) {
+function sipSection(project, metrics, index, inputs, warmRoofArea = 0) {
   const { sip } = project.settings;
   const surfaces = {
     floor: project.services.sipFloor ? metrics.roomArea : 0,
@@ -56,7 +57,8 @@ function sipSection(project, metrics, index, warmRoofArea = 0) {
     partitions: project.services.partitions ? metrics.partitionNetArea : 0,
     roof: project.services.roof ? warmRoofArea : 0
   };
-  const cutting = calculateSipCutting(surfaces, { extraWastePercent: sip.wastePercent });
+  const f = inputs.formulas;
+  const cutting = calculateSipCutting(surfaces, { panelArea: f.panelArea, extraWastePercent: sip.wastePercent });
   const byKey = new Map(cutting.map((row) => [row.key, row]));
   const panelGroups = [
     ['floor', sip.floorThickness], ['walls', sip.wallThickness], ['ceiling', sip.ceilingThickness], ['roof', sip.ceilingThickness]
@@ -71,44 +73,44 @@ function sipSection(project, metrics, index, warmRoofArea = 0) {
   });
   const partition = byKey.get('partitions');
   if (partition.area) {
-    lines.push(makeLine(index, 'sip', 'Доска ест.влажн. сосна 50*100мм', partition.area * 0.014, { key: 'partition-board', unit: 'м³', source: 'partitions' }));
+    lines.push(makeLine(index, 'sip', 'Доска ест.влажн. сосна 50*100мм', partition.area * f.partitionBoardM3PerM2, { key: 'partition-board', unit: 'м³', source: 'partitions' }));
     lines.push(makeLine(index, 'sip', 'Возведение перегородок из доски 100х50', partition.area, { key: 'partition-work', kind: 'labor', source: 'partitions' }));
   }
   const panelTotal = cutting.reduce((sum, row) => sum + row.panels, 0);
   const assemblyArea = surfaces.floor + surfaces.walls + surfaces.ceiling + surfaces.roof;
-  lines.push(makeLine(index, 'sip', 'Пена монтажная 800мл', Math.ceil(panelTotal * 0.5), { key: 'foam' }));
-  lines.push(makeLine(index, 'sip', 'Саморезы конст.', assemblyArea * 0.045, { key: 'fasteners', unit: 'кг' }));
-  lines.push(makeLine(index, 'sip', 'Саморезы 4.2 x 75', assemblyArea * 0.012, { key: 'seam-screws', unit: 'кг' }));
-  lines.push(makeLine(index, 'sip', 'Крепёж спиральный', Math.ceil(panelTotal / 35), { key: 'spiral-fasteners', unit: 'уп' }));
+  lines.push(makeLine(index, 'sip', 'Пена монтажная 800мл', Math.ceil(panelTotal * f.foamUnitsPerPanel), { key: 'foam' }));
+  lines.push(makeLine(index, 'sip', 'Саморезы конст.', assemblyArea * f.structuralFastenerKgPerM2, { key: 'fasteners', unit: 'кг' }));
+  lines.push(makeLine(index, 'sip', 'Саморезы 4.2 x 75', assemblyArea * f.seamScrewKgPerM2, { key: 'seam-screws', unit: 'кг' }));
+  lines.push(makeLine(index, 'sip', 'Крепёж спиральный', Math.ceil(panelTotal / f.spiralPackPerPanels), { key: 'spiral-fasteners', unit: 'уп' }));
   return { lines: compact(lines), cutting };
 }
 
-function foundationSection(project, index) {
+function foundationSection(project, index, inputs) {
   const foundation = calculateFoundation(project.plan, project.settings.piles);
   if (!project.services.foundation) return { lines: [], foundation };
   const count = foundation.totalPiles;
   return {
     foundation,
     lines: compact([
-      makeLine(index, 'foundation', 'Разбивка осей фундамента', count, { key: 'axes', kind: 'labor' }),
+      makeLine(index, 'foundation', 'Разбивка осей фундамента (1 свая)', count, { key: 'axes', kind: 'labor' }),
       makeLine(index, 'foundation', 'Монтаж свай', count, { key: 'pile-work', kind: 'labor' }),
       makeLine(index, 'foundation', 'Винтовые сваи 108мм', count, { key: 'piles' }),
-      makeLine(index, 'foundation', 'Пескобетон М300', count * 0.01333, { key: 'concrete', unit: 'м³', digits: 3 }),
+      makeLine(index, 'foundation', 'Пескобетон М300', count * inputs.formulas.pileConcreteM3, { key: 'concrete', unit: 'м³', digits: 3 }),
       makeLine(index, 'foundation', 'Оголовок для свай', count, { key: 'heads' }),
       makeLine(index, 'foundation', 'Монтаж оголовков', count, { key: 'heads-work', kind: 'labor' }),
       makeLine(index, 'foundation', 'Монтаж обвязки', count, { key: 'binding-work', kind: 'labor' }),
       makeLine(index, 'foundation', 'Доска ест. влажн. сосна 50х150мм', foundation.boardVolume, { key: 'binding-board', unit: 'м³', digits: 3 }),
-      makeLine(index, 'foundation', 'Саморезы 6х120', count * 0.12, { key: 'binding-screws', unit: 'кг' }),
-      makeLine(index, 'foundation', 'Уголок металлический крепёжный', count * 2, { key: 'binding-corners', unit: 'шт' })
+      makeLine(index, 'foundation', 'Саморезы 6х120', count * inputs.formulas.pileScrewKg, { key: 'binding-screws', unit: 'кг' }),
+      makeLine(index, 'foundation', 'Уголок металлический крепёжный', count * inputs.formulas.pileCorners, { key: 'binding-corners', unit: 'шт' })
     ])
   };
 }
 
-function roofSection(project, index) {
+function roofSection(project, index, inputs) {
   if (!project.services.roof) return { lines: [], geometry: null, terraceRoofs: [] };
   const { roof } = project.settings;
   const span = Number(project.plan.house.h) || 0;
-  const geometry = roofGeometry({ span, ridgeLength: roof.ridgeLength, ridgeHeight: roof.ridgeHeight });
+  const geometry = roofGeometry({ span, ridgeLength: inputs.roof.ridgeLength, ridgeHeight: roof.ridgeHeight });
   const mainArea = geometry.totalSlopeArea;
   const mainWarmPercent = roof.type === 'sip' ? 100 : roof.type === 'combo' ? roof.warmPercent : 0;
   let coldArea = mainArea * (1 - mainWarmPercent / 100);
@@ -125,17 +127,17 @@ function roofSection(project, index) {
   const lines = compact([
     makeLine(index, 'roof', 'Монтаж стропильной системы', coldArea, { key: 'rafters-work', kind: 'labor' }),
     makeLine(index, 'roof', 'Монтаж обрешётки и контробрешётки', coldArea, { key: 'lath-work', kind: 'labor' }),
-    makeLine(index, 'roof', 'Доска ест. влажн. сосна 50х200мм', coldArea * 0.02456, { key: 'rafters', unit: 'м³', digits: 3 }),
-    makeLine(index, 'roof', 'Доска ест.влажн. сосна 25*100мм', coldArea * 0.00655, { key: 'lath', unit: 'м³', digits: 3 }),
+    makeLine(index, 'roof', 'Доска ест. влажн. сосна 50х200мм', coldArea * inputs.formulas.rafterM3PerM2, { key: 'rafters', unit: 'м³', digits: 3 }),
+    makeLine(index, 'roof', 'Доска ест.влажн. сосна 25*100мм', coldArea * inputs.formulas.lathM3PerM2, { key: 'lath', unit: 'м³', digits: 3 }),
     makeLine(index, 'roof', 'Гидро-ветрозащитная мембрана', Math.ceil(totalArea / 70), { key: 'membrane', unit: 'рулон' }),
     makeLine(index, 'roof', 'Профлист С-21 окрашенный', totalArea * (1 + roof.wastePercent / 100), { key: 'cover', unit: 'м²' }),
-    makeLine(index, 'roof', 'Саморезы кровельные', Math.ceil(totalArea * 8), { key: 'roof-screws', unit: 'шт' }),
-    makeLine(index, 'roof', 'Планка конька', roof.ridgeLength * 1.1, { key: 'ridge', unit: 'м.п.' })
+    makeLine(index, 'roof', 'Саморезы кровельные', Math.ceil(totalArea * inputs.formulas.roofScrewsPerM2), { key: 'roof-screws', unit: 'шт' }),
+    makeLine(index, 'roof', 'Планка конька', inputs.roof.ridgeLength * inputs.formulas.ridgeReserve, { key: 'ridge', unit: 'м.п.' })
   ]);
   return { lines, geometry, terraceRoofs, coldArea: round(coldArea), warmArea: round(warmArea), totalArea: round(totalArea) };
 }
 
-function terraceSection(project, index) {
+function terraceSection(project, index, inputs) {
   if (!project.services.terrace) return { lines: [], area: 0 };
   const platforms = project.plan.platforms.filter((platform) => platform.include !== false);
   const area = platforms.reduce((sum, platform) => sum + platform.w * platform.h, 0);
@@ -147,9 +149,9 @@ function terraceSection(project, index) {
     lines: compact([
       makeLine(index, 'terrace', 'Монтаж каркаса террасы', area, { key: 'frame-work', kind: 'labor', unit: 'м²' }),
       makeLine(index, 'terrace', 'Монтаж настила террасы', area, { key: 'deck-work', kind: 'labor', unit: 'м²' }),
-      makeLine(index, 'terrace', 'Доска ест. влажн. сосна 50х150мм', perimeter * 0.05 * 0.15 + area * 0.024, { key: 'frame-board', unit: 'м³', digits: 3 }),
-      makeLine(index, 'terrace', 'Доска террасная 45×145 мм', area * 0.045 * 1.05, { key: 'deck', unit: 'м³', digits: 3 }),
-      makeLine(index, 'terrace', 'Саморезы 4.2 x 75', area * 0.12, { key: 'screws', unit: 'кг' }),
+      makeLine(index, 'terrace', 'Доска ест. влажн. сосна 50х150мм', perimeter * 0.05 * 0.15 + area * inputs.formulas.terraceFrameBoardM3PerM2, { key: 'frame-board', unit: 'м³', digits: 3 }),
+      makeLine(index, 'terrace', 'Доска террасная 45×145 мм', area * 0.045 * inputs.formulas.terraceDeckReserve, { key: 'deck', unit: 'м³', digits: 3 }),
+      makeLine(index, 'terrace', 'Саморезы 4.2 x 75', area * inputs.formulas.terraceScrewKgPerM2, { key: 'screws', unit: 'кг' }),
       makeLine(index, 'terrace', 'Ступень лестницы', stairs, { key: 'steps' }),
       makeLine(index, 'terrace', 'Изготовление лестниц', staircases, { key: 'steps-work', kind: 'labor', unit: 'шт' })
     ])
@@ -172,8 +174,8 @@ function openingSection(project, index) {
   return { lines: compact(lines) };
 }
 
-function engineeringSection(project, index) {
-  const s = project.settings.engineering;
+function engineeringSection(project, index, inputs) {
+  const s = inputs.engineering;
   const lines = [];
   if (project.services.engineeringElectric) {
     lines.push(makeLine(index, 'engineering', 'Кабель ВВГнг-LS 3×1,5', s.cableRoute * 0.45, { key: 'cable-light', unit: 'м' }));
@@ -195,9 +197,9 @@ function engineeringSection(project, index) {
   return { lines: compact(lines) };
 }
 
-function finishSections(project, index) {
-  const internal = project.settings.internal;
-  const external = project.settings.external;
+function finishSections(project, index, inputs) {
+  const internal = inputs.internal;
+  const external = inputs.external;
   const internalLines = project.services.internalFinish ? compact([
     makeLine(index, 'internal', 'Монтаж имитации бруса', internal.wallArea, { key: 'wall-work', kind: 'labor', unit: 'м²' }),
     makeLine(index, 'internal', 'Имитация бруса', internal.wallArea * 0.016, { key: 'wall-material', unit: 'м³' }),
@@ -217,29 +219,30 @@ function finishSections(project, index) {
   return { internalLines, externalLines };
 }
 
-function deliverySection(project, index, subtotalVolume) {
+function deliverySection(project, index, inputs) {
   if (!project.services.delivery) return { lines: [] };
   const d = project.settings.delivery;
   return {
     lines: compact([
       makeLine(index, 'delivery', 'Доставка — базовая стоимость рейса', d.trips, { key: 'base', unit: 'рейс', price: d.baseTrip }),
       makeLine(index, 'delivery', 'Доставка — стоимость 1 км', d.distance * d.trips, { key: 'distance', unit: 'км', price: d.perKm }),
-      makeLine(index, 'delivery', 'Погрузка/разгрузка материала', d.cargoVolume || subtotalVolume, { key: 'unload', unit: 'м³', price: d.unloadingPerM3 })
+      makeLine(index, 'delivery', 'Погрузка/разгрузка материала', inputs.delivery.cargoVolume, { key: 'unload', unit: 'м³', price: d.unloadingPerM3 })
     ])
   };
 }
 
 export function calculateProject(project) {
   const metrics = calculatePlanMetrics(project.plan);
+  const inputs = deriveLinkedInputs(project, metrics);
   const index = catalogIndex(project);
-  const foundation = foundationSection(project, index);
-  const roof = roofSection(project, index);
-  const sip = sipSection(project, metrics, index, roof.warmArea || 0);
-  const terrace = terraceSection(project, index);
+  const foundation = foundationSection(project, index, inputs);
+  const roof = roofSection(project, index, inputs);
+  const sip = sipSection(project, metrics, index, inputs, roof.warmArea || 0);
+  const terrace = terraceSection(project, index, inputs);
   const openings = openingSection(project, index);
-  const engineering = engineeringSection(project, index);
-  const finishes = finishSections(project, index);
-  const delivery = deliverySection(project, index, project.settings.delivery.cargoVolume);
+  const engineering = engineeringSection(project, index, inputs);
+  const finishes = finishSections(project, index, inputs);
+  const delivery = deliverySection(project, index, inputs);
   const sections = [
     { key: 'foundation', title: 'Свайно-винтовой фундамент и обвязка', lines: foundation.lines },
     { key: 'sip', title: 'СИП-конструкции и перегородки', lines: sip.lines },
@@ -259,5 +262,5 @@ export function calculateProject(project) {
     return acc;
   }, { materials: 0, labor: 0 });
   totals.total = totals.materials + totals.labor;
-  return { metrics, foundation: foundation.foundation, sip, roof, terrace, sections, lines, totals };
+  return { metrics, inputs, foundation: foundation.foundation, sip, roof, terrace, sections, lines, totals };
 }

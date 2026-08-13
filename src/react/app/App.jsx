@@ -14,6 +14,7 @@ const ParametersScreen = lazy(() => import('../screens/ParametersScreen.jsx'));
 const Calculators = lazy(() => import('../screens/Calculators.jsx'));
 const PriceScreen = lazy(() => import('../screens/PriceScreen.jsx'));
 const EstimateScreen = lazy(() => import('../screens/EstimateScreen.jsx'));
+const CalculationSettingsScreen = lazy(() => import('../screens/CalculationSettingsScreen.jsx'));
 
 const NAV_ITEMS = [
   { id: 'plan', label: 'План дома', icon: Ruler, group: 'project' },
@@ -31,7 +32,7 @@ const NAV_ITEMS = [
 ];
 
 function downloadProject(project) {
-  const payload = { ...project, savedAt: new Date().toISOString(), appVersion: 46, schemaVersion: 3 };
+  const payload = { ...project, savedAt: new Date().toISOString(), appVersion: REACT_PROJECT_VERSION, schemaVersion: 3 };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -45,6 +46,7 @@ function Screen({ active }) {
   if (active === 'parameters') return <ParametersScreen />;
   if (active === 'price') return <PriceScreen />;
   if (active === 'estimate') return <EstimateScreen />;
+  if (active === 'calculation-settings') return <CalculationSettingsScreen />;
   return <Calculators type={active} />;
 }
 
@@ -113,6 +115,7 @@ export function App() {
           <button className="icon-button" onClick={undo} disabled={!canUndo} aria-label="Отменить"><ChevronLeft /></button>
           <button className="icon-button" onClick={redo} disabled={!canRedo} aria-label="Повторить"><ChevronRight /></button>
           <button className="icon-button" onClick={changeTheme} aria-label="Сменить тему">{theme === 'light' ? <Moon /> : <Sun />}</button>
+          <button className={`icon-button ${active === 'calculation-settings' ? 'active' : ''}`} onClick={() => setActive('calculation-settings')} aria-label="Настройка расчётов" title="Связи и формулы"><Settings2 /></button>
           <button className="icon-button" onClick={newProject} aria-label="Новый проект"><FilePlus2 /></button>
           <button className="icon-button" onClick={saveProject} aria-label="Сохранить проект"><Save /></button>
           <button className="icon-button" onClick={() => fileRef.current?.click()} aria-label="Открыть проект"><FileUp /></button>

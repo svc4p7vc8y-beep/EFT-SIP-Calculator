@@ -1,5 +1,6 @@
 import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
+import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 
 export const REACT_PROJECT_VERSION = 47;
 // Keep the established storage namespace so upgrading the application does not
@@ -126,7 +127,9 @@ export function createDefaultProject() {
       delivery: { distance: 30, trips: 2, cargoVolume: 40, baseTrip: 7000, perKm: 50, unloadingPerM3: 500 },
       engineering: { cableRoute: 120, electricPoints: 50, waterPipe: 100, waterPoints: 5, sewerLength: 20, sewerPoints: 5, ventDuct: 25, ventGrilles: 5 },
       internal: { wallArea: 300, ceilingArea: 72, laminateArea: 75, tileArea: 30, doors: 5 },
-      external: { facadeArea: 130, windArea: 100, insulationArea: 110, woodArea: 40, metalArea: 120, soffitArea: 63, cornerLength: 14 }
+      external: { facadeArea: 130, windArea: 100, insulationArea: 110, woodArea: 40, metalArea: 120, soffitArea: 63, cornerLength: 14 },
+      links: clone(DEFAULT_LINKS),
+      formulas: clone(DEFAULT_FORMULAS)
     },
     priceMat: clone(catalog.priceMat),
     priceLab: clone(catalog.priceLab),
@@ -185,7 +188,9 @@ export function migrateProject(raw) {
       delivery: { ...base.settings.delivery, ...(raw.settings?.delivery || {}) },
       engineering: { ...base.settings.engineering, ...(raw.settings?.engineering || {}) },
       internal: { ...base.settings.internal, ...(raw.settings?.internal || {}) },
-      external: { ...base.settings.external, ...(raw.settings?.external || {}) }
+      external: { ...base.settings.external, ...(raw.settings?.external || {}) },
+      links: { ...base.settings.links, ...(raw.settings?.links || {}) },
+      formulas: { ...base.settings.formulas, ...(raw.settings?.formulas || {}) }
     },
     priceMat: normalizeCatalog(raw.priceMat, base.priceMat),
     priceLab: normalizeCatalog(raw.priceLab, base.priceLab),

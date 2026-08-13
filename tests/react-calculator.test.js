@@ -64,3 +64,32 @@ test('new catalog rows are added to an older saved project', () => {
   const restored = migrateProject(project);
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-108').price, 1500);
 });
+
+test('plan geometry drives roof, engineering, finishing and delivery inputs', () => {
+  const project = createDefaultProject();
+  const before = calculateProject(project);
+  project.plan.house.w += 2;
+  project.plan.rooms[0].points[1].x += 1;
+  project.plan.rooms[0].points[2].x += 1;
+  const after = calculateProject(project);
+  assert.equal(after.inputs.roof.ridgeLength, before.inputs.roof.ridgeLength + 2);
+  assert.ok(after.inputs.engineering.cableRoute > before.inputs.engineering.cableRoute);
+  assert.ok(after.inputs.internal.ceilingArea > before.inputs.internal.ceilingArea);
+  assert.ok(after.inputs.delivery.cargoVolume > before.inputs.delivery.cargoVolume);
+});
+
+test('automatic links can be disabled and formulas are editable project data', () => {
+  const project = createDefaultProject();
+  project.settings.links.roofRidgeFromPlan = false;
+  project.settings.roof.ridgeLength = 7.25;
+  project.settings.formulas.pileCorners = 4;
+  const calculation = calculateProject(project);
+  assert.equal(calculation.inputs.roof.ridgeLength, 7.25);
+  const corners = calculation.lines.find((line) => line.id === 'foundation:binding-corners');
+  assert.equal(corners.qty, calculation.foundation.totalPiles * 4);
+});
+
+test('every default estimate line resolves to a priced catalog item', () => {
+  const calculation = calculateProject(createDefaultProject());
+  assert.deepEqual(calculation.lines.filter((line) => !line.catalogId || line.price <= 0), []);
+});
