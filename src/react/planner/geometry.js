@@ -122,6 +122,12 @@ export function pileRowAlignment(row, exactTolerance = 0.015, warningAngle = 7) 
   return { state: 'diagonal', axis: 'diagonal', offset, angle };
 }
 
+export function shouldClosePolygon(points, point, tolerance = 0.35) {
+  if (!Array.isArray(points) || points.length < 3 || !point) return false;
+  const first = points[0];
+  return Math.hypot((Number(point.x) || 0) - (Number(first.x) || 0), (Number(point.y) || 0) - (Number(first.y) || 0)) <= tolerance;
+}
+
 export function movePoints(points, dx, dy, plan, axes) {
   const moved = points.map((point) => ({ x: point.x + dx, y: point.y + dy }));
   const movedBounds = boundsOf(moved);

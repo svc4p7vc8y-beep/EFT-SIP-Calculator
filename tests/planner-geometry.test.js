@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, movePoints, nearestSegment,
-  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, snapPoint, snapPointDetails, unifiedWallSegments
+  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, shouldClosePolygon, snapPoint, snapPointDetails, unifiedWallSegments
 } from '../src/react/planner/geometry.js';
 
 const room = (id, name, x1, y1, x2, y2) => ({
@@ -117,4 +117,11 @@ test('new dimension lines are moved outside the house and keep their measured sp
   assert.deepEqual(horizontal, { x1: 2, y1: -0.8, x2: 8, y2: -0.8 });
   const vertical = dimensionOutsideHouse({ x1: 7, y1: 2, x2: 7.1, y2: 7 }, { w: 10, h: 8 });
   assert.deepEqual(vertical, { x1: 10.8, y1: 2, x2: 10.8, y2: 7 });
+});
+
+test('polygon closes only after three points when the pointer returns to the first node', () => {
+  const points = [{ x: 1, y: 1 }, { x: 5, y: 1 }, { x: 5, y: 4 }];
+  assert.equal(shouldClosePolygon(points, { x: 1.2, y: 1.1 }), true);
+  assert.equal(shouldClosePolygon(points, { x: 2, y: 2 }), false);
+  assert.equal(shouldClosePolygon(points.slice(0, 2), { x: 1, y: 1 }), false);
 });

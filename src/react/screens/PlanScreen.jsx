@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, DoorOpen, Download, Grid2X2Plus, Hammer, Layers3, Link2Off, MousePointer2, Pentagon,
-  Plus, Redo2, Ruler, Save, Share2, Sparkles, Trash2, Undo2, Upload, Warehouse, Waves, X, ZoomIn, ZoomOut
+  AlertTriangle, BrickWall, CircleDot, DoorOpen, Download, Fence, HousePlus, Layers3, ListTree,
+  MousePointer2, PanelsTopLeft, Pentagon, Plus, Redo2, Ruler, Save, Scissors, Share2, Sparkles,
+  SquareDashed, Trash2, Undo2, Upload, X, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { calculatePlanMetrics, chooseDimensionSides, polygonArea } from '../../calculations/plan-metrics.js';
 import { calculateTerraceRoof, normalizeTerracePlatform } from '../../calculations/terrace-model.js';
@@ -13,19 +14,18 @@ import { formatNumber, uid } from '../utils/format.js';
 import { applyPlanTransfer, downloadPlanTransfer, sharePlanTransfer } from '../storage/plan-transfer.js';
 import {
   allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, lineEndpoints, movePoints, nearestSegment,
-  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, roomPoints, roundCoord, snapPoint, snapPointDetails,
-  unifiedWallSegments, withRoomBounds
+  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, roomPoints, roundCoord, shouldClosePolygon,
+  snapPoint, snapPointDetails, unifiedWallSegments, withRoomBounds
 } from '../planner/geometry.js';
 
 const VIEW = { width: 1100, height: 760 };
 const SKETCHES_KEY = 'eft-react-plan-sketches-v47';
 const DRAW_TOOLS = new Set(['room', 'wall', 'dimension', 'pileRow', 'bindingLine', 'terrace', 'porch']);
 const TOOLS = [
-  ['select', 'Выбор', MousePointer2], ['room', 'Комната', Grid2X2Plus], ['polygon', 'Многоугольная', Pentagon],
-  ['wall', 'Стена', Hammer], ['gap', 'Разрыв стены', Link2Off], ['window', 'Окно', Warehouse], ['door', 'Дверь', DoorOpen],
-  ['garage', 'Гаражные ворота', Warehouse],
-  ['dimension', 'Размер', Ruler], ['pile', 'Свая', Waves], ['pileRow', 'Ряд свай', Waves], ['bindingLine', 'Обвязка', Layers3],
-  ['terrace', 'Терраса', Plus], ['porch', 'Крыльцо', Plus], ['delete', 'Удалить', Trash2]
+  ['select', 'Выбор', MousePointer2], ['room', 'Прямоугольная комната', SquareDashed], ['polygon', 'Комната свободной формы', Pentagon],
+  ['wall', 'Стена', BrickWall], ['gap', 'Разрыв стены', Scissors], ['window', 'Окно', PanelsTopLeft], ['door', 'Дверь / ворота', DoorOpen],
+  ['dimension', 'Размер', Ruler], ['pile', 'Отдельная свая', CircleDot], ['pileRow', 'Ряд свай', ListTree], ['bindingLine', 'Обвязка', Layers3],
+  ['terrace', 'Терраса', Fence], ['porch', 'Крыльцо', HousePlus], ['delete', 'Удалить', Trash2]
 ];
 
 const getStoredSketches = () => {
@@ -180,16 +180,20 @@ function DraftRoomDimensions({ start, end, p }) {
 function DraftPolygonEdge({ points, hoverPoint, p }) {
   if (!points.length || !hoverPoint) return null;
   const start = points.at(-1);
-  const a = p(start.x, start.y); const b = p(hoverPoint.x, hoverPoint.y);
-  const length = Math.hypot(hoverPoint.x - start.x, hoverPoint.y - start.y);
+  const closing = shouldClosePolygon(points, hoverPoint);
+  const target = closing ? points[0] : hoverPoint;
+  const a = p(start.x, start.y); const b = p(target.x, target.y);
+  const length = Math.hypot(target.x - start.x, target.y - start.y);
   if (length < 0.01) return null;
-  return <g className="polygon-hover-edge">
+  const alignment = pileRowAlignment({ x1: start.x, y1: start.y, x2: target.x, y2: target.y });
+  return <g className={`polygon-hover-edge guide-${alignment.state === 'aligned' ? 'aligned' : 'off-axis'} ${closing ? 'closing' : ''}`}>
     <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
     <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 8}>{Math.round(length * 1000).toLocaleString('ru-RU')} мм</text>
+    {closing ? <><circle className="polygon-close-target" cx={b.x} cy={b.y} r="12" /><text className="polygon-close-label" x={b.x} y={b.y - 17}>Замкнуть</text></> : null}
   </g>;
 }
 
-function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraft, setPolygonDraft, issues }) {
+function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraft, setPolygonDraft, finishPolygon, issues }) {
   const svgRef = useRef(null);
   const gestureRef = useRef(null);
   const [gesture, setGestureState] = useState(null);
@@ -208,6 +212,9 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     const raw = { x: ((event.clientX - rect.left) / rect.width * VIEW.width - layout.ox) / layout.scale, y: ((event.clientY - rect.top) / rect.height * VIEW.height - layout.oy) / layout.scale };
     const current = gestureRef.current;
     const axes = collectSnapAxes(plan, current?.type === 'room' ? current.id : null);
+    if (tool === 'polygon' && polygonDraft.length) {
+      polygonDraft.forEach((point) => { axes.xs.push(point.x); axes.ys.push(point.y); axes.points.push(point); });
+    }
     if (current?.kind === 'draw' && current.start) {
       axes.xs.push(current.start.x); axes.ys.push(current.start.y);
     }
@@ -255,7 +262,10 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     if (event.button !== 0) return;
     const point = toPlan(event);
     if (tool === 'select') { setSelected(null); return; }
-    if (tool === 'polygon') { setPolygonDraft((current) => [...current, point]); return; }
+    if (tool === 'polygon') {
+      if (shouldClosePolygon(polygonDraft, point)) { finishPolygon(); return; }
+      setPolygonDraft((current) => [...current, point]); return;
+    }
     if (tool === 'pile' || tool === 'window' || tool === 'door' || tool === 'garage' || tool === 'gap') { addAt(point, tool); return; }
     if (DRAW_TOOLS.has(tool)) begin(event, { kind: 'draw', type: tool });
   };
@@ -331,7 +341,7 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     {shownPlan.showDimensions !== false ? (shownPlan.dimensions || []).map((dimension) => { const q = line(dimension); const length = Math.hypot(dimension.x2 - dimension.x1, dimension.y2 - dimension.y1); const selectedNow = selected?.type === 'dimension' && selected.id === dimension.id; return <g key={dimension.id} className="planner-object" onPointerDown={(event) => objectDown(event, 'dimension', dimension.id)}><line className={`custom-dimension ${selectedNow ? 'selected' : ''}`} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><line className="dimension-tick" x1={q.a.x - 6} y1={q.a.y - 6} x2={q.a.x + 6} y2={q.a.y + 6} /><line className="dimension-tick" x1={q.b.x - 6} y1={q.b.y - 6} x2={q.b.x + 6} y2={q.b.y + 6} /><text className="dimension-text" x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 - 8}>{Math.round(length * 1000)} мм</text>{selectedNow ? [q.a, q.b].map((point, index) => <circle key={index} className="endpoint-handle" cx={point.x} cy={point.y} r="7" onPointerDown={(event) => objectDown(event, 'dimension', dimension.id, { kind: 'endpoint', index })} />) : null}</g>; }) : null}
     {shownPlan.showDimensions !== false ? <g className="outer-dimensions"><line x1={topLeft.x} y1={horizontalY} x2={bottomRight.x} y2={horizontalY} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" /><line className="extension-line" x1={topLeft.x} y1={topLeft.y} x2={topLeft.x} y2={horizontalY} /><line className="extension-line" x1={bottomRight.x} y1={topLeft.y} x2={bottomRight.x} y2={horizontalY} /><text x={(topLeft.x + bottomRight.x) / 2} y={horizontalY - 9}>{Math.round(shownPlan.house.w * 1000).toLocaleString('ru-RU')} мм</text><line x1={verticalX} y1={topLeft.y} x2={verticalX} y2={bottomRight.y} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" /><line className="extension-line" x1={topLeft.x} y1={topLeft.y} x2={verticalX} y2={topLeft.y} /><line className="extension-line" x1={topLeft.x} y1={bottomRight.y} x2={verticalX} y2={bottomRight.y} /><text transform={`translate(${verticalX - 10} ${(topLeft.y + bottomRight.y) / 2}) rotate(-90)`}>{Math.round(shownPlan.house.h * 1000).toLocaleString('ru-RU')} мм</text></g> : null}
     {(shownPlan.openings || []).map((opening) => <g key={`opening-hit-${opening.id}`} className={`opening-hit-layer opening-hit-${opening.type}-${opening.doorType || 'standard'}`} data-opening-id={opening.id} onPointerDown={(event) => objectDown(event, 'opening', opening.id)}>{renderOpeningHit(opening)}</g>)}
-    {gesture?.kind === 'draw' ? (() => { const a = p(gesture.start.x, gesture.start.y); const b = p(gesture.end.x, gesture.end.y); const alignment = gesture.type === 'pileRow' ? pileRowAlignment({ x1: gesture.start.x, y1: gesture.start.y, x2: gesture.end.x, y2: gesture.end.y }) : null; return ['room', 'terrace', 'porch'].includes(gesture.type) ? <g><rect className="draft-shape" x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} />{gesture.type === 'room' ? <DraftRoomDimensions start={gesture.start} end={gesture.end} p={p} /> : null}</g> : <line className={`draft-line ${alignment ? `pile-axis-${alignment.state}` : ''}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })() : null}
+    {gesture?.kind === 'draw' ? (() => { const a = p(gesture.start.x, gesture.start.y); const b = p(gesture.end.x, gesture.end.y); const alignment = pileRowAlignment({ x1: gesture.start.x, y1: gesture.start.y, x2: gesture.end.x, y2: gesture.end.y }); return ['room', 'terrace', 'porch'].includes(gesture.type) ? <g><rect className="draft-shape" x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} />{gesture.type === 'room' ? <DraftRoomDimensions start={gesture.start} end={gesture.end} p={p} /> : null}</g> : <line className={`draft-line guide-${alignment.state === 'aligned' ? 'aligned' : 'off-axis'}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })() : null}
     {polygonDraft.length ? <g><polyline className="polygon-draft" points={polygonDraft.map((point) => { const q = p(point.x, point.y); return `${q.x},${q.y}`; }).join(' ')} />{polygonDraft.map((point, index) => { const q = p(point.x, point.y); return <circle key={index} className="polygon-point" cx={q.x} cy={q.y} r="5" />; })}</g> : null}
     {tool === 'polygon' ? <DraftPolygonEdge points={polygonDraft} hoverPoint={hoverSnap?.point} p={p} /> : null}
     {hoverSnap?.snap && (tool !== 'select' || gesture) ? (() => { const q = p(hoverSnap.point.x, hoverSnap.point.y); return <g className={`snap-indicator snap-${hoverSnap.snap.kind}`} transform={`translate(${q.x} ${q.y})`}><circle className="snap-halo" r="11" /><circle className="snap-core" r="4" /></g>; })() : null}
@@ -489,11 +499,11 @@ export default function PlanScreen() {
     };
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
   }, [selected, commitPlan]);
-  const toolHint = tool === 'select' ? 'Выберите и перетащите объект. Окна, двери, ворота и линии обвязки можно двигать.' : tool === 'polygon' ? 'Щёлкайте по узлам комнаты и нажмите «Готово».' : tool === 'dimension' ? 'Протяните размер по объекту — линия автоматически вынесется наружу, затем её можно переместить.' : tool === 'pileRow' ? 'Начало и конец прилипают к узлам. Зелёный — точно по оси, красный — небольшое смещение.' : tool === 'bindingLine' ? 'Протяните направляющую обвязки от узла до узла. Каждая линия сразу входит в расчёт доски.' : ['window', 'door', 'garage', 'gap', 'pile'].includes(tool) ? 'Щёлкните место установки. Проёмы прилипнут к ближайшей стене.' : 'Зажмите кнопку мыши и протяните объект.';
+  const toolHint = tool === 'select' ? 'Выберите и перетащите объект. Окна, двери, ворота и линии обвязки можно двигать.' : tool === 'polygon' ? 'Ставьте углы комнаты. После третьей точки щёлкните по первой точке — контур замкнётся автоматически.' : tool === 'dimension' ? 'Протяните размер по объекту — линия автоматически вынесется наружу, затем её можно переместить.' : tool === 'pileRow' ? 'Начало и конец прилипают к узлам. Зелёный — точно по горизонтали или вертикали, красный — есть отклонение.' : tool === 'bindingLine' ? 'Протяните направляющую обвязки от узла до узла. Зелёный — точная ось, красный — отклонение.' : ['window', 'door', 'gap', 'pile'].includes(tool) ? 'Щёлкните место установки. Тип гаражных ворот выбирается в параметрах двери.' : 'Зажмите кнопку мыши и протяните объект. Зелёный — горизонталь или вертикаль, красный — отклонение.';
   return <div className="screen plan-screen-v2"><ScreenHeader title="План дома" description="Новый редактор: каждое действие можно выбрать, изменить, удалить и отменить" actions={<><button className="button primary" onClick={newPlan}><Plus />Новый план</button><button className="button secondary" onClick={savePlanFile}><Download />Сохранить план</button><button className="button secondary" onClick={() => planFileRef.current?.click()}><Upload />Открыть план</button><button className="button secondary" onClick={sharePlanFile}><Share2 />Поделиться</button><input ref={planFileRef} className="visually-hidden" type="file" accept=".eft-plan.json,.eft.json,.json" onChange={openPlanFile} /><button className="button secondary auto-piles-button" onClick={autoPiles}><Sparkles />Автосваи</button><button className="button secondary" onClick={autoBinding}><Layers3 />Автообвязка</button><select className="sketch-select" value={sketchId} onChange={(event) => setSketchId(event.target.value)}>{sketches.map((sketch) => <option key={sketch.id} value={sketch.id}>{sketch.name}</option>)}</select><button className="button secondary" onClick={loadSketch}>Загрузить</button><button className="button secondary" onClick={saveSketch}><Save />В эскизы</button><button className="button ghost" onClick={undo} disabled={!canUndo}><Undo2 />Отменить</button><button className="button ghost" onClick={redo} disabled={!canRedo}><Redo2 />Повторить</button></>} />
     <div className="plan-transfer-status"><Share2 /><span>{transferStatus}</span><small>Файл плана не содержит прайс-лист, данные заказчика и ручные правки сметы.</small></div>
     <div className="plan-status-bar"><div className="plan-house-fields"><NumberField label="Габарит X" value={plan.house.w} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.w = value; })} /><NumberField label="Габарит Y" value={plan.house.h} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.h = value; })} /><NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={(value) => commitPlan((next) => { next.wallHeight = value; })} /></div><div className="plan-view-switches"><Toggle label="Сваи" checked={plan.showPiles !== false} onChange={(value) => commitPlan((next) => { next.showPiles = value; })} /><Toggle label="Обвязка" checked={plan.showBinding !== false} onChange={(value) => commitPlan((next) => { next.showBinding = value; })} /><Toggle label="Размеры" checked={plan.showDimensions !== false} onChange={(value) => commitPlan((next) => { next.showDimensions = value; })} /></div><div className="zoom-controls"><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.max(65, (next.zoom || 100) - 10); })}><ZoomOut /></button><strong>{plan.zoom || 100}%</strong><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.min(180, (next.zoom || 100) + 10); })}><ZoomIn /></button></div></div>
-    <div className="planner-shell"><aside className="planner-tools">{TOOLS.map(([id, label, Icon]) => <button key={id} className={tool === id ? 'active' : ''} title={label} onClick={() => selectTool(id)}><Icon /><span>{label}</span></button>)}{tool === 'polygon' && polygonDraft.length ? <div className="polygon-actions"><button className="active" onClick={finishPolygon} disabled={polygonDraft.length < 3}><Save /><span>Готово</span></button><button onClick={() => setPolygonDraft([])}><X /><span>Сброс</span></button></div> : null}</aside><div className="planner-canvas"><PlanCanvas plan={plan} tool={tool} selected={selected} setSelected={setSelected} commitPlan={commitPlan} polygonDraft={polygonDraft} setPolygonDraft={setPolygonDraft} issues={issues} /><div className="planner-hint">{toolHint}</div></div><aside className="planner-inspector"><Inspector plan={plan} selected={selected} setSelected={setSelected} commitPlan={commitPlan} issues={issues} /></aside></div>
+    <div className="planner-shell"><aside className="planner-tools">{TOOLS.map(([id, label, Icon]) => <button key={id} className={tool === id ? 'active' : ''} title={label} onClick={() => selectTool(id)}><Icon /><span>{label}</span></button>)}{tool === 'polygon' && polygonDraft.length ? <div className="polygon-actions"><button className="active" onClick={finishPolygon} disabled={polygonDraft.length < 3}><Save /><span>Замкнуть</span></button><button onClick={() => setPolygonDraft([])}><X /><span>Сброс</span></button></div> : null}</aside><div className="planner-canvas"><PlanCanvas plan={plan} tool={tool} selected={selected} setSelected={setSelected} commitPlan={commitPlan} polygonDraft={polygonDraft} setPolygonDraft={setPolygonDraft} finishPolygon={finishPolygon} issues={issues} /><div className="planner-hint">{toolHint}</div></div><aside className="planner-inspector"><Inspector plan={plan} selected={selected} setSelected={setSelected} commitPlan={commitPlan} issues={issues} /></aside></div>
     <div className="stats-row planner-stats"><Stat label="Пол всего дома" value={`${formatNumber(metrics.floorArea)} м²`} /><Stat label="Перегородки без задвоений" value={`${formatNumber(metrics.partitionLength)} м`} /><Stat label="Наружные стены" value={`${formatNumber(metrics.exteriorWallNetArea)} м²`} /><Stat label="Сваи" value={`${foundation.totalPiles} шт`} /><Stat label="Обвязка" value={`${formatNumber(foundation.bindingLength)} м · ${foundation.boardCount} досок × 6 м`} /><Stat label="Проверка" value={issues.length ? `${issues.length} ошибок` : 'Стыковка верна'} tone={issues.length ? 'danger' : ''} /></div>
   </div>;
 }

@@ -241,6 +241,8 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .wall-gap { stroke:#fff; stroke-width:11; vector-effect:non-scaling-stroke; cursor:move; }
 .wall-gap.selected { stroke:#f09b3d; }
 .draft-line { stroke:#5d8f32; stroke-width:3; stroke-dasharray:7 5; vector-effect:non-scaling-stroke; }
+.draft-line.guide-aligned,.polygon-hover-edge.guide-aligned line { stroke:#43a047; stroke-width:4; }
+.draft-line.guide-off-axis,.polygon-hover-edge.guide-off-axis line { stroke:#d7433b; stroke-width:4; }
 .draft-line.pile-axis-aligned { stroke:#4f9636; }
 .draft-line.pile-axis-warning { stroke:#d7493e; stroke-width:4; }
 .draft-line.pile-axis-diagonal { stroke:#d69a32; }
@@ -251,6 +253,9 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .draft-room-dimensions .draft-room-summary { fill:#fff; stroke:#37661f; stroke-width:5; font-size:12px; }
 .polygon-hover-edge { pointer-events:none; }
 .polygon-hover-edge line { stroke:#5d8f32; stroke-width:2; stroke-dasharray:6 4; vector-effect:non-scaling-stroke; }
+.polygon-hover-edge.closing line { stroke:#43a047; }
+.polygon-hover-edge .polygon-close-target { fill:rgba(67,160,71,.16); stroke:#43a047; stroke-width:3; }
+.polygon-hover-edge .polygon-close-label { fill:#2f7c33; font-size:10px; }
 .snap-indicator { pointer-events:none; }
 .snap-halo { fill:rgba(105,170,63,.18); stroke:#69aa3f; stroke-width:2; vector-effect:non-scaling-stroke; }
 .snap-core { fill:#fff; stroke:#37661f; stroke-width:3; vector-effect:non-scaling-stroke; }
