@@ -145,6 +145,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .estimate-cell-input.number-input { min-width:80px; max-width:105px; text-align:right; }
 .overridden-estimate-line { background:rgba(255,244,209,.45); }
 .custom-estimate-line { background:rgba(224,242,213,.42); }
+.estimate-group-row th { position:static; padding:9px 10px; color:var(--green-dark); border-top:2px solid #c8d9bf; background:var(--green-soft); font-size:10px; letter-spacing:.04em; text-align:left!important; text-transform:uppercase; }
 .estimate-row-actions { width:76px; white-space:nowrap; }
 .estimate-row-actions button { width:28px; height:28px; display:inline-grid; place-items:center; margin-left:3px; color:var(--muted); border:1px solid var(--line); border-radius:6px; background:var(--panel); }
 .estimate-row-actions button:hover { color:#9e3030; border-color:#e5b0aa; }

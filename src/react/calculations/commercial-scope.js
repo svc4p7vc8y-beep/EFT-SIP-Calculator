@@ -108,11 +108,12 @@ function scopeDescription(key, project, calculation, lineCount) {
 export function buildCommercialScope(project, calculation) {
   return calculation.sections.filter((section) => section.lines.length).map((section) => {
     const description = scopeDescription(section.key, project, calculation, section.lines.length);
+    const estimateGroups = section.key === 'sip' ? [...new Set(section.lines.map((line) => line.estimateGroup).filter(Boolean))] : [];
     return {
       key: section.key,
       title: section.title,
       ...description,
-      coverage: sectionCoverage(section.lines),
+      coverage: [...sectionCoverage(section.lines), ...estimateGroups],
       total: formatMoney(sectionAmount(section.lines))
     };
   });

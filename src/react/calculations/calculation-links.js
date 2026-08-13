@@ -44,6 +44,7 @@ export const DEFAULT_FORMULAS = {
   gableBoardM3PerM2: 0.015,
   lathM3PerM2: 0.00655,
   roofScrewsPerM2: 8,
+  roofGeneralFastenerKgPerM2: 0.08,
   ridgeReserve: 1.1,
   mauerlatReserve: 1.05,
   mauerlatAnchorSpacing: 1.2,

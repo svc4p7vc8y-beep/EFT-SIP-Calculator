@@ -13,6 +13,7 @@ function EstimateSectionEditor({ section, project, commit }) {
   const update = (mutate) => commit((next) => { mutate(next); return next; });
   return <EditableEstimateTable
     lines={section.lines}
+    grouped={section.key === 'sip'}
     hiddenCount={hiddenCount}
     onChangeLine={(line, changes) => update((next) => changeEstimateLine(next, line, changes))}
     onRemoveLine={(line) => update((next) => removeEstimateLine(next, line))}

@@ -1,5 +1,5 @@
 {
-  "appVersion": 60,
+  "appVersion": 61,
   "format": "eft-price-catalog",
   "priceLab": [
     {
@@ -872,8 +872,8 @@
       "cat": "СИП-панели и термобрус",
       "id": "MAT-009",
       "kind": "material",
-      "name": "Пена монтажная 800мл",
-      "price": 450,
+      "name": "Пеноклей для СИП-панелей 650 мл",
+      "price": 550,
       "unit": "шт"
     },
     {

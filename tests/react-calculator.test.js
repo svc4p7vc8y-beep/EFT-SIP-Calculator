@@ -212,8 +212,8 @@ test('SIP joinery switches between thermobeam, board pack and solid beam', () =>
   const thermal = calculateProject(project);
   assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-joints' && line.name.includes('Термобрус 95×145')));
   assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-edges' && line.name.includes('145×45')));
-  assert.ok(thermal.lines.some((line) => line.id === 'sip:fasteners' && line.qty > 0));
-  assert.ok(thermal.lines.some((line) => line.id === 'sip:seam-screws' && line.qty > 0));
+  assert.ok(thermal.lines.some((line) => line.id === 'sip:fasteners-floor' && line.qty > 0));
+  assert.ok(thermal.lines.some((line) => line.id === 'sip:seam-screws-walls' && line.qty > 0));
   project.settings.sip.connectorType = 'board-pack';
   const boardPack = calculateProject(project);
   const packageLine = boardPack.lines.find((line) => line.source === 'sip-walls-joints');
@@ -229,6 +229,37 @@ test('SIP joinery switches between thermobeam, board pack and solid beam', () =>
   project.plan.wallHeight = 3;
   const tallWallJoints = calculateProject(project).sip.joinery.rows.find((row) => row.key === 'walls').jointLength;
   assert.ok(tallWallJoints > baseWallJoints, 'horizontal wall seams are added above one panel height');
+});
+
+test('SIP estimate is grouped by floor, walls, ceiling and partitions', () => {
+  const project = createDefaultProject();
+  const result = calculateProject(project);
+  const sipLines = result.sections.find((section) => section.key === 'sip').lines;
+  assert.deepEqual([...new Set(sipLines.map((line) => line.estimateGroup))], ['Пол', 'Наружные стены', 'Потолок', 'Перегородки']);
+  assert.ok(sipLines.some((line) => line.estimateGroup === 'Пол' && line.name.includes('Пеноклей')));
+  assert.ok(sipLines.some((line) => line.estimateGroup === 'Наружные стены' && line.source === 'sip-walls-joints'));
+});
+
+test('SIP adhesive uses the 650 ml catalog item at 550 rubles', () => {
+  const project = createDefaultProject();
+  const item = project.priceMat.find((line) => line.id === 'MAT-009');
+  assert.equal(item.name, 'Пеноклей для СИП-панелей 650 мл');
+  assert.equal(item.price, 550);
+  const result = calculateProject(project);
+  const adhesives = result.lines.filter((line) => line.catalogId === 'MAT-009');
+  assert.ok(adhesives.length >= 3);
+  assert.ok(adhesives.every((line) => line.price === 550 && line.name.includes('Пеноклей')));
+});
+
+test('roof has one general fastener line in addition to roofing screws', () => {
+  const project = createDefaultProject();
+  project.plan.platforms[0].roof.mode = 'cold';
+  const result = calculateProject(project);
+  const general = result.lines.filter((line) => line.id === 'roof:general-fasteners');
+  assert.equal(general.length, 1);
+  assert.equal(general[0].catalogId, 'MAT-068');
+  assert.equal(general[0].qty, Math.round(result.roof.totalArea * result.inputs.formulas.roofGeneralFastenerKgPerM2 * 100) / 100);
+  assert.ok(result.lines.some((line) => line.id === 'roof:roof-screws' && line.catalogId === 'MAT-082'));
 });
 
 test('all three SIP frame families use matching profiles and linear-meter prices', () => {
@@ -354,6 +385,18 @@ test('new catalog rows are added to an older saved project', () => {
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-190').price, 264);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-191').price, 396);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-192').price, 528);
+});
+
+test('version 60 adhesive is upgraded to the new 650 ml name and price', () => {
+  const project = createDefaultProject();
+  project.appVersion = 60;
+  const adhesive = project.priceMat.find((item) => item.id === 'MAT-009');
+  adhesive.name = 'Пена монтажная 800мл';
+  adhesive.price = 450;
+  const restored = migrateProject(project);
+  const upgraded = restored.priceMat.find((item) => item.id === 'MAT-009');
+  assert.equal(upgraded.name, 'Пеноклей для СИП-панелей 650 мл');
+  assert.equal(upgraded.price, 550);
 });
 
 test('version 50 catalog is upgraded to the new frame names and prices once', () => {

@@ -34,7 +34,7 @@ const FORMULA_GROUPS = [
   ['Фундамент, кровля, терраса', [
     ['pileConcreteM3', 'Пескобетона на сваю', 'м³'], ['pileScrewKg', 'Саморезов обвязки на сваю', 'кг'],
     ['pileLagScrews', 'Глухарей на сваю', 'шт'], ['hangingRafterReserve', 'Коэффициент висячей системы', 'коэф.'], ['layeredRafterReserve', 'Коэффициент наслонной системы', 'коэф.'],
-    ['gableBoardM3PerM2', 'Доски каркаса на 1 м² фронтона', 'м³'], ['lathM3PerM2', 'Обрешётки на 1 м² кровли', 'м³'], ['roofScrewsPerM2', 'Кровельных саморезов на 1 м²', 'шт'],
+    ['gableBoardM3PerM2', 'Доски каркаса на 1 м² фронтона', 'м³'], ['lathM3PerM2', 'Обрешётки на 1 м² кровли', 'м³'], ['roofScrewsPerM2', 'Кровельных саморезов на 1 м²', 'шт'], ['roofGeneralFastenerKgPerM2', 'Сопутствующего крепежа кровли на 1 м²', 'кг'],
     ['ridgeReserve', 'Запас планки конька', 'коэф.'], ['mauerlatReserve', 'Запас мауэрлата', 'коэф.'], ['mauerlatAnchorSpacing', 'Шаг анкеров мауэрлата', 'м'],
     ['ridgeBeamReserve', 'Запас коньковой доски', 'коэф.'], ['roofTrimReserve', 'Запас карнизных и ветровых планок', 'коэф.'], ['rafterInsulationThicknessM', 'Толщина минваты второго света', 'м'],
     ['vaporBarrierRollArea', 'Площадь рулона пароизоляции', 'м²'], ['terraceRoofPostSpacing', 'Предельный шаг столбов кровли террасы', 'м'], ['terraceFrameBoardM3PerM2', 'Каркаса на 1 м² террасы', 'м³'],

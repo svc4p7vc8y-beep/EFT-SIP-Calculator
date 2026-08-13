@@ -53,7 +53,7 @@ export const PreviewTable = memo(function PreviewTable({ lines, empty = 'Нет 
   );
 });
 
-export function EditableEstimateTable({ lines, empty = 'Нет позиций для расчёта', onChangeLine, onRemoveLine, onResetLine, onAddLine, onResetSection, hiddenCount = 0 }) {
+export function EditableEstimateTable({ lines, empty = 'Нет позиций для расчёта', onChangeLine, onRemoveLine, onResetLine, onAddLine, onResetSection, hiddenCount = 0, grouped = false }) {
   const total = (lines || []).reduce((sum, line) => sum + line.qty * line.price, 0);
   const changed = hiddenCount > 0 || (lines || []).some((line) => line.custom || line.projectOverride);
   return <div className="estimate-editor">
@@ -64,7 +64,10 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
     {!lines?.length ? <div className="empty-state">{empty}</div> : <div className="table-wrap">
       <table className="data-table editable-estimate-table">
         <thead><tr><th>Номенклатура</th><th>Вид</th><th>Ед.</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th className="no-print">Действия</th></tr></thead>
-        <tbody>{lines.map((line) => <tr key={line.id} className={line.custom ? 'custom-estimate-line' : line.projectOverride ? 'overridden-estimate-line' : ''}>
+        <tbody>{lines.flatMap((line, index) => {
+          const group = line.estimateGroup || 'Дополнительные позиции';
+          const previousGroup = index ? (lines[index - 1].estimateGroup || 'Дополнительные позиции') : null;
+          return [grouped && group !== previousGroup ? <tr className="estimate-group-row" key={`group-${group}`}><th colSpan="7">{group}</th></tr> : null, <tr key={line.id} className={line.custom ? 'custom-estimate-line' : line.projectOverride ? 'overridden-estimate-line' : ''}>
           <td><input className="estimate-cell-input no-print" aria-label={`Наименование: ${line.name}`} value={line.name} onChange={(event) => onChangeLine(line, { name: event.target.value })} /><span className="print-only">{line.name}</span></td>
           <td><select className="estimate-cell-input no-print" aria-label={`Вид: ${line.name}`} value={line.kind} onChange={(event) => onChangeLine(line, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select><span className={`kind ${line.kind} print-only`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td>
           <td><input className="estimate-cell-input unit-input no-print" aria-label={`Единица: ${line.name}`} value={line.unit} onChange={(event) => onChangeLine(line, { unit: event.target.value })} /><span className="print-only">{line.unit}</span></td>
@@ -72,7 +75,8 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
           <td><input className="estimate-cell-input number-input no-print" type="number" min="0" step="1" aria-label={`Цена: ${line.name}`} value={line.price} onChange={(event) => onChangeLine(line, { price: Number(event.target.value) })} /><span className="print-only">{formatMoney(line.price)}</span></td>
           <td>{formatMoney(line.qty * line.price)}</td>
           <td className="estimate-row-actions no-print">{line.projectOverride ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>
-        </tr>)}</tbody>
+        </tr>];
+        })}</tbody>
         <tfoot><tr><td colSpan="5">Итого раздела</td><td>{formatMoney(total)}</td><td className="no-print" /></tr></tfoot>
       </table>
     </div>}
