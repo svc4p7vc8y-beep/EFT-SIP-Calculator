@@ -348,8 +348,8 @@ test('roof has one general fastener line in addition to roofing screws', () => {
 test('all three SIP frame families use matching profiles and linear-meter prices', () => {
   const project = createDefaultProject();
   const expected = [
-    ['MAT-015', 'Термобрус 95×95 мм', 1682], ['MAT-013', 'Термобрус 95×145 мм', 1174], ['MAT-014', 'Термобрус 95×195 мм', 2242],
-    ['MAT-186', 'Пакет клеёных досок 95×95 мм для СИП 124 мм', 841], ['MAT-187', 'Пакет клеёных досок 95×145 мм для СИП 174 мм', 587], ['MAT-188', 'Пакет клеёных досок 95×195 мм для СИП 224 мм', 1121],
+    ['MAT-015', 'Термобрус 95×95 мм', 1174], ['MAT-013', 'Термобрус 95×145 мм', 1682], ['MAT-014', 'Термобрус 95×195 мм', 2242],
+    ['MAT-186', 'Пакет клеёных досок 95×95 мм для СИП 124 мм', 587], ['MAT-187', 'Пакет клеёных досок 95×145 мм для СИП 174 мм', 841], ['MAT-188', 'Пакет клеёных досок 95×195 мм для СИП 224 мм', 1121],
     ['MAT-190', 'Брус соединительный ест. влажности 100×100 мм', 264], ['MAT-191', 'Брус соединительный ест. влажности 100×150 мм', 396], ['MAT-192', 'Брус соединительный ест. влажности 100×200 мм', 528]
   ];
   expected.forEach(([id, name, price]) => {
@@ -463,7 +463,7 @@ test('new catalog rows are added to an older saved project', () => {
   const restored = migrateProject(project);
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-108').price, 1500);
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-110').price, 0);
-  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-187').price, 587);
+  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-187').price, 841);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-189').price, 0);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-190').price, 264);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-191').price, 396);
@@ -491,7 +491,19 @@ test('version 50 catalog is upgraded to the new frame names and prices once', ()
   const restored = migrateProject(project);
   const upgraded = restored.priceMat.find((item) => item.id === 'MAT-013');
   assert.equal(upgraded.name, 'Термобрус 95×145 мм');
-  assert.equal(upgraded.price, 1174);
+  assert.equal(upgraded.price, 1682);
+});
+
+test('version 64 projects receive the uploaded default price list once', () => {
+  const project = createDefaultProject();
+  project.appVersion = 64;
+  project.priceMat.find((item) => item.id === 'MAT-001').price = 2300;
+  project.priceLab.find((item) => item.id === 'LAB-041').price = 3500;
+  const upgraded = migrateProject(project);
+  assert.equal(upgraded.priceMat.find((item) => item.id === 'MAT-001').price, 4000);
+  assert.equal(upgraded.priceLab.find((item) => item.id === 'LAB-041').price, 6500);
+  upgraded.priceMat.find((item) => item.id === 'MAT-001').price = 4100;
+  assert.equal(migrateProject(upgraded).priceMat.find((item) => item.id === 'MAT-001').price, 4100);
 });
 
 test('plan geometry drives roof, engineering, finishing and delivery inputs', () => {

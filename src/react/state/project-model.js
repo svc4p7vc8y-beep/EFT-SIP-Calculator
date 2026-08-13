@@ -3,7 +3,7 @@ import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 64;
+export const REACT_PROJECT_VERSION = 65;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -180,6 +180,11 @@ function normalizePlan(plan) {
 
 const V51_FRAME_CATALOG_IDS = new Set(['MAT-013', 'MAT-014', 'MAT-015', 'MAT-186', 'MAT-187', 'MAT-188']);
 const V61_CATALOG_IDS = new Set(['MAT-009']);
+const V65_CATALOG_IDS = new Set([
+  'MAT-001', 'MAT-013', 'MAT-015', 'MAT-037', 'MAT-038', 'MAT-039', 'MAT-040', 'MAT-041',
+  'MAT-050', 'MAT-069', 'MAT-076', 'MAT-082', 'MAT-083', 'MAT-084', 'MAT-086', 'MAT-089',
+  'MAT-094', 'MAT-186', 'MAT-187', 'LAB-002', 'LAB-031', 'LAB-033', 'LAB-041', 'LAB-042'
+]);
 
 function normalizeCatalog(items, defaults, upgradeIds = new Set()) {
   if (!Array.isArray(items)) return clone(defaults);
@@ -199,10 +204,13 @@ export function migrateProject(raw) {
   const savedVersion = Number(raw.appVersion);
   const upgradeFrameCatalog = !Number.isFinite(savedVersion) || savedVersion < 51;
   const upgradeV61Catalog = !Number.isFinite(savedVersion) || savedVersion < 61;
+  const upgradeV65Catalog = !Number.isFinite(savedVersion) || savedVersion < 65;
   const materialUpgradeIds = new Set([
     ...(upgradeFrameCatalog ? V51_FRAME_CATALOG_IDS : []),
-    ...(upgradeV61Catalog ? V61_CATALOG_IDS : [])
+    ...(upgradeV61Catalog ? V61_CATALOG_IDS : []),
+    ...(upgradeV65Catalog ? [...V65_CATALOG_IDS].filter((id) => id.startsWith('MAT-')) : [])
   ]);
+  const laborUpgradeIds = new Set(upgradeV65Catalog ? [...V65_CATALOG_IDS].filter((id) => id.startsWith('LAB-')) : []);
   const params = Array.isArray(raw.params) ? raw.params.map((entry) => Number(entry?.val) || 0) : [];
   const meta = raw.meta || {
     projectNum: raw.projectNum || '', customer: raw.cust || '', address: raw.addr || '', author: raw.author || '', date: raw.date || today(), floors: Number(raw.floors) || 1
@@ -230,7 +238,7 @@ export function migrateProject(raw) {
       formulas: { ...base.settings.formulas, ...(raw.settings?.formulas || {}) }
     },
     priceMat: normalizeCatalog(raw.priceMat, base.priceMat, materialUpgradeIds),
-    priceLab: normalizeCatalog(raw.priceLab, base.priceLab),
+    priceLab: normalizeCatalog(raw.priceLab, base.priceLab, laborUpgradeIds),
     estimateOverrides: Array.isArray(raw.estimateOverrides) ? raw.estimateOverrides : [],
     customEstimateLines: Array.isArray(raw.customEstimateLines) ? raw.customEstimateLines : []
   };
