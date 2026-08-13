@@ -12,7 +12,8 @@ import { useProject } from '../state/ProjectContext.jsx';
 import { formatNumber, uid } from '../utils/format.js';
 import {
   allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, lineEndpoints, movePoints, nearestSegment,
-  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, roomPoints, roundCoord, snapPoint, unifiedWallSegments, withRoomBounds
+  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, roomPoints, roundCoord, snapPoint, snapPointDetails,
+  unifiedWallSegments, withRoomBounds
 } from '../planner/geometry.js';
 
 const VIEW = { width: 1100, height: 760 };
@@ -152,10 +153,46 @@ function GarageGate({ opening, q, size }) {
   return <g className="garage-gate">{offsets.map((offset) => <line key={offset} x1={q.x + size * offset} y1={q.y - 6} x2={q.x + size * offset} y2={q.y + 6} />)}</g>;
 }
 
+function DraftRoomDimensions({ start, end, p }) {
+  const bounds = boundsOf(rectanglePoints(start, end));
+  if (bounds.w < 0.01 && bounds.h < 0.01) return null;
+  const topLeft = p(bounds.x, bounds.y);
+  const bottomRight = p(bounds.x2, bounds.y2);
+  const dimensionY = Math.min(topLeft.y, bottomRight.y) - 22;
+  const dimensionX = Math.min(topLeft.x, bottomRight.x) - 22;
+  const widthLabel = `${Math.round(bounds.w * 1000).toLocaleString('ru-RU')} мм`;
+  const heightLabel = `${Math.round(bounds.h * 1000).toLocaleString('ru-RU')} мм`;
+  const summary = `${formatNumber(bounds.w)} × ${formatNumber(bounds.h)} м · ${formatNumber(bounds.w * bounds.h)} м²`;
+  return <g className="draft-room-dimensions">
+    <line x1={topLeft.x} y1={dimensionY} x2={bottomRight.x} y2={dimensionY} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" />
+    <line className="draft-extension" x1={topLeft.x} y1={topLeft.y} x2={topLeft.x} y2={dimensionY} />
+    <line className="draft-extension" x1={bottomRight.x} y1={topLeft.y} x2={bottomRight.x} y2={dimensionY} />
+    <text x={(topLeft.x + bottomRight.x) / 2} y={dimensionY - 7}>{widthLabel}</text>
+    <line x1={dimensionX} y1={topLeft.y} x2={dimensionX} y2={bottomRight.y} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" />
+    <line className="draft-extension" x1={topLeft.x} y1={topLeft.y} x2={dimensionX} y2={topLeft.y} />
+    <line className="draft-extension" x1={topLeft.x} y1={bottomRight.y} x2={dimensionX} y2={bottomRight.y} />
+    <text transform={`translate(${dimensionX - 8} ${(topLeft.y + bottomRight.y) / 2}) rotate(-90)`}>{heightLabel}</text>
+    {bounds.w >= 0.35 && bounds.h >= 0.35 ? <text className="draft-room-summary" x={(topLeft.x + bottomRight.x) / 2} y={(topLeft.y + bottomRight.y) / 2}>{summary}</text> : null}
+  </g>;
+}
+
+function DraftPolygonEdge({ points, hoverPoint, p }) {
+  if (!points.length || !hoverPoint) return null;
+  const start = points.at(-1);
+  const a = p(start.x, start.y); const b = p(hoverPoint.x, hoverPoint.y);
+  const length = Math.hypot(hoverPoint.x - start.x, hoverPoint.y - start.y);
+  if (length < 0.01) return null;
+  return <g className="polygon-hover-edge">
+    <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+    <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 8}>{Math.round(length * 1000).toLocaleString('ru-RU')} мм</text>
+  </g>;
+}
+
 function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraft, setPolygonDraft, issues }) {
   const svgRef = useRef(null);
   const gestureRef = useRef(null);
   const [gesture, setGestureState] = useState(null);
+  const [hoverSnap, setHoverSnap] = useState(null);
   const setGesture = (value) => { gestureRef.current = typeof value === 'function' ? value(gestureRef.current) : value; setGestureState(gestureRef.current); };
   const shownPlan = useMemo(() => previewPlan(plan, gesture), [plan, gesture]);
   // The viewport must stay fixed during a drag; otherwise an outside terrace
@@ -165,7 +202,7 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
   const unifiedWalls = useMemo(() => unifiedWallSegments(shownPlan), [shownPlan]);
   const issueRooms = useMemo(() => new Set(issues.flatMap((issue) => issue.roomIds || [])), [issues]);
   const p = useCallback((x, y) => ({ x: layout.ox + x * layout.scale, y: layout.oy + y * layout.scale }), [layout]);
-  const toPlan = (event) => {
+  const resolvePlanPoint = (event) => {
     const rect = svgRef.current.getBoundingClientRect();
     const raw = { x: ((event.clientX - rect.left) / rect.width * VIEW.width - layout.ox) / layout.scale, y: ((event.clientY - rect.top) / rect.height * VIEW.height - layout.oy) / layout.scale };
     const current = gestureRef.current;
@@ -183,8 +220,9 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     }
     const axisTolerance = Math.max(0.14, Math.min(0.35, 10 / layout.scale));
     const nodeTolerance = Math.max(0.22, Math.min(0.5, 16 / layout.scale));
-    return snapPoint(raw, axes, { tolerance: axisTolerance, pointTolerance: nodeTolerance });
+    return snapPointDetails(raw, axes, { tolerance: axisTolerance, pointTolerance: nodeTolerance });
   };
+  const toPlan = (event) => resolvePlanPoint(event).point;
   const begin = (event, value) => { event.preventDefault(); event.stopPropagation(); window.getSelection?.()?.removeAllRanges(); svgRef.current.setPointerCapture?.(event.pointerId); setGesture({ ...value, pointerId: event.pointerId, start: toPlan(event), end: toPlan(event) }); };
   const deleteObject = (type, id) => commitPlan((next) => {
     const key = type === 'room' ? 'rooms' : type === 'platform' ? 'platforms' : type === 'opening' ? 'openings' : type === 'wall' ? 'walls' : type === 'dimension' ? 'dimensions' : type === 'pileRow' ? 'pileRows' : type === 'gap' ? 'wallGaps' : 'piles';
@@ -221,8 +259,10 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     if (DRAW_TOOLS.has(tool)) begin(event, { kind: 'draw', type: tool });
   };
   const pointerMove = (event) => {
+    const resolved = resolvePlanPoint(event);
+    setHoverSnap(resolved);
     if (!gestureRef.current || event.pointerId !== gestureRef.current.pointerId) return;
-    const end = toPlan(event); setGesture((current) => ({ ...current, end }));
+    setGesture((current) => ({ ...current, end: resolved.point }));
   };
   const pointerUp = (event) => {
     const current = gestureRef.current;
@@ -269,7 +309,7 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
   const drawSegment = (segment, key) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line key={key} className="unified-wall" x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; };
   const renderCut = (item, className) => { const q = p(item.x, item.y); const size = Math.max(18, item.width * layout.scale); return item.orientation === 'v' ? <line className={className} x1={q.x} y1={q.y - size / 2} x2={q.x} y2={q.y + size / 2} /> : <line className={className} x1={q.x - size / 2} y1={q.y} x2={q.x + size / 2} y2={q.y} />; };
   const renderOpeningHit = (item) => { const q = p(item.x, item.y); const size = Math.max(28, item.width * layout.scale); return item.orientation === 'v' ? <rect className="opening-hit" x={q.x - 14} y={q.y - size / 2} width="28" height={size} /> : <rect className="opening-hit" x={q.x - size / 2} y={q.y - 14} width={size} height="28" />; };
-  return <svg ref={svgRef} className={`plan-svg tool-${tool}`} viewBox={`0 0 ${VIEW.width} ${VIEW.height}`} role="img" aria-label="Редактор плана дома" onPointerDown={canvasDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => setGesture(null)}>
+  return <svg ref={svgRef} className={`plan-svg tool-${tool}`} viewBox={`0 0 ${VIEW.width} ${VIEW.height}`} role="img" aria-label="Редактор плана дома" onPointerDown={canvasDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerLeave={() => { if (!gestureRef.current) setHoverSnap(null); }} onPointerCancel={() => setGesture(null)}>
     <defs><pattern id="planner-small-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="#617064" strokeOpacity=".13" /></pattern><pattern id="planner-grid" width="50" height="50" patternUnits="userSpaceOnUse"><rect width="50" height="50" fill="url(#planner-small-grid)" /><path d="M50 0H0V50" fill="none" stroke="#4d6250" strokeOpacity=".22" /></pattern><marker id="planner-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="currentColor" /></marker></defs>
     <rect className="plan-grid-hit" width={VIEW.width} height={VIEW.height} fill="url(#planner-grid)" />
     {(shownPlan.platforms || []).map((platform) => { const q = p(platform.x, platform.y); return <g key={platform.id} className="planner-object" onPointerDown={(event) => objectDown(event, 'platform', platform.id)}><rect className={`platform-shape ${selected?.id === platform.id ? 'selected' : ''}`} x={q.x} y={q.y} width={platform.w * layout.scale} height={platform.h * layout.scale} /><text className="platform-label" x={q.x + platform.w * layout.scale / 2} y={q.y + platform.h * layout.scale / 2 - 5}>{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text><text className="platform-area" x={q.x + platform.w * layout.scale / 2} y={q.y + platform.h * layout.scale / 2 + 13}>{formatNumber(platform.w * platform.h)} м²</text><TerraceStairs platform={platform} p={p} />{shownPlan.showBinding !== false && platform.binding?.mode !== 'none' ? <rect className="binding-guide" x={q.x} y={q.y} width={platform.w * layout.scale} height={platform.h * layout.scale} /> : null}</g>; })}
@@ -288,8 +328,10 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     {shownPlan.showDimensions !== false ? (shownPlan.dimensions || []).map((dimension) => { const q = line(dimension); const length = Math.hypot(dimension.x2 - dimension.x1, dimension.y2 - dimension.y1); const selectedNow = selected?.type === 'dimension' && selected.id === dimension.id; return <g key={dimension.id} className="planner-object" onPointerDown={(event) => objectDown(event, 'dimension', dimension.id)}><line className={`custom-dimension ${selectedNow ? 'selected' : ''}`} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><line className="dimension-tick" x1={q.a.x - 6} y1={q.a.y - 6} x2={q.a.x + 6} y2={q.a.y + 6} /><line className="dimension-tick" x1={q.b.x - 6} y1={q.b.y - 6} x2={q.b.x + 6} y2={q.b.y + 6} /><text className="dimension-text" x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 - 8}>{Math.round(length * 1000)} мм</text>{selectedNow ? [q.a, q.b].map((point, index) => <circle key={index} className="endpoint-handle" cx={point.x} cy={point.y} r="7" onPointerDown={(event) => objectDown(event, 'dimension', dimension.id, { kind: 'endpoint', index })} />) : null}</g>; }) : null}
     {shownPlan.showDimensions !== false ? <g className="outer-dimensions"><line x1={topLeft.x} y1={horizontalY} x2={bottomRight.x} y2={horizontalY} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" /><line className="extension-line" x1={topLeft.x} y1={topLeft.y} x2={topLeft.x} y2={horizontalY} /><line className="extension-line" x1={bottomRight.x} y1={topLeft.y} x2={bottomRight.x} y2={horizontalY} /><text x={(topLeft.x + bottomRight.x) / 2} y={horizontalY - 9}>{Math.round(shownPlan.house.w * 1000).toLocaleString('ru-RU')} мм</text><line x1={verticalX} y1={topLeft.y} x2={verticalX} y2={bottomRight.y} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" /><line className="extension-line" x1={topLeft.x} y1={topLeft.y} x2={verticalX} y2={topLeft.y} /><line className="extension-line" x1={topLeft.x} y1={bottomRight.y} x2={verticalX} y2={bottomRight.y} /><text transform={`translate(${verticalX - 10} ${(topLeft.y + bottomRight.y) / 2}) rotate(-90)`}>{Math.round(shownPlan.house.h * 1000).toLocaleString('ru-RU')} мм</text></g> : null}
     {(shownPlan.openings || []).map((opening) => <g key={`opening-hit-${opening.id}`} className={`opening-hit-layer opening-hit-${opening.type}-${opening.doorType || 'standard'}`} data-opening-id={opening.id} onPointerDown={(event) => objectDown(event, 'opening', opening.id)}>{renderOpeningHit(opening)}</g>)}
-    {gesture?.kind === 'draw' ? (() => { const a = p(gesture.start.x, gesture.start.y); const b = p(gesture.end.x, gesture.end.y); const alignment = gesture.type === 'pileRow' ? pileRowAlignment({ x1: gesture.start.x, y1: gesture.start.y, x2: gesture.end.x, y2: gesture.end.y }) : null; return ['room', 'terrace', 'porch'].includes(gesture.type) ? <rect className="draft-shape" x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} /> : <line className={`draft-line ${alignment ? `pile-axis-${alignment.state}` : ''}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })() : null}
+    {gesture?.kind === 'draw' ? (() => { const a = p(gesture.start.x, gesture.start.y); const b = p(gesture.end.x, gesture.end.y); const alignment = gesture.type === 'pileRow' ? pileRowAlignment({ x1: gesture.start.x, y1: gesture.start.y, x2: gesture.end.x, y2: gesture.end.y }) : null; return ['room', 'terrace', 'porch'].includes(gesture.type) ? <g><rect className="draft-shape" x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} />{gesture.type === 'room' ? <DraftRoomDimensions start={gesture.start} end={gesture.end} p={p} /> : null}</g> : <line className={`draft-line ${alignment ? `pile-axis-${alignment.state}` : ''}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })() : null}
     {polygonDraft.length ? <g><polyline className="polygon-draft" points={polygonDraft.map((point) => { const q = p(point.x, point.y); return `${q.x},${q.y}`; }).join(' ')} />{polygonDraft.map((point, index) => { const q = p(point.x, point.y); return <circle key={index} className="polygon-point" cx={q.x} cy={q.y} r="5" />; })}</g> : null}
+    {tool === 'polygon' ? <DraftPolygonEdge points={polygonDraft} hoverPoint={hoverSnap?.point} p={p} /> : null}
+    {hoverSnap?.snap && (tool !== 'select' || gesture) ? (() => { const q = p(hoverSnap.point.x, hoverSnap.point.y); return <g className={`snap-indicator snap-${hoverSnap.snap.kind}`} transform={`translate(${q.x} ${q.y})`}><circle className="snap-halo" r="11" /><circle className="snap-core" r="4" /></g>; })() : null}
   </svg>;
 }
 

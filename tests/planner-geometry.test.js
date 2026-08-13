@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, movePoints, nearestSegment,
-  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, snapPoint, unifiedWallSegments
+  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, snapPoint, snapPointDetails, unifiedWallSegments
 } from '../src/react/planner/geometry.js';
 
 const room = (id, name, x1, y1, x2, y2) => ({
@@ -47,6 +47,9 @@ test('pointer snaps to a nearby real node without an exact hit', () => {
   };
   const axes = collectSnapAxes(plan);
   assert.deepEqual(snapPoint({ x: 1.48, y: 1.69 }, axes, { tolerance: 0.15, pointTolerance: 0.35 }), { x: 1.237, y: 1.456 });
+  const resolved = snapPointDetails({ x: 1.48, y: 1.69 }, axes, { tolerance: 0.15, pointTolerance: 0.35 });
+  assert.equal(resolved.snap.kind, 'node');
+  assert.deepEqual(resolved.point, { x: 1.237, y: 1.456 });
 });
 
 test('pile row alignment distinguishes an exact axis from a small accidental offset', () => {

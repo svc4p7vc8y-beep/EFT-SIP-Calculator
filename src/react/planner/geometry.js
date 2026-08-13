@@ -72,7 +72,7 @@ export function collectSnapAxes(plan, excludeRoomId) {
   return { xs: [...xs], ys: [...ys], points: [...points.values()] };
 }
 
-export function snapPoint(point, axes, options = {}) {
+export function snapPointDetails(point, axes, options = {}) {
   const grid = Number(options.grid) || 0.1;
   const tolerance = Number(options.tolerance) || 0.16;
   const pointTolerance = Number(options.pointTolerance) || tolerance * 1.5;
@@ -81,17 +81,31 @@ export function snapPoint(point, axes, options = {}) {
     const distance = Math.hypot(candidate.x - point.x, candidate.y - point.y);
     if (distance <= closestDistance) { closestPoint = candidate; closestDistance = distance; }
   }
-  if (closestPoint) return { x: roundCoord(closestPoint.x), y: roundCoord(closestPoint.y) };
+  if (closestPoint) {
+    const snapped = { x: roundCoord(closestPoint.x), y: roundCoord(closestPoint.y) };
+    return { point: snapped, snap: { kind: 'node', ...snapped, distance: roundCoord(closestDistance) } };
+  }
   const snapValue = (value, candidates) => {
     let best = Math.round(value / grid) * grid;
     let distance = tolerance;
+    let matched = false;
     for (const candidate of candidates) {
       const next = Math.abs(candidate - value);
-      if (next <= distance) { best = candidate; distance = next; }
+      if (next <= distance) { best = candidate; distance = next; matched = true; }
     }
-    return roundCoord(best);
+    return { value: roundCoord(best), matched };
   };
-  return { x: snapValue(point.x, axes.xs || []), y: snapValue(point.y, axes.ys || []) };
+  const x = snapValue(point.x, axes.xs || []);
+  const y = snapValue(point.y, axes.ys || []);
+  const snapped = { x: x.value, y: y.value };
+  return {
+    point: snapped,
+    snap: x.matched || y.matched ? { kind: x.matched && y.matched ? 'intersection' : 'axis', ...snapped } : null
+  };
+}
+
+export function snapPoint(point, axes, options = {}) {
+  return snapPointDetails(point, axes, options).point;
 }
 
 export function pileRowAlignment(row, exactTolerance = 0.015, warningAngle = 7) {

@@ -68,9 +68,23 @@ test('terrace roof adds its slopes, posts and optional gable to the roof estimat
   assert.ok(result.roof.terraceRoofs[0].result.netArea > 0);
   assert.ok(result.roof.terraceRoofs[0].result.gableArea > 0);
   assert.ok(result.roof.terracePostCount > 0);
-  const posts = result.lines.find((line) => line.id === 'roof:terrace-posts-100x100');
+  const posts = result.roof.extensionLines.find((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Опорные столбы'));
   assert.equal(posts.catalogId, 'MAT-017');
   assert.match(posts.name, /100×100/);
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Профлист')));
+});
+
+test('terrace and porch roof materials are listed separately in the roof estimate', () => {
+  const project = createDefaultProject();
+  const terrace = project.plan.platforms.find((platform) => platform.kind === 'terrace');
+  const porch = project.plan.platforms.find((platform) => platform.kind === 'porch');
+  terrace.roof.mode = 'cold';
+  porch.roof.mode = 'warm';
+  const result = calculateProject(project);
+  const materialLines = result.roof.extensionLines.filter((line) => line.kind === 'material');
+  assert.ok(materialLines.some((line) => line.source === 'platform-terrace-main-roof' && /террасы/.test(line.name)));
+  assert.ok(materialLines.some((line) => line.source === 'platform-porch-main-roof' && /крыльца/.test(line.name)));
+  assert.ok(materialLines.every((line) => result.sections.find((section) => section.key === 'roof').lines.includes(line)));
 });
 
 test('SIP joinery switches between thermobeam, board pack and solid beam', () => {

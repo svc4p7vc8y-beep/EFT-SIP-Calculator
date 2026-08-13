@@ -659,6 +659,24 @@ export default function Calculators({ type }) {
               </div>
             ))}
           </Panel>
+          <Panel
+            title="Материалы кровли террас и крыльца"
+            description="Каждая пристройка показана отдельными строками и этими же позициями входит в общую смету кровли."
+          >
+            {calculation.roof.extensionLines?.some(
+              (line) => line.kind === "material",
+            ) ? (
+              <PreviewTable
+                lines={calculation.roof.extensionLines.filter(
+                  (line) => line.kind === "material",
+                )}
+              />
+            ) : (
+              <p className="inspector-note">
+                На плане пока нет террасы или крыльца с включённой кровлей.
+              </p>
+            )}
+          </Panel>
           <Panel title="Ведомость кровли">
             <SectionResult calculation={calculation} sectionKey="roof" />
           </Panel>

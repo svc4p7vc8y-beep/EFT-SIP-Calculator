@@ -199,6 +199,18 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .draft-line.pile-axis-aligned { stroke:#4f9636; }
 .draft-line.pile-axis-warning { stroke:#d7493e; stroke-width:4; }
 .draft-line.pile-axis-diagonal { stroke:#d69a32; }
+.draft-room-dimensions { color:#37661f; pointer-events:none; }
+.draft-room-dimensions line { stroke:#37661f; stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.draft-room-dimensions .draft-extension { stroke:#7b9b68; stroke-width:1; stroke-dasharray:3 3; }
+.draft-room-dimensions text,.polygon-hover-edge text { fill:#214415; stroke:#fff; stroke-width:4; paint-order:stroke; font-size:11px; font-weight:900; text-anchor:middle; }
+.draft-room-dimensions .draft-room-summary { fill:#fff; stroke:#37661f; stroke-width:5; font-size:12px; }
+.polygon-hover-edge { pointer-events:none; }
+.polygon-hover-edge line { stroke:#5d8f32; stroke-width:2; stroke-dasharray:6 4; vector-effect:non-scaling-stroke; }
+.snap-indicator { pointer-events:none; }
+.snap-halo { fill:rgba(105,170,63,.18); stroke:#69aa3f; stroke-width:2; vector-effect:non-scaling-stroke; }
+.snap-core { fill:#fff; stroke:#37661f; stroke-width:3; vector-effect:non-scaling-stroke; }
+.snap-axis .snap-halo { fill:rgba(221,157,56,.14); stroke:#d99d38; }
+.snap-axis .snap-core { stroke:#a36a17; }
 .polygon-point { fill:#fff; stroke:#5d8f32; stroke-width:2; vector-effect:non-scaling-stroke; }
 .room-summary header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
 .room-summary header h3 { margin:0 0 4px; }
