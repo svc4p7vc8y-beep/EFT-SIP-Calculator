@@ -192,7 +192,6 @@ function roofSection(project, metrics, index, inputs) {
   const mainGableSipCutting = calculateSipRoofCutting(mainWarmGableArea, { panelArea: inputs.formulas.panelArea, extraWastePercent: project.settings.sip.wastePercent });
   const rafterSection = roof.rafterSection === '50x200' ? '50x200' : '50x150';
   const rafterDepth = rafterSection === '50x200' ? 0.2 : 0.15;
-  const mainRafterVolume = mainColdSlopeArea * inputs.formulas.rafterLinearMPerM2 * 0.05 * rafterDepth;
   const terracePostCount = terraceRoofs.reduce((sum, item) => sum + item.result.postCount, 0);
   const houseLength = Math.max(0, Number(project.plan.house.w) || 0);
   const mauerlatLength = mainRoofShape === 'flat' ? 0 : houseLength * 2;
@@ -202,7 +201,7 @@ function roofSection(project, metrics, index, inputs) {
   const mauerlatAnchors = mauerlatLength ? 2 * (Math.ceil(houseLength / anchorSpacing) + 1) : 0;
   const ridgeBeamLength = mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength;
   const ridgeBeamPurchaseLength = ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
-  const ridgeBeamVolume = ridgeBeamPurchaseLength * 0.1 * 0.15;
+  const mainRafterVolume = (mainColdSlopeArea * inputs.formulas.rafterLinearMPerM2 + ridgeBeamPurchaseLength) * 0.05 * rafterDepth;
   const mainEaveLength = mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength * 2;
   const mainVergeLength = mainRoofShape === 'flat' ? 0 : geometry.slopeLength * 4;
   const mainEaveTrimPurchaseLength = mainEaveLength * inputs.formulas.roofTrimReserve;
@@ -224,13 +223,12 @@ function roofSection(project, metrics, index, inputs) {
     const gableSip = calculateSipRoofCutting(warmGable, { panelArea: inputs.formulas.panelArea, extraWastePercent: project.settings.sip.wastePercent });
     const postQuery = result.postSection === '100x100' ? 'Брус ест.влажн. сосна 100×100 мм' : 'Брус мауэрлата ест.влажн. сосна 150×100 мм';
     const ridgeBeamPurchaseLength = result.ridgeLength * inputs.formulas.ridgeBeamReserve;
+    const terraceRafterVolume = (coldSlope * inputs.formulas.rafterLinearMPerM2 + ridgeBeamPurchaseLength) * 0.05 * rafterDepth;
     const eaveTrimPurchaseLength = result.eaveLength * inputs.formulas.roofTrimReserve;
     const vergeTrimPurchaseLength = result.vergeLength * inputs.formulas.roofTrimReserve;
     return [
-      makeLine(index, 'roof', 'Брус ест.влажн. сосна 100×150 мм', ridgeBeamPurchaseLength * 0.1 * 0.15, { key: `${key}-ridge-beam`, unit: 'м³', digits: 3, name: `Коньковый прогон кровли ${title} · брус 100×150 мм`, source }),
-      makeLine(index, 'roof', 'Монтаж конькового прогона', result.ridgeLength, { key: `${key}-ridge-beam-work`, kind: 'labor', name: `Монтаж конькового прогона кровли ${title}`, source }),
       makeLine(index, 'roof', 'Монтаж стропильной системы', coldSlope, { key: `${key}-rafters-work`, kind: 'labor', name: `Монтаж стропильной системы ${title}`, source }),
-      makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', coldSlope * inputs.formulas.rafterLinearMPerM2 * 0.05 * rafterDepth, { key: `${key}-rafters`, unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм · кровля ${title}`, source }),
+      makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', terraceRafterVolume, { key: `${key}-rafters`, unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм с коньковым прогоном · кровля ${title}`, source }),
       makeLine(index, 'roof', 'Доска ест. влажн. сосна 50х150мм', coldGable * inputs.formulas.gableBoardM3PerM2, { key: `${key}-gable-frame`, unit: 'м³', digits: 3, name: `Каркас фронтона ${title} · доска 50×150 мм`, source }),
       makeLine(index, 'roof', 'Монтаж каркаса фронтонов', coldGable, { key: `${key}-gable-frame-work`, kind: 'labor', name: `Монтаж каркаса фронтона ${title}`, source }),
       makeLine(index, 'roof', 'Монтаж обрешётки и контробрешётки', result.netArea, { key: `${key}-lath-work`, kind: 'labor', name: `Монтаж обрешётки кровли ${title}`, source }),
@@ -260,11 +258,9 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, 'roof', 'Брус ест.влажн. сосна 100×150 мм', mauerlatVolume, { key: 'mauerlat-timber', unit: 'м³', digits: 3, name: 'Мауэрлат 100×150 мм' }),
     makeLine(index, 'roof', 'Монтаж мауэрлата', mauerlatLength, { key: 'mauerlat-work', kind: 'labor', name: 'Монтаж мауэрлата 100×150 мм' }),
     makeLine(index, 'roof', 'Анкер-шпилька для крепления мауэрлата', mauerlatAnchors, { key: 'mauerlat-anchors', unit: 'шт' }),
-    makeLine(index, 'roof', 'Брус ест.влажн. сосна 100×150 мм', ridgeBeamVolume, { key: 'ridge-beam', unit: 'м³', digits: 3, name: 'Коньковый прогон · брус 100×150 мм' }),
-    makeLine(index, 'roof', 'Монтаж конькового прогона', ridgeBeamLength, { key: 'ridge-beam-work', kind: 'labor' }),
     makeLine(index, 'roof', 'Монтаж стропильной системы', mainColdSlopeArea, { key: 'rafters-work', kind: 'labor' }),
     makeLine(index, 'roof', 'Монтаж обрешётки и контробрешётки', mainArea, { key: 'lath-work', kind: 'labor' }),
-    makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', mainRafterVolume, { key: 'rafters', unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм` }),
+    makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', mainRafterVolume, { key: 'rafters', unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм, включая коньковый прогон` }),
     makeLine(index, 'roof', 'Доска ест. влажн. сосна 50х150мм', mainColdGableArea * inputs.formulas.gableBoardM3PerM2, { key: 'gable-frame', unit: 'м³', digits: 3, name: 'Каркас холодных фронтонов · доска 50×150 мм', source: 'gables' }),
     makeLine(index, 'roof', 'Монтаж каркаса фронтонов', mainColdGableArea, { key: 'gable-frame-work', kind: 'labor', source: 'gables' }),
     makeLine(index, 'roof', 'Доска ест.влажн. сосна 25*100мм', mainArea * inputs.formulas.lathM3PerM2, { key: 'lath', unit: 'м³', digits: 3 }),

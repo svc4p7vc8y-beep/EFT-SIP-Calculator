@@ -638,7 +638,7 @@ export default function Calculators({ type }) {
               value={`${formatNumber(calculation.roof.mauerlatLength)} м.п.`}
             />
             <Stat
-              label="Коньковый прогон"
+              label="Коньковая доска в стропилах"
               value={`${formatNumber(calculation.roof.ridgeBeamLength)} м.п.`}
             />
             <Stat
@@ -652,7 +652,7 @@ export default function Calculators({ type }) {
           </div>
           <Panel
             title="Основная крыша"
-            description="Мауэрлат 100×150 считается по двум опорным стенам, коньковый прогон — по линии конька, карнизные и ветровые планки — по краям свесов. Материалы и монтаж сразу входят в ведомость."
+            description="Мауэрлат 100×150 считается отдельно по двум опорным стенам. Коньковый прогон выполняется из доски того же сечения, что и стропила, и включён в общий объём стропильной доски. Карнизные и ветровые планки считаются по краям свесов."
           >
             <div className="form-grid four">
               <SelectField

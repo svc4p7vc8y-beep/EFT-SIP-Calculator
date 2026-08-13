@@ -36,7 +36,7 @@ const FORMULA_GROUPS = [
     ['pileLagScrews', 'Глухарей на сваю', 'шт'], ['rafterLinearMPerM2', 'Погонных метров стропил на 1 м²', 'м'],
     ['gableBoardM3PerM2', 'Доски каркаса на 1 м² фронтона', 'м³'], ['lathM3PerM2', 'Обрешётки на 1 м² кровли', 'м³'], ['roofScrewsPerM2', 'Кровельных саморезов на 1 м²', 'шт'],
     ['ridgeReserve', 'Запас планки конька', 'коэф.'], ['mauerlatReserve', 'Запас мауэрлата', 'коэф.'], ['mauerlatAnchorSpacing', 'Шаг анкеров мауэрлата', 'м'],
-    ['ridgeBeamReserve', 'Запас конькового прогона', 'коэф.'], ['roofTrimReserve', 'Запас карнизных и ветровых планок', 'коэф.'], ['rafterInsulationThicknessM', 'Толщина минваты второго света', 'м'],
+    ['ridgeBeamReserve', 'Запас коньковой доски', 'коэф.'], ['roofTrimReserve', 'Запас карнизных и ветровых планок', 'коэф.'], ['rafterInsulationThicknessM', 'Толщина минваты второго света', 'м'],
     ['vaporBarrierRollArea', 'Площадь рулона пароизоляции', 'м²'], ['terraceRoofPostSpacing', 'Предельный шаг столбов кровли террасы', 'м'], ['terraceFrameBoardM3PerM2', 'Каркаса на 1 м² террасы', 'м³'],
     ['terraceDeckReserve', 'Запас настила террасы', 'коэф.'], ['terraceScrewKgPerM2', 'Саморезов на 1 м² террасы', 'кг']
   ]]
