@@ -53,7 +53,7 @@ function scopeDescription(key, project, calculation, lineCount) {
     ];
     return {
       summary: joinParts(surfaces),
-      details: `Панели, соединения (${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}), торцевые доски, крепёж и монтаж`
+      details: `Панели, раскладка пола ${Math.round(Number(project.settings.sip.floorPanelWidth || 1.25) * 1000)} мм и потолка ${Math.round(Number(project.settings.sip.ceilingPanelWidth || 1.25) * 1000)} мм, соединения (${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}), резка, торцевые доски, крепёж и монтаж`
     };
   }
   if (key === 'roof') {

@@ -609,6 +609,24 @@ export default function Calculators({ type }) {
                 onChange={(value) => setSetting("sip", "connectorType", value)}
                 options={SIP_JOINERY_TYPES}
               />
+              <SelectField
+                label="Раскладка панелей пола"
+                value={project.settings.sip.floorPanelWidth || "1.25"}
+                onChange={(value) => setSetting("sip", "floorPanelWidth", value)}
+                options={[
+                  { value: "1.25", label: "1250 × 2500 мм · стандарт" },
+                  { value: "0.625", label: "625 × 2500 мм · усиленная" },
+                ]}
+              />
+              <SelectField
+                label="Шаг панелей потолка"
+                value={project.settings.sip.ceilingPanelWidth || "1.25"}
+                onChange={(value) => setSetting("sip", "ceilingPanelWidth", value)}
+                options={[
+                  { value: "1.25", label: "1250 мм · стандарт" },
+                  { value: "0.625", label: "625 мм · усиленный" },
+                ]}
+              />
               <NumberField
                 label="Дополнительный запас панелей"
                 value={project.settings.sip.wastePercent}
@@ -617,6 +635,7 @@ export default function Calculators({ type }) {
                 onChange={(value) => setSetting("sip", "wastePercent", value)}
               />
             </div>
+            <p className="panel-note">При шаге 625 мм каждая целая панель 1250 × 2500 мм распускается вдоль на две части. Покупное количество панелей не удваивается, а продольный рез и дополнительные стыки силового каркаса рассчитываются автоматически.</p>
             <div className="frame-type-guide">
               <article><strong>1. Термобрус</strong><span>95×95 · 95×145 · 95×195 мм</span><small>Премиальный и самый дорогой вариант</small></article>
               <article><strong>2. Клеёный пакет досок</strong><span>95×95 · 95×145 · 95×195 мм</span><small>Средний вариант, цена 50% термобруса</small></article>
@@ -656,6 +675,7 @@ export default function Calculators({ type }) {
                     <th>Конструкция</th>
                     <th>Чистая площадь</th>
                     <th>Панели</th>
+                    <th>Шаг</th>
                     <th>Куплено</th>
                     <th>Остаток</th>
                     <th>Рез</th>
@@ -667,6 +687,7 @@ export default function Calculators({ type }) {
                       <td>{row.label}</td>
                       <td>{formatNumber(row.area)} м²</td>
                       <td>{row.panels} шт</td>
+                      <td>{Math.round(row.layoutWidth * 1000)} мм{row.splitCutMeters > 0 ? ` · продольный рез ${formatNumber(row.splitCutMeters)} м` : ''}</td>
                       <td>{formatNumber(row.purchasedArea)} м²</td>
                       <td>{formatNumber(row.offcutArea)} м²</td>
                       <td>{formatNumber(row.cutMeters)} м</td>

@@ -102,7 +102,13 @@ function sipSection(project, metrics, index, inputs) {
     ceiling: project.services.sipCeiling ? metrics.ceilingArea : 0
   };
   const f = inputs.formulas;
-  const cutting = calculateSipCutting(surfaces, { panelArea: f.panelArea, extraWastePercent: sip.wastePercent });
+  const cutting = calculateSipCutting(surfaces, {
+    panelArea: f.panelArea,
+    panelWidth: f.panelWidth,
+    panelLength: f.panelLength,
+    extraWastePercent: sip.wastePercent,
+    layoutWidths: { floor: sip.floorPanelWidth, ceiling: sip.ceilingPanelWidth }
+  });
   const byKey = new Map(cutting.map((row) => [row.key, row]));
   const panelGroups = [
     ['floor', sip.floorThickness], ['walls', sip.wallThickness], ['ceiling', sip.ceilingThickness]

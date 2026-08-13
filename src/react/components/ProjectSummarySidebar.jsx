@@ -61,7 +61,7 @@ export default function ProjectSummarySidebar({ project, calculation, onNavigate
 
     <SummarySection title="Стены и SIP" icon={Layers3} target="sip" onNavigate={onNavigate}>
       <div className="summary-grid"><SummaryValue label="Наружные" value={`${formatNumber(metrics.exteriorWallNetArea)} м²`} /><SummaryValue label="Перегородки" value={`${formatNumber(metrics.partitionLength)} м`} /><SummaryValue label="Наружная панель" value={`${Math.round(plan.wallThickness * 1000)} мм`} /><SummaryValue label="Перегородка" value={`${Math.round(plan.partitionThickness * 1000)} мм`} /></div>
-      <p className="summary-detail">SIP: пол {project.settings.sip.floorThickness}, стены {project.settings.sip.wallThickness}, потолок {project.settings.sip.ceilingThickness} мм</p><p className="summary-detail">{CONNECTOR_TYPES[project.settings.sip.connectorType] || 'Термобрус'}</p>
+      <p className="summary-detail">SIP: пол {project.settings.sip.floorThickness}, стены {project.settings.sip.wallThickness}, потолок {project.settings.sip.ceilingThickness} мм</p><p className="summary-detail">Шаг раскладки: пол {Math.round(Number(project.settings.sip.floorPanelWidth || 1.25) * 1000)} мм · потолок {Math.round(Number(project.settings.sip.ceilingPanelWidth || 1.25) * 1000)} мм</p><p className="summary-detail">{CONNECTOR_TYPES[project.settings.sip.connectorType] || 'Термобрус'}</p>
     </SummarySection>
 
     <SummarySection title="Сваи и обвязка" icon={HardHat} target="piles" onNavigate={onNavigate}>

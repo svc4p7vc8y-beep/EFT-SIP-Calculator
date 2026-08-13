@@ -3,7 +3,7 @@ import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 61;
+export const REACT_PROJECT_VERSION = 62;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -128,7 +128,11 @@ export function createDefaultProject() {
     },
     settings: {
       piles: { spacing: 2.5, boardVolumePerMeter: 0.0225, bindingLayers: 3, bindingBoardWidthMm: 50, bindingBoardHeightMm: 150, boardStockLength: 6 },
-      sip: { floorThickness: '224', wallThickness: '174', ceilingThickness: '224', connectorType: 'thermal', wastePercent: 5 },
+      sip: {
+        floorThickness: '224', wallThickness: '174', ceilingThickness: '224',
+        floorPanelWidth: '1.25', ceilingPanelWidth: '1.25',
+        connectorType: 'thermal', wastePercent: 5
+      },
       roof: {
         shape: 'gable', type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0,
         structureMode: 'auto', rafterSystem: 'hanging', rafterStep: 0.6, rafterSection: '50x150',

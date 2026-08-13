@@ -177,12 +177,20 @@ const CUTTING_RULES = {
 
 function calculateCuttingRows(keys, surfaces, options = {}) {
   const panelArea = Math.max(0.1, Number(options.panelArea) || 3.125);
+  const stockPanelWidth = Math.max(0.2, Number(options.panelWidth) || 1.25);
+  const panelLength = Math.max(0.5, Number(options.panelLength) || 2.5);
   const extraWaste = 1 + Math.max(0, Number(options.extraWastePercent) || 0) / 100;
   return keys.map((key) => {
     const rule = CUTTING_RULES[key];
     const area = Math.max(0, Number(surfaces?.[key]) || 0);
     const panels = area > 0 ? Math.ceil((area / panelArea) * rule.waste * extraWaste) : 0;
     const purchasedArea = panels * panelArea;
+    const requestedLayoutWidth = Number(options.layoutWidths?.[key]);
+    const layoutWidth = ['floor', 'ceiling'].includes(key) && requestedLayoutWidth > 0
+      ? Math.min(stockPanelWidth, requestedLayoutWidth)
+      : stockPanelWidth;
+    const stripsPerPanel = Math.max(1, Math.ceil(stockPanelWidth / layoutWidth - 1e-9));
+    const splitCutMeters = panels * Math.max(0, stripsPerPanel - 1) * panelLength;
     return {
       key,
       label: rule.label,
@@ -190,7 +198,10 @@ function calculateCuttingRows(keys, surfaces, options = {}) {
       panels,
       purchasedArea: round(purchasedArea, 2),
       offcutArea: round(Math.max(0, purchasedArea - area), 2),
-      cutMeters: round(area * rule.cutNorm, 1)
+      layoutWidth: round(layoutWidth, 3),
+      stripsPerPanel,
+      splitCutMeters: round(splitCutMeters, 1),
+      cutMeters: round(area * rule.cutNorm + splitCutMeters, 1)
     };
   });
 }

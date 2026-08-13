@@ -79,6 +79,30 @@ test('SIP cutting covers only floor, outer walls and horizontal ceiling', () => 
   assert.equal(calculateSipRoofCutting(70).key, 'roof');
 });
 
+test('625 mm floor and ceiling layouts keep full-panel purchases but add longitudinal cutting', () => {
+  const surfaces = { floor: 50, walls: 80, ceiling: 50 };
+  const standard = calculateSipCutting(surfaces, {
+    panelWidth: 1.25, panelLength: 2.5,
+    layoutWidths: { floor: 1.25, ceiling: 1.25 }
+  });
+  const reinforced = calculateSipCutting(surfaces, {
+    panelWidth: 1.25, panelLength: 2.5,
+    layoutWidths: { floor: .625, ceiling: .625 }
+  });
+
+  for (const key of ['floor', 'ceiling']) {
+    const base = standard.find((row) => row.key === key);
+    const half = reinforced.find((row) => row.key === key);
+    assert.equal(half.panels, base.panels);
+    assert.equal(half.purchasedArea, base.purchasedArea);
+    assert.equal(half.layoutWidth, .625);
+    assert.equal(half.stripsPerPanel, 2);
+    assert.equal(half.splitCutMeters, half.panels * 2.5);
+    assert.equal(half.cutMeters, Math.round((base.cutMeters + half.splitCutMeters) * 10) / 10);
+  }
+  assert.equal(reinforced.find((row) => row.key === 'walls').splitCutMeters, 0);
+});
+
 test('empty plan keeps the full house floor and ceiling areas', () => {
   const metrics = calculatePlanMetrics({
     house: { w: 10, h: 8 }, wallThickness: 0.174, wallHeight: 2.5,

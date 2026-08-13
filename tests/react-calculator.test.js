@@ -16,6 +16,27 @@ test('React project produces a priced estimate from one shared model', () => {
   assert.equal(result.totals.total, result.totals.materials + result.totals.labor);
 });
 
+test('625 mm SIP layout increases floor and ceiling joints and cutting without doubling panels', () => {
+  const standardProject = createDefaultProject();
+  const standard = calculateProject(standardProject);
+  const reinforcedProject = createDefaultProject();
+  reinforcedProject.settings.sip.floorPanelWidth = '0.625';
+  reinforcedProject.settings.sip.ceilingPanelWidth = '0.625';
+  const reinforced = calculateProject(reinforcedProject);
+
+  for (const key of ['floor', 'ceiling']) {
+    const baseCut = standard.sip.cutting.find((row) => row.key === key);
+    const reinforcedCut = reinforced.sip.cutting.find((row) => row.key === key);
+    const baseJoint = standard.sip.joinery.rows.find((row) => row.key === key);
+    const reinforcedJoint = reinforced.sip.joinery.rows.find((row) => row.key === key);
+    assert.equal(reinforcedCut.panels, baseCut.panels);
+    assert.ok(reinforcedCut.cutMeters > baseCut.cutMeters);
+    assert.ok(reinforcedJoint.jointLength > baseJoint.jointLength);
+    assert.equal(reinforced.lines.find((line) => line.id === `sip:cut-${key}`).qty, reinforcedCut.cutMeters);
+    assert.equal(reinforced.lines.find((line) => line.id === `sip:${key}-connector`).qty, Math.round(reinforcedJoint.jointLength * 100) / 100);
+  }
+});
+
 test('commercial proposal lists only priced sections and explains their scope', () => {
   const project = createDefaultProject();
   project.services.engineeringElectric = true;

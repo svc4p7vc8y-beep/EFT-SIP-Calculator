@@ -32,6 +32,8 @@ export function calculateSipJoinery(plan, services, sipSettings, formulas = {}) 
   const wallHeight = Math.max(0, Number(plan.wallHeight) || 2.5);
   const panelWidth = Math.max(0.2, Number(formulas.panelWidth) || 1.25);
   const panelLength = Math.max(0.5, Number(formulas.panelLength) || 2.5);
+  const floorLayoutWidth = Math.min(panelWidth, Math.max(0.2, Number(sipSettings.floorPanelWidth) || panelWidth));
+  const ceilingLayoutWidth = Math.min(panelWidth, Math.max(0.2, Number(sipSettings.ceilingPanelWidth) || panelWidth));
   const reserve = 1 + Math.max(0, Number(formulas.sipTimberReservePercent) || 5) / 100;
   const perimeter = 2 * (width + height);
   const wallSeams = (wallLength) => (
@@ -43,9 +45,9 @@ export function calculateSipJoinery(plan, services, sipSettings, formulas = {}) 
     opening.outer === false ? sum : sum + 2 * (Math.max(0, Number(opening.width) || 0) + Math.max(0, Number(opening.height) || 0))
   ), 0);
   const rows = [
-    services.sipFloor ? { key: 'floor', label: 'Пол', thickness: sipSettings.floorThickness, jointLength: gridJointLength(width, height, panelWidth, panelLength), endBoardLength: perimeter } : null,
+    services.sipFloor ? { key: 'floor', label: 'Пол', thickness: sipSettings.floorThickness, layoutWidth: floorLayoutWidth, jointLength: gridJointLength(width, height, floorLayoutWidth, panelLength), endBoardLength: perimeter } : null,
     services.sipWalls ? { key: 'walls', label: 'Наружные стены', thickness: sipSettings.wallThickness, jointLength: wallJointLength, endBoardLength: 2 * perimeter + 4 * wallHeight + openingEdgeLength } : null,
-    services.sipCeiling ? { key: 'ceiling', label: 'Потолок', thickness: sipSettings.ceilingThickness, jointLength: gridJointLength(width, height, panelWidth, panelLength), endBoardLength: perimeter } : null
+    services.sipCeiling ? { key: 'ceiling', label: 'Потолок', thickness: sipSettings.ceilingThickness, layoutWidth: ceilingLayoutWidth, jointLength: gridJointLength(width, height, ceilingLayoutWidth, panelLength), endBoardLength: perimeter } : null
   ].filter(Boolean).map((row) => ({
     ...row,
     ...sipTimberProfile(row.thickness),
