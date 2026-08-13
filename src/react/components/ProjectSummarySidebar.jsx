@@ -6,6 +6,7 @@ import { planIssues } from '../planner/geometry.js';
 import { formatNumber } from '../utils/format.js';
 
 const ROOF_TYPES = { cold: 'Холодная', sip: 'Тёплая SIP', combo: 'Комбинированная' };
+const ROOF_SHAPES = { flat: 'Плоская', gable: 'Двускатная' };
 const CONNECTOR_TYPES = { thermal: 'Термобрус', 'board-pack': 'Клеёный пакет досок', solid: 'Брус естественной влажности' };
 
 function SummaryValue({ label, value, tone }) {
@@ -68,7 +69,7 @@ export default function ProjectSummarySidebar({ project, calculation, onNavigate
     </SummarySection>
 
     <SummarySection title="Кровля" icon={Ruler} target="roof" onNavigate={onNavigate}>
-      <div className="summary-grid"><SummaryValue label="Тип" value={ROOF_TYPES[project.settings.roof.type] || '—'} /><SummaryValue label="Стропила" value={(project.settings.roof.rafterSection || '50x150').replace('x', '×')} /><SummaryValue label="Скаты" value={`${formatNumber((roof.coldSlopeArea || 0) + (roof.warmSlopeArea || 0))} м²`} /><SummaryValue label="Фронтоны" value={`${formatNumber(roof.gableArea)} м²`} /><SummaryValue label="Столбы террас" value={`${roof.terracePostCount || 0} шт`} /><SummaryValue label="Всего" value={`${formatNumber(roof.totalArea)} м²`} /></div><p className="summary-detail">Конёк: высота {formatNumber(project.settings.roof.ridgeHeight)} м · длина {formatNumber(project.settings.roof.ridgeLength)} м</p>
+      <div className="summary-grid"><SummaryValue label="Форма" value={ROOF_SHAPES[project.settings.roof.shape || 'gable']} /><SummaryValue label="Тип" value={ROOF_TYPES[project.settings.roof.type] || '—'} /><SummaryValue label="Стропила" value={(project.settings.roof.rafterSection || '50x150').replace('x', '×')} /><SummaryValue label="Скаты" value={`${formatNumber((roof.coldSlopeArea || 0) + (roof.warmSlopeArea || 0))} м²`} /><SummaryValue label="Фронтоны" value={`${formatNumber(roof.gableArea)} м²`} /><SummaryValue label="Столбы террас" value={`${roof.terracePostCount || 0} шт`} /><SummaryValue label="Всего" value={`${formatNumber(roof.totalArea)} м²`} /></div><p className="summary-detail">{project.settings.roof.shape === 'flat' ? `Плоская кровля: длина ${formatNumber(project.settings.roof.ridgeLength)} м` : `Конёк: высота ${formatNumber(project.settings.roof.ridgeHeight)} м · длина ${formatNumber(project.settings.roof.ridgeLength)} м`}</p>
     </SummarySection>
 
     <SummarySection title="Террасы и крыльцо" icon={Trees} target="terrace" onNavigate={onNavigate}>

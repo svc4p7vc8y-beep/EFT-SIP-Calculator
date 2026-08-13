@@ -36,6 +36,21 @@ test('cold roof defaults to 50x150 rafters and includes cold gables', () => {
   assert.ok(result.roof.gableArea > 0);
   assert.equal(result.roof.coldGableArea, result.roof.geometry.gableArea);
   assert.ok(result.lines.some((line) => line.id === 'roof:gable-frame-work' && line.catalogId === 'LAB-027'));
+  const coverWork = result.lines.find((line) => line.id === 'roof:cover-work');
+  assert.equal(coverWork.catalogId, 'LAB-031');
+  assert.ok(coverWork.qty > 0);
+});
+
+test('main roof switches to one flat plane without ridge and gables', () => {
+  const project = createDefaultProject();
+  project.settings.roof.shape = 'flat';
+  const result = calculateProject(project);
+  assert.equal(result.roof.mainRoofShape, 'flat');
+  assert.equal(result.roof.geometry.totalSlopeArea, Math.round(project.plan.house.h * result.inputs.roof.ridgeLength * 100) / 100);
+  assert.equal(result.roof.gableArea, 0);
+  assert.equal(result.lines.some((line) => line.id === 'roof:ridge'), false);
+  assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
+  assert.ok(result.lines.some((line) => line.id === 'roof:cover-work' && line.catalogId === 'LAB-031'));
 });
 
 test('main roof can count one exposed gable instead of two', () => {
@@ -72,6 +87,7 @@ test('terrace roof adds its slopes, posts and optional gable to the roof estimat
   assert.equal(posts.catalogId, 'MAT-017');
   assert.match(posts.name, /100×100/);
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Профлист')));
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Монтаж профлиста') && line.catalogId === 'LAB-031'));
 });
 
 test('terrace and porch roof materials are listed separately in the roof estimate', () => {
@@ -264,4 +280,19 @@ test('automatic pile rows cover the house perimeter and internal walls at the co
   assert.ok(rows.every((row) => row.auto && row.count >= 2));
   assert.ok(rows.every((row) => Math.hypot(row.x2 - row.x1, row.y2 - row.y1) / (row.count - 1) <= 2.001));
   assert.deepEqual(rows.slice(0, 4).map((row) => row.id), ['auto-top', 'auto-right', 'auto-bottom', 'auto-left']);
+});
+
+test('pile rows share one pile at corners and crossing nodes', () => {
+  const project = createDefaultProject();
+  project.plan.platforms = [];
+  project.plan.piles = [];
+  project.plan.pileRows = [
+    { id: 'horizontal', x1: 0, y1: 4, x2: 10, y2: 4, count: 3, group: 'house' },
+    { id: 'vertical', x1: 5, y1: 0, x2: 5, y2: 8, count: 3, group: 'house' },
+    { id: 'corner', x1: 10, y1: 4, x2: 10, y2: 8, count: 2, group: 'house' }
+  ];
+  const foundation = calculateFoundation(project.plan, project.settings.piles);
+  assert.equal(foundation.totalPiles, 6, 'the crossing and shared corner are each counted once');
+  assert.equal(foundation.points.filter((point) => point.x === 5 && point.y === 4).length, 1);
+  assert.equal(foundation.points.filter((point) => point.x === 10 && point.y === 4).length, 1);
 });

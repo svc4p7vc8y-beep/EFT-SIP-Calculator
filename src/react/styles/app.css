@@ -189,6 +189,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .standalone-wall.selected { stroke:var(--planner-green); stroke-width:8; }
 .wide-hit { stroke:transparent; stroke-width:22; cursor:move; vector-effect:non-scaling-stroke; }
 .endpoint-handle,.vertex-handle { fill:#fff; stroke:var(--planner-green); stroke-width:3; vector-effect:non-scaling-stroke; cursor:grab; }
+.pile-row-endpoint { fill:#fff8e8; stroke:#a36a17; stroke-width:2; }
 .binding-guide { fill:none; stroke:#d99d38; stroke-width:2; stroke-dasharray:8 5; vector-effect:non-scaling-stroke; pointer-events:none; }
 .binding-guide-line { stroke:#d99d38; stroke-width:2; stroke-dasharray:8 5; opacity:.75; vector-effect:non-scaling-stroke; pointer-events:none; }
 .manual-pile { fill:#efbb61; stroke:#1a261b; stroke-width:2; vector-effect:non-scaling-stroke; cursor:move; }

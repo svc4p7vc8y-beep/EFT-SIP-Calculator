@@ -73,28 +73,30 @@ function RoofConstructionPanels({
               { value: "50x200", label: "50×200 мм" },
             ]}
           />
-          <SelectField
-            label="Фронтоны основной крыши"
-            value={project.settings.roof.gableType || "auto"}
-            onChange={(value) => setSetting("roof", "gableType", value)}
-            options={[
-              { value: "auto", label: "По типу кровли" },
-              { value: "cold", label: "Холодные каркасные" },
-              { value: "sip", label: "Тёплые SIP" },
-              { value: "none", label: "Не учитывать" },
-            ]}
-          />
-          <NumberField
-            label="Количество фронтонов"
-            value={project.settings.roof.gableCount ?? 2}
-            suffix="шт"
-            min={0}
-            max={2}
-            step={1}
-            onChange={(value) =>
-              setSetting("roof", "gableCount", Math.round(value))
-            }
-          />
+          {project.settings.roof.shape !== "flat" ? <>
+            <SelectField
+              label="Фронтоны основной крыши"
+              value={project.settings.roof.gableType || "auto"}
+              onChange={(value) => setSetting("roof", "gableType", value)}
+              options={[
+                { value: "auto", label: "По типу кровли" },
+                { value: "cold", label: "Холодные каркасные" },
+                { value: "sip", label: "Тёплые SIP" },
+                { value: "none", label: "Не учитывать" },
+              ]}
+            />
+            <NumberField
+              label="Количество фронтонов"
+              value={project.settings.roof.gableCount ?? 2}
+              suffix="шт"
+              min={0}
+              max={2}
+              step={1}
+              onChange={(value) =>
+                setSetting("roof", "gableCount", Math.round(value))
+              }
+            />
+          </> : null}
           <div className="readout">
             <span>Площадь фронтонов</span>
             <strong>{formatNumber(calculation.roof.gableArea)} м²</strong>
@@ -594,6 +596,15 @@ export default function Calculators({ type }) {
           >
             <div className="form-grid four">
               <SelectField
+                label="Форма основной кровли"
+                value={project.settings.roof.shape || "gable"}
+                onChange={(value) => setSetting("roof", "shape", value)}
+                options={[
+                  { value: "gable", label: "Двускатная" },
+                  { value: "flat", label: "Плоская" },
+                ]}
+              />
+              <SelectField
                 label="Тип"
                 value={project.settings.roof.type}
                 onChange={(value) => setSetting("roof", "type", value)}
@@ -603,14 +614,14 @@ export default function Calculators({ type }) {
                   { value: "combo", label: "Комбинированная" },
                 ]}
               />
+              {project.settings.roof.shape !== "flat" ? <NumberField
+                  label="Высота конька"
+                  value={project.settings.roof.ridgeHeight}
+                  suffix="м"
+                  onChange={(value) => setSetting("roof", "ridgeHeight", value)}
+                /> : null}
               <NumberField
-                label="Высота конька"
-                value={project.settings.roof.ridgeHeight}
-                suffix="м"
-                onChange={(value) => setSetting("roof", "ridgeHeight", value)}
-              />
-              <NumberField
-                label="Длина конька"
+                label={project.settings.roof.shape === "flat" ? "Длина кровли" : "Длина конька"}
                 value={project.settings.roof.ridgeLength}
                 suffix="м"
                 onChange={(value) => setSetting("roof", "ridgeLength", value)}

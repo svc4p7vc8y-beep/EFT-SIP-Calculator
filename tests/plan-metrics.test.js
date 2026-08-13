@@ -120,6 +120,14 @@ test('ridge height determines slope and gable areas', () => {
   assert.equal(geometry.slopeCoefficient, 1.25);
 });
 
+test('flat main roof uses one horizontal plane without ridge or gables', () => {
+  const geometry = roofGeometry({ span: 8, ridgeLength: 10, ridgeHeight: 3, shape: 'flat' });
+  assert.equal(geometry.shape, 'flat');
+  assert.equal(geometry.totalSlopeArea, 80);
+  assert.equal(geometry.gableArea, 0);
+  assert.equal(geometry.slopeCoefficient, 1);
+});
+
 test('house dimensions move to the free perimeter side', () => {
   const leftTerrace = chooseDimensionSides({
     house: { w: 10, h: 8 },

@@ -203,13 +203,21 @@ export function calculateSipRoofCutting(area, options = {}) {
   return calculateCuttingRows(['roof'], { roof: area }, options)[0];
 }
 
-export function roofGeometry({ span, ridgeLength, ridgeHeight }) {
+export function roofGeometry({ span, ridgeLength, ridgeHeight, shape = 'gable' }) {
   const safeSpan = Math.max(0, Number(span) || 0);
   const safeLength = Math.max(0, Number(ridgeLength) || 0);
   const safeHeight = Math.max(0, Number(ridgeHeight) || 0);
+  if (shape === 'flat') {
+    const area = safeLength * safeSpan;
+    return {
+      shape: 'flat', slopeLength: round(safeSpan, 3), slopeArea: round(area, 2),
+      totalSlopeArea: round(area, 2), gableArea: 0, slopeCoefficient: 1
+    };
+  }
   const halfSpan = safeSpan / 2;
   const slopeLength = Math.hypot(halfSpan, safeHeight);
   return {
+    shape: 'gable',
     slopeLength: round(slopeLength, 3),
     slopeArea: round(safeLength * slopeLength, 2),
     totalSlopeArea: round(safeLength * slopeLength * 2, 2),

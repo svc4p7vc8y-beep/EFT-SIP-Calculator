@@ -31,7 +31,7 @@ function perimeterRows(platform, spacing) {
 function uniquePoints(groups, tolerance = 0.12) {
   const points = [];
   groups.flat().forEach((point) => {
-    const existing = points.find((candidate) => Math.hypot(candidate.x - point.x, candidate.y - point.y) < tolerance);
+    const existing = points.find((candidate) => Math.hypot(candidate.x - point.x, candidate.y - point.y) <= tolerance);
     if (existing) {
       if (existing.source !== point.source) existing.source = 'shared';
     } else points.push({ ...point });
