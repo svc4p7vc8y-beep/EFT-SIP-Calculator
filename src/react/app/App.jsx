@@ -8,6 +8,7 @@ import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { createDefaultProject, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney } from '../utils/format.js';
+import ProjectSummarySidebar from '../components/ProjectSummarySidebar.jsx';
 
 const PlanScreen = lazy(() => import('../screens/PlanScreen.jsx'));
 const ParametersScreen = lazy(() => import('../screens/ParametersScreen.jsx'));
@@ -144,6 +145,7 @@ export function App() {
             <Screen active={active} />
           </Suspense>
         </main>
+        <ProjectSummarySidebar project={project} calculation={calculation} onNavigate={setActive} />
       </div>
       {backupOpen ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setBackupOpen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="backup-title" onMouseDown={(event) => event.stopPropagation()}><header><div><h2 id="backup-title">Резервные копии</h2><p>Создаются при нажатии на дискету и перед новым проектом. Хранятся в этом браузере.</p></div><button className="icon-button" onClick={() => setBackupOpen(false)} aria-label="Закрыть"><X /></button></header>{backups.length ? <div className="backup-list">{backups.map((backup) => <button key={backup.backupId || backup.savedAt} onClick={() => { replace(backup); setBackupOpen(false); setNotice('Восстановлена резервная копия'); }}><span><strong>Проект № {backup.meta?.projectNum || 'без номера'}</strong><small>{backup.meta?.customer || 'Заказчик не указан'}</small></span><time>{new Date(backup.savedAt).toLocaleString('ru-RU')}</time></button>)}</div> : <div className="empty-state">Резервных копий пока нет. Нажмите дискету после важного изменения.</div>}<footer><button className="button secondary" onClick={() => setBackupOpen(false)}>Закрыть</button></footer></section></div> : null}
     </div>
