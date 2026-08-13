@@ -86,9 +86,17 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
   };
 
   let roomArea = 0;
+  let openCeilingArea = 0;
   (plan.rooms || []).forEach((room) => {
     const points = roomPoints(room);
-    if (room.include !== false) roomArea += polygonArea(points);
+    if (room.include !== false) {
+      const area = polygonArea(points);
+      roomArea += area;
+      if (room.ceilingMode === 'open-rafter') {
+        const configured = room.openCeilingArea == null ? area : Math.max(0, Number(room.openCeilingArea) || 0);
+        openCeilingArea += Math.min(area, configured);
+      }
+    }
     for (let index = 0; index < points.length; index += 1) {
       addSegment(points[index], points[(index + 1) % points.length]);
     }
@@ -126,6 +134,9 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
   });
   partitionLength = Math.max(0, partitionLength - interiorGapLength);
   const perimeter = 2 * ((Number(plan.house.w) || 0) + (Number(plan.house.h) || 0));
+  const floorArea = Math.max(0, Number(plan.house.w) || 0) * Math.max(0, Number(plan.house.h) || 0);
+  openCeilingArea = Math.min(floorArea, openCeilingArea);
+  const ceilingArea = Math.max(0, floorArea - openCeilingArea);
   const partitionGrossArea = partitionLength * wallHeight;
   const platformArea = (plan.platforms || []).reduce((sum, platform) => (
     platform.include === false ? sum : sum + Math.max(0, platform.w || 0) * Math.max(0, platform.h || 0)
@@ -133,6 +144,10 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
 
   return {
     roomArea: round(roomArea, 2),
+    floorArea: round(floorArea, 2),
+    ceilingArea: round(ceilingArea, 2),
+    openCeilingArea: round(openCeilingArea, 2),
+    unassignedArea: round(Math.max(0, floorArea - roomArea), 2),
     perimeter: round(perimeter, 2),
     exteriorWallGrossArea: round(perimeter * wallHeight, 2),
     exteriorOpeningsArea: round(exteriorOpeningsArea, 2),

@@ -34,7 +34,7 @@ function makeLine(index, section, query, qty, options = {}) {
     name: options.name || item?.name || query,
     unit: options.unit || item?.unit || 'шт',
     qty: round(amount, options.digits ?? 2),
-    price: Number(item?.price) || Number(options.price) || 0,
+    price: (Number(item?.price) || Number(options.price) || 0) * (Number(options.priceMultiplier) || 1),
     kind: item?.kind || options.kind || 'material',
     source: options.source || section
   };
@@ -51,9 +51,9 @@ function sipPanelName(thickness) {
 function sipSection(project, metrics, index, inputs, warmRoofArea = 0) {
   const { sip } = project.settings;
   const surfaces = {
-    floor: project.services.sipFloor ? metrics.roomArea : 0,
+    floor: project.services.sipFloor ? metrics.floorArea : 0,
     walls: project.services.sipWalls ? metrics.exteriorWallNetArea : 0,
-    ceiling: project.services.sipCeiling ? metrics.roomArea : 0,
+    ceiling: project.services.sipCeiling ? metrics.ceilingArea : 0,
     partitions: project.services.partitions ? metrics.partitionNetArea : 0,
     roof: project.services.roof ? warmRoofArea : 0
   };
@@ -106,15 +106,16 @@ function foundationSection(project, index, inputs) {
   };
 }
 
-function roofSection(project, index, inputs) {
-  if (!project.services.roof) return { lines: [], geometry: null, terraceRoofs: [] };
+function roofSection(project, metrics, index, inputs) {
+  if (!project.services.roof) return { lines: [], geometry: null, terraceRoofs: [], coldArea: 0, warmArea: 0, insulatedRafterArea: 0, totalArea: 0 };
   const { roof } = project.settings;
   const span = Number(project.plan.house.h) || 0;
   const geometry = roofGeometry({ span, ridgeLength: inputs.roof.ridgeLength, ridgeHeight: roof.ridgeHeight });
   const mainArea = geometry.totalSlopeArea;
   const mainWarmPercent = roof.type === 'sip' ? 100 : roof.type === 'combo' ? roof.warmPercent : 0;
-  let coldArea = mainArea * (1 - mainWarmPercent / 100);
-  let warmArea = mainArea * mainWarmPercent / 100;
+  const insulatedRafterArea = Math.min(mainArea, (metrics.openCeilingArea || 0) * geometry.slopeCoefficient);
+  let warmArea = Math.max(0, mainArea * mainWarmPercent / 100 - insulatedRafterArea);
+  let coldArea = mainArea - warmArea;
   const terraceRoofs = (project.plan.platforms || []).filter((platform) => platform.include !== false).map((platform) => ({
     platform,
     result: calculateTerraceRoof(platform, project.plan.house, { mainSlopeCoefficient: geometry.slopeCoefficient })
@@ -132,9 +133,13 @@ function roofSection(project, index, inputs) {
     makeLine(index, 'roof', 'Гидро-ветрозащитная мембрана', Math.ceil(totalArea / 70), { key: 'membrane', unit: 'рулон' }),
     makeLine(index, 'roof', 'Профлист С-21 окрашенный', totalArea * (1 + roof.wastePercent / 100), { key: 'cover', unit: 'м²' }),
     makeLine(index, 'roof', 'Саморезы кровельные', Math.ceil(totalArea * inputs.formulas.roofScrewsPerM2), { key: 'roof-screws', unit: 'шт' }),
-    makeLine(index, 'roof', 'Планка конька', inputs.roof.ridgeLength * inputs.formulas.ridgeReserve, { key: 'ridge', unit: 'м.п.' })
+    makeLine(index, 'roof', 'Планка конька', inputs.roof.ridgeLength * inputs.formulas.ridgeReserve, { key: 'ridge', unit: 'м.п.' }),
+    makeLine(index, 'roof', 'Утеплитель 100 мм П50-60', insulatedRafterArea * inputs.formulas.rafterInsulationThicknessM, { key: 'open-rafter-insulation', unit: 'м³', digits: 3, source: 'open-rafter' }),
+    makeLine(index, 'roof', 'Укладка утеплителя стен 50 мм', insulatedRafterArea, { key: 'open-rafter-insulation-work', kind: 'labor', name: `Укладка минваты в стропила ${Math.round(inputs.formulas.rafterInsulationThicknessM * 1000)} мм`, unit: 'м²', priceMultiplier: inputs.formulas.rafterInsulationThicknessM / 0.05, source: 'open-rafter' }),
+    makeLine(index, 'roof', 'Пароизоляция "В"', Math.ceil(insulatedRafterArea / Math.max(1, inputs.formulas.vaporBarrierRollArea)), { key: 'open-rafter-vapor', unit: 'рулон', source: 'open-rafter' }),
+    makeLine(index, 'roof', 'Монтаж пароизоляции В', insulatedRafterArea, { key: 'open-rafter-vapor-work', kind: 'labor', source: 'open-rafter' })
   ]);
-  return { lines, geometry, terraceRoofs, coldArea: round(coldArea), warmArea: round(warmArea), totalArea: round(totalArea) };
+  return { lines, geometry, terraceRoofs, coldArea: round(coldArea), warmArea: round(warmArea), insulatedRafterArea: round(insulatedRafterArea), totalArea: round(totalArea) };
 }
 
 function terraceSection(project, index, inputs) {
@@ -236,7 +241,7 @@ export function calculateProject(project) {
   const inputs = deriveLinkedInputs(project, metrics);
   const index = catalogIndex(project);
   const foundation = foundationSection(project, index, inputs);
-  const roof = roofSection(project, index, inputs);
+  const roof = roofSection(project, metrics, index, inputs);
   const sip = sipSection(project, metrics, index, inputs, roof.warmArea || 0);
   const terrace = terraceSection(project, index, inputs);
   const openings = openingSection(project, index);

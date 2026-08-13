@@ -24,6 +24,7 @@ function polygonRoom(id, name, points, extra = {}) {
     h: Math.max(...ys) - Math.min(...ys),
     include: true,
     bearing: false,
+    ceilingMode: 'flat',
     ...extra
   };
 }
@@ -144,7 +145,7 @@ function normalizePlan(plan) {
     ...fallback,
     ...plan,
     house: { ...fallback.house, ...plan.house },
-    rooms: plan.rooms.map((room, index) => ({ include: true, bearing: false, id: room.id || `room-${index + 1}`, ...room })),
+    rooms: plan.rooms.map((room, index) => ({ include: true, bearing: false, ceilingMode: 'flat', id: room.id || `room-${index + 1}`, ...room })),
     platforms: (plan.platforms || []).map(normalizeTerracePlatform),
     openings: plan.openings || [],
     pileRows: plan.pileRows?.length ? plan.pileRows : fallback.pileRows,

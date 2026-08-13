@@ -32,7 +32,9 @@ export function createEstimateWorkbook(project, calculation) {
   const estimateRows = [
     ['ЭФТ — смета проекта'],
     ['Номер проекта', project.meta.projectNum], ['Заказчик', project.meta.customer], ['Адрес', project.meta.address], ['Дата', project.meta.date],
-    ['Габариты дома, м', `${project.plan.house.w} × ${project.plan.house.h}`], ['Площадь помещений, м²', calculation.metrics.roomArea],
+    ['Габариты дома, м', `${project.plan.house.w} × ${project.plan.house.h}`],
+    ['Пол всего дома, м²', calculation.metrics.floorArea], ['Площадь помещений, м²', calculation.metrics.roomArea],
+    ['Горизонтальный СИП-потолок, м²', calculation.metrics.ceilingArea], ['Второй свет, м²', calculation.metrics.openCeilingArea],
     [], ['Раздел', 'Номенклатура', 'Вид', 'Ед.', 'Количество', 'Цена, ₽', 'Сумма, ₽']
   ];
   calculation.sections.forEach((section) => section.lines.forEach((line) => estimateRows.push([

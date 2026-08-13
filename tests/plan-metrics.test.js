@@ -60,6 +60,38 @@ test('SIP cutting covers floor, walls, ceiling, partitions and roof', () => {
   assert.ok(rows.every((row) => row.cutMeters > 0));
 });
 
+test('empty plan keeps the full house floor and ceiling areas', () => {
+  const metrics = calculatePlanMetrics({
+    house: { w: 10, h: 8 }, wallThickness: 0.174, wallHeight: 2.5,
+    rooms: [], walls: [], openings: [], wallGaps: [], platforms: []
+  });
+  assert.equal(metrics.roomArea, 0);
+  assert.equal(metrics.floorArea, 80);
+  assert.equal(metrics.ceilingArea, 80);
+  assert.equal(metrics.openCeilingArea, 0);
+});
+
+test('second-light room removes only its area from the horizontal ceiling', () => {
+  const metrics = calculatePlanMetrics({
+    house: { w: 10, h: 8 }, wallThickness: 0.174, wallHeight: 2.5,
+    rooms: [{ x: 1, y: 1, w: 5, h: 4, include: true, ceilingMode: 'open-rafter' }],
+    walls: [], openings: [], wallGaps: [], platforms: []
+  });
+  assert.equal(metrics.floorArea, 80);
+  assert.equal(metrics.openCeilingArea, 20);
+  assert.equal(metrics.ceilingArea, 60);
+});
+
+test('second light can occupy only part of a room', () => {
+  const metrics = calculatePlanMetrics({
+    house: { w: 10, h: 8 }, wallThickness: 0.174, wallHeight: 2.5,
+    rooms: [{ x: 1, y: 1, w: 5, h: 4, include: true, ceilingMode: 'open-rafter', openCeilingArea: 12 }],
+    walls: [], openings: [], wallGaps: [], platforms: []
+  });
+  assert.equal(metrics.openCeilingArea, 12);
+  assert.equal(metrics.ceilingArea, 68);
+});
+
 test('ridge height determines slope and gable areas', () => {
   const geometry = roofGeometry({ span: 8, ridgeLength: 10, ridgeHeight: 3 });
   assert.equal(geometry.slopeLength, 5);

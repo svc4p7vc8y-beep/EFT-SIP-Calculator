@@ -39,6 +39,8 @@ export const DEFAULT_FORMULAS = {
   lathM3PerM2: 0.00655,
   roofScrewsPerM2: 8,
   ridgeReserve: 1.1,
+  rafterInsulationThicknessM: 0.2,
+  vaporBarrierRollArea: 70,
   terraceFrameBoardM3PerM2: 0.024,
   terraceDeckReserve: 1.05,
   terraceScrewKgPerM2: 0.12
@@ -73,7 +75,7 @@ export function deriveLinkedInputs(project, metrics) {
     },
     internal: {
       wallArea: value(links.internalFinishFromPlan, metrics.exteriorWallNetArea + metrics.partitionNetArea * f.internalPartitionFaces, settings.internal.wallArea),
-      ceilingArea: value(links.internalFinishFromPlan, metrics.roomArea, settings.internal.ceilingArea),
+      ceilingArea: value(links.internalFinishFromPlan, metrics.ceilingArea, settings.internal.ceilingArea),
       laminateArea: value(links.internalFinishFromPlan, metrics.roomArea * f.laminateShare, settings.internal.laminateArea),
       tileArea: value(links.internalFinishFromPlan, metrics.roomArea * f.tileShare, settings.internal.tileArea),
       doors: Math.round(value(links.internalFinishFromPlan, interiorDoors, settings.internal.doors))
@@ -95,13 +97,16 @@ export function calculationFlowRows(project, calculation) {
   const { metrics, inputs } = calculation;
   const f = inputs.formulas;
   return [
-    { group: 'Геометрия', source: 'Комнаты плана', formula: 'Сумма площадей включённых комнат', result: metrics.roomArea, unit: 'м²', target: 'СИП-пол, потолок, отделка, инженерия' },
+    { group: 'Геометрия', source: 'Габарит дома', formula: `${project.plan.house.w} × ${project.plan.house.h}`, result: metrics.floorArea, unit: 'м²', target: 'СИП-пол и базовый потолок даже без комнат' },
+    { group: 'Геометрия', source: 'Комнаты «Второй свет»', formula: `${metrics.floorArea} − ${metrics.openCeilingArea}`, result: metrics.ceilingArea, unit: 'м²', target: 'Горизонтальный СИП-потолок' },
+    { group: 'Геометрия', source: 'Комнаты плана', formula: 'Сумма площадей включённых комнат', result: metrics.roomArea, unit: 'м²', target: 'Отделка и инженерия' },
     { group: 'Геометрия', source: 'Периметр × высота − окна/двери', formula: `${metrics.perimeter} × ${project.plan.wallHeight} − ${metrics.exteriorOpeningsArea}`, result: metrics.exteriorWallNetArea, unit: 'м²', target: 'СИП-стены, фасад' },
     { group: 'Геометрия', source: 'Уникальные перегородки', formula: `${metrics.partitionLength} × ${project.plan.wallHeight} − ${metrics.interiorOpeningsArea}`, result: metrics.partitionNetArea, unit: 'м²', target: 'Перегородки, внутренняя отделка' },
     { group: 'Фундамент', source: 'Свайные ряды + пристройки', formula: 'Объединение совпадающих точек', result: calculation.foundation.totalPiles, unit: 'шт', target: 'Сваи, оголовки, крепёж, работы' },
     { group: 'Фундамент', source: 'Направляющие обвязки', formula: `Длина × ${project.settings.piles.boardVolumePerMeter}`, result: calculation.foundation.boardVolume, unit: 'м³', target: 'Доска обвязки' },
     { group: 'СИП', source: 'Площади пола/стен/потолка/крыши', formula: `ceil(площадь ÷ ${f.panelArea} × запас)`, result: calculation.sip.cutting.reduce((sum, row) => sum + row.panels, 0), unit: 'панелей', target: 'Панели, пена, саморезы, раскрой' },
     { group: 'Кровля', source: 'Габарит дома', formula: `длина дома + ${f.roofRidgeExtra}`, result: inputs.roof.ridgeLength, unit: 'м', target: 'Конёк и площадь скатов', auto: inputs.links.roofRidgeFromPlan },
+    { group: 'Кровля', source: 'Зоны второго света', formula: `площадь зоны × коэффициент ската`, result: calculation.roof.insulatedRafterArea, unit: 'м²', target: 'Стропила, минвата и пароизоляция' },
     { group: 'Террасы', source: 'Площадки плана', formula: 'Σ ширина × глубина', result: calculation.terrace.area, unit: 'м²', target: 'Настил, каркас, лестницы, кровля' },
     { group: 'Проёмы', source: 'Окна и двери плана', formula: 'Количество и индивидуальные размеры', result: project.plan.openings.length, unit: 'шт', target: 'Вычеты стен, изделия, монтаж' },
     { group: 'Инженерия', source: 'Площадь + названия мокрых комнат', formula: `${metrics.roomArea} м²; мокрых комнат: ${inputs.wetRooms}`, result: inputs.engineering.cableRoute, unit: 'м кабеля', target: 'Электрика, вода, канализация, вентиляция', auto: inputs.links.engineeringFromPlan },

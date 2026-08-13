@@ -33,7 +33,8 @@ const FORMULA_GROUPS = [
     ['pileConcreteM3', 'Пескобетона на сваю', 'м³'], ['pileScrewKg', 'Саморезов обвязки на сваю', 'кг'],
     ['pileCorners', 'Уголков на сваю', 'шт'], ['rafterM3PerM2', 'Стропил на 1 м² кровли', 'м³'],
     ['lathM3PerM2', 'Обрешётки на 1 м² кровли', 'м³'], ['roofScrewsPerM2', 'Кровельных саморезов на 1 м²', 'шт'],
-    ['ridgeReserve', 'Запас планки конька', 'коэф.'], ['terraceFrameBoardM3PerM2', 'Каркаса на 1 м² террасы', 'м³'],
+    ['ridgeReserve', 'Запас планки конька', 'коэф.'], ['rafterInsulationThicknessM', 'Толщина минваты второго света', 'м'],
+    ['vaporBarrierRollArea', 'Площадь рулона пароизоляции', 'м²'], ['terraceFrameBoardM3PerM2', 'Каркаса на 1 м² террасы', 'м³'],
     ['terraceDeckReserve', 'Запас настила террасы', 'коэф.'], ['terraceScrewKgPerM2', 'Саморезов на 1 м² террасы', 'кг']
   ]]
 ];

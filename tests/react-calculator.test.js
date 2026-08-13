@@ -27,6 +27,33 @@ test('warm main roof and terrace roofs are included in SIP cutting once', () => 
   assert.equal(result.lines.filter((line) => line.id === 'sip:panel-roof').length, 1);
 });
 
+test('SIP floor and ceiling cover an empty house without drawn rooms', () => {
+  const project = createDefaultProject();
+  project.plan.house = { w: 10, h: 8 };
+  project.plan.rooms = [];
+  const result = calculateProject(project);
+  assert.equal(result.sip.cutting.find((row) => row.key === 'floor').area, 80);
+  assert.equal(result.sip.cutting.find((row) => row.key === 'ceiling').area, 80);
+});
+
+test('second light moves room area from SIP ceiling to insulated rafters', () => {
+  const project = createDefaultProject();
+  const room = project.plan.rooms[0];
+  room.ceilingMode = 'open-rafter';
+  const roomArea = (room.w || 0) * (room.h || 0);
+  const result = calculateProject(project);
+  assert.ok(result.metrics.openCeilingArea > 0);
+  assert.equal(result.metrics.ceilingArea, result.metrics.floorArea - result.metrics.openCeilingArea);
+  assert.ok(result.roof.insulatedRafterArea > result.metrics.openCeilingArea);
+  assert.ok(result.lines.some((line) => line.id === 'roof:open-rafter-insulation' && line.catalogId));
+  assert.ok(result.lines.some((line) => line.id === 'roof:open-rafter-vapor-work' && line.catalogId));
+  const insulationWork = result.lines.find((line) => line.id === 'roof:open-rafter-insulation-work');
+  assert.equal(insulationWork.qty, result.roof.insulatedRafterArea);
+  assert.equal(insulationWork.price, project.priceLab.find((item) => item.id === insulationWork.catalogId).price * 4);
+  assert.deepEqual(result.lines.filter((line) => line.source === 'open-rafter' && (!line.catalogId || line.price <= 0)), []);
+  assert.ok(result.metrics.openCeilingArea >= roomArea - 0.1);
+});
+
 test('shared terrace foundation removes coincident piles and can be disabled', () => {
   const project = createDefaultProject();
   const shared = calculateFoundation(project.plan, project.settings.piles);

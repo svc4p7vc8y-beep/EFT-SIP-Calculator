@@ -123,7 +123,10 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .room-fill { fill:rgba(249,247,226,.5); stroke:none; cursor:move; }
 .room-fill:hover,.room-fill.selected { fill:rgba(220,239,205,.68); }
 .room-fill.invalid { fill:rgba(255,208,208,.58); }
+.room-fill.open-rafter { fill:rgba(220,239,250,.68); }
+.room-fill.open-rafter.selected { fill:rgba(190,226,244,.78); }
 .room-dimensions { fill:#708075; font-size:8px; text-anchor:middle; pointer-events:none; }
+.room-ceiling-mode { fill:#24708d; font-size:8px; font-weight:800; text-anchor:middle; pointer-events:none; }
 .unified-wall,.standalone-wall { stroke:var(--planner-wall); stroke-width:6; stroke-linecap:square; vector-effect:non-scaling-stroke; }
 .standalone-wall { cursor:move; }
 .standalone-wall.selected { stroke:var(--planner-green); stroke-width:8; }
