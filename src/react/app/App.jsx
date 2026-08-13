@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
-import { createDefaultProject, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION } from '../state/project-model.js';
+import { createProjectWithCurrentPrices, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney } from '../utils/format.js';
 import ProjectSummarySidebar from '../components/ProjectSummarySidebar.jsx';
 
@@ -83,7 +83,7 @@ export function App() {
   const newProject = () => {
     if (!window.confirm('Создать новый проект? Текущий проект сначала будет сохранён резервной копией.')) return;
     checkpoint();
-    replace(createDefaultProject());
+    replace(createProjectWithCurrentPrices(project));
     setActive('plan');
     setNotice('Создан новый проект');
   };

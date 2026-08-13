@@ -337,6 +337,24 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .inspector-empty ul { padding-left:16px; color:#69736b; font-size:10px; line-height:1.7; }
 
 .price-toolbar { display:grid; grid-template-columns:auto minmax(220px,1fr) minmax(190px,280px) auto; gap:10px; margin-bottom:12px; }
+.price-access-panel { border-width:1.5px; }
+.price-access-panel.locked { border-color:#dfc27a; background:linear-gradient(145deg,#fffdf7,#fff7df); }
+.price-access-panel.unlocked { border-color:#a9c996; background:linear-gradient(145deg,#fbfef9,#eff8ea); }
+.price-unlock-form,.price-access-state { display:flex; align-items:flex-end; gap:12px; }
+.price-unlock-form>svg,.price-access-state>svg { flex:0 0 26px; width:26px; height:26px; margin-bottom:7px; color:var(--green); }
+.price-unlock-form label { display:flex; flex:1; flex-direction:column; gap:5px; max-width:340px; color:var(--muted); font-size:9px; font-weight:700; }
+.price-unlock-form label>div { display:flex; align-items:center; gap:7px; height:38px; padding:0 10px; border:1px solid var(--line); border-radius:7px; background:var(--surface); }
+.price-unlock-form label svg { width:16px; color:var(--muted); }
+.price-unlock-form input { flex:1; min-width:0; color:var(--ink); border:0; outline:0; background:transparent; font-size:13px; }
+.price-access-state { align-items:center; }
+.price-access-state>svg { margin:0; }
+.price-access-state>div { display:flex; flex:1; flex-direction:column; gap:4px; }
+.price-access-state span { color:var(--muted); font-size:9px; }
+.price-save-guide { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.price-save-guide article { display:flex; flex-direction:column; gap:5px; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
+.price-save-guide strong { color:var(--green-dark); font-size:10px; }
+.price-save-guide span { color:var(--muted); font-size:9px; line-height:1.45; }
+.editable-table input:disabled { color:var(--muted); border-color:transparent; background:rgba(120,130,120,.06); cursor:not-allowed; }
 .segmented { display:flex; padding:3px; border-radius:8px; background:var(--surface); }
 .segmented button { padding:0 12px; border:0; border-radius:6px; color:var(--muted); background:transparent; font-size:10px; font-weight:700; }
 .segmented button.active { color:var(--green-dark); background:var(--panel); box-shadow:0 1px 4px rgba(0,0,0,.08); }
@@ -501,6 +519,9 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .stats-row,.form-grid,.form-grid.three,.form-grid.four,.toggle-grid,.service-groups,.estimate-totals { grid-template-columns:1fr; }
   .span-2 { grid-column:auto; }
   .price-toolbar { grid-template-columns:1fr; }
+  .price-unlock-form,.price-access-state { align-items:stretch; flex-direction:column; }
+  .price-unlock-form>svg,.price-access-state>svg { display:none; }
+  .price-save-guide { grid-template-columns:1fr; }
   .plan-top-controls { grid-template-columns:1fr; }
   .plan-house-fields { grid-template-columns:1fr; }
   .plan-view-switches { flex-wrap:wrap; }

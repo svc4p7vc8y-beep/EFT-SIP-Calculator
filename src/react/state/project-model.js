@@ -3,7 +3,7 @@ import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 63;
+export const REACT_PROJECT_VERSION = 64;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -152,6 +152,13 @@ export function createDefaultProject() {
     estimateOverrides: [],
     customEstimateLines: []
   };
+}
+
+export function createProjectWithCurrentPrices(currentProject) {
+  const next = createDefaultProject();
+  if (Array.isArray(currentProject?.priceMat)) next.priceMat = clone(currentProject.priceMat);
+  if (Array.isArray(currentProject?.priceLab)) next.priceLab = clone(currentProject.priceLab);
+  return next;
 }
 
 function normalizePlan(plan) {

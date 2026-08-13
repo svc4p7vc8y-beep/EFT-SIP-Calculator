@@ -3,7 +3,26 @@ import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { buildCommercialScope } from '../src/react/calculations/commercial-scope.js';
 import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
-import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
+import { createDefaultProject, createProjectWithCurrentPrices, migrateProject } from '../src/react/state/project-model.js';
+import { verifyPricePasscode } from '../src/react/security/price-access.js';
+
+test('price editor accepts only the configured passcode', () => {
+  assert.equal(verifyPricePasscode('1455'), true);
+  assert.equal(verifyPricePasscode(' 1455 '), true);
+  assert.equal(verifyPricePasscode('1454'), false);
+  assert.equal(verifyPricePasscode(''), false);
+});
+
+test('a new project inherits current protected prices without sharing array references', () => {
+  const current = createDefaultProject();
+  current.priceMat[0].price = 12345;
+  current.priceLab[0].price = 54321;
+  const next = createProjectWithCurrentPrices(current);
+  assert.equal(next.priceMat[0].price, 12345);
+  assert.equal(next.priceLab[0].price, 54321);
+  next.priceMat[0].price = 1;
+  assert.equal(current.priceMat[0].price, 12345);
+});
 
 test('React project produces a priced estimate from one shared model', () => {
   const project = createDefaultProject();
