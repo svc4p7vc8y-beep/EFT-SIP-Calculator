@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, DoorOpen, Grid2X2Plus, Hammer, Layers3, Link2Off, MousePointer2, Pentagon,
-  Plus, Redo2, Ruler, Save, Sparkles, Trash2, Undo2, Warehouse, Waves, X, ZoomIn, ZoomOut
+  AlertTriangle, DoorOpen, Download, Grid2X2Plus, Hammer, Layers3, Link2Off, MousePointer2, Pentagon,
+  Plus, Redo2, Ruler, Save, Share2, Sparkles, Trash2, Undo2, Upload, Warehouse, Waves, X, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { calculatePlanMetrics, chooseDimensionSides, polygonArea } from '../../calculations/plan-metrics.js';
 import { calculateTerraceRoof, normalizeTerracePlatform } from '../../calculations/terrace-model.js';
@@ -10,6 +10,7 @@ import { Field, NumberField, ScreenHeader, SelectField, Stat, Toggle } from '../
 import { createCompactPlan, createDefaultPlan, createEmptyPlan } from '../state/project-model.js';
 import { useProject } from '../state/ProjectContext.jsx';
 import { formatNumber, uid } from '../utils/format.js';
+import { applyPlanTransfer, downloadPlanTransfer, sharePlanTransfer } from '../storage/plan-transfer.js';
 import {
   allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, lineEndpoints, movePoints, nearestSegment,
   pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, roomPoints, roundCoord, snapPoint, snapPointDetails,
@@ -406,6 +407,8 @@ export default function PlanScreen() {
   const [tool, setTool] = useState('select');
   const [selected, setSelected] = useState(null);
   const [polygonDraft, setPolygonDraft] = useState([]);
+  const [transferStatus, setTransferStatus] = useState('План автоматически сохраняется вместе с проектом');
+  const planFileRef = useRef(null);
   const [customSketches, setCustomSketches] = useState(getStoredSketches);
   const [sketchId, setSketchId] = useState('photo-plan');
   const plan = project.plan;
@@ -438,6 +441,32 @@ export default function PlanScreen() {
     const updated = [{ id: uid('sketch'), name, plan: structuredClone(plan) }, ...customSketches].slice(0, 20);
     localStorage.setItem(SKETCHES_KEY, JSON.stringify(updated)); setCustomSketches(updated);
   };
+  const savePlanFile = () => {
+    downloadPlanTransfer(project);
+    setTransferStatus('Файл плана сохранён на компьютер');
+  };
+  const openPlanFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const payload = JSON.parse(await file.text());
+      commit((next) => applyPlanTransfer(next, payload));
+      setSelected(null); setTool('select'); setPolygonDraft([]);
+      setTransferStatus(`Загружен план: ${file.name}. Калькуляторы пересчитаны.`);
+    } catch (error) {
+      setTransferStatus(`Не удалось открыть план: ${error.message}`);
+    } finally {
+      event.target.value = '';
+    }
+  };
+  const sharePlanFile = async () => {
+    try {
+      const result = await sharePlanTransfer(project);
+      setTransferStatus(result === 'shared' ? 'План передан через системное меню' : 'План скачан — отправьте файл коллеге');
+    } catch (error) {
+      if (error?.name !== 'AbortError') setTransferStatus(`Не удалось поделиться планом: ${error.message}`);
+    }
+  };
   const autoPiles = () => {
     commitPlan((next) => {
       next.pileRows = generateAutoPileRows(next, project.settings.piles.spacing);
@@ -461,7 +490,8 @@ export default function PlanScreen() {
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
   }, [selected, commitPlan]);
   const toolHint = tool === 'select' ? 'Выберите и перетащите объект. Окна, двери, ворота и линии обвязки можно двигать.' : tool === 'polygon' ? 'Щёлкайте по узлам комнаты и нажмите «Готово».' : tool === 'dimension' ? 'Протяните размер по объекту — линия автоматически вынесется наружу, затем её можно переместить.' : tool === 'pileRow' ? 'Начало и конец прилипают к узлам. Зелёный — точно по оси, красный — небольшое смещение.' : tool === 'bindingLine' ? 'Протяните направляющую обвязки от узла до узла. Каждая линия сразу входит в расчёт доски.' : ['window', 'door', 'garage', 'gap', 'pile'].includes(tool) ? 'Щёлкните место установки. Проёмы прилипнут к ближайшей стене.' : 'Зажмите кнопку мыши и протяните объект.';
-  return <div className="screen plan-screen-v2"><ScreenHeader title="План дома" description="Новый редактор: каждое действие можно выбрать, изменить, удалить и отменить" actions={<><button className="button primary" onClick={newPlan}><Plus />Новый план</button><button className="button secondary auto-piles-button" onClick={autoPiles}><Sparkles />Автосваи</button><button className="button secondary" onClick={autoBinding}><Layers3 />Автообвязка</button><select className="sketch-select" value={sketchId} onChange={(event) => setSketchId(event.target.value)}>{sketches.map((sketch) => <option key={sketch.id} value={sketch.id}>{sketch.name}</option>)}</select><button className="button secondary" onClick={loadSketch}>Загрузить</button><button className="button secondary" onClick={saveSketch}><Save />В эскизы</button><button className="button ghost" onClick={undo} disabled={!canUndo}><Undo2 />Отменить</button><button className="button ghost" onClick={redo} disabled={!canRedo}><Redo2 />Повторить</button></>} />
+  return <div className="screen plan-screen-v2"><ScreenHeader title="План дома" description="Новый редактор: каждое действие можно выбрать, изменить, удалить и отменить" actions={<><button className="button primary" onClick={newPlan}><Plus />Новый план</button><button className="button secondary" onClick={savePlanFile}><Download />Сохранить план</button><button className="button secondary" onClick={() => planFileRef.current?.click()}><Upload />Открыть план</button><button className="button secondary" onClick={sharePlanFile}><Share2 />Поделиться</button><input ref={planFileRef} className="visually-hidden" type="file" accept=".eft-plan.json,.eft.json,.json" onChange={openPlanFile} /><button className="button secondary auto-piles-button" onClick={autoPiles}><Sparkles />Автосваи</button><button className="button secondary" onClick={autoBinding}><Layers3 />Автообвязка</button><select className="sketch-select" value={sketchId} onChange={(event) => setSketchId(event.target.value)}>{sketches.map((sketch) => <option key={sketch.id} value={sketch.id}>{sketch.name}</option>)}</select><button className="button secondary" onClick={loadSketch}>Загрузить</button><button className="button secondary" onClick={saveSketch}><Save />В эскизы</button><button className="button ghost" onClick={undo} disabled={!canUndo}><Undo2 />Отменить</button><button className="button ghost" onClick={redo} disabled={!canRedo}><Redo2 />Повторить</button></>} />
+    <div className="plan-transfer-status"><Share2 /><span>{transferStatus}</span><small>Файл плана не содержит прайс-лист, данные заказчика и ручные правки сметы.</small></div>
     <div className="plan-status-bar"><div className="plan-house-fields"><NumberField label="Габарит X" value={plan.house.w} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.w = value; })} /><NumberField label="Габарит Y" value={plan.house.h} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.h = value; })} /><NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={(value) => commitPlan((next) => { next.wallHeight = value; })} /></div><div className="plan-view-switches"><Toggle label="Сваи" checked={plan.showPiles !== false} onChange={(value) => commitPlan((next) => { next.showPiles = value; })} /><Toggle label="Обвязка" checked={plan.showBinding !== false} onChange={(value) => commitPlan((next) => { next.showBinding = value; })} /><Toggle label="Размеры" checked={plan.showDimensions !== false} onChange={(value) => commitPlan((next) => { next.showDimensions = value; })} /></div><div className="zoom-controls"><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.max(65, (next.zoom || 100) - 10); })}><ZoomOut /></button><strong>{plan.zoom || 100}%</strong><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.min(180, (next.zoom || 100) + 10); })}><ZoomIn /></button></div></div>
     <div className="planner-shell"><aside className="planner-tools">{TOOLS.map(([id, label, Icon]) => <button key={id} className={tool === id ? 'active' : ''} title={label} onClick={() => selectTool(id)}><Icon /><span>{label}</span></button>)}{tool === 'polygon' && polygonDraft.length ? <div className="polygon-actions"><button className="active" onClick={finishPolygon} disabled={polygonDraft.length < 3}><Save /><span>Готово</span></button><button onClick={() => setPolygonDraft([])}><X /><span>Сброс</span></button></div> : null}</aside><div className="planner-canvas"><PlanCanvas plan={plan} tool={tool} selected={selected} setSelected={setSelected} commitPlan={commitPlan} polygonDraft={polygonDraft} setPolygonDraft={setPolygonDraft} issues={issues} /><div className="planner-hint">{toolHint}</div></div><aside className="planner-inspector"><Inspector plan={plan} selected={selected} setSelected={setSelected} commitPlan={commitPlan} issues={issues} /></aside></div>
     <div className="stats-row planner-stats"><Stat label="Пол всего дома" value={`${formatNumber(metrics.floorArea)} м²`} /><Stat label="Перегородки без задвоений" value={`${formatNumber(metrics.partitionLength)} м`} /><Stat label="Наружные стены" value={`${formatNumber(metrics.exteriorWallNetArea)} м²`} /><Stat label="Сваи" value={`${foundation.totalPiles} шт`} /><Stat label="Обвязка" value={`${formatNumber(foundation.bindingLength)} м · ${foundation.boardCount} досок × 6 м`} /><Stat label="Проверка" value={issues.length ? `${issues.length} ошибок` : 'Стыковка верна'} tone={issues.length ? 'danger' : ''} /></div>

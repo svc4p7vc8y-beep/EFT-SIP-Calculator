@@ -191,6 +191,10 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 /* Планировщик всегда остаётся белым, независимо от темы интерфейса. */
 .plan-screen-v2 { --planner-wall:#172018; --planner-green:#5d8f32; }
 .plan-status-bar { display:grid; grid-template-columns:minmax(420px,1fr) auto auto; gap:18px; align-items:center; margin-bottom:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+.plan-transfer-status { display:flex; align-items:center; gap:8px; margin:-2px 0 10px; padding:8px 11px; color:#315d27; border:1px solid #cfe0c8; border-radius:8px; background:#f1f8ed; }
+.plan-transfer-status svg { flex:0 0 16px; width:16px; }
+.plan-transfer-status span { font-size:9px; font-weight:800; }
+.plan-transfer-status small { margin-left:auto; color:#6b7669; font-size:8px; }
 .plan-house-fields { display:grid; grid-template-columns:repeat(3,minmax(110px,160px)); gap:10px; }
 .plan-view-switches { display:flex; gap:14px; }
 .plan-view-switches .toggle-row { min-height:36px; border:0; gap:7px; }
@@ -522,6 +526,8 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .commercial-scope-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .plan-workbench { height:auto; min-height:740px; grid-template-columns:1fr; grid-template-rows:54px 560px auto; overflow:visible; }
   .plan-status-bar { grid-template-columns:1fr; }
+  .plan-transfer-status { align-items:flex-start; flex-wrap:wrap; }
+  .plan-transfer-status small { width:100%; margin-left:24px; }
   .plan-house-fields { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .plan-view-switches,.zoom-controls { grid-column:auto; grid-row:auto; }
   .planner-shell { height:auto; min-height:800px; grid-template-columns:1fr; grid-template-rows:64px 570px auto; overflow:visible; }

@@ -3,7 +3,7 @@ import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 67;
+export const REACT_PROJECT_VERSION = 68;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -163,7 +163,7 @@ export function createProjectWithCurrentPrices(currentProject) {
   return next;
 }
 
-function normalizePlan(plan) {
+export function normalizePlan(plan) {
   const fallback = createDefaultPlan();
   if (!plan?.house || !Array.isArray(plan.rooms)) return fallback;
   const normalizedPileRows = plan.pileRows?.length ? plan.pileRows : fallback.pileRows;
