@@ -92,6 +92,10 @@ export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
   const projection = horizontalAttachment ? positive(normalized.h) : positive(normalized.w);
   const roofWidth = attachedLength + roof.sideOverhang * 2;
   const roofRun = projection + roof.frontOverhang;
+  const gableSlopeEdge = Math.hypot(roofWidth / 2, roof.ridgeHeight);
+  const shedSlopeEdge = roof.shape === 'continuation'
+    ? roofRun * Math.max(1, positive(options.mainSlopeCoefficient, 1))
+    : Math.hypot(roofRun, Math.abs(roof.highHeight - roof.lowHeight));
   let automaticArea = 0;
   if (roof.mode !== 'none') {
     if (roof.shape === 'gable') {
@@ -121,6 +125,8 @@ export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
     netArea: round(netArea, 2),
     purchaseArea: round(netArea * (1 + roof.wastePercent / 100), 2),
     ridgeLength: roof.mode !== 'none' && roof.shape === 'gable' ? round(roofRun, 3) : 0,
+    eaveLength: roof.mode === 'none' ? 0 : round(roof.shape === 'gable' ? roofRun * 2 : roofWidth, 3),
+    vergeLength: roof.mode === 'none' ? 0 : round(roof.shape === 'gable' ? gableSlopeEdge * 4 : shedSlopeEdge * 2, 3),
     gableType: resolvedGableType,
     gableArea: round(gableArea, 2),
     gablePurchaseArea: round(gableArea * (1 + roof.wastePercent / 100), 2),

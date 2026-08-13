@@ -634,13 +634,25 @@ export default function Calculators({ type }) {
               tone={calculation.roof.insulatedRafterArea ? "accent" : ""}
             />
             <Stat
+              label="Мауэрлат 100×150"
+              value={`${formatNumber(calculation.roof.mauerlatLength)} м.п.`}
+            />
+            <Stat
+              label="Коньковый прогон"
+              value={`${formatNumber(calculation.roof.ridgeBeamLength)} м.п.`}
+            />
+            <Stat
+              label="Доборы свесов"
+              value={`${formatNumber((calculation.roof.mainEaveLength || 0) + (calculation.roof.mainVergeLength || 0))} м.п.`}
+            />
+            <Stat
               label="Всего"
               value={`${formatNumber(calculation.roof.totalArea)} м²`}
             />
           </div>
           <Panel
             title="Основная крыша"
-            description="Раскрой тёплой СИП-кровли и её крепёж находятся только здесь. Зоны второго света добавляют стропила, минвату и пароизоляцию."
+            description="Мауэрлат 100×150 считается по двум опорным стенам, коньковый прогон — по линии конька, карнизные и ветровые планки — по краям свесов. Материалы и монтаж сразу входят в ведомость."
           >
             <div className="form-grid four">
               <SelectField

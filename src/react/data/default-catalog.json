@@ -1,5 +1,5 @@
 {
-  "appVersion": 54,
+  "appVersion": 55,
   "format": "eft-price-catalog",
   "priceLab": [
     {
@@ -801,6 +801,14 @@
       "name": "Монтаж гаражных ворот",
       "price": 0,
       "unit": "компл"
+    },
+    {
+      "cat": "Кровля двускатная",
+      "id": "LAB-111",
+      "kind": "labor",
+      "name": "Монтаж конькового прогона",
+      "price": 750,
+      "unit": "м.п."
     }
   ],
   "priceMat": [

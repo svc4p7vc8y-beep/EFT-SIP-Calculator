@@ -24,6 +24,8 @@ test('automatic shed roof uses projection, height difference and overhangs', () 
   const result = calculateTerraceRoof(platform, { w: 10, h: 8 });
   assert.equal(result.netArea, 24.75);
   assert.equal(result.purchaseArea, 27.22);
+  assert.equal(result.eaveLength, 10.6);
+  assert.equal(result.vergeLength, 4.669);
 });
 
 test('manual roof area is preserved and receives waste', () => {
@@ -58,4 +60,6 @@ test('gable terrace returns exposed gable area and ridge length', () => {
   assert.equal(result.gableType, 'cold');
   assert.equal(result.gableArea, 3.3);
   assert.equal(result.ridgeLength, 2.3);
+  assert.equal(result.eaveLength, 4.6);
+  assert.equal(result.vergeLength, 13.793);
 });

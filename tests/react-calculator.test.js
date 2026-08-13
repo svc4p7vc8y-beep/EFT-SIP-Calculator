@@ -41,6 +41,32 @@ test('cold roof defaults to 50x150 rafters and includes cold gables', () => {
   assert.ok(coverWork.qty > 0);
 });
 
+test('gable roof includes mauerlat, ridge beam and edge trims with materials and labor', () => {
+  const project = createDefaultProject();
+  const result = calculateProject(project);
+  const houseLength = project.plan.house.w;
+  const mauerlat = result.lines.find((line) => line.id === 'roof:mauerlat-timber');
+  const mauerlatWork = result.lines.find((line) => line.id === 'roof:mauerlat-work');
+  const anchors = result.lines.find((line) => line.id === 'roof:mauerlat-anchors');
+  const ridgeBeam = result.lines.find((line) => line.id === 'roof:ridge-beam');
+  const ridgeBeamWork = result.lines.find((line) => line.id === 'roof:ridge-beam-work');
+  assert.equal(mauerlat.catalogId, 'MAT-018');
+  assert.equal(mauerlat.qty, Math.round(houseLength * 2 * result.inputs.formulas.mauerlatReserve * 0.1 * 0.15 * 1000) / 1000);
+  assert.equal(mauerlatWork.catalogId, 'LAB-033');
+  assert.equal(mauerlatWork.qty, houseLength * 2);
+  assert.equal(anchors.catalogId, 'MAT-067');
+  assert.equal(anchors.qty, 2 * (Math.ceil(houseLength / result.inputs.formulas.mauerlatAnchorSpacing) + 1));
+  assert.equal(ridgeBeam.catalogId, 'MAT-018');
+  assert.equal(ridgeBeam.qty, Math.round(result.inputs.roof.ridgeLength * result.inputs.formulas.ridgeBeamReserve * 0.1 * 0.15 * 1000) / 1000);
+  assert.equal(ridgeBeamWork.catalogId, 'LAB-111');
+  assert.equal(ridgeBeamWork.qty, result.inputs.roof.ridgeLength);
+  assert.ok(result.lines.some((line) => line.id === 'roof:eave-trim' && line.catalogId === 'MAT-038'));
+  assert.ok(result.lines.some((line) => line.id === 'roof:eave-trim-work' && line.catalogId === 'LAB-028'));
+  assert.ok(result.lines.some((line) => line.id === 'roof:verge-trim' && line.catalogId === 'MAT-040'));
+  assert.ok(result.lines.some((line) => line.id === 'roof:verge-trim-work' && line.catalogId === 'LAB-039'));
+  assert.ok(result.lines.some((line) => line.id === 'roof:ridge-work' && line.catalogId === 'LAB-029'));
+});
+
 test('main roof switches to one flat plane without ridge and gables', () => {
   const project = createDefaultProject();
   project.settings.roof.shape = 'flat';
@@ -88,6 +114,10 @@ test('terrace roof adds its slopes, posts and optional gable to the roof estimat
   assert.match(posts.name, /100×100/);
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Профлист')));
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Монтаж профлиста') && line.catalogId === 'LAB-031'));
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Коньковый прогон') && line.catalogId === 'MAT-018'));
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Монтаж конькового прогона') && line.catalogId === 'LAB-111'));
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('карнизная') && line.catalogId === 'MAT-038'));
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('торцевая') && line.catalogId === 'MAT-040'));
 });
 
 test('terrace and porch roof materials are listed separately in the roof estimate', () => {

@@ -146,7 +146,7 @@ function foundationSection(project, index, inputs) {
 }
 
 function roofSection(project, metrics, index, inputs) {
-  if (!project.services.roof) return { lines: [], extensionLines: [], geometry: null, terraceRoofs: [], coldArea: 0, warmArea: 0, coldSlopeArea: 0, warmSlopeArea: 0, gableArea: 0, insulatedRafterArea: 0, terracePostCount: 0, totalArea: 0 };
+  if (!project.services.roof) return { lines: [], extensionLines: [], geometry: null, terraceRoofs: [], coldArea: 0, warmArea: 0, coldSlopeArea: 0, warmSlopeArea: 0, gableArea: 0, insulatedRafterArea: 0, terracePostCount: 0, totalArea: 0, mauerlatLength: 0, mauerlatPurchaseLength: 0, ridgeBeamLength: 0, ridgeBeamPurchaseLength: 0, mainEaveTrimPurchaseLength: 0, mainVergeTrimPurchaseLength: 0 };
   const { roof } = project.settings;
   const span = Number(project.plan.house.h) || 0;
   const mainRoofShape = roof.shape === 'flat' ? 'flat' : 'gable';
@@ -194,6 +194,19 @@ function roofSection(project, metrics, index, inputs) {
   const rafterDepth = rafterSection === '50x200' ? 0.2 : 0.15;
   const mainRafterVolume = mainColdSlopeArea * inputs.formulas.rafterLinearMPerM2 * 0.05 * rafterDepth;
   const terracePostCount = terraceRoofs.reduce((sum, item) => sum + item.result.postCount, 0);
+  const houseLength = Math.max(0, Number(project.plan.house.w) || 0);
+  const mauerlatLength = mainRoofShape === 'flat' ? 0 : houseLength * 2;
+  const mauerlatPurchaseLength = mauerlatLength * inputs.formulas.mauerlatReserve;
+  const mauerlatVolume = mauerlatPurchaseLength * 0.1 * 0.15;
+  const anchorSpacing = Math.max(0.1, inputs.formulas.mauerlatAnchorSpacing);
+  const mauerlatAnchors = mauerlatLength ? 2 * (Math.ceil(houseLength / anchorSpacing) + 1) : 0;
+  const ridgeBeamLength = mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength;
+  const ridgeBeamPurchaseLength = ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
+  const ridgeBeamVolume = ridgeBeamPurchaseLength * 0.1 * 0.15;
+  const mainEaveLength = mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength * 2;
+  const mainVergeLength = mainRoofShape === 'flat' ? 0 : geometry.slopeLength * 4;
+  const mainEaveTrimPurchaseLength = mainEaveLength * inputs.formulas.roofTrimReserve;
+  const mainVergeTrimPurchaseLength = mainVergeLength * inputs.formulas.roofTrimReserve;
   const mainCoverPurchaseArea = mainArea * (1 + roof.wastePercent / 100);
   const mainGablePurchaseArea = mainGableArea * (1 + roof.wastePercent / 100);
   const mainConstructionArea = mainArea + mainGableArea;
@@ -210,7 +223,12 @@ function roofSection(project, metrics, index, inputs) {
     const slopeSip = calculateSipRoofCutting(warmSlope, { panelArea: inputs.formulas.panelArea, extraWastePercent: project.settings.sip.wastePercent });
     const gableSip = calculateSipRoofCutting(warmGable, { panelArea: inputs.formulas.panelArea, extraWastePercent: project.settings.sip.wastePercent });
     const postQuery = result.postSection === '100x100' ? 'Брус ест.влажн. сосна 100×100 мм' : 'Брус мауэрлата ест.влажн. сосна 150×100 мм';
+    const ridgeBeamPurchaseLength = result.ridgeLength * inputs.formulas.ridgeBeamReserve;
+    const eaveTrimPurchaseLength = result.eaveLength * inputs.formulas.roofTrimReserve;
+    const vergeTrimPurchaseLength = result.vergeLength * inputs.formulas.roofTrimReserve;
     return [
+      makeLine(index, 'roof', 'Брус ест.влажн. сосна 100×150 мм', ridgeBeamPurchaseLength * 0.1 * 0.15, { key: `${key}-ridge-beam`, unit: 'м³', digits: 3, name: `Коньковый прогон кровли ${title} · брус 100×150 мм`, source }),
+      makeLine(index, 'roof', 'Монтаж конькового прогона', result.ridgeLength, { key: `${key}-ridge-beam-work`, kind: 'labor', name: `Монтаж конькового прогона кровли ${title}`, source }),
       makeLine(index, 'roof', 'Монтаж стропильной системы', coldSlope, { key: `${key}-rafters-work`, kind: 'labor', name: `Монтаж стропильной системы ${title}`, source }),
       makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', coldSlope * inputs.formulas.rafterLinearMPerM2 * 0.05 * rafterDepth, { key: `${key}-rafters`, unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм · кровля ${title}`, source }),
       makeLine(index, 'roof', 'Доска ест. влажн. сосна 50х150мм', coldGable * inputs.formulas.gableBoardM3PerM2, { key: `${key}-gable-frame`, unit: 'м³', digits: 3, name: `Каркас фронтона ${title} · доска 50×150 мм`, source }),
@@ -222,6 +240,11 @@ function roofSection(project, metrics, index, inputs) {
       makeLine(index, 'roof', 'Монтаж кровельного покрытия — профлист С-21', constructionArea, { key: `${key}-cover-work`, kind: 'labor', name: `Монтаж профлиста · кровля ${title}`, unit: 'м²', source }),
       makeLine(index, 'roof', 'Саморезы кровельные', Math.ceil(constructionArea * inputs.formulas.roofScrewsPerM2), { key: `${key}-roof-screws`, unit: 'шт', name: `Саморезы кровельные · кровля ${title}`, source }),
       makeLine(index, 'roof', 'Планка конька', result.ridgeLength * inputs.formulas.ridgeReserve, { key: `${key}-ridge`, unit: 'м.п.', name: `Планка конька · кровля ${title}`, source }),
+      makeLine(index, 'roof', 'Монтаж конька', result.ridgeLength, { key: `${key}-ridge-work`, kind: 'labor', name: `Монтаж планки конька · кровля ${title}`, source }),
+      makeLine(index, 'roof', 'Планка карнизная', eaveTrimPurchaseLength, { key: `${key}-eave-trim`, unit: 'м.п.', name: `Планка карнизная · кровля ${title}`, source }),
+      makeLine(index, 'roof', 'Монтаж карнизных планок', result.eaveLength, { key: `${key}-eave-trim-work`, kind: 'labor', name: `Монтаж карнизных планок · кровля ${title}`, source }),
+      makeLine(index, 'roof', 'Планка торцевая', vergeTrimPurchaseLength, { key: `${key}-verge-trim`, unit: 'м.п.', name: `Планка торцевая (ветровая) · кровля ${title}`, source }),
+      makeLine(index, 'roof', 'Монтаж торцевых', result.vergeLength, { key: `${key}-verge-trim-work`, kind: 'labor', name: `Монтаж торцевых (ветровых) планок · кровля ${title}`, source }),
       makeLine(index, 'roof', sipPanelName(project.settings.sip.ceilingThickness), slopeSip.panels, { key: `${key}-sip-panel`, name: `${sipPanelName(project.settings.sip.ceilingThickness)} · кровля ${title}`, source }),
       makeLine(index, 'roof', 'Монтаж СИП-кровли', slopeSip.area, { key: `${key}-sip-install`, kind: 'labor', name: `Монтаж СИП-кровли ${title}`, source }),
       makeLine(index, 'roof', 'Раскрой сип-панелей', slopeSip.cutMeters, { key: `${key}-sip-cut`, kind: 'labor', name: `Раскрой СИП-панелей · кровля ${title}`, source }),
@@ -234,6 +257,11 @@ function roofSection(project, metrics, index, inputs) {
     ];
   }));
   const lines = compact([
+    makeLine(index, 'roof', 'Брус ест.влажн. сосна 100×150 мм', mauerlatVolume, { key: 'mauerlat-timber', unit: 'м³', digits: 3, name: 'Мауэрлат 100×150 мм' }),
+    makeLine(index, 'roof', 'Монтаж мауэрлата', mauerlatLength, { key: 'mauerlat-work', kind: 'labor', name: 'Монтаж мауэрлата 100×150 мм' }),
+    makeLine(index, 'roof', 'Анкер-шпилька для крепления мауэрлата', mauerlatAnchors, { key: 'mauerlat-anchors', unit: 'шт' }),
+    makeLine(index, 'roof', 'Брус ест.влажн. сосна 100×150 мм', ridgeBeamVolume, { key: 'ridge-beam', unit: 'м³', digits: 3, name: 'Коньковый прогон · брус 100×150 мм' }),
+    makeLine(index, 'roof', 'Монтаж конькового прогона', ridgeBeamLength, { key: 'ridge-beam-work', kind: 'labor' }),
     makeLine(index, 'roof', 'Монтаж стропильной системы', mainColdSlopeArea, { key: 'rafters-work', kind: 'labor' }),
     makeLine(index, 'roof', 'Монтаж обрешётки и контробрешётки', mainArea, { key: 'lath-work', kind: 'labor' }),
     makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', mainRafterVolume, { key: 'rafters', unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм` }),
@@ -245,6 +273,11 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, 'roof', 'Монтаж кровельного покрытия — профлист С-21', mainConstructionArea, { key: 'cover-work', kind: 'labor', name: 'Монтаж профлиста основной кровли', unit: 'м²' }),
     makeLine(index, 'roof', 'Саморезы кровельные', Math.ceil(mainConstructionArea * inputs.formulas.roofScrewsPerM2), { key: 'roof-screws', unit: 'шт' }),
     makeLine(index, 'roof', 'Планка конька', (mainRoofShape === 'flat' ? 0 : inputs.roof.ridgeLength) * inputs.formulas.ridgeReserve, { key: 'ridge', unit: 'м.п.' }),
+    makeLine(index, 'roof', 'Монтаж конька', ridgeBeamLength, { key: 'ridge-work', kind: 'labor', name: 'Монтаж планки конька' }),
+    makeLine(index, 'roof', 'Планка карнизная', mainEaveTrimPurchaseLength, { key: 'eave-trim', unit: 'м.п.' }),
+    makeLine(index, 'roof', 'Монтаж карнизных планок', mainEaveLength, { key: 'eave-trim-work', kind: 'labor' }),
+    makeLine(index, 'roof', 'Планка торцевая', mainVergeTrimPurchaseLength, { key: 'verge-trim', unit: 'м.п.', name: 'Планка торцевая (ветровая)' }),
+    makeLine(index, 'roof', 'Монтаж торцевых', mainVergeLength, { key: 'verge-trim-work', kind: 'labor', name: 'Монтаж торцевых (ветровых) планок' }),
     makeLine(index, 'roof', 'Утеплитель 100 мм П50-60', insulatedRafterArea * inputs.formulas.rafterInsulationThicknessM, { key: 'open-rafter-insulation', unit: 'м³', digits: 3, source: 'open-rafter' }),
     makeLine(index, 'roof', 'Укладка утеплителя стен 50 мм', insulatedRafterArea, { key: 'open-rafter-insulation-work', kind: 'labor', name: `Укладка минваты в стропила ${Math.round(inputs.formulas.rafterInsulationThicknessM * 1000)} мм`, unit: 'м²', priceMultiplier: inputs.formulas.rafterInsulationThicknessM / 0.05, source: 'open-rafter' }),
     makeLine(index, 'roof', 'Пароизоляция "В"', Math.ceil(insulatedRafterArea / Math.max(1, inputs.formulas.vaporBarrierRollArea)), { key: 'open-rafter-vapor', unit: 'рулон', source: 'open-rafter' }),
@@ -267,7 +300,11 @@ function roofSection(project, metrics, index, inputs) {
     coldGableArea: round(coldGableArea), warmGableArea: round(warmGableArea),
     coldArea: round(coldSlopeArea), warmArea: round(warmSlopeArea),
     coldConstructionArea: round(coldArea), warmConstructionArea: round(warmArea), gableArea: round(gableArea),
-    insulatedRafterArea: round(insulatedRafterArea), terracePostCount, totalArea: round(totalArea)
+    insulatedRafterArea: round(insulatedRafterArea), terracePostCount, totalArea: round(totalArea),
+    mauerlatLength: round(mauerlatLength, 3), mauerlatPurchaseLength: round(mauerlatPurchaseLength, 3), mauerlatAnchors,
+    ridgeBeamLength: round(ridgeBeamLength, 3), ridgeBeamPurchaseLength: round(ridgeBeamPurchaseLength, 3),
+    mainEaveLength: round(mainEaveLength, 3), mainVergeLength: round(mainVergeLength, 3),
+    mainEaveTrimPurchaseLength: round(mainEaveTrimPurchaseLength, 3), mainVergeTrimPurchaseLength: round(mainVergeTrimPurchaseLength, 3)
   };
 }
 
