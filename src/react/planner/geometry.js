@@ -49,17 +49,39 @@ export function collectSnapAxes(plan, excludeRoomId) {
   const wall = Number(plan.wallThickness) || 0.174;
   const xs = new Set([0, wall, plan.house.w - wall, plan.house.w]);
   const ys = new Set([0, wall, plan.house.h - wall, plan.house.h]);
+  const points = new Map();
+  const addPoint = (point) => {
+    const next = { x: roundCoord(point.x), y: roundCoord(point.y) };
+    xs.add(next.x); ys.add(next.y); points.set(`${next.x}:${next.y}`, next);
+  };
+  [0, wall, plan.house.w - wall, plan.house.w].forEach((x) => {
+    [0, wall, plan.house.h - wall, plan.house.h].forEach((y) => addPoint({ x, y }));
+  });
   for (const room of plan.rooms || []) {
     if (room.id === excludeRoomId) continue;
-    for (const point of roomPoints(room)) { xs.add(point.x); ys.add(point.y); }
+    for (const point of roomPoints(room)) addPoint(point);
   }
-  for (const wallLine of plan.walls || []) { xs.add(wallLine.x1); xs.add(wallLine.x2); ys.add(wallLine.y1); ys.add(wallLine.y2); }
-  return { xs: [...xs], ys: [...ys] };
+  for (const wallLine of plan.walls || []) { addPoint({ x: wallLine.x1, y: wallLine.y1 }); addPoint({ x: wallLine.x2, y: wallLine.y2 }); }
+  for (const row of plan.pileRows || []) { addPoint({ x: row.x1, y: row.y1 }); addPoint({ x: row.x2, y: row.y2 }); }
+  for (const dimension of plan.dimensions || []) { addPoint({ x: dimension.x1, y: dimension.y1 }); addPoint({ x: dimension.x2, y: dimension.y2 }); }
+  for (const platform of plan.platforms || []) {
+    addPoint({ x: platform.x, y: platform.y }); addPoint({ x: platform.x + platform.w, y: platform.y });
+    addPoint({ x: platform.x + platform.w, y: platform.y + platform.h }); addPoint({ x: platform.x, y: platform.y + platform.h });
+  }
+  for (const pile of plan.piles || []) addPoint(pile);
+  return { xs: [...xs], ys: [...ys], points: [...points.values()] };
 }
 
 export function snapPoint(point, axes, options = {}) {
   const grid = Number(options.grid) || 0.1;
   const tolerance = Number(options.tolerance) || 0.16;
+  const pointTolerance = Number(options.pointTolerance) || tolerance * 1.5;
+  let closestPoint = null; let closestDistance = pointTolerance;
+  for (const candidate of axes.points || []) {
+    const distance = Math.hypot(candidate.x - point.x, candidate.y - point.y);
+    if (distance <= closestDistance) { closestPoint = candidate; closestDistance = distance; }
+  }
+  if (closestPoint) return { x: roundCoord(closestPoint.x), y: roundCoord(closestPoint.y) };
   const snapValue = (value, candidates) => {
     let best = Math.round(value / grid) * grid;
     let distance = tolerance;
@@ -70,6 +92,19 @@ export function snapPoint(point, axes, options = {}) {
     return roundCoord(best);
   };
   return { x: snapValue(point.x, axes.xs || []), y: snapValue(point.y, axes.ys || []) };
+}
+
+export function pileRowAlignment(row, exactTolerance = 0.015, warningAngle = 7) {
+  const dx = Math.abs((Number(row.x2) || 0) - (Number(row.x1) || 0));
+  const dy = Math.abs((Number(row.y2) || 0) - (Number(row.y1) || 0));
+  const length = Math.hypot(dx, dy);
+  if (length <= exactTolerance) return { state: 'aligned', axis: 'point', offset: 0, angle: 0 };
+  const horizontal = dx >= dy;
+  const offset = horizontal ? dy : dx;
+  const angle = Math.atan2(offset, Math.max(dx, dy)) * 180 / Math.PI;
+  if (offset <= exactTolerance) return { state: 'aligned', axis: horizontal ? 'horizontal' : 'vertical', offset, angle: 0 };
+  if (angle <= warningAngle) return { state: 'warning', axis: horizontal ? 'horizontal' : 'vertical', offset, angle };
+  return { state: 'diagonal', axis: 'diagonal', offset, angle };
 }
 
 export function movePoints(points, dx, dy, plan, axes) {

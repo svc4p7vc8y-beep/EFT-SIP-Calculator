@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  allOpeningSegments, boundsOf, dimensionOutsideHouse, movePoints, nearestSegment, planIssues,
-  rectanglePoints, unifiedWallSegments
+  allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, movePoints, nearestSegment,
+  pileRowAlignment, planIssues, rectanglePoints, snapPoint, unifiedWallSegments
 } from '../src/react/planner/geometry.js';
 
 const room = (id, name, x1, y1, x2, y2) => ({
@@ -26,6 +26,21 @@ test('room movement can stage a room outside the house and still snaps to the gr
   const plan = { house: { w: 10, h: 8 }, wallThickness: 0.174 };
   const moved = movePoints(rectanglePoints({ x: 1, y: 1 }, { x: 4, y: 3 }), -4, 10, plan, { xs: [0.174], ys: [5.826] });
   assert.deepEqual(boundsOf(moved), { x: -3, y: 11, x2: 0, y2: 13, w: 3, h: 2 });
+});
+
+test('pointer snaps to a nearby real node without an exact hit', () => {
+  const plan = {
+    house: { w: 10, h: 8 }, wallThickness: 0.174,
+    rooms: [room('a', 'A', 1.237, 1.456, 4, 4)], walls: [], pileRows: [], dimensions: [], platforms: [], piles: []
+  };
+  const axes = collectSnapAxes(plan);
+  assert.deepEqual(snapPoint({ x: 1.48, y: 1.69 }, axes, { tolerance: 0.15, pointTolerance: 0.35 }), { x: 1.237, y: 1.456 });
+});
+
+test('pile row alignment distinguishes an exact axis from a small accidental offset', () => {
+  assert.equal(pileRowAlignment({ x1: 0, y1: 2, x2: 8, y2: 2 }).state, 'aligned');
+  assert.equal(pileRowAlignment({ x1: 0, y1: 2, x2: 8, y2: 2.1 }).state, 'warning');
+  assert.equal(pileRowAlignment({ x1: 0, y1: 0, x2: 3, y2: 2 }).state, 'diagonal');
 });
 
 test('opening placement selects the closest shared or outside wall', () => {

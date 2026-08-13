@@ -136,6 +136,9 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .wall-gap { stroke:#fff; stroke-width:11; vector-effect:non-scaling-stroke; cursor:move; }
 .wall-gap.selected { stroke:#f09b3d; }
 .draft-line { stroke:#5d8f32; stroke-width:3; stroke-dasharray:7 5; vector-effect:non-scaling-stroke; }
+.draft-line.pile-axis-aligned { stroke:#4f9636; }
+.draft-line.pile-axis-warning { stroke:#d7493e; stroke-width:4; }
+.draft-line.pile-axis-diagonal { stroke:#d69a32; }
 .polygon-point { fill:#fff; stroke:#5d8f32; stroke-width:2; vector-effect:non-scaling-stroke; }
 .room-summary header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
 .room-summary header h3 { margin:0 0 4px; }
@@ -187,9 +190,18 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .door-swing { fill:none; stroke:#008ba3; stroke-width:3; vector-effect:non-scaling-stroke; pointer-events:none; }
 .door-swing path { opacity:.9; }
 .pile-guide { stroke:#e3a643; stroke-width:2; stroke-dasharray:7 5; opacity:.85; vector-effect:non-scaling-stroke; }
+.pile-guide.axis-aligned { stroke:#4f9636; }
+.pile-guide.axis-warning { stroke:#d7493e; stroke-width:3; opacity:1; }
+.pile-guide.axis-diagonal { stroke:#d69a32; }
 .pile-point { fill:#efbb61; stroke:#1a261b; stroke-width:2; vector-effect:non-scaling-stroke; }
 .pile-point.shared { fill:#7eb34f; }
 .pile-spacing-text { fill:#8b5b12; paint-order:stroke; stroke:#fff; stroke-width:4; font-size:9px; font-weight:800; text-anchor:middle; pointer-events:none; }
+.pile-spacing-text.axis-aligned { fill:#397526; }
+.pile-spacing-text.axis-warning { fill:#b82f27; }
+.pile-alignment-status { padding:8px 10px; border:1px solid transparent; border-radius:7px; font-size:9px; font-weight:800; }
+.pile-alignment-status.aligned { color:#397526; border-color:#b8d5a7; background:#edf7e8; }
+.pile-alignment-status.warning { color:#ad2e27; border-color:#edb5b0; background:#fff0ef; }
+.pile-alignment-status.diagonal { color:#8b5b12; border-color:#e7cd98; background:#fff8e8; }
 .outer-dimensions,.custom-dimension { fill:none; stroke:#3d4b3f; stroke-width:1.5; vector-effect:non-scaling-stroke; }
 .custom-dimension { color:#3d4b3f; cursor:move; }
 .custom-dimension.selected { stroke:#5d8f32; stroke-width:2.5; }
