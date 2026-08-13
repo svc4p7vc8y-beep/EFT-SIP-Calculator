@@ -107,7 +107,7 @@ test('gable roof includes mauerlat and adds the ridge board to matching rafter m
   assert.equal(rafters.catalogId, 'MAT-023');
   assert.equal(rafters.qty, result.roof.rafterBoardCount * 6 * 0.05 * 0.15);
   assert.equal(result.roof.rafterStructure.step, 0.6);
-  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(result.inputs.roof.ridgeLength / 0.6) + 1);
+  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(project.plan.house.w / 0.65) + 1);
   assert.match(rafters.name, /включая коньковый прогон/);
   assert.equal(result.lines.some((line) => line.id === 'roof:ridge-beam'), false);
   assert.equal(result.lines.some((line) => line.id === 'roof:ridge-beam-work'), false);
@@ -193,8 +193,51 @@ test('manual rafter step changes pair count and six-meter board purchase', () =>
   const result = calculateProject(project);
   assert.equal(result.roof.rafterStructure.system, 'layered');
   assert.equal(result.roof.rafterStructure.step, 0.8);
-  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(result.inputs.roof.ridgeLength / 0.8) + 1);
+  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(project.plan.house.w / 0.85) + 1);
   assert.equal(result.roof.rafterPurchaseLength, result.roof.rafterBoardCount * 6);
+});
+
+test('rafter pairs use the house length, clear spacing and 50 mm board width', () => {
+  const project = createDefaultProject();
+  project.plan.house.w = 8;
+  project.settings.roof.structureMode = 'manual';
+  project.settings.roof.rafterStep = 0.6;
+  const result = calculateProject(project);
+  assert.equal(result.roof.rafterStructure.frameLength, 8);
+  assert.equal(result.roof.rafterStructure.module, 0.65);
+  assert.equal(result.roof.rafterStructure.pairCount, 14);
+  assert.equal(result.roof.rafterStructure.legCount, 28);
+});
+
+test('manual roof supports trusses and lath quantity follows its selected step', () => {
+  const project = createDefaultProject();
+  project.settings.roof.structureMode = 'manual';
+  project.settings.roof.rafterSystem = 'truss';
+  project.settings.roof.lathStep = 0.4;
+  const widerStep = calculateProject(project);
+  project.settings.roof.lathStep = 0.2;
+  const tighterStep = calculateProject(project);
+  assert.equal(tighterStep.roof.rafterStructure.system, 'truss');
+  assert.equal(tighterStep.roof.lathStep, 0.2);
+  assert.ok(tighterStep.roof.mainLathBoardCount > widerStep.roof.mainLathBoardCount);
+  assert.match(tighterStep.lines.find((line) => line.id === 'roof:lath').name, /шаг 200 мм/);
+  assert.match(tighterStep.lines.find((line) => line.id === 'roof:rafters-work').name, /ферм/);
+});
+
+test('optional gutter adds a fully priced material and labor set', () => {
+  const project = createDefaultProject();
+  project.settings.roof.includeGutter = true;
+  const result = calculateProject(project);
+  const gutterIds = ['gutter', 'gutter-connectors', 'gutter-end-caps', 'gutter-brackets', 'gutter-outlets', 'downpipes', 'gutter-elbows', 'downpipe-clamps', 'gutter-work', 'downpipe-work'];
+  gutterIds.forEach((key) => {
+    const line = result.lines.find((item) => item.id === `roof:${key}`);
+    assert.ok(line, `missing ${key}`);
+    assert.ok(line.catalogId, `unpriced ${key}`);
+    assert.ok(line.price > 0, `zero price ${key}`);
+  });
+  assert.equal(result.roof.gutterLength, result.roof.mainEaveLength);
+  assert.ok(result.roof.gutterOutlets >= 2);
+  assert.ok(result.roof.downpipeLength > 0);
 });
 
 test('optional roof trims can be removed while ridge remains included', () => {

@@ -102,9 +102,11 @@ function SectionResult({ calculation, sectionKey }) {
 function RafterSystemPreview({ calculation }) {
   const roof = calculation.roof;
   const structure = roof.rafterStructure || {};
-  const count = Math.min(18, Math.max(2, structure.pairCount || 2));
-  const planRafters = Array.from({ length: count }, (_, index) => 388 + index * (280 / Math.max(1, count - 1)));
+  const count = Math.max(2, structure.pairCount || 2);
+  const planRafters = Array.from({ length: count }, (_, index) => 370 + index * (318 / Math.max(1, count - 1)));
   const layered = structure.system === "layered";
+  const truss = structure.system === "truss";
+  const systemLabel = layered ? "Наслонная" : truss ? "Стропильная ферма" : structure.system === "flat" ? "Балки плоской кровли" : "Висячая";
   return (
     <div className="rafter-scheme">
       <svg viewBox="0 0 760 220" role="img" aria-label="Схема стропильной системы">
@@ -112,13 +114,21 @@ function RafterSystemPreview({ calculation }) {
           <rect x="45" y="135" width="250" height="52" />
           <line x1="35" y1="135" x2="170" y2="38" />
           <line x1="170" y1="38" x2="305" y2="135" />
-          <line className="roof-scheme-ridge" x1="160" y1="38" x2="180" y2="38" />
+          <rect className="roof-scheme-mauerlat" x="48" y="127" width="18" height="8" />
+          <rect className="roof-scheme-mauerlat" x="274" y="127" width="18" height="8" />
+          <rect className="roof-scheme-ridge-block" x="166" y="32" width="8" height="14" />
           {layered ? <>
-            <line className="roof-scheme-support" x1="170" y1="39" x2="170" y2="135" />
-            <line className="roof-scheme-support" x1="170" y1="82" x2="105" y2="135" />
-            <line className="roof-scheme-support" x1="170" y1="82" x2="235" y2="135" />
+            <rect className="roof-scheme-mauerlat" x="155" y="127" width="30" height="8" />
+            <line className="roof-scheme-support" x1="170" y1="46" x2="170" y2="127" />
+            <line className="roof-scheme-support" x1="170" y1="121" x2="108" y2="83" />
+            <line className="roof-scheme-support" x1="170" y1="121" x2="232" y2="83" />
+          </> : truss ? <>
+            <line className="roof-scheme-support" x1="48" y1="127" x2="292" y2="127" />
+            <line className="roof-scheme-support" x1="170" y1="42" x2="170" y2="127" />
+            <line className="roof-scheme-support" x1="105" y1="85" x2="170" y2="127" />
+            <line className="roof-scheme-support" x1="235" y1="85" x2="170" y2="127" />
           </> : <line className="roof-scheme-support" x1="48" y1="124" x2="292" y2="124" />}
-          <text x="170" y="207" textAnchor="middle">{layered ? "Наслонная система · опора и подкосы" : "Висячая система · затяжка"}</text>
+          <text x="170" y="207" textAnchor="middle">{layered ? "Наслонная · прогон, стойка и подкосы" : truss ? "Стропильная ферма · пояс и решётка" : "Висячая система · затяжка"}</text>
         </g>
         <g className="roof-scheme-plan">
           <rect x="370" y="38" width="318" height="149" />
@@ -128,7 +138,7 @@ function RafterSystemPreview({ calculation }) {
         </g>
       </svg>
       <div className="rafter-scheme-summary">
-        <div><span>Система</span><strong>{structure.system === "layered" ? "Наслонная" : structure.system === "flat" ? "Балки плоской кровли" : "Висячая"}</strong></div>
+        <div><span>Система</span><strong>{systemLabel}</strong></div>
         <div><span>Стропильные ноги</span><strong>{structure.legCount || 0} шт · {formatNumber(roof.rafterLegLength)} м</strong></div>
         <div><span>Закупка</span><strong>{roof.rafterBoardCount || 0} досок × 6 м</strong></div>
         <div><span>Конёк</span><strong>{roof.mainRoofShape === "flat" ? "не применяется" : `${formatNumber(roof.ridgeBeamLength)} м · всегда включён`}</strong></div>
@@ -162,10 +172,10 @@ function RoofConstructionPanels({
             value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.system : (project.settings.roof.rafterSystem || "hanging")}
             disabled={(project.settings.roof.structureMode || "auto") === "auto"}
             onChange={(value) => setSetting("roof", "rafterSystem", value)}
-            options={[{ value: "hanging", label: "Висячая · без внутренней опоры" }, { value: "layered", label: "Наслонная · с опорой" }]}
+            options={[{ value: "hanging", label: "Висячая · без внутренней опоры" }, { value: "layered", label: "Наслонная · с опорой" }, { value: "truss", label: "Стропильная ферма" }]}
           />
           <NumberField
-            label="Шаг стропил"
+            label="Чистый шаг между стропилами"
             value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.step : project.settings.roof.rafterStep}
             suffix="м" min={0.3} max={1.2} step={0.05}
             disabled={(project.settings.roof.structureMode || "auto") === "auto"}
@@ -180,6 +190,12 @@ function RoofConstructionPanels({
               { value: "50x150", label: "50×150 мм" },
               { value: "50x200", label: "50×200 мм" },
             ]}
+          />
+          <NumberField
+            label="Шаг обрешётки"
+            value={project.settings.roof.lathStep ?? 0.35}
+            suffix="м" min={0.1} max={1.2} step={0.05}
+            onChange={(value) => setSetting("roof", "lathStep", value)}
           />
           {project.settings.roof.shape !== "flat" ? <>
             <SelectField
@@ -213,6 +229,14 @@ function RoofConstructionPanels({
             <span>Столбы пристроек</span>
             <strong>{calculation.roof.terracePostCount} шт</strong>
           </div>
+          <div className="readout">
+            <span>Стропильные пары</span>
+            <strong>{calculation.roof.rafterStructure.pairCount} шт · модуль {formatNumber(calculation.roof.rafterStructure.module, 2)} м</strong>
+          </div>
+          <div className="readout">
+            <span>Обрешётка</span>
+            <strong>{calculation.roof.mainLathBoardCount} досок × 6 м</strong>
+          </div>
         </div>
         <RafterSystemPreview calculation={calculation} />
       </Panel>
@@ -224,6 +248,7 @@ function RoofConstructionPanels({
           <Toggle label="Карнизные планки" hint={`${formatNumber(calculation.roof.mainEaveTrimPurchaseLength)} м с запасом`} checked={project.settings.roof.includeEaveTrim !== false} onChange={(value) => setSetting("roof", "includeEaveTrim", value)} />
           <Toggle label="Торцевые (ветровые) планки" hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`} checked={project.settings.roof.includeVergeTrim !== false} onChange={(value) => setSetting("roof", "includeVergeTrim", value)} />
           <Toggle label="Уплотнитель под конёк" hint="Коньковая планка при этом остаётся" checked={project.settings.roof.includeRidgeSeal !== false} onChange={(value) => setSetting("roof", "includeRidgeSeal", value)} />
+          <Toggle label="Водосточная система" hint={project.settings.roof.includeGutter === true ? `${formatNumber(calculation.roof.gutterLength)} м жёлоба · ${calculation.roof.gutterOutlets} выпуска` : "Жёлоба, трубы, крепёж и монтаж"} checked={project.settings.roof.includeGutter === true} onChange={(value) => setSetting("roof", "includeGutter", value)} />
           <div className="fixed-roof-accessory"><span>Коньковая планка</span><strong>Обязательно · {formatNumber(calculation.roof.ridgeBeamLength)} м</strong></div>
         </div>
       </Panel>
