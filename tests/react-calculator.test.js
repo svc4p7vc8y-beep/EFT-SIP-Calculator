@@ -35,6 +35,19 @@ test('React project produces a priced estimate from one shared model', () => {
   assert.equal(result.totals.total, result.totals.materials + result.totals.labor);
 });
 
+test('print plan layers default to piles, binding and dimensions and survive migration', () => {
+  const project = createDefaultProject();
+  assert.deepEqual(project.settings.print, {
+    includePlan: true, includeRoof: false, showPiles: true, showBinding: true, showDimensions: true
+  });
+  project.settings.print.showPiles = false;
+  project.settings.print.showDimensions = false;
+  const restored = migrateProject(project);
+  assert.equal(restored.settings.print.showPiles, false);
+  assert.equal(restored.settings.print.showBinding, true);
+  assert.equal(restored.settings.print.showDimensions, false);
+});
+
 test('625 mm SIP layout increases floor and ceiling joints and cutting without doubling panels', () => {
   const standardProject = createDefaultProject();
   const standard = calculateProject(standardProject);

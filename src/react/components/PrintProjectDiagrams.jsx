@@ -1,4 +1,5 @@
 import { polygonArea } from '../../calculations/plan-metrics.js';
+import { calculateFoundation } from '../calculations/foundation-model.js';
 import { boundsOf, lineEndpoints, roomPoints, unifiedWallSegments } from '../planner/geometry.js';
 import { formatNumber } from '../utils/format.js';
 
@@ -15,7 +16,7 @@ function planBounds(plan) {
   return boundsOf(points);
 }
 
-export function PrintPlanDiagram({ plan }) {
+export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
   const bounds = planBounds(plan);
   const scale = Math.min(
     (PLAN_VIEW.width - PLAN_VIEW.margin * 2) / Math.max(1, bounds.w),
@@ -25,6 +26,11 @@ export function PrintPlanDiagram({ plan }) {
   const oy = (PLAN_VIEW.height - bounds.h * scale) / 2 - bounds.y * scale;
   const p = (x, y) => ({ x: ox + x * scale, y: oy + y * scale });
   const houseStart = p(0, 0);
+  const showPiles = options.showPiles !== false;
+  const showBinding = options.showBinding !== false;
+  const showDimensions = options.showDimensions !== false;
+  const foundation = calculateFoundation(plan, pileSettings);
+  const line = (item) => ({ a: p(item.x1, item.y1), b: p(item.x2, item.y2) });
   const openingLine = (opening) => {
     const q = p(opening.x, opening.y);
     const half = Math.max(8, opening.width * scale / 2);
@@ -41,12 +47,18 @@ export function PrintPlanDiagram({ plan }) {
     {unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; })}
     {(plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })}
     {(plan.openings || []).map((opening) => <line key={opening.id} className={`print-opening ${opening.type}`} {...openingLine(opening)} />)}
-    <g className="print-house-dimensions">
+    {showBinding ? <g className="print-binding" aria-label="Обвязка на печатном плане">
+      {(plan.bindingLines || []).filter((item) => item.include !== false).map((item) => { const q = line(item); return <line key={item.id} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; })}
+      {(plan.platforms || []).filter((item) => item.include !== false && item.binding?.mode !== 'none').map((item) => { const q = p(item.x, item.y); return <rect key={item.id} x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />; })}
+    </g> : null}
+    {showPiles ? <g className="print-piles" aria-label="Сваи на печатном плане">{foundation.points.map((point, index) => { const q = p(point.x, point.y); return <circle key={index} cx={q.x} cy={q.y} r="5" />; })}</g> : null}
+    {showDimensions ? <g className="print-house-dimensions" aria-label="Размеры на печатном плане">
       <line x1={houseStart.x} y1={houseStart.y - 24} x2={houseStart.x + plan.house.w * scale} y2={houseStart.y - 24} markerStart="url(#print-plan-arrow)" markerEnd="url(#print-plan-arrow)" />
       <text x={houseStart.x + plan.house.w * scale / 2} y={houseStart.y - 31}>{Math.round(plan.house.w * 1000).toLocaleString('ru-RU')} мм</text>
       <line x1={houseStart.x - 24} y1={houseStart.y} x2={houseStart.x - 24} y2={houseStart.y + plan.house.h * scale} markerStart="url(#print-plan-arrow)" markerEnd="url(#print-plan-arrow)" />
       <text transform={`translate(${houseStart.x - 31} ${houseStart.y + plan.house.h * scale / 2}) rotate(-90)`}>{Math.round(plan.house.h * 1000).toLocaleString('ru-RU')} мм</text>
-    </g>
+      {(plan.dimensions || []).map((item) => { const q = line(item); const length = Math.hypot(item.x2 - item.x1, item.y2 - item.y1); return <g className="print-custom-dimension" key={item.id}><line x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} markerStart="url(#print-plan-arrow)" markerEnd="url(#print-plan-arrow)" /><text x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 - 7}>{Math.round(length * 1000).toLocaleString('ru-RU')} мм</text></g>; })}
+    </g> : null}
   </svg>;
 }
 
@@ -84,7 +96,7 @@ export function PrintProjectDiagrams({ project, calculation }) {
   const includeRoof = options.includeRoof === true;
   if (!includePlan && !includeRoof) return null;
   return <section className={`print-diagrams ${includePlan && includeRoof ? 'two' : 'one'}`} aria-label="Иллюстрации проекта">
-    {includePlan ? <article><h2>План дома</h2><PrintPlanDiagram plan={project.plan} /></article> : null}
+    {includePlan ? <article><h2>План дома</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} options={options} /></article> : null}
     {includeRoof ? <article><h2>Схема кровли</h2><PrintRoofDiagram project={project} roof={calculation.roof} /></article> : null}
   </section>;
 }
