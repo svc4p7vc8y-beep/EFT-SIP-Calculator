@@ -3,7 +3,7 @@ import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 59;
+export const REACT_PROJECT_VERSION = 60;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -129,7 +129,12 @@ export function createDefaultProject() {
     settings: {
       piles: { spacing: 2.5, boardVolumePerMeter: 0.0225, bindingLayers: 3, bindingBoardWidthMm: 50, bindingBoardHeightMm: 150, boardStockLength: 6 },
       sip: { floorThickness: '224', wallThickness: '174', ceilingThickness: '224', connectorType: 'thermal', wastePercent: 5 },
-      roof: { shape: 'gable', type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0, rafterSection: '50x150', gableType: 'auto', gableCount: 2 },
+      roof: {
+        shape: 'gable', type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0,
+        structureMode: 'auto', rafterSystem: 'hanging', rafterStep: 0.6, rafterSection: '50x150',
+        includeEaveTrim: true, includeVergeTrim: true, includeRidgeSeal: true,
+        gableType: 'auto', gableCount: 2
+      },
       delivery: { distance: 30, trips: 2, cargoVolume: 40, baseTrip: 7000, perKm: 50, unloadingPerM3: 500 },
       engineering: { cableRoute: 120, electricPoints: 50, waterPipe: 100, waterPoints: 5, sewerLength: 20, sewerPoints: 5, ventDuct: 25, ventGrilles: 5 },
       internal: { wallArea: 300, ceilingArea: 72, laminateArea: 75, tileArea: 30, doors: 5 },

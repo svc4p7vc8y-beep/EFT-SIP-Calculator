@@ -99,6 +99,45 @@ function SectionResult({ calculation, sectionKey }) {
   );
 }
 
+function RafterSystemPreview({ calculation }) {
+  const roof = calculation.roof;
+  const structure = roof.rafterStructure || {};
+  const count = Math.min(18, Math.max(2, structure.pairCount || 2));
+  const planRafters = Array.from({ length: count }, (_, index) => 388 + index * (280 / Math.max(1, count - 1)));
+  const layered = structure.system === "layered";
+  return (
+    <div className="rafter-scheme">
+      <svg viewBox="0 0 760 220" role="img" aria-label="Схема стропильной системы">
+        <g className="roof-scheme-house">
+          <rect x="45" y="135" width="250" height="52" />
+          <line x1="35" y1="135" x2="170" y2="38" />
+          <line x1="170" y1="38" x2="305" y2="135" />
+          <line className="roof-scheme-ridge" x1="160" y1="38" x2="180" y2="38" />
+          {layered ? <>
+            <line className="roof-scheme-support" x1="170" y1="39" x2="170" y2="135" />
+            <line className="roof-scheme-support" x1="170" y1="82" x2="105" y2="135" />
+            <line className="roof-scheme-support" x1="170" y1="82" x2="235" y2="135" />
+          </> : <line className="roof-scheme-support" x1="48" y1="124" x2="292" y2="124" />}
+          <text x="170" y="207" textAnchor="middle">{layered ? "Наслонная система · опора и подкосы" : "Висячая система · затяжка"}</text>
+        </g>
+        <g className="roof-scheme-plan">
+          <rect x="370" y="38" width="318" height="149" />
+          <line className="roof-scheme-ridge" x1="370" y1="112" x2="688" y2="112" />
+          {planRafters.map((x) => <line key={x} x1={x} y1="38" x2={x} y2="187" />)}
+          <text x="529" y="207" textAnchor="middle">{structure.pairCount || 0} пар · шаг {formatNumber(structure.step || 0.6)} м</text>
+        </g>
+      </svg>
+      <div className="rafter-scheme-summary">
+        <div><span>Система</span><strong>{structure.system === "layered" ? "Наслонная" : structure.system === "flat" ? "Балки плоской кровли" : "Висячая"}</strong></div>
+        <div><span>Стропильные ноги</span><strong>{structure.legCount || 0} шт · {formatNumber(roof.rafterLegLength)} м</strong></div>
+        <div><span>Закупка</span><strong>{roof.rafterBoardCount || 0} досок × 6 м</strong></div>
+        <div><span>Конёк</span><strong>{roof.mainRoofShape === "flat" ? "не применяется" : `${formatNumber(roof.ridgeBeamLength)} м · всегда включён`}</strong></div>
+      </div>
+      <p className="inspector-note">Схема служит для расчёта комплектации. Несущую способность и узлы крепления необходимо подтвердить конструктивным проектом.</p>
+    </div>
+  );
+}
+
 function RoofConstructionPanels({
   project,
   calculation,
@@ -109,12 +148,33 @@ function RoofConstructionPanels({
     <>
       <Panel
         title="Конструктив кровли"
-        description="Стропила считаются по погонной длине и выбранному сечению. Фронтоны отделены от скатов и попадают в материалы, работы и общую смету."
+        description="В автоматическом режиме система, шаг и сечение подбираются из геометрии плана. Переключитесь на ручной режим, чтобы изменить конструктив проекта."
       >
         <div className="form-grid four">
           <SelectField
+            label="Режим расчёта"
+            value={project.settings.roof.structureMode || "auto"}
+            onChange={(value) => setSetting("roof", "structureMode", value)}
+            options={[{ value: "auto", label: "Автоматически по плану" }, { value: "manual", label: "Ручная настройка" }]}
+          />
+          <SelectField
+            label="Тип стропильной системы"
+            value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.system : (project.settings.roof.rafterSystem || "hanging")}
+            disabled={(project.settings.roof.structureMode || "auto") === "auto"}
+            onChange={(value) => setSetting("roof", "rafterSystem", value)}
+            options={[{ value: "hanging", label: "Висячая · без внутренней опоры" }, { value: "layered", label: "Наслонная · с опорой" }]}
+          />
+          <NumberField
+            label="Шаг стропил"
+            value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.step : project.settings.roof.rafterStep}
+            suffix="м" min={0.3} max={1.2} step={0.05}
+            disabled={(project.settings.roof.structureMode || "auto") === "auto"}
+            onChange={(value) => setSetting("roof", "rafterStep", value)}
+          />
+          <SelectField
             label="Стропильная доска"
-            value={project.settings.roof.rafterSection || "50x150"}
+            value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.section : (project.settings.roof.rafterSection || "50x150")}
+            disabled={(project.settings.roof.structureMode || "auto") === "auto"}
             onChange={(value) => setSetting("roof", "rafterSection", value)}
             options={[
               { value: "50x150", label: "50×150 мм" },
@@ -153,6 +213,18 @@ function RoofConstructionPanels({
             <span>Столбы пристроек</span>
             <strong>{calculation.roof.terracePostCount} шт</strong>
           </div>
+        </div>
+        <RafterSystemPreview calculation={calculation} />
+      </Panel>
+      <Panel
+        title="Доборные элементы"
+        description="Коньковая планка и её монтаж всегда входят в двускатную кровлю. Остальные элементы можно включать и выключать; материалы и работы сразу меняются в ведомости и смете."
+      >
+        <div className="toggle-grid roof-accessory-grid">
+          <Toggle label="Карнизные планки" hint={`${formatNumber(calculation.roof.mainEaveTrimPurchaseLength)} м с запасом`} checked={project.settings.roof.includeEaveTrim !== false} onChange={(value) => setSetting("roof", "includeEaveTrim", value)} />
+          <Toggle label="Торцевые (ветровые) планки" hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`} checked={project.settings.roof.includeVergeTrim !== false} onChange={(value) => setSetting("roof", "includeVergeTrim", value)} />
+          <Toggle label="Уплотнитель под конёк" hint="Коньковая планка при этом остаётся" checked={project.settings.roof.includeRidgeSeal !== false} onChange={(value) => setSetting("roof", "includeRidgeSeal", value)} />
+          <div className="fixed-roof-accessory"><span>Коньковая планка</span><strong>Обязательно · {formatNumber(calculation.roof.ridgeBeamLength)} м</strong></div>
         </div>
       </Panel>
       <Panel
@@ -651,7 +723,7 @@ export default function Calculators({ type }) {
             />
             <Stat
               label="Доборы свесов"
-              value={`${formatNumber((calculation.roof.mainEaveLength || 0) + (calculation.roof.mainVergeLength || 0))} м.п.`}
+              value={`${formatNumber((project.settings.roof.includeEaveTrim === false ? 0 : calculation.roof.mainEaveLength || 0) + (project.settings.roof.includeVergeTrim === false ? 0 : calculation.roof.mainVergeLength || 0))} м.п.`}
             />
             <Stat
               label="Всего"

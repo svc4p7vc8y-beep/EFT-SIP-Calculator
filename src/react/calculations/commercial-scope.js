@@ -61,7 +61,8 @@ function scopeDescription(key, project, calculation, lineCount) {
     return {
       summary: `${ROOF_SHAPES[project.settings.roof.shape] || 'двускатная'} ${ROOF_TYPES[project.settings.roof.type] || 'холодная'} кровля, ${formatNumber(roof.totalArea)} м²`,
       details: joinParts([
-        `основная кровля и монтаж`,
+        `основная кровля, ${roof.rafterStructure?.system === 'layered' ? 'наслонная' : 'висячая'} стропильная система с шагом ${formatNumber(roof.rafterStructure?.step || .6)} м`,
+        `конёк включён`,
         roof.gableArea > 0 && `фронтоны ${formatNumber(roof.gableArea)} м²`,
         coveredPlatforms > 0 && `кровля ${pluralRu(coveredPlatforms, 'пристройки', 'пристроек', 'пристроек')}`
       ])

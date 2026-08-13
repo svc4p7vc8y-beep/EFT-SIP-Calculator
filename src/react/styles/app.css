@@ -170,6 +170,19 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .frame-type-guide strong { font-size:10px; }
 .frame-type-guide span { color:var(--green-dark); font-size:9px; font-weight:700; }
 .frame-type-guide small { color:var(--muted); font-size:8px; line-height:1.4; }
+.rafter-scheme { margin-top:15px; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
+.rafter-scheme svg { display:block; width:100%; max-height:250px; }
+.rafter-scheme svg rect,.rafter-scheme svg line { fill:none; stroke:var(--ink); stroke-width:3; vector-effect:non-scaling-stroke; }
+.rafter-scheme svg rect { fill:color-mix(in srgb,var(--panel) 86%,transparent); }
+.rafter-scheme svg .roof-scheme-ridge { stroke:#c88b24; stroke-width:7; }
+.rafter-scheme svg .roof-scheme-support { stroke:var(--green); stroke-width:4; }
+.rafter-scheme svg text { fill:var(--muted); font-size:12px; font-weight:700; }
+.rafter-scheme-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.rafter-scheme-summary>div,.fixed-roof-accessory { min-width:0; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+.rafter-scheme-summary span,.fixed-roof-accessory span { display:block; margin-bottom:4px; color:var(--muted); font-size:8px; text-transform:uppercase; }
+.rafter-scheme-summary strong,.fixed-roof-accessory strong { display:block; overflow:hidden; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.roof-accessory-grid { align-items:stretch; }
+.fixed-roof-accessory { display:flex; flex-direction:column; justify-content:center; min-height:44px; color:var(--green-dark); }
 
 /* Планировщик всегда остаётся белым, независимо от темы интерфейса. */
 .plan-screen-v2 { --planner-wall:#172018; --planner-green:#5d8f32; }
@@ -476,6 +489,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .calculation-flow article>div:last-of-type,.calculation-flow article>i { grid-column:auto; }
   .calculation-link-banner { align-items:flex-start; flex-direction:column; }
   .frame-type-guide { grid-template-columns:1fr; }
+  .rafter-scheme-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media (max-width:560px) {
   .header-totals { display:none; }
@@ -495,6 +509,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .commercial-scope>header { align-items:flex-start; flex-direction:column; gap:5px; }
   .commercial-scope>header p { text-align:left; }
   .commercial-scope-grid { grid-template-columns:1fr; }
+  .rafter-scheme-summary { grid-template-columns:1fr; }
 }
 
 @media print {

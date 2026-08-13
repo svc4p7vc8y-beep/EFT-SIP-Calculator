@@ -77,14 +77,16 @@ test('gable roof includes mauerlat and adds the ridge board to matching rafter m
   const anchors = result.lines.find((line) => line.id === 'roof:mauerlat-anchors');
   const rafters = result.lines.find((line) => line.id === 'roof:rafters');
   assert.equal(mauerlat.catalogId, 'MAT-018');
-  assert.equal(mauerlat.qty, Math.round(houseLength * 2 * result.inputs.formulas.mauerlatReserve * 0.1 * 0.15 * 1000) / 1000);
+  assert.equal(mauerlat.qty, Math.round(result.roof.mauerlatBoardCount * 6 * 0.1 * 0.15 * 1000) / 1000);
+  assert.match(mauerlat.name, /шт × 6 м/);
   assert.equal(mauerlatWork.catalogId, 'LAB-033');
   assert.equal(mauerlatWork.qty, houseLength * 2);
   assert.equal(anchors.catalogId, 'MAT-067');
   assert.equal(anchors.qty, 2 * (Math.ceil(houseLength / result.inputs.formulas.mauerlatAnchorSpacing) + 1));
-  const expectedRafterVolume = (result.roof.coldSlopeArea * result.inputs.formulas.rafterLinearMPerM2 + result.inputs.roof.ridgeLength * result.inputs.formulas.ridgeBeamReserve) * 0.05 * 0.15;
   assert.equal(rafters.catalogId, 'MAT-023');
-  assert.equal(rafters.qty, Math.round(expectedRafterVolume * 1000) / 1000);
+  assert.equal(rafters.qty, result.roof.rafterBoardCount * 6 * 0.05 * 0.15);
+  assert.equal(result.roof.rafterStructure.step, 0.6);
+  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(result.inputs.roof.ridgeLength / 0.6) + 1);
   assert.match(rafters.name, /включая коньковый прогон/);
   assert.equal(result.lines.some((line) => line.id === 'roof:ridge-beam'), false);
   assert.equal(result.lines.some((line) => line.id === 'roof:ridge-beam-work'), false);
@@ -144,7 +146,7 @@ test('terrace roof adds its slopes, posts and optional gable to the roof estimat
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('Монтаж профлиста') && line.catalogId === 'LAB-031'));
   const terraceRafters = result.roof.extensionLines.find((line) => line.source === 'platform-terrace-main-roof' && line.kind === 'material' && line.id.endsWith('-rafters'));
   assert.equal(terraceRafters.catalogId, 'MAT-023');
-  assert.match(terraceRafters.name, /с коньковым прогоном/);
+  assert.match(terraceRafters.name, /коньковый прогон/);
   assert.equal(result.roof.extensionLines.some((line) => line.id.includes('ridge-beam')), false);
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('карнизная') && line.catalogId === 'MAT-038'));
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('торцевая') && line.catalogId === 'MAT-040'));
@@ -152,15 +154,39 @@ test('terrace roof adds its slopes, posts and optional gable to the roof estimat
 
 test('50x200 rafters use the same 50x200 board for the ridge', () => {
   const project = createDefaultProject();
+  project.settings.roof.structureMode = 'manual';
   project.settings.roof.rafterSection = '50x200';
   const result = calculateProject(project);
   const rafters = result.lines.find((line) => line.id === 'roof:rafters');
-  const expectedVolume = (result.roof.coldSlopeArea * result.inputs.formulas.rafterLinearMPerM2 + result.roof.ridgeBeamPurchaseLength) * 0.05 * 0.2;
-
   assert.equal(rafters.catalogId, 'MAT-024');
-  assert.equal(rafters.qty, Math.round(expectedVolume * 1000) / 1000);
+  assert.equal(rafters.qty, Math.round(result.roof.rafterBoardCount * 6 * 0.05 * 0.2 * 1000) / 1000);
   assert.match(rafters.name, /50×200.*коньковый прогон/);
   assert.equal(result.lines.some((line) => line.name.includes('Коньковый прогон · брус 100×150')), false);
+});
+
+test('manual rafter step changes pair count and six-meter board purchase', () => {
+  const project = createDefaultProject();
+  project.settings.roof.structureMode = 'manual';
+  project.settings.roof.rafterSystem = 'layered';
+  project.settings.roof.rafterStep = 0.8;
+  const result = calculateProject(project);
+  assert.equal(result.roof.rafterStructure.system, 'layered');
+  assert.equal(result.roof.rafterStructure.step, 0.8);
+  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(result.inputs.roof.ridgeLength / 0.8) + 1);
+  assert.equal(result.roof.rafterPurchaseLength, result.roof.rafterBoardCount * 6);
+});
+
+test('optional roof trims can be removed while ridge remains included', () => {
+  const project = createDefaultProject();
+  project.settings.roof.includeEaveTrim = false;
+  project.settings.roof.includeVergeTrim = false;
+  project.settings.roof.includeRidgeSeal = false;
+  const result = calculateProject(project);
+  assert.equal(result.lines.some((line) => line.id === 'roof:eave-trim'), false);
+  assert.equal(result.lines.some((line) => line.id === 'roof:verge-trim'), false);
+  assert.equal(result.lines.some((line) => line.id === 'roof:ridge-seal'), false);
+  assert.ok(result.lines.some((line) => line.id === 'roof:ridge'));
+  assert.ok(result.lines.some((line) => line.id === 'roof:ridge-work'));
 });
 
 test('terrace and porch roof materials are listed separately in the roof estimate', () => {
