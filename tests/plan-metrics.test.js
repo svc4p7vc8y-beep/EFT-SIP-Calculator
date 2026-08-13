@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculatePlanMetrics, calculateSipCutting, chooseDimensionSides, roofGeometry } from '../src/calculations/plan-metrics.js';
+import { calculatePlanMetrics, calculateSipCutting, calculateSipRoofCutting, chooseDimensionSides, roofGeometry } from '../src/calculations/plan-metrics.js';
 
 test('shared and partially overlapping room walls count once', () => {
   const plan = {
@@ -53,11 +53,12 @@ test('explicit wall gaps are subtracted from wall and partition quantities', () 
   assert.equal(metrics.wallGapLength, 2.2);
 });
 
-test('SIP cutting covers floor, walls, ceiling, partitions and roof', () => {
+test('SIP cutting covers only floor, outer walls and horizontal ceiling', () => {
   const rows = calculateSipCutting({ floor: 50, walls: 80, ceiling: 50, partitions: 30, roof: 70 });
-  assert.deepEqual(rows.map((row) => row.key), ['floor', 'walls', 'ceiling', 'partitions', 'roof']);
+  assert.deepEqual(rows.map((row) => row.key), ['floor', 'walls', 'ceiling']);
   assert.ok(rows.every((row) => row.panels > 0));
   assert.ok(rows.every((row) => row.cutMeters > 0));
+  assert.equal(calculateSipRoofCutting(70).key, 'roof');
 });
 
 test('empty plan keeps the full house floor and ceiling areas', () => {

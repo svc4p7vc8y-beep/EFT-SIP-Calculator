@@ -15,16 +15,42 @@ test('React project produces a priced estimate from one shared model', () => {
   assert.equal(result.totals.total, result.totals.materials + result.totals.labor);
 });
 
-test('warm main roof and terrace roofs are included in SIP cutting once', () => {
+test('warm main roof and terrace roofs are cut only in the roof section', () => {
   const project = createDefaultProject();
   project.settings.roof.type = 'sip';
   project.plan.platforms[0].roof.mode = 'warm';
   const result = calculateProject(project);
-  const roofCutting = result.sip.cutting.find((row) => row.key === 'roof');
   assert.ok(result.roof.warmArea > 0);
-  assert.ok(roofCutting.area > 0);
-  assert.ok(roofCutting.panels > 0);
-  assert.equal(result.lines.filter((line) => line.id === 'sip:panel-roof').length, 1);
+  assert.deepEqual(result.sip.cutting.map((row) => row.key), ['floor', 'walls', 'ceiling']);
+  assert.ok(result.roof.sipCutting.area > 0);
+  assert.ok(result.roof.sipCutting.panels > 0);
+  assert.equal(result.lines.filter((line) => line.id === 'roof:sip-panel').length, 1);
+});
+
+test('SIP joinery switches between thermobeam, board pack and solid beam', () => {
+  const project = createDefaultProject();
+  [['MAT-186', 'MAT-015'], ['MAT-187', 'MAT-013'], ['MAT-188', 'MAT-014']].forEach(([packageId, thermalId]) => {
+    const packagePrice = project.priceMat.find((item) => item.id === packageId).price;
+    const thermalPrice = project.priceMat.find((item) => item.id === thermalId).price;
+    assert.equal(packagePrice, thermalPrice / 2);
+  });
+  const thermal = calculateProject(project);
+  assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-joints' && line.name.includes('Термобрус 145')));
+  assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-edges' && line.name.includes('145×45')));
+  assert.ok(thermal.lines.some((line) => line.id === 'sip:fasteners' && line.qty > 0));
+  assert.ok(thermal.lines.some((line) => line.id === 'sip:seam-screws' && line.qty > 0));
+  project.settings.sip.connectorType = 'board-pack';
+  const boardPack = calculateProject(project);
+  const packageLine = boardPack.lines.find((line) => line.source === 'sip-walls-joints');
+  assert.ok(packageLine.name.includes('2×45×145'));
+  assert.equal(packageLine.price, project.priceMat.find((item) => item.id === 'MAT-187').price);
+  project.settings.sip.connectorType = 'solid';
+  const solid = calculateProject(project);
+  assert.ok(solid.lines.some((line) => line.source === 'sip-walls-joints' && line.name.includes('150×100')));
+  const baseWallJoints = solid.sip.joinery.rows.find((row) => row.key === 'walls').jointLength;
+  project.plan.wallHeight = 3;
+  const tallWallJoints = calculateProject(project).sip.joinery.rows.find((row) => row.key === 'walls').jointLength;
+  assert.ok(tallWallJoints > baseWallJoints, 'horizontal wall seams are added above one panel height');
 });
 
 test('SIP floor and ceiling cover an empty house without drawn rooms', () => {
@@ -88,8 +114,10 @@ test('known empty starter rates are repaired from the current catalog', () => {
 test('new catalog rows are added to an older saved project', () => {
   const project = createDefaultProject();
   project.priceLab = project.priceLab.filter((item) => item.id !== 'LAB-108');
+  project.priceMat = project.priceMat.filter((item) => item.id !== 'MAT-187');
   const restored = migrateProject(project);
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-108').price, 1500);
+  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-187').price, 587);
 });
 
 test('plan geometry drives roof, engineering, finishing and delivery inputs', () => {

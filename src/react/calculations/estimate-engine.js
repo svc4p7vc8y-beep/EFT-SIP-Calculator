@@ -1,7 +1,8 @@
-import { calculatePlanMetrics, calculateSipCutting, roofGeometry } from '../../calculations/plan-metrics.js';
+import { calculatePlanMetrics, calculateSipCutting, calculateSipRoofCutting, roofGeometry } from '../../calculations/plan-metrics.js';
 import { calculateTerraceRoof } from '../../calculations/terrace-model.js';
 import { calculateFoundation } from './foundation-model.js';
 import { deriveLinkedInputs } from './calculation-links.js';
+import { calculateSipJoinery } from './sip-joinery.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -48,41 +49,51 @@ function sipPanelName(thickness) {
   return `СИП-панель 2500×1250×${thickness} мм`;
 }
 
-function sipSection(project, metrics, index, inputs, warmRoofArea = 0) {
+function sipSection(project, metrics, index, inputs) {
   const { sip } = project.settings;
   const surfaces = {
     floor: project.services.sipFloor ? metrics.floorArea : 0,
     walls: project.services.sipWalls ? metrics.exteriorWallNetArea : 0,
-    ceiling: project.services.sipCeiling ? metrics.ceilingArea : 0,
-    partitions: project.services.partitions ? metrics.partitionNetArea : 0,
-    roof: project.services.roof ? warmRoofArea : 0
+    ceiling: project.services.sipCeiling ? metrics.ceilingArea : 0
   };
   const f = inputs.formulas;
   const cutting = calculateSipCutting(surfaces, { panelArea: f.panelArea, extraWastePercent: sip.wastePercent });
   const byKey = new Map(cutting.map((row) => [row.key, row]));
   const panelGroups = [
-    ['floor', sip.floorThickness], ['walls', sip.wallThickness], ['ceiling', sip.ceilingThickness], ['roof', sip.ceilingThickness]
+    ['floor', sip.floorThickness], ['walls', sip.wallThickness], ['ceiling', sip.ceilingThickness]
   ];
   const lines = [];
   panelGroups.forEach(([key, thickness]) => {
     const row = byKey.get(key);
     lines.push(makeLine(index, 'sip', sipPanelName(thickness), row.panels, { key: `panel-${key}`, source: `sip-${key}` }));
-    const installQuery = key === 'ceiling' ? 'Монтаж сип-панели потолка' : key === 'roof' ? 'Монтаж СИП-кровли' : 'Монтаж сип-панели пол/стены';
+    const installQuery = key === 'ceiling' ? 'Монтаж сип-панели потолка' : 'Монтаж сип-панели пол/стены';
     lines.push(makeLine(index, 'sip', installQuery, row.area, { key: `install-${key}`, kind: 'labor', source: `sip-${key}` }));
     lines.push(makeLine(index, 'sip', 'Раскрой сип-панелей', row.cutMeters, { key: `cut-${key}`, kind: 'labor', source: `sip-${key}` }));
   });
-  const partition = byKey.get('partitions');
-  if (partition.area) {
-    lines.push(makeLine(index, 'sip', 'Доска ест.влажн. сосна 50*100мм', partition.area * f.partitionBoardM3PerM2, { key: 'partition-board', unit: 'м³', source: 'partitions' }));
-    lines.push(makeLine(index, 'sip', 'Возведение перегородок из доски 100х50', partition.area, { key: 'partition-work', kind: 'labor', source: 'partitions' }));
+  if (project.services.partitions && metrics.partitionNetArea) {
+    lines.push(makeLine(index, 'sip', 'Доска ест.влажн. сосна 50*100мм', metrics.partitionNetArea * f.partitionBoardM3PerM2, { key: 'partition-board', unit: 'м³', source: 'partitions' }));
+    lines.push(makeLine(index, 'sip', 'Возведение перегородок из доски 100х50', metrics.partitionNetArea, { key: 'partition-work', kind: 'labor', source: 'partitions' }));
   }
+  const joinery = calculateSipJoinery(project.plan, project.services, sip, f);
+  joinery.rows.forEach((row) => {
+    const key = `${row.key}-connector`;
+    if (joinery.type === 'thermal') {
+      lines.push(makeLine(index, 'sip', `Термобрус ${row.thermalDepth}х90мм`, row.jointLength, { key, unit: 'м.п.', source: `sip-${row.key}-joints` }));
+    } else if (joinery.type === 'board-pack') {
+      lines.push(makeLine(index, 'sip', `Пакет досок 2×45×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`, row.jointLength, { key, unit: 'м.п.', source: `sip-${row.key}-joints` }));
+    } else {
+      const query = row.core === 100 ? 'Брус ест.влажн. сосна 100×100 мм' : row.core === 150 ? 'Брус мауэрлата ест.влажн. сосна 150×100 мм' : 'Доска ест. влажн. сосна 50х200мм';
+      lines.push(makeLine(index, 'sip', query, row.jointLength * row.core / 1000 * 0.1, { key, name: `Брус соединительный ${row.core}×100 мм`, unit: 'м³', digits: 3, source: `sip-${row.key}-joints` }));
+    }
+    lines.push(makeLine(index, 'sip', `Доска сухая строганая ${row.endBoardDepth}×45 мм`, row.endBoardLength, { key: `${row.key}-edge-board`, unit: 'м.п.', source: `sip-${row.key}-edges` }));
+  });
   const panelTotal = cutting.reduce((sum, row) => sum + row.panels, 0);
-  const assemblyArea = surfaces.floor + surfaces.walls + surfaces.ceiling + surfaces.roof;
+  const assemblyArea = surfaces.floor + surfaces.walls + surfaces.ceiling;
   lines.push(makeLine(index, 'sip', 'Пена монтажная 800мл', Math.ceil(panelTotal * f.foamUnitsPerPanel), { key: 'foam' }));
   lines.push(makeLine(index, 'sip', 'Саморезы конст.', assemblyArea * f.structuralFastenerKgPerM2, { key: 'fasteners', unit: 'кг' }));
   lines.push(makeLine(index, 'sip', 'Саморезы 4.2 x 75', assemblyArea * f.seamScrewKgPerM2, { key: 'seam-screws', unit: 'кг' }));
   lines.push(makeLine(index, 'sip', 'Крепёж спиральный', Math.ceil(panelTotal / f.spiralPackPerPanels), { key: 'spiral-fasteners', unit: 'уп' }));
-  return { lines: compact(lines), cutting };
+  return { lines: compact(lines), cutting, joinery };
 }
 
 function foundationSection(project, index, inputs) {
@@ -125,6 +136,7 @@ function roofSection(project, metrics, index, inputs) {
     if (platform.roof?.mode === 'cold') coldArea += result.netArea;
   });
   const totalArea = coldArea + warmArea;
+  const sipCutting = calculateSipRoofCutting(warmArea, { panelArea: inputs.formulas.panelArea, extraWastePercent: project.settings.sip.wastePercent });
   const lines = compact([
     makeLine(index, 'roof', 'Монтаж стропильной системы', coldArea, { key: 'rafters-work', kind: 'labor' }),
     makeLine(index, 'roof', 'Монтаж обрешётки и контробрешётки', coldArea, { key: 'lath-work', kind: 'labor' }),
@@ -137,9 +149,14 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, 'roof', 'Утеплитель 100 мм П50-60', insulatedRafterArea * inputs.formulas.rafterInsulationThicknessM, { key: 'open-rafter-insulation', unit: 'м³', digits: 3, source: 'open-rafter' }),
     makeLine(index, 'roof', 'Укладка утеплителя стен 50 мм', insulatedRafterArea, { key: 'open-rafter-insulation-work', kind: 'labor', name: `Укладка минваты в стропила ${Math.round(inputs.formulas.rafterInsulationThicknessM * 1000)} мм`, unit: 'м²', priceMultiplier: inputs.formulas.rafterInsulationThicknessM / 0.05, source: 'open-rafter' }),
     makeLine(index, 'roof', 'Пароизоляция "В"', Math.ceil(insulatedRafterArea / Math.max(1, inputs.formulas.vaporBarrierRollArea)), { key: 'open-rafter-vapor', unit: 'рулон', source: 'open-rafter' }),
-    makeLine(index, 'roof', 'Монтаж пароизоляции В', insulatedRafterArea, { key: 'open-rafter-vapor-work', kind: 'labor', source: 'open-rafter' })
+    makeLine(index, 'roof', 'Монтаж пароизоляции В', insulatedRafterArea, { key: 'open-rafter-vapor-work', kind: 'labor', source: 'open-rafter' }),
+    makeLine(index, 'roof', sipPanelName(project.settings.sip.ceilingThickness), sipCutting.panels, { key: 'sip-panel', source: 'sip-roof' }),
+    makeLine(index, 'roof', 'Монтаж СИП-кровли', sipCutting.area, { key: 'sip-install', kind: 'labor', source: 'sip-roof' }),
+    makeLine(index, 'roof', 'Раскрой сип-панелей', sipCutting.cutMeters, { key: 'sip-cut', kind: 'labor', source: 'sip-roof' }),
+    makeLine(index, 'roof', 'Пена монтажная 800мл', Math.ceil(sipCutting.panels * inputs.formulas.foamUnitsPerPanel), { key: 'sip-foam', source: 'sip-roof' }),
+    makeLine(index, 'roof', 'Саморезы конст.', sipCutting.area * inputs.formulas.structuralFastenerKgPerM2, { key: 'sip-fasteners', unit: 'кг', source: 'sip-roof' })
   ]);
-  return { lines, geometry, terraceRoofs, coldArea: round(coldArea), warmArea: round(warmArea), insulatedRafterArea: round(insulatedRafterArea), totalArea: round(totalArea) };
+  return { lines, geometry, terraceRoofs, sipCutting, coldArea: round(coldArea), warmArea: round(warmArea), insulatedRafterArea: round(insulatedRafterArea), totalArea: round(totalArea) };
 }
 
 function terraceSection(project, index, inputs) {
@@ -242,7 +259,7 @@ export function calculateProject(project) {
   const index = catalogIndex(project);
   const foundation = foundationSection(project, index, inputs);
   const roof = roofSection(project, metrics, index, inputs);
-  const sip = sipSection(project, metrics, index, inputs, roof.warmArea || 0);
+  const sip = sipSection(project, metrics, index, inputs);
   const terrace = terraceSection(project, index, inputs);
   const openings = openingSection(project, index);
   const engineering = engineeringSection(project, index, inputs);

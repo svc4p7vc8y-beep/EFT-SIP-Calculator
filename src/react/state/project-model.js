@@ -123,7 +123,7 @@ export function createDefaultProject() {
     },
     settings: {
       piles: { spacing: 2.5, boardVolumePerMeter: 0.0225 },
-      sip: { floorThickness: '224', wallThickness: '174', ceilingThickness: '224', wastePercent: 5 },
+      sip: { floorThickness: '224', wallThickness: '174', ceilingThickness: '224', connectorType: 'thermal', wastePercent: 5 },
       roof: { type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0 },
       delivery: { distance: 30, trips: 2, cargoVolume: 40, baseTrip: 7000, perKm: 50, unloadingPerM3: 500 },
       engineering: { cableRoute: 120, electricPoints: 50, waterPipe: 100, waterPoints: 5, sewerLength: 20, sewerPoints: 5, ventDuct: 25, ventGrilles: 5 },

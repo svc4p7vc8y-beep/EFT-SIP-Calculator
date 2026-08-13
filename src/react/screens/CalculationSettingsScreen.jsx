@@ -25,7 +25,9 @@ const FORMULA_GROUPS = [
     ['internalPartitionFaces', 'Сторон отделки перегородки', 'сторон'], ['laminateShare', 'Доля пола под ламинат', 'коэф.'], ['tileShare', 'Доля пола под плитку', 'коэф.']
   ]],
   ['СИП и крепёж', [
-    ['panelArea', 'Площадь одной СИП-панели', 'м²'], ['partitionBoardM3PerM2', 'Доска перегородок на 1 м²', 'м³'],
+    ['panelArea', 'Площадь одной СИП-панели', 'м²'], ['panelWidth', 'Ширина СИП-панели', 'м'],
+    ['panelLength', 'Длина СИП-панели', 'м'], ['sipTimberReservePercent', 'Запас бруса и торцевой доски', '%'],
+    ['partitionBoardM3PerM2', 'Доска перегородок на 1 м²', 'м³'],
     ['foamUnitsPerPanel', 'Баллонов пены на панель', 'шт'], ['structuralFastenerKgPerM2', 'Конструкционного крепежа на 1 м²', 'кг'],
     ['seamScrewKgPerM2', 'Саморезов шва на 1 м²', 'кг'], ['spiralPackPerPanels', 'Панелей на упаковку спирального крепежа', 'шт']
   ]],

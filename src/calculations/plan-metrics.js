@@ -168,14 +168,14 @@ const CUTTING_RULES = {
   floor: { label: 'Пол', waste: 1, cutNorm: 0.701 },
   walls: { label: 'Стены', waste: 1.05, cutNorm: 0.324 },
   ceiling: { label: 'Потолок', waste: 1.03, cutNorm: 0.165 },
-  partitions: { label: 'Перегородки', waste: 1.05, cutNorm: 0.2 },
   roof: { label: 'Крыша', waste: 1.1, cutNorm: 0.324 }
 };
 
-export function calculateSipCutting(surfaces, options = {}) {
+function calculateCuttingRows(keys, surfaces, options = {}) {
   const panelArea = Math.max(0.1, Number(options.panelArea) || 3.125);
   const extraWaste = 1 + Math.max(0, Number(options.extraWastePercent) || 0) / 100;
-  return Object.entries(CUTTING_RULES).map(([key, rule]) => {
+  return keys.map((key) => {
+    const rule = CUTTING_RULES[key];
     const area = Math.max(0, Number(surfaces?.[key]) || 0);
     const panels = area > 0 ? Math.ceil((area / panelArea) * rule.waste * extraWaste) : 0;
     const purchasedArea = panels * panelArea;
@@ -189,6 +189,14 @@ export function calculateSipCutting(surfaces, options = {}) {
       cutMeters: round(area * rule.cutNorm, 1)
     };
   });
+}
+
+export function calculateSipCutting(surfaces, options = {}) {
+  return calculateCuttingRows(['floor', 'walls', 'ceiling'], surfaces, options);
+}
+
+export function calculateSipRoofCutting(area, options = {}) {
+  return calculateCuttingRows(['roof'], { roof: area }, options)[0];
 }
 
 export function roofGeometry({ span, ridgeLength, ridgeHeight }) {
