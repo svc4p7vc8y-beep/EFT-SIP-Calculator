@@ -97,6 +97,8 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .stat span { display:block; margin-bottom:5px; color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:.06em; }
 .stat strong { display:block; overflow:hidden; text-overflow:ellipsis; font-size:14px; white-space:nowrap; }
 .stat.accent { color:#fff; border-color:var(--green-dark); background:var(--green-dark); }
+.stat.accent span { color:rgba(255,255,255,.78); }
+.stat.accent strong { color:#fff; }
 .two-column-layout { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(300px,.8fr); gap:16px; align-items:start; }
 .stack { min-width:0; }
 .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
@@ -143,6 +145,11 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .terrace-roof-editor>header small { padding:5px 7px; border-radius:6px; background:var(--green-soft); white-space:nowrap; }
 .readout { color:var(--green-dark); font-weight:800; }
 .toggle-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 20px; }
+.frame-type-guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:14px 0 4px; }
+.frame-type-guide article { display:flex; flex-direction:column; gap:4px; min-width:0; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
+.frame-type-guide strong { font-size:10px; }
+.frame-type-guide span { color:var(--green-dark); font-size:9px; font-weight:700; }
+.frame-type-guide small { color:var(--muted); font-size:8px; line-height:1.4; }
 
 /* Планировщик всегда остаётся белым, независимо от темы интерфейса. */
 .plan-screen-v2 { --planner-wall:#172018; --planner-green:#5d8f32; }
@@ -416,6 +423,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .calculation-flow article>svg { display:none; }
   .calculation-flow article>div:last-of-type,.calculation-flow article>i { grid-column:auto; }
   .calculation-link-banner { align-items:flex-start; flex-direction:column; }
+  .frame-type-guide { grid-template-columns:1fr; }
 }
 @media (max-width:560px) {
   .header-totals { display:none; }

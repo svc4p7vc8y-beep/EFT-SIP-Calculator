@@ -81,22 +81,40 @@ test('SIP joinery switches between thermobeam, board pack and solid beam', () =>
     assert.equal(packagePrice, thermalPrice / 2);
   });
   const thermal = calculateProject(project);
-  assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-joints' && line.name.includes('Термобрус 145')));
+  assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-joints' && line.name.includes('Термобрус 95×145')));
   assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-edges' && line.name.includes('145×45')));
   assert.ok(thermal.lines.some((line) => line.id === 'sip:fasteners' && line.qty > 0));
   assert.ok(thermal.lines.some((line) => line.id === 'sip:seam-screws' && line.qty > 0));
   project.settings.sip.connectorType = 'board-pack';
   const boardPack = calculateProject(project);
   const packageLine = boardPack.lines.find((line) => line.source === 'sip-walls-joints');
-  assert.ok(packageLine.name.includes('2×45×145'));
+  assert.ok(packageLine.name.includes('95×145'));
   assert.equal(packageLine.price, project.priceMat.find((item) => item.id === 'MAT-187').price);
   project.settings.sip.connectorType = 'solid';
   const solid = calculateProject(project);
-  assert.ok(solid.lines.some((line) => line.source === 'sip-walls-joints' && line.name.includes('150×100')));
+  const solidWall = solid.lines.find((line) => line.source === 'sip-walls-joints');
+  assert.ok(solidWall.name.includes('100×150'));
+  assert.equal(solidWall.unit, 'м.п.');
+  assert.equal(solidWall.price, 396);
   const baseWallJoints = solid.sip.joinery.rows.find((row) => row.key === 'walls').jointLength;
   project.plan.wallHeight = 3;
   const tallWallJoints = calculateProject(project).sip.joinery.rows.find((row) => row.key === 'walls').jointLength;
   assert.ok(tallWallJoints > baseWallJoints, 'horizontal wall seams are added above one panel height');
+});
+
+test('all three SIP frame families use matching profiles and linear-meter prices', () => {
+  const project = createDefaultProject();
+  const expected = [
+    ['MAT-015', 'Термобрус 95×95 мм', 1682], ['MAT-013', 'Термобрус 95×145 мм', 1174], ['MAT-014', 'Термобрус 95×195 мм', 2242],
+    ['MAT-186', 'Пакет клеёных досок 95×95 мм для СИП 124 мм', 841], ['MAT-187', 'Пакет клеёных досок 95×145 мм для СИП 174 мм', 587], ['MAT-188', 'Пакет клеёных досок 95×195 мм для СИП 224 мм', 1121],
+    ['MAT-190', 'Брус соединительный ест. влажности 100×100 мм', 264], ['MAT-191', 'Брус соединительный ест. влажности 100×150 мм', 396], ['MAT-192', 'Брус соединительный ест. влажности 100×200 мм', 528]
+  ];
+  expected.forEach(([id, name, price]) => {
+    const item = project.priceMat.find((row) => row.id === id);
+    assert.equal(item.name, name);
+    assert.equal(item.unit, 'м.п.');
+    assert.equal(item.price, price);
+  });
 });
 
 test('SIP floor and ceiling cover an empty house without drawn rooms', () => {
@@ -178,6 +196,21 @@ test('new catalog rows are added to an older saved project', () => {
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-110').price, 0);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-187').price, 587);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-189').price, 0);
+  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-190').price, 264);
+  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-191').price, 396);
+  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-192').price, 528);
+});
+
+test('version 50 catalog is upgraded to the new frame names and prices once', () => {
+  const project = createDefaultProject();
+  project.appVersion = 50;
+  const thermal = project.priceMat.find((item) => item.id === 'MAT-013');
+  thermal.name = 'Термобрус 145х90мм';
+  thermal.price = 1;
+  const restored = migrateProject(project);
+  const upgraded = restored.priceMat.find((item) => item.id === 'MAT-013');
+  assert.equal(upgraded.name, 'Термобрус 95×145 мм');
+  assert.equal(upgraded.price, 1174);
 });
 
 test('plan geometry drives roof, engineering, finishing and delivery inputs', () => {

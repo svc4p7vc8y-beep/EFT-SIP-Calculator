@@ -1,20 +1,49 @@
-import { useMemo } from 'react';
-import { calculateTerraceRoof } from '../../calculations/terrace-model.js';
-import { useProject } from '../state/ProjectContext.jsx';
-import { calculateProject } from '../calculations/estimate-engine.js';
-import { SIP_JOINERY_TYPES } from '../calculations/sip-joinery.js';
-import { NumberField, Panel, PreviewTable, ScreenHeader, SelectField, Stat, Toggle } from '../components/ui.jsx';
-import { formatNumber } from '../utils/format.js';
+import { useMemo } from "react";
+import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
+import { useProject } from "../state/ProjectContext.jsx";
+import { calculateProject } from "../calculations/estimate-engine.js";
+import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
+import {
+  NumberField,
+  Panel,
+  PreviewTable,
+  ScreenHeader,
+  SelectField,
+  Stat,
+  Toggle,
+} from "../components/ui.jsx";
+import { formatNumber } from "../utils/format.js";
 
 const TITLES = {
-  piles: ['Свайное поле и обвязка', 'Дом и пристройки считаются как единая геометрия без повторяющихся свай'],
-  sip: ['СИП-конструкции', 'Пол, наружные стены, потолок, перегородки, проёмы и раскрой'],
-  roof: ['Кровля', 'Основная крыша и кровли террас считаются отдельно, затем объединяются в ведомость'],
-  terrace: ['Терраса и крыльцо', 'Настил, каркас, ступени и конструктивные параметры каждой площадки'],
-  openings: ['Окна и двери', 'Проёмы берутся непосредственно с плана дома'],
-  engineering: ['Инженерные системы', 'Электрика, водоснабжение, канализация и вентиляция'],
-  finishing: ['Отделка', 'Внутренняя и наружная комплектация с точными площадями'],
-  delivery: ['Доставка и логистика', 'Рейсы, расстояние, объём и погрузочно-разгрузочные работы']
+  piles: [
+    "Свайное поле и обвязка",
+    "Дом и пристройки считаются как единая геометрия без повторяющихся свай",
+  ],
+  sip: [
+    "СИП-конструкции",
+    "Пол, наружные стены, потолок, перегородки, проёмы и раскрой",
+  ],
+  roof: [
+    "Кровля",
+    "Основная крыша и кровли террас считаются отдельно, затем объединяются в ведомость",
+  ],
+  terrace: [
+    "Терраса и крыльцо",
+    "Настил, каркас, ступени и конструктивные параметры каждой площадки",
+  ],
+  openings: ["Окна и двери", "Проёмы берутся непосредственно с плана дома"],
+  engineering: [
+    "Инженерные системы",
+    "Электрика, водоснабжение, канализация и вентиляция",
+  ],
+  finishing: [
+    "Отделка",
+    "Внутренняя и наружная комплектация с точными площадями",
+  ],
+  delivery: [
+    "Доставка и логистика",
+    "Рейсы, расстояние, объём и погрузочно-разгрузочные работы",
+  ],
 };
 
 function SectionResult({ calculation, sectionKey }) {
@@ -22,57 +51,995 @@ function SectionResult({ calculation, sectionKey }) {
   return <PreviewTable lines={section?.lines || []} />;
 }
 
-function RoofConstructionPanels({ project, calculation, setSetting, setPlatformRoof }) {
-  return <>
-    <Panel title="Конструктив кровли" description="Стропила считаются по погонной длине и выбранному сечению. Фронтоны отделены от скатов и попадают в материалы, работы и общую смету.">
-      <div className="form-grid four"><SelectField label="Стропильная доска" value={project.settings.roof.rafterSection || '50x150'} onChange={(value) => setSetting('roof', 'rafterSection', value)} options={[{ value: '50x150', label: '50×150 мм' }, { value: '50x200', label: '50×200 мм' }]} /><SelectField label="Фронтоны основной крыши" value={project.settings.roof.gableType || 'auto'} onChange={(value) => setSetting('roof', 'gableType', value)} options={[{ value: 'auto', label: 'По типу кровли' }, { value: 'cold', label: 'Холодные каркасные' }, { value: 'sip', label: 'Тёплые SIP' }, { value: 'none', label: 'Не учитывать' }]} /><NumberField label="Количество фронтонов" value={project.settings.roof.gableCount ?? 2} suffix="шт" min={0} max={2} step={1} onChange={(value) => setSetting('roof', 'gableCount', Math.round(value))} /><div className="readout"><span>Площадь фронтонов</span><strong>{formatNumber(calculation.roof.gableArea)} м²</strong></div><div className="readout"><span>Столбы пристроек</span><strong>{calculation.roof.terracePostCount} шт</strong></div></div>
-    </Panel>
-    <Panel title="Настройка кровель террас и крыльца" description="Кровля каждой площадки включается здесь. Площадь, фронтоны, конёк и опорные столбы сразу переходят в общую ведомость кровли.">
-      {calculation.roof.terraceRoofs.length ? <div className="terrace-roof-editors">{calculation.roof.terraceRoofs.map(({ platform, result }) => <article className="terrace-roof-editor" key={platform.id}><header><div><strong>{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'} · {formatNumber(platform.w * platform.h)} м²</strong><span>{result.netArea ? `Кровля ${formatNumber(result.netArea)} м²` : 'Кровля отключена'}</span></div>{result.postCount ? <small>{result.postCount} столбов {result.postSection.replace('x', '×')} мм</small> : null}</header><div className="form-grid four"><SelectField label="Кровля" value={platform.roof.mode} onChange={(value) => setPlatformRoof(platform.id, 'mode', value)} options={[{ value: 'none', label: 'Без кровли' }, { value: 'cold', label: 'Холодная' }, { value: 'warm', label: 'Тёплая SIP' }]} />{platform.roof.mode !== 'none' ? <><SelectField label="Форма" value={platform.roof.shape} onChange={(value) => setPlatformRoof(platform.id, 'shape', value)} options={[{ value: 'shed', label: 'Односкатная' }, { value: 'continuation', label: 'Продолжение основной' }, { value: 'gable', label: 'Двускатная' }]} /><SelectField label="Сечение столбов" value={platform.roof.postSection || 'auto'} onChange={(value) => setPlatformRoof(platform.id, 'postSection', value)} options={[{ value: 'auto', label: 'Автоматически' }, { value: '100x100', label: '100×100 мм' }, { value: '150x100', label: '150×100 мм' }]} /><NumberField label="Запас покрытия" value={platform.roof.wastePercent} suffix="%" step={1} onChange={(value) => setPlatformRoof(platform.id, 'wastePercent', value)} /><NumberField label="Свес спереди" value={platform.roof.frontOverhang} suffix="м" step={0.05} onChange={(value) => setPlatformRoof(platform.id, 'frontOverhang', value)} /><NumberField label="Боковой свес" value={platform.roof.sideOverhang} suffix="м" step={0.05} onChange={(value) => setPlatformRoof(platform.id, 'sideOverhang', value)} />{platform.roof.shape === 'gable' ? <><NumberField label="Высота конька" value={platform.roof.ridgeHeight} suffix="м" step={0.1} onChange={(value) => setPlatformRoof(platform.id, 'ridgeHeight', value)} /><SelectField label="Фронтон" value={platform.roof.gableType || 'auto'} onChange={(value) => setPlatformRoof(platform.id, 'gableType', value)} options={[{ value: 'auto', label: 'По типу кровли' }, { value: 'cold', label: 'Холодный' }, { value: 'sip', label: 'Тёплый SIP' }, { value: 'none', label: 'Без фронтона' }]} /><NumberField label="Количество фронтонов" value={platform.roof.gableCount ?? 1} suffix="шт" min={0} max={2} step={1} onChange={(value) => setPlatformRoof(platform.id, 'gableCount', Math.round(value))} /></> : <><NumberField label="Высота у стены" value={platform.roof.highHeight} suffix="м" step={0.1} onChange={(value) => setPlatformRoof(platform.id, 'highHeight', value)} /><NumberField label="Высота края" value={platform.roof.lowHeight} suffix="м" step={0.1} onChange={(value) => setPlatformRoof(platform.id, 'lowHeight', value)} /></>}</> : null}</div></article>)}</div> : <div className="empty-state">Сначала добавьте террасу или крыльцо на плане дома.</div>}
-    </Panel>
-  </>;
+function RoofConstructionPanels({
+  project,
+  calculation,
+  setSetting,
+  setPlatformRoof,
+}) {
+  return (
+    <>
+      <Panel
+        title="Конструктив кровли"
+        description="Стропила считаются по погонной длине и выбранному сечению. Фронтоны отделены от скатов и попадают в материалы, работы и общую смету."
+      >
+        <div className="form-grid four">
+          <SelectField
+            label="Стропильная доска"
+            value={project.settings.roof.rafterSection || "50x150"}
+            onChange={(value) => setSetting("roof", "rafterSection", value)}
+            options={[
+              { value: "50x150", label: "50×150 мм" },
+              { value: "50x200", label: "50×200 мм" },
+            ]}
+          />
+          <SelectField
+            label="Фронтоны основной крыши"
+            value={project.settings.roof.gableType || "auto"}
+            onChange={(value) => setSetting("roof", "gableType", value)}
+            options={[
+              { value: "auto", label: "По типу кровли" },
+              { value: "cold", label: "Холодные каркасные" },
+              { value: "sip", label: "Тёплые SIP" },
+              { value: "none", label: "Не учитывать" },
+            ]}
+          />
+          <NumberField
+            label="Количество фронтонов"
+            value={project.settings.roof.gableCount ?? 2}
+            suffix="шт"
+            min={0}
+            max={2}
+            step={1}
+            onChange={(value) =>
+              setSetting("roof", "gableCount", Math.round(value))
+            }
+          />
+          <div className="readout">
+            <span>Площадь фронтонов</span>
+            <strong>{formatNumber(calculation.roof.gableArea)} м²</strong>
+          </div>
+          <div className="readout">
+            <span>Столбы пристроек</span>
+            <strong>{calculation.roof.terracePostCount} шт</strong>
+          </div>
+        </div>
+      </Panel>
+      <Panel
+        title="Настройка кровель террас и крыльца"
+        description="Кровля каждой площадки включается здесь. Площадь, фронтоны, конёк и опорные столбы сразу переходят в общую ведомость кровли."
+      >
+        {calculation.roof.terraceRoofs.length ? (
+          <div className="terrace-roof-editors">
+            {calculation.roof.terraceRoofs.map(({ platform, result }) => (
+              <article className="terrace-roof-editor" key={platform.id}>
+                <header>
+                  <div>
+                    <strong>
+                      {platform.kind === "porch" ? "Крыльцо" : "Терраса"} ·{" "}
+                      {formatNumber(platform.w * platform.h)} м²
+                    </strong>
+                    <span>
+                      {result.netArea
+                        ? `Кровля ${formatNumber(result.netArea)} м²`
+                        : "Кровля отключена"}
+                    </span>
+                  </div>
+                  {result.postCount ? (
+                    <small>
+                      {result.postCount} столбов{" "}
+                      {result.postSection.replace("x", "×")} мм
+                    </small>
+                  ) : null}
+                </header>
+                <div className="form-grid four">
+                  <SelectField
+                    label="Кровля"
+                    value={platform.roof.mode}
+                    onChange={(value) =>
+                      setPlatformRoof(platform.id, "mode", value)
+                    }
+                    options={[
+                      { value: "none", label: "Без кровли" },
+                      { value: "cold", label: "Холодная" },
+                      { value: "warm", label: "Тёплая SIP" },
+                    ]}
+                  />
+                  {platform.roof.mode !== "none" ? (
+                    <>
+                      <SelectField
+                        label="Форма"
+                        value={platform.roof.shape}
+                        onChange={(value) =>
+                          setPlatformRoof(platform.id, "shape", value)
+                        }
+                        options={[
+                          { value: "shed", label: "Односкатная" },
+                          {
+                            value: "continuation",
+                            label: "Продолжение основной",
+                          },
+                          { value: "gable", label: "Двускатная" },
+                        ]}
+                      />
+                      <SelectField
+                        label="Сечение столбов"
+                        value={platform.roof.postSection || "auto"}
+                        onChange={(value) =>
+                          setPlatformRoof(platform.id, "postSection", value)
+                        }
+                        options={[
+                          { value: "auto", label: "Автоматически" },
+                          { value: "100x100", label: "100×100 мм" },
+                          { value: "150x100", label: "150×100 мм" },
+                        ]}
+                      />
+                      <NumberField
+                        label="Запас покрытия"
+                        value={platform.roof.wastePercent}
+                        suffix="%"
+                        step={1}
+                        onChange={(value) =>
+                          setPlatformRoof(platform.id, "wastePercent", value)
+                        }
+                      />
+                      <NumberField
+                        label="Свес спереди"
+                        value={platform.roof.frontOverhang}
+                        suffix="м"
+                        step={0.05}
+                        onChange={(value) =>
+                          setPlatformRoof(platform.id, "frontOverhang", value)
+                        }
+                      />
+                      <NumberField
+                        label="Боковой свес"
+                        value={platform.roof.sideOverhang}
+                        suffix="м"
+                        step={0.05}
+                        onChange={(value) =>
+                          setPlatformRoof(platform.id, "sideOverhang", value)
+                        }
+                      />
+                      {platform.roof.shape === "gable" ? (
+                        <>
+                          <NumberField
+                            label="Высота конька"
+                            value={platform.roof.ridgeHeight}
+                            suffix="м"
+                            step={0.1}
+                            onChange={(value) =>
+                              setPlatformRoof(platform.id, "ridgeHeight", value)
+                            }
+                          />
+                          <SelectField
+                            label="Фронтон"
+                            value={platform.roof.gableType || "auto"}
+                            onChange={(value) =>
+                              setPlatformRoof(platform.id, "gableType", value)
+                            }
+                            options={[
+                              { value: "auto", label: "По типу кровли" },
+                              { value: "cold", label: "Холодный" },
+                              { value: "sip", label: "Тёплый SIP" },
+                              { value: "none", label: "Без фронтона" },
+                            ]}
+                          />
+                          <NumberField
+                            label="Количество фронтонов"
+                            value={platform.roof.gableCount ?? 1}
+                            suffix="шт"
+                            min={0}
+                            max={2}
+                            step={1}
+                            onChange={(value) =>
+                              setPlatformRoof(
+                                platform.id,
+                                "gableCount",
+                                Math.round(value),
+                              )
+                            }
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <NumberField
+                            label="Высота у стены"
+                            value={platform.roof.highHeight}
+                            suffix="м"
+                            step={0.1}
+                            onChange={(value) =>
+                              setPlatformRoof(platform.id, "highHeight", value)
+                            }
+                          />
+                          <NumberField
+                            label="Высота края"
+                            value={platform.roof.lowHeight}
+                            suffix="м"
+                            step={0.1}
+                            onChange={(value) =>
+                              setPlatformRoof(platform.id, "lowHeight", value)
+                            }
+                          />
+                        </>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            Сначала добавьте террасу или крыльцо на плане дома.
+          </div>
+        )}
+      </Panel>
+    </>
+  );
 }
 
 export default function Calculators({ type }) {
   const { project: sourceProject, commit } = useProject();
-  const calculation = useMemo(() => calculateProject(sourceProject), [sourceProject]);
-  const project = useMemo(() => ({
-    ...sourceProject,
-    settings: {
-      ...sourceProject.settings,
-      roof: { ...sourceProject.settings.roof, ridgeLength: calculation.inputs.roof.ridgeLength },
-      engineering: calculation.inputs.engineering,
-      internal: { ...sourceProject.settings.internal, ...calculation.inputs.internal },
-      external: { ...sourceProject.settings.external, ...calculation.inputs.external },
-      delivery: { ...sourceProject.settings.delivery, cargoVolume: calculation.inputs.delivery.cargoVolume }
-    }
-  }), [sourceProject, calculation.inputs]);
-  const setSetting = (group, key, value) => commit((next) => {
-    next.settings[group][key] = value;
-    if (group === 'engineering') next.settings.links.engineeringFromPlan = false;
-    if (group === 'internal') next.settings.links.internalFinishFromPlan = false;
-    if (group === 'external') next.settings.links.externalFinishFromPlan = false;
-    if (group === 'roof' && key === 'ridgeLength') next.settings.links.roofRidgeFromPlan = false;
-    if (group === 'delivery' && key === 'cargoVolume') next.settings.links.deliveryVolumeFromPlan = false;
-    return next;
-  });
-  const setService = (key, value) => commit((next) => { next.services[key] = value; return next; });
-  const setPlatformRoof = (platformId, key, value) => commit((next) => {
-    const platform = next.plan.platforms.find((item) => item.id === platformId);
-    if (platform?.roof) platform.roof[key] = value;
-    return next;
-  });
+  const calculation = useMemo(
+    () => calculateProject(sourceProject),
+    [sourceProject],
+  );
+  const project = useMemo(
+    () => ({
+      ...sourceProject,
+      settings: {
+        ...sourceProject.settings,
+        roof: {
+          ...sourceProject.settings.roof,
+          ridgeLength: calculation.inputs.roof.ridgeLength,
+        },
+        engineering: calculation.inputs.engineering,
+        internal: {
+          ...sourceProject.settings.internal,
+          ...calculation.inputs.internal,
+        },
+        external: {
+          ...sourceProject.settings.external,
+          ...calculation.inputs.external,
+        },
+        delivery: {
+          ...sourceProject.settings.delivery,
+          cargoVolume: calculation.inputs.delivery.cargoVolume,
+        },
+      },
+    }),
+    [sourceProject, calculation.inputs],
+  );
+  const setSetting = (group, key, value) =>
+    commit((next) => {
+      next.settings[group][key] = value;
+      if (group === "engineering")
+        next.settings.links.engineeringFromPlan = false;
+      if (group === "internal")
+        next.settings.links.internalFinishFromPlan = false;
+      if (group === "external")
+        next.settings.links.externalFinishFromPlan = false;
+      if (group === "roof" && key === "ridgeLength")
+        next.settings.links.roofRidgeFromPlan = false;
+      if (group === "delivery" && key === "cargoVolume")
+        next.settings.links.deliveryVolumeFromPlan = false;
+      return next;
+    });
+  const setService = (key, value) =>
+    commit((next) => {
+      next.services[key] = value;
+      return next;
+    });
+  const setPlatformRoof = (platformId, key, value) =>
+    commit((next) => {
+      const platform = next.plan.platforms.find(
+        (item) => item.id === platformId,
+      );
+      if (platform?.roof) platform.roof[key] = value;
+      return next;
+    });
   const [title, description] = TITLES[type] || TITLES.piles;
-  return <div className="screen"><ScreenHeader title={title} description={description} />
-    <div className="calculation-link-banner"><strong>Данные связаны с планом</strong><span>Поля с расчётными значениями обновляются автоматически. Ручное изменение такого поля отключает соответствующую связь; включить её снова можно кнопкой ⚙ вверху.</span></div>
-    {type === 'piles' ? <><div className="stats-row"><Stat label="Сваи дома" value={`${calculation.foundation.housePiles} шт`} /><Stat label="Сваи пристроек" value={`${calculation.foundation.platformPiles} шт`} /><Stat label="Общие сваи" value={`${calculation.foundation.sharedPiles} шт`} tone="accent" /><Stat label="Всего уникальных" value={`${calculation.foundation.totalPiles} шт`} /><Stat label="Обвязка" value={`${formatNumber(calculation.foundation.bindingLength)} м`} /><Stat label="Доска" value={`${formatNumber(calculation.foundation.boardVolume, 3)} м³`} /></div><Panel title="Параметры основания"><div className="form-grid three"><NumberField label="Предельный шаг свай" value={project.settings.piles.spacing} suffix="м" min={0.5} onChange={(value) => setSetting('piles', 'spacing', value)} /><NumberField label="Доска на 1 м обвязки" value={project.settings.piles.boardVolumePerMeter} suffix="м³" step={0.001} onChange={(value) => setSetting('piles', 'boardVolumePerMeter', value)} /><Toggle label="Включить в смету" checked={project.services.foundation} onChange={(value) => setService('foundation', value)} /></div></Panel><Panel title="Ведомость фундамента"><SectionResult calculation={calculation} sectionKey="foundation" /></Panel></> : null}
-    {type === 'sip' ? <><div className="stats-row"><Stat label="Пол всего дома" value={`${formatNumber(calculation.metrics.floorArea)} м²`} /><Stat label="Наружные стены" value={`${formatNumber(calculation.metrics.exteriorWallNetArea)} м²`} /><Stat label="СИП-потолок" value={`${formatNumber(calculation.metrics.ceilingArea)} м²`} /><Stat label="Стыки панелей" value={`${formatNumber(calculation.sip.joinery.totalJointLength)} м`} tone="accent" /><Stat label="Торцевая доска" value={`${formatNumber(calculation.sip.joinery.totalEndBoardLength)} м`} /><Stat label="Перегородки" value={`${formatNumber(calculation.metrics.partitionNetArea)} м²`} /></div><Panel title="Панели и соединения" description="Расход рассчитан по сетке панелей 2500×1250 мм, стыкам, торцам и проёмам. Соединительный элемент подбирается по толщине каждой плоскости; окончательный несущий узел сверяется с монтажным альбомом проекта."><div className="form-grid four"><SelectField label="Панель пола" value={project.settings.sip.floorThickness} onChange={(value) => setSetting('sip', 'floorThickness', value)} options={['124', '174', '224'].map((value) => ({ value, label: `${value} мм` }))} /><SelectField label="Панель стен" value={project.settings.sip.wallThickness} onChange={(value) => setSetting('sip', 'wallThickness', value)} options={['124', '174', '224'].map((value) => ({ value, label: `${value} мм` }))} /><SelectField label="Панель потолка" value={project.settings.sip.ceilingThickness} onChange={(value) => setSetting('sip', 'ceilingThickness', value)} options={['124', '174', '224'].map((value) => ({ value, label: `${value} мм` }))} /><SelectField label="Соединение панелей" value={project.settings.sip.connectorType || 'thermal'} onChange={(value) => setSetting('sip', 'connectorType', value)} options={SIP_JOINERY_TYPES} /><NumberField label="Дополнительный запас панелей" value={project.settings.sip.wastePercent} suffix="%" step={1} onChange={(value) => setSetting('sip', 'wastePercent', value)} /></div><div className="toggle-grid"><Toggle label="СИП-пол" checked={project.services.sipFloor} onChange={(value) => setService('sipFloor', value)} /><Toggle label="Наружные стены" checked={project.services.sipWalls} onChange={(value) => setService('sipWalls', value)} /><Toggle label="СИП-потолок" checked={project.services.sipCeiling} onChange={(value) => setService('sipCeiling', value)} /><Toggle label="Каркасные перегородки" checked={project.services.partitions} onChange={(value) => setService('partitions', value)} /></div></Panel><Panel title="Раскрой СИП-панелей" description="Только пол, наружные стены и горизонтальный потолок. Крыша рассчитывается во вкладке «Кровля», каркасные перегородки не раскраиваются."><div className="table-wrap"><table className="data-table"><thead><tr><th>Конструкция</th><th>Чистая площадь</th><th>Панели</th><th>Куплено</th><th>Остаток</th><th>Рез</th></tr></thead><tbody>{calculation.sip.cutting.map((row) => <tr key={row.key}><td>{row.label}</td><td>{formatNumber(row.area)} м²</td><td>{row.panels} шт</td><td>{formatNumber(row.purchasedArea)} м²</td><td>{formatNumber(row.offcutArea)} м²</td><td>{formatNumber(row.cutMeters)} м</td></tr>)}</tbody></table></div></Panel><Panel title="Ведомость СИП и каркасных перегородок"><SectionResult calculation={calculation} sectionKey="sip" /></Panel></> : null}
-    {type === 'roof' ? <RoofConstructionPanels project={project} calculation={calculation} setSetting={setSetting} setPlatformRoof={setPlatformRoof} /> : null}
-    {type === 'roof' ? <><div className="stats-row"><Stat label="Основная кровля" value={`${formatNumber(calculation.roof.geometry?.totalSlopeArea)} м²`} /><Stat label="Холодная / стропила" value={`${formatNumber(calculation.roof.coldArea)} м²`} /><Stat label="Тёплая СИП" value={`${formatNumber(calculation.roof.warmArea)} м²`} /><Stat label="СИП-панели кровли" value={`${calculation.roof.sipCutting?.panels || 0} шт`} /><Stat label="Утепление второго света" value={`${formatNumber(calculation.roof.insulatedRafterArea)} м²`} tone={calculation.roof.insulatedRafterArea ? 'accent' : ''} /><Stat label="Всего" value={`${formatNumber(calculation.roof.totalArea)} м²`} /></div><Panel title="Основная крыша" description="Раскрой тёплой СИП-кровли и её крепёж находятся только здесь. Зоны второго света добавляют стропила, минвату и пароизоляцию."><div className="form-grid four"><SelectField label="Тип" value={project.settings.roof.type} onChange={(value) => setSetting('roof', 'type', value)} options={[{ value: 'cold', label: 'Холодная' }, { value: 'sip', label: 'Тёплая СИП' }, { value: 'combo', label: 'Комбинированная' }]} /><NumberField label="Высота конька" value={project.settings.roof.ridgeHeight} suffix="м" onChange={(value) => setSetting('roof', 'ridgeHeight', value)} /><NumberField label="Длина конька" value={project.settings.roof.ridgeLength} suffix="м" onChange={(value) => setSetting('roof', 'ridgeLength', value)} /><NumberField label="Запас покрытия" value={project.settings.roof.wastePercent} suffix="%" step={1} onChange={(value) => setSetting('roof', 'wastePercent', value)} />{project.settings.roof.type === 'combo' ? <NumberField label="Тёплая часть" value={project.settings.roof.warmPercent} suffix="%" max={100} step={5} onChange={(value) => setSetting('roof', 'warmPercent', value)} /> : null}</div></Panel><Panel title="Кровли пристроек">{calculation.roof.terraceRoofs.map(({ platform, result }) => <div className="calculation-row" key={platform.id}><div><strong>{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'} · {formatNumber(platform.w * platform.h)} м²</strong><span>{platform.roof.mode === 'none' ? 'без кровли' : platform.roof.mode === 'cold' ? 'холодная' : 'тёплая СИП'}</span></div><strong>{formatNumber(result.netArea)} м² <small>· с запасом {formatNumber(result.purchaseArea)} м²</small></strong></div>)}</Panel><Panel title="Ведомость кровли"><SectionResult calculation={calculation} sectionKey="roof" /></Panel></> : null}
-    {type === 'terrace' ? <><div className="stats-row"><Stat label="Площадок" value={`${project.plan.platforms.length} шт`} /><Stat label="Площадь настила" value={`${formatNumber(calculation.terrace.area)} м²`} /><Stat label="Ступеней" value={`${project.plan.platforms.reduce((sum, item) => sum + (item.steps || 0), 0)} шт`} /><Stat label="Сваи пристроек" value={`${calculation.foundation.platformPiles} шт`} /></div><Panel title="Площадки проекта">{project.plan.platforms.map((platform) => { const result = calculateTerraceRoof(platform, project.plan.house); return <div className="calculation-row" key={platform.id}><div><strong>{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'} · {formatNumber(platform.w * platform.h)} м²</strong><span>{platform.foundation.mode === 'shared' ? 'общее свайное поле' : platform.foundation.mode === 'separate' ? 'отдельные сваи' : 'без свай'} · {platform.binding.mode === 'shared' ? 'общая обвязка' : platform.binding.mode === 'separate' ? 'отдельная обвязка' : 'без обвязки'}</span></div><strong>{platform.roof.mode === 'none' ? 'Без кровли' : `${formatNumber(result.netArea)} м² кровли`}</strong></div>; })}</Panel><Panel title="Ведомость террасы"><SectionResult calculation={calculation} sectionKey="terrace" /></Panel></> : null}
-    {type === 'openings' ? <><div className="stats-row"><Stat label="Окна" value={`${project.plan.openings.filter((item) => item.type === 'window').length} шт`} /><Stat label="Двери" value={`${project.plan.openings.filter((item) => item.type === 'door' && item.doorType !== 'garage').length} шт`} /><Stat label="Гаражные ворота" value={`${project.plan.openings.filter((item) => item.type === 'door' && item.doorType === 'garage').length} шт`} /><Stat label="Общая площадь" value={`${formatNumber(calculation.metrics.totalOpeningsArea)} м²`} /></div><Panel title="Проёмы с плана"><div className="calculation-list">{project.plan.openings.map((opening) => <div className="calculation-row" key={opening.id}><div><strong>{opening.type === 'window' ? 'Окно' : opening.doorType === 'garage' ? 'Гаражные ворота' : opening.doorType === 'interior' ? 'Межкомнатная дверь' : 'Входная дверь'}</strong><span>{Math.round(opening.width * 1000)} × {Math.round(opening.height * 1000)} мм</span></div><strong>{formatNumber(opening.width * opening.height, 2)} м²</strong></div>)}</div></Panel><Panel title="Ведомость проёмов"><SectionResult calculation={calculation} sectionKey="openings" /></Panel></> : null}
-    {type === 'engineering' ? <><Panel title="Выбор инженерных систем"><div className="toggle-grid"><Toggle label="Электрика" checked={project.services.engineeringElectric} onChange={(value) => setService('engineeringElectric', value)} /><Toggle label="Водоснабжение" checked={project.services.engineeringPlumbing} onChange={(value) => setService('engineeringPlumbing', value)} /><Toggle label="Канализация" checked={project.services.engineeringSewerage} onChange={(value) => setService('engineeringSewerage', value)} /><Toggle label="Вентиляция" checked={project.services.engineeringVentilation} onChange={(value) => setService('engineeringVentilation', value)} /></div><div className="form-grid four"><NumberField label="Кабельные трассы" value={project.settings.engineering.cableRoute} suffix="м" onChange={(value) => setSetting('engineering', 'cableRoute', value)} /><NumberField label="Электроточки" value={project.settings.engineering.electricPoints} suffix="шт" step={1} onChange={(value) => setSetting('engineering', 'electricPoints', value)} /><NumberField label="Водопровод" value={project.settings.engineering.waterPipe} suffix="м" onChange={(value) => setSetting('engineering', 'waterPipe', value)} /><NumberField label="Точки воды" value={project.settings.engineering.waterPoints} suffix="шт" step={1} onChange={(value) => setSetting('engineering', 'waterPoints', value)} /><NumberField label="Канализация" value={project.settings.engineering.sewerLength} suffix="м" onChange={(value) => setSetting('engineering', 'sewerLength', value)} /><NumberField label="Точки канализации" value={project.settings.engineering.sewerPoints} suffix="шт" step={1} onChange={(value) => setSetting('engineering', 'sewerPoints', value)} /><NumberField label="Воздуховоды" value={project.settings.engineering.ventDuct} suffix="м" onChange={(value) => setSetting('engineering', 'ventDuct', value)} /><NumberField label="Решётки" value={project.settings.engineering.ventGrilles} suffix="шт" step={1} onChange={(value) => setSetting('engineering', 'ventGrilles', value)} /></div></Panel><Panel title="Ведомость инженерии"><SectionResult calculation={calculation} sectionKey="engineering" /></Panel></> : null}
-    {type === 'finishing' ? <><div className="two-column-layout"><Panel title="Внутренняя отделка"><Toggle label="Включить раздел" checked={project.services.internalFinish} onChange={(value) => setService('internalFinish', value)} /><div className="form-grid"><NumberField label="Стены" value={project.settings.internal.wallArea} suffix="м²" onChange={(value) => setSetting('internal', 'wallArea', value)} /><NumberField label="Потолок" value={project.settings.internal.ceilingArea} suffix="м²" onChange={(value) => setSetting('internal', 'ceilingArea', value)} /><NumberField label="Ламинат" value={project.settings.internal.laminateArea} suffix="м²" onChange={(value) => setSetting('internal', 'laminateArea', value)} /><NumberField label="Плитка" value={project.settings.internal.tileArea} suffix="м²" onChange={(value) => setSetting('internal', 'tileArea', value)} /><NumberField label="Двери" value={project.settings.internal.doors} suffix="шт" step={1} onChange={(value) => setSetting('internal', 'doors', value)} /></div></Panel><Panel title="Наружная отделка"><Toggle label="Включить раздел" checked={project.services.externalFinish} onChange={(value) => setService('externalFinish', value)} /><div className="form-grid"><NumberField label="Фасад" value={project.settings.external.facadeArea} suffix="м²" onChange={(value) => setSetting('external', 'facadeArea', value)} /><NumberField label="Ветрозащита" value={project.settings.external.windArea} suffix="м²" onChange={(value) => setSetting('external', 'windArea', value)} /><NumberField label="Утепление" value={project.settings.external.insulationArea} suffix="м²" onChange={(value) => setSetting('external', 'insulationArea', value)} /><NumberField label="Профлист" value={project.settings.external.metalArea} suffix="м²" onChange={(value) => setSetting('external', 'metalArea', value)} /><NumberField label="Подшива" value={project.settings.external.soffitArea} suffix="м²" onChange={(value) => setSetting('external', 'soffitArea', value)} /></div></Panel></div><Panel title="Внутренняя ведомость"><SectionResult calculation={calculation} sectionKey="internal" /></Panel><Panel title="Наружная ведомость"><SectionResult calculation={calculation} sectionKey="external" /></Panel></> : null}
-    {type === 'delivery' ? <><Panel title="Логистика"><div className="form-grid four"><NumberField label="Расстояние" value={project.settings.delivery.distance} suffix="км" onChange={(value) => setSetting('delivery', 'distance', value)} /><NumberField label="Количество рейсов" value={project.settings.delivery.trips} suffix="рейс" step={1} onChange={(value) => setSetting('delivery', 'trips', value)} /><NumberField label="Объём груза" value={project.settings.delivery.cargoVolume} suffix="м³" onChange={(value) => setSetting('delivery', 'cargoVolume', value)} /><NumberField label="База рейса" value={project.settings.delivery.baseTrip} suffix="₽" step={100} onChange={(value) => setSetting('delivery', 'baseTrip', value)} /><NumberField label="Цена километра" value={project.settings.delivery.perKm} suffix="₽" step={1} onChange={(value) => setSetting('delivery', 'perKm', value)} /><NumberField label="Разгрузка" value={project.settings.delivery.unloadingPerM3} suffix="₽/м³" step={10} onChange={(value) => setSetting('delivery', 'unloadingPerM3', value)} /></div></Panel><Panel title="Ведомость доставки"><SectionResult calculation={calculation} sectionKey="delivery" /></Panel></> : null}
-  </div>;
+  return (
+    <div className="screen">
+      <ScreenHeader title={title} description={description} />
+      <div className="calculation-link-banner">
+        <strong>Данные связаны с планом</strong>
+        <span>
+          Поля с расчётными значениями обновляются автоматически. Ручное
+          изменение такого поля отключает соответствующую связь; включить её
+          снова можно кнопкой ⚙ вверху.
+        </span>
+      </div>
+      {type === "piles" ? (
+        <>
+          <div className="stats-row">
+            <Stat
+              label="Сваи дома"
+              value={`${calculation.foundation.housePiles} шт`}
+            />
+            <Stat
+              label="Сваи пристроек"
+              value={`${calculation.foundation.platformPiles} шт`}
+            />
+            <Stat
+              label="Общие сваи"
+              value={`${calculation.foundation.sharedPiles} шт`}
+              tone="accent"
+            />
+            <Stat
+              label="Всего уникальных"
+              value={`${calculation.foundation.totalPiles} шт`}
+            />
+            <Stat
+              label="Обвязка"
+              value={`${formatNumber(calculation.foundation.bindingLength)} м`}
+            />
+            <Stat
+              label="Доска"
+              value={`${formatNumber(calculation.foundation.boardVolume, 3)} м³`}
+            />
+          </div>
+          <Panel title="Параметры основания">
+            <div className="form-grid three">
+              <NumberField
+                label="Предельный шаг свай"
+                value={project.settings.piles.spacing}
+                suffix="м"
+                min={0.5}
+                onChange={(value) => setSetting("piles", "spacing", value)}
+              />
+              <NumberField
+                label="Доска на 1 м обвязки"
+                value={project.settings.piles.boardVolumePerMeter}
+                suffix="м³"
+                step={0.001}
+                onChange={(value) =>
+                  setSetting("piles", "boardVolumePerMeter", value)
+                }
+              />
+              <Toggle
+                label="Включить в смету"
+                checked={project.services.foundation}
+                onChange={(value) => setService("foundation", value)}
+              />
+            </div>
+          </Panel>
+          <Panel title="Ведомость фундамента">
+            <SectionResult calculation={calculation} sectionKey="foundation" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "sip" ? (
+        <>
+          <div className="stats-row">
+            <Stat
+              label="Пол всего дома"
+              value={`${formatNumber(calculation.metrics.floorArea)} м²`}
+            />
+            <Stat
+              label="Наружные стены"
+              value={`${formatNumber(calculation.metrics.exteriorWallNetArea)} м²`}
+            />
+            <Stat
+              label="СИП-потолок"
+              value={`${formatNumber(calculation.metrics.ceilingArea)} м²`}
+            />
+            <Stat
+              label="Стыки панелей"
+              value={`${formatNumber(calculation.sip.joinery.totalJointLength)} м`}
+              tone="accent"
+            />
+            <Stat
+              label="Торцевая доска"
+              value={`${formatNumber(calculation.sip.joinery.totalEndBoardLength)} м`}
+            />
+            <Stat
+              label="Перегородки"
+              value={`${formatNumber(calculation.metrics.partitionNetArea)} м²`}
+            />
+          </div>
+          <Panel
+            title="Панели и силовой каркас"
+            description="Для всех трёх вариантов используется одна расчётная длина стыков в погонных метрах. Тип каркаса меняет номенклатуру и цену, а размер автоматически выбирается по толщине SIP-панели."
+          >
+            <div className="form-grid four">
+              <SelectField
+                label="Панель пола"
+                value={project.settings.sip.floorThickness}
+                onChange={(value) => setSetting("sip", "floorThickness", value)}
+                options={["124", "174", "224"].map((value) => ({
+                  value,
+                  label: `${value} мм`,
+                }))}
+              />
+              <SelectField
+                label="Панель стен"
+                value={project.settings.sip.wallThickness}
+                onChange={(value) => setSetting("sip", "wallThickness", value)}
+                options={["124", "174", "224"].map((value) => ({
+                  value,
+                  label: `${value} мм`,
+                }))}
+              />
+              <SelectField
+                label="Панель потолка"
+                value={project.settings.sip.ceilingThickness}
+                onChange={(value) =>
+                  setSetting("sip", "ceilingThickness", value)
+                }
+                options={["124", "174", "224"].map((value) => ({
+                  value,
+                  label: `${value} мм`,
+                }))}
+              />
+              <SelectField
+                label="Тип силового каркаса"
+                value={project.settings.sip.connectorType || "thermal"}
+                onChange={(value) => setSetting("sip", "connectorType", value)}
+                options={SIP_JOINERY_TYPES}
+              />
+              <NumberField
+                label="Дополнительный запас панелей"
+                value={project.settings.sip.wastePercent}
+                suffix="%"
+                step={1}
+                onChange={(value) => setSetting("sip", "wastePercent", value)}
+              />
+            </div>
+            <div className="frame-type-guide">
+              <article><strong>1. Термобрус</strong><span>95×95 · 95×145 · 95×195 мм</span><small>Премиальный и самый дорогой вариант</small></article>
+              <article><strong>2. Клеёный пакет досок</strong><span>95×95 · 95×145 · 95×195 мм</span><small>Средний вариант, цена 50% термобруса</small></article>
+              <article><strong>3. Брус естественной влажности</strong><span>100×100 · 100×150 · 100×200 мм</span><small>Экономичный вариант, цена доски пересчитана за 1 м.п.</small></article>
+            </div>
+            <div className="toggle-grid">
+              <Toggle
+                label="СИП-пол"
+                checked={project.services.sipFloor}
+                onChange={(value) => setService("sipFloor", value)}
+              />
+              <Toggle
+                label="Наружные стены"
+                checked={project.services.sipWalls}
+                onChange={(value) => setService("sipWalls", value)}
+              />
+              <Toggle
+                label="СИП-потолок"
+                checked={project.services.sipCeiling}
+                onChange={(value) => setService("sipCeiling", value)}
+              />
+              <Toggle
+                label="Каркасные перегородки"
+                checked={project.services.partitions}
+                onChange={(value) => setService("partitions", value)}
+              />
+            </div>
+          </Panel>
+          <Panel
+            title="Раскрой СИП-панелей"
+            description="Только пол, наружные стены и горизонтальный потолок. Крыша рассчитывается во вкладке «Кровля», каркасные перегородки не раскраиваются."
+          >
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Конструкция</th>
+                    <th>Чистая площадь</th>
+                    <th>Панели</th>
+                    <th>Куплено</th>
+                    <th>Остаток</th>
+                    <th>Рез</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calculation.sip.cutting.map((row) => (
+                    <tr key={row.key}>
+                      <td>{row.label}</td>
+                      <td>{formatNumber(row.area)} м²</td>
+                      <td>{row.panels} шт</td>
+                      <td>{formatNumber(row.purchasedArea)} м²</td>
+                      <td>{formatNumber(row.offcutArea)} м²</td>
+                      <td>{formatNumber(row.cutMeters)} м</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+          <Panel title="Ведомость СИП и каркасных перегородок">
+            <SectionResult calculation={calculation} sectionKey="sip" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "roof" ? (
+        <RoofConstructionPanels
+          project={project}
+          calculation={calculation}
+          setSetting={setSetting}
+          setPlatformRoof={setPlatformRoof}
+        />
+      ) : null}
+      {type === "roof" ? (
+        <>
+          <div className="stats-row">
+            <Stat
+              label="Основная кровля"
+              value={`${formatNumber(calculation.roof.geometry?.totalSlopeArea)} м²`}
+            />
+            <Stat
+              label="Холодная / стропила"
+              value={`${formatNumber(calculation.roof.coldArea)} м²`}
+            />
+            <Stat
+              label="Тёплая СИП"
+              value={`${formatNumber(calculation.roof.warmArea)} м²`}
+            />
+            <Stat
+              label="СИП-панели кровли"
+              value={`${calculation.roof.sipCutting?.panels || 0} шт`}
+            />
+            <Stat
+              label="Утепление второго света"
+              value={`${formatNumber(calculation.roof.insulatedRafterArea)} м²`}
+              tone={calculation.roof.insulatedRafterArea ? "accent" : ""}
+            />
+            <Stat
+              label="Всего"
+              value={`${formatNumber(calculation.roof.totalArea)} м²`}
+            />
+          </div>
+          <Panel
+            title="Основная крыша"
+            description="Раскрой тёплой СИП-кровли и её крепёж находятся только здесь. Зоны второго света добавляют стропила, минвату и пароизоляцию."
+          >
+            <div className="form-grid four">
+              <SelectField
+                label="Тип"
+                value={project.settings.roof.type}
+                onChange={(value) => setSetting("roof", "type", value)}
+                options={[
+                  { value: "cold", label: "Холодная" },
+                  { value: "sip", label: "Тёплая СИП" },
+                  { value: "combo", label: "Комбинированная" },
+                ]}
+              />
+              <NumberField
+                label="Высота конька"
+                value={project.settings.roof.ridgeHeight}
+                suffix="м"
+                onChange={(value) => setSetting("roof", "ridgeHeight", value)}
+              />
+              <NumberField
+                label="Длина конька"
+                value={project.settings.roof.ridgeLength}
+                suffix="м"
+                onChange={(value) => setSetting("roof", "ridgeLength", value)}
+              />
+              <NumberField
+                label="Запас покрытия"
+                value={project.settings.roof.wastePercent}
+                suffix="%"
+                step={1}
+                onChange={(value) => setSetting("roof", "wastePercent", value)}
+              />
+              {project.settings.roof.type === "combo" ? (
+                <NumberField
+                  label="Тёплая часть"
+                  value={project.settings.roof.warmPercent}
+                  suffix="%"
+                  max={100}
+                  step={5}
+                  onChange={(value) => setSetting("roof", "warmPercent", value)}
+                />
+              ) : null}
+            </div>
+          </Panel>
+          <Panel title="Кровли пристроек">
+            {calculation.roof.terraceRoofs.map(({ platform, result }) => (
+              <div className="calculation-row" key={platform.id}>
+                <div>
+                  <strong>
+                    {platform.kind === "porch" ? "Крыльцо" : "Терраса"} ·{" "}
+                    {formatNumber(platform.w * platform.h)} м²
+                  </strong>
+                  <span>
+                    {platform.roof.mode === "none"
+                      ? "без кровли"
+                      : platform.roof.mode === "cold"
+                        ? "холодная"
+                        : "тёплая СИП"}
+                  </span>
+                </div>
+                <strong>
+                  {formatNumber(result.netArea)} м²{" "}
+                  <small>
+                    · с запасом {formatNumber(result.purchaseArea)} м²
+                  </small>
+                </strong>
+              </div>
+            ))}
+          </Panel>
+          <Panel title="Ведомость кровли">
+            <SectionResult calculation={calculation} sectionKey="roof" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "terrace" ? (
+        <>
+          <div className="stats-row">
+            <Stat
+              label="Площадок"
+              value={`${project.plan.platforms.length} шт`}
+            />
+            <Stat
+              label="Площадь настила"
+              value={`${formatNumber(calculation.terrace.area)} м²`}
+            />
+            <Stat
+              label="Ступеней"
+              value={`${project.plan.platforms.reduce((sum, item) => sum + (item.steps || 0), 0)} шт`}
+            />
+            <Stat
+              label="Сваи пристроек"
+              value={`${calculation.foundation.platformPiles} шт`}
+            />
+          </div>
+          <Panel title="Площадки проекта">
+            {project.plan.platforms.map((platform) => {
+              const result = calculateTerraceRoof(platform, project.plan.house);
+              return (
+                <div className="calculation-row" key={platform.id}>
+                  <div>
+                    <strong>
+                      {platform.kind === "porch" ? "Крыльцо" : "Терраса"} ·{" "}
+                      {formatNumber(platform.w * platform.h)} м²
+                    </strong>
+                    <span>
+                      {platform.foundation.mode === "shared"
+                        ? "общее свайное поле"
+                        : platform.foundation.mode === "separate"
+                          ? "отдельные сваи"
+                          : "без свай"}{" "}
+                      ·{" "}
+                      {platform.binding.mode === "shared"
+                        ? "общая обвязка"
+                        : platform.binding.mode === "separate"
+                          ? "отдельная обвязка"
+                          : "без обвязки"}
+                    </span>
+                  </div>
+                  <strong>
+                    {platform.roof.mode === "none"
+                      ? "Без кровли"
+                      : `${formatNumber(result.netArea)} м² кровли`}
+                  </strong>
+                </div>
+              );
+            })}
+          </Panel>
+          <Panel title="Ведомость террасы">
+            <SectionResult calculation={calculation} sectionKey="terrace" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "openings" ? (
+        <>
+          <div className="stats-row">
+            <Stat
+              label="Окна"
+              value={`${project.plan.openings.filter((item) => item.type === "window").length} шт`}
+            />
+            <Stat
+              label="Двери"
+              value={`${project.plan.openings.filter((item) => item.type === "door" && item.doorType !== "garage").length} шт`}
+            />
+            <Stat
+              label="Гаражные ворота"
+              value={`${project.plan.openings.filter((item) => item.type === "door" && item.doorType === "garage").length} шт`}
+            />
+            <Stat
+              label="Общая площадь"
+              value={`${formatNumber(calculation.metrics.totalOpeningsArea)} м²`}
+            />
+          </div>
+          <Panel title="Проёмы с плана">
+            <div className="calculation-list">
+              {project.plan.openings.map((opening) => (
+                <div className="calculation-row" key={opening.id}>
+                  <div>
+                    <strong>
+                      {opening.type === "window"
+                        ? "Окно"
+                        : opening.doorType === "garage"
+                          ? "Гаражные ворота"
+                          : opening.doorType === "interior"
+                            ? "Межкомнатная дверь"
+                            : "Входная дверь"}
+                    </strong>
+                    <span>
+                      {Math.round(opening.width * 1000)} ×{" "}
+                      {Math.round(opening.height * 1000)} мм
+                    </span>
+                  </div>
+                  <strong>
+                    {formatNumber(opening.width * opening.height, 2)} м²
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </Panel>
+          <Panel title="Ведомость проёмов">
+            <SectionResult calculation={calculation} sectionKey="openings" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "engineering" ? (
+        <>
+          <Panel title="Выбор инженерных систем">
+            <div className="toggle-grid">
+              <Toggle
+                label="Электрика"
+                checked={project.services.engineeringElectric}
+                onChange={(value) => setService("engineeringElectric", value)}
+              />
+              <Toggle
+                label="Водоснабжение"
+                checked={project.services.engineeringPlumbing}
+                onChange={(value) => setService("engineeringPlumbing", value)}
+              />
+              <Toggle
+                label="Канализация"
+                checked={project.services.engineeringSewerage}
+                onChange={(value) => setService("engineeringSewerage", value)}
+              />
+              <Toggle
+                label="Вентиляция"
+                checked={project.services.engineeringVentilation}
+                onChange={(value) =>
+                  setService("engineeringVentilation", value)
+                }
+              />
+            </div>
+            <div className="form-grid four">
+              <NumberField
+                label="Кабельные трассы"
+                value={project.settings.engineering.cableRoute}
+                suffix="м"
+                onChange={(value) =>
+                  setSetting("engineering", "cableRoute", value)
+                }
+              />
+              <NumberField
+                label="Электроточки"
+                value={project.settings.engineering.electricPoints}
+                suffix="шт"
+                step={1}
+                onChange={(value) =>
+                  setSetting("engineering", "electricPoints", value)
+                }
+              />
+              <NumberField
+                label="Водопровод"
+                value={project.settings.engineering.waterPipe}
+                suffix="м"
+                onChange={(value) =>
+                  setSetting("engineering", "waterPipe", value)
+                }
+              />
+              <NumberField
+                label="Точки воды"
+                value={project.settings.engineering.waterPoints}
+                suffix="шт"
+                step={1}
+                onChange={(value) =>
+                  setSetting("engineering", "waterPoints", value)
+                }
+              />
+              <NumberField
+                label="Канализация"
+                value={project.settings.engineering.sewerLength}
+                suffix="м"
+                onChange={(value) =>
+                  setSetting("engineering", "sewerLength", value)
+                }
+              />
+              <NumberField
+                label="Точки канализации"
+                value={project.settings.engineering.sewerPoints}
+                suffix="шт"
+                step={1}
+                onChange={(value) =>
+                  setSetting("engineering", "sewerPoints", value)
+                }
+              />
+              <NumberField
+                label="Воздуховоды"
+                value={project.settings.engineering.ventDuct}
+                suffix="м"
+                onChange={(value) =>
+                  setSetting("engineering", "ventDuct", value)
+                }
+              />
+              <NumberField
+                label="Решётки"
+                value={project.settings.engineering.ventGrilles}
+                suffix="шт"
+                step={1}
+                onChange={(value) =>
+                  setSetting("engineering", "ventGrilles", value)
+                }
+              />
+            </div>
+          </Panel>
+          <Panel title="Ведомость инженерии">
+            <SectionResult calculation={calculation} sectionKey="engineering" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "finishing" ? (
+        <>
+          <div className="two-column-layout">
+            <Panel title="Внутренняя отделка">
+              <Toggle
+                label="Включить раздел"
+                checked={project.services.internalFinish}
+                onChange={(value) => setService("internalFinish", value)}
+              />
+              <div className="form-grid">
+                <NumberField
+                  label="Стены"
+                  value={project.settings.internal.wallArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("internal", "wallArea", value)
+                  }
+                />
+                <NumberField
+                  label="Потолок"
+                  value={project.settings.internal.ceilingArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("internal", "ceilingArea", value)
+                  }
+                />
+                <NumberField
+                  label="Ламинат"
+                  value={project.settings.internal.laminateArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("internal", "laminateArea", value)
+                  }
+                />
+                <NumberField
+                  label="Плитка"
+                  value={project.settings.internal.tileArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("internal", "tileArea", value)
+                  }
+                />
+                <NumberField
+                  label="Двери"
+                  value={project.settings.internal.doors}
+                  suffix="шт"
+                  step={1}
+                  onChange={(value) => setSetting("internal", "doors", value)}
+                />
+              </div>
+            </Panel>
+            <Panel title="Наружная отделка">
+              <Toggle
+                label="Включить раздел"
+                checked={project.services.externalFinish}
+                onChange={(value) => setService("externalFinish", value)}
+              />
+              <div className="form-grid">
+                <NumberField
+                  label="Фасад"
+                  value={project.settings.external.facadeArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("external", "facadeArea", value)
+                  }
+                />
+                <NumberField
+                  label="Ветрозащита"
+                  value={project.settings.external.windArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("external", "windArea", value)
+                  }
+                />
+                <NumberField
+                  label="Утепление"
+                  value={project.settings.external.insulationArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("external", "insulationArea", value)
+                  }
+                />
+                <NumberField
+                  label="Профлист"
+                  value={project.settings.external.metalArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("external", "metalArea", value)
+                  }
+                />
+                <NumberField
+                  label="Подшива"
+                  value={project.settings.external.soffitArea}
+                  suffix="м²"
+                  onChange={(value) =>
+                    setSetting("external", "soffitArea", value)
+                  }
+                />
+              </div>
+            </Panel>
+          </div>
+          <Panel title="Внутренняя ведомость">
+            <SectionResult calculation={calculation} sectionKey="internal" />
+          </Panel>
+          <Panel title="Наружная ведомость">
+            <SectionResult calculation={calculation} sectionKey="external" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "delivery" ? (
+        <>
+          <Panel title="Логистика">
+            <div className="form-grid four">
+              <NumberField
+                label="Расстояние"
+                value={project.settings.delivery.distance}
+                suffix="км"
+                onChange={(value) => setSetting("delivery", "distance", value)}
+              />
+              <NumberField
+                label="Количество рейсов"
+                value={project.settings.delivery.trips}
+                suffix="рейс"
+                step={1}
+                onChange={(value) => setSetting("delivery", "trips", value)}
+              />
+              <NumberField
+                label="Объём груза"
+                value={project.settings.delivery.cargoVolume}
+                suffix="м³"
+                onChange={(value) =>
+                  setSetting("delivery", "cargoVolume", value)
+                }
+              />
+              <NumberField
+                label="База рейса"
+                value={project.settings.delivery.baseTrip}
+                suffix="₽"
+                step={100}
+                onChange={(value) => setSetting("delivery", "baseTrip", value)}
+              />
+              <NumberField
+                label="Цена километра"
+                value={project.settings.delivery.perKm}
+                suffix="₽"
+                step={1}
+                onChange={(value) => setSetting("delivery", "perKm", value)}
+              />
+              <NumberField
+                label="Разгрузка"
+                value={project.settings.delivery.unloadingPerM3}
+                suffix="₽/м³"
+                step={10}
+                onChange={(value) =>
+                  setSetting("delivery", "unloadingPerM3", value)
+                }
+              />
+            </div>
+          </Panel>
+          <Panel title="Ведомость доставки">
+            <SectionResult calculation={calculation} sectionKey="delivery" />
+          </Panel>
+        </>
+      ) : null}
+    </div>
+  );
 }

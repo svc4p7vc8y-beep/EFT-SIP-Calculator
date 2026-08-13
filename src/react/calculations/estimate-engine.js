@@ -78,12 +78,12 @@ function sipSection(project, metrics, index, inputs) {
   joinery.rows.forEach((row) => {
     const key = `${row.key}-connector`;
     if (joinery.type === 'thermal') {
-      lines.push(makeLine(index, 'sip', `Термобрус ${row.thermalDepth}х90мм`, row.jointLength, { key, unit: 'м.п.', source: `sip-${row.key}-joints` }));
+      lines.push(makeLine(index, 'sip', `Термобрус 95×${row.thermalDepth} мм`, row.jointLength, { key, unit: 'м.п.', source: `sip-${row.key}-joints` }));
     } else if (joinery.type === 'board-pack') {
-      lines.push(makeLine(index, 'sip', `Пакет досок 2×45×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`, row.jointLength, { key, unit: 'м.п.', source: `sip-${row.key}-joints` }));
+      lines.push(makeLine(index, 'sip', `Пакет клеёных досок 95×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`, row.jointLength, { key, unit: 'м.п.', source: `sip-${row.key}-joints` }));
     } else {
-      const query = row.core === 100 ? 'Брус ест.влажн. сосна 100×100 мм' : row.core === 150 ? 'Брус мауэрлата ест.влажн. сосна 150×100 мм' : 'Доска ест. влажн. сосна 50х200мм';
-      lines.push(makeLine(index, 'sip', query, row.jointLength * row.core / 1000 * 0.1, { key, name: `Брус соединительный ${row.core}×100 мм`, unit: 'м³', digits: 3, source: `sip-${row.key}-joints` }));
+      const query = `Брус соединительный ест. влажности 100×${row.core} мм`;
+      lines.push(makeLine(index, 'sip', query, row.jointLength, { key, unit: 'м.п.', source: `sip-${row.key}-joints` }));
     }
     lines.push(makeLine(index, 'sip', `Доска сухая строганая ${row.endBoardDepth}×45 мм`, row.endBoardLength, { key: `${row.key}-edge-board`, unit: 'м.п.', source: `sip-${row.key}-edges` }));
   });

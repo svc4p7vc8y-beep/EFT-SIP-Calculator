@@ -6,7 +6,7 @@ import { planIssues } from '../planner/geometry.js';
 import { formatNumber } from '../utils/format.js';
 
 const ROOF_TYPES = { cold: 'Холодная', sip: 'Тёплая SIP', combo: 'Комбинированная' };
-const CONNECTOR_TYPES = { thermal: 'Термобрус', 'board-pack': 'Пакет двух досок', solid: 'Цельный брус' };
+const CONNECTOR_TYPES = { thermal: 'Термобрус', 'board-pack': 'Клеёный пакет досок', solid: 'Брус естественной влажности' };
 
 function SummaryValue({ label, value, tone }) {
   return <div className={`summary-value ${tone || ''}`}><span>{label}</span><strong>{value}</strong></div>;

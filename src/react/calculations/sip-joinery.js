@@ -4,9 +4,9 @@ const round = (value, digits = 3) => {
 };
 
 export const SIP_JOINERY_TYPES = [
-  { value: 'thermal', label: 'Термобрус' },
-  { value: 'board-pack', label: 'Пакет двух досок · цена 50% термобруса' },
-  { value: 'solid', label: 'Цельный брус' }
+  { value: 'thermal', label: 'Термобрус · дорогой' },
+  { value: 'board-pack', label: 'Клеёный пакет · средний' },
+  { value: 'solid', label: 'Брус ест. влажности · эконом' }
 ];
 
 export function sipTimberProfile(panelThickness) {

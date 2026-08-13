@@ -2,7 +2,7 @@ import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 
-export const REACT_PROJECT_VERSION = 50;
+export const REACT_PROJECT_VERSION = 51;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -153,11 +153,14 @@ function normalizePlan(plan) {
   };
 }
 
-function normalizeCatalog(items, defaults) {
+const V51_FRAME_CATALOG_IDS = new Set(['MAT-013', 'MAT-014', 'MAT-015', 'MAT-186', 'MAT-187', 'MAT-188']);
+
+function normalizeCatalog(items, defaults, upgradeFrameCatalog = false) {
   if (!Array.isArray(items)) return clone(defaults);
   const defaultById = new Map(defaults.map((item) => [item.id, item]));
   const normalized = items.map((item) => {
     const fallback = defaultById.get(item.id);
+    if (upgradeFrameCatalog && fallback && V51_FRAME_CATALOG_IDS.has(item.id)) return clone(fallback);
     return Number(item.price) === 0 && Number(fallback?.price) > 0 ? { ...item, price: fallback.price } : item;
   });
   const existingIds = new Set(normalized.map((item) => item.id));
@@ -167,6 +170,8 @@ function normalizeCatalog(items, defaults) {
 export function migrateProject(raw) {
   const base = createDefaultProject();
   if (!raw || typeof raw !== 'object') return base;
+  const savedVersion = Number(raw.appVersion);
+  const upgradeFrameCatalog = !Number.isFinite(savedVersion) || savedVersion < 51;
   const params = Array.isArray(raw.params) ? raw.params.map((entry) => Number(entry?.val) || 0) : [];
   const meta = raw.meta || {
     projectNum: raw.projectNum || '', customer: raw.cust || '', address: raw.addr || '', author: raw.author || '', date: raw.date || today(), floors: Number(raw.floors) || 1
@@ -193,7 +198,7 @@ export function migrateProject(raw) {
       links: { ...base.settings.links, ...(raw.settings?.links || {}) },
       formulas: { ...base.settings.formulas, ...(raw.settings?.formulas || {}) }
     },
-    priceMat: normalizeCatalog(raw.priceMat, base.priceMat),
+    priceMat: normalizeCatalog(raw.priceMat, base.priceMat, upgradeFrameCatalog),
     priceLab: normalizeCatalog(raw.priceLab, base.priceLab),
     estimateOverrides: Array.isArray(raw.estimateOverrides) ? raw.estimateOverrides : []
   };

@@ -3,7 +3,7 @@ import { Download, Plus, RotateCcw, Search, Trash2, Upload } from 'lucide-react'
 import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { Panel, ScreenHeader, Stat } from '../components/ui.jsx';
 import { useProject } from '../state/ProjectContext.jsx';
-import { REACT_PROJECT_VERSION } from '../state/project-model.js';
+import { migrateProject, REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney, uid } from '../utils/format.js';
 
 function downloadCatalog(project) {
@@ -43,7 +43,7 @@ export default function PriceScreen() {
     try {
       const data = JSON.parse(await file.text());
       if (!Array.isArray(data.priceMat) || !Array.isArray(data.priceLab)) throw new Error('в файле нет таблиц материалов и работ');
-      commit((next) => ({ ...next, priceMat: data.priceMat, priceLab: data.priceLab }));
+      commit((next) => migrateProject({ ...next, appVersion: Number(data.appVersion) || 0, priceMat: data.priceMat, priceLab: data.priceLab }));
       setNotice(`Загружен прайс: ${file.name}`);
     } catch (error) { setNotice(`Ошибка загрузки: ${error.message}`); }
     event.target.value = '';
