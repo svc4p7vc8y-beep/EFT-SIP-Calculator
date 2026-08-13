@@ -65,7 +65,7 @@ export default function ProjectSummarySidebar({ project, calculation, onNavigate
     </SummarySection>
 
     <SummarySection title="Сваи и обвязка" icon={HardHat} target="piles" onNavigate={onNavigate}>
-      <div className="summary-grid"><SummaryValue label="Всего свай" value={`${foundation.totalPiles} шт`} /><SummaryValue label="Обвязка" value={`${formatNumber(foundation.bindingLength)} м`} /><SummaryValue label="Шаг не более" value={`${formatNumber(project.settings.piles.spacing)} м`} /><SummaryValue label="Общие с террасой" value={`${foundation.sharedPiles} шт`} /></div>
+      <div className="summary-grid"><SummaryValue label="Всего свай" value={`${foundation.totalPiles} шт`} /><SummaryValue label="Обвязка" value={`${formatNumber(foundation.bindingLength)} м`} /><SummaryValue label="Доски 6 м" value={`${foundation.boardCount} шт`} /><SummaryValue label="Объём доски" value={`${formatNumber(foundation.boardVolume, 3)} м³`} /><SummaryValue label="Шаг не более" value={`${formatNumber(project.settings.piles.spacing)} м`} /><SummaryValue label="Общие с террасой" value={`${foundation.sharedPiles} шт`} /></div>
     </SummarySection>
 
     <SummarySection title="Кровля" icon={Ruler} target="roof" onNavigate={onNavigate}>

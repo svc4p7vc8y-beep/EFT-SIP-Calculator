@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { buildCommercialScope } from '../src/react/calculations/commercial-scope.js';
-import { calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
+import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 
 test('React project produces a priced estimate from one shared model', () => {
@@ -268,6 +268,32 @@ test('shared terrace foundation removes coincident piles and can be disabled', (
   assert.ok(houseOnly.totalPiles < shared.totalPiles);
   assert.equal(houseOnly.platformPiles, 0);
   assert.equal(houseOnly.platformBindingLength, 0);
+});
+
+test('drawn binding lines drive board volume rounded to six-meter stock', () => {
+  const project = createDefaultProject();
+  project.plan.platforms.forEach((platform) => { platform.binding.mode = 'none'; });
+  project.plan.bindingLines = [
+    { id: 'b1', x1: 0, y1: 0, x2: 6.1, y2: 0, include: true },
+    { id: 'b2', x1: 0, y1: 2, x2: 4, y2: 2, include: true },
+    { id: 'ignored', x1: 0, y1: 3, x2: 20, y2: 3, include: false }
+  ];
+  const result = calculateFoundation(project.plan, project.settings.piles);
+
+  assert.equal(result.bindingLength, 10.1);
+  assert.equal(result.bindingLayers, 3);
+  assert.equal(result.requiredBoardLength, 30.3);
+  assert.equal(result.boardCount, 6);
+  assert.equal(result.purchaseBoardLength, 36);
+  assert.equal(result.boardWasteLength, 5.7);
+  assert.equal(result.boardVolume, 0.27);
+});
+
+test('old projects receive editable binding lines from their pile rows', () => {
+  const project = createDefaultProject();
+  delete project.plan.bindingLines;
+  const restored = migrateProject(project);
+  assert.deepEqual(restored.plan.bindingLines, bindingLinesFromPileRows(restored.plan.pileRows));
 });
 
 test('migration preserves plan, services and price list independently', () => {

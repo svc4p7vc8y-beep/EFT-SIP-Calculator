@@ -1,8 +1,9 @@
 import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
+import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 58;
+export const REACT_PROJECT_VERSION = 59;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -69,11 +70,12 @@ export function createDefaultPlan() {
     ],
     piles: []
   };
+  plan.bindingLines = bindingLinesFromPileRows(plan.pileRows);
   return plan;
 }
 
 export function createEmptyPlan() {
-  return {
+  const plan = {
     house: { w: 10, h: 8 }, wallHeight: 2.5, wallThickness: 0.174, partitionThickness: 0.1,
     zoom: 100, showPiles: true, showBinding: true, showDimensions: true,
     rooms: [], walls: [], wallGaps: [], openings: [], dimensions: [], platforms: [], piles: [],
@@ -83,6 +85,8 @@ export function createEmptyPlan() {
       { id: 'pile-bottom', name: 'Нижний ряд', x1: 0, y1: 8, x2: 10, y2: 8, count: 6, group: 'house' }
     ]
   };
+  plan.bindingLines = bindingLinesFromPileRows(plan.pileRows);
+  return plan;
 }
 
 export function createCompactPlan() {
@@ -103,6 +107,7 @@ export function createCompactPlan() {
     { id: 'compact-row-2', name: 'Ряд 2', x1: 0, y1: 3.5, x2: 10, y2: 3.5, count: 6, group: 'house' },
     { id: 'compact-row-3', name: 'Ряд 3', x1: 0, y1: 7, x2: 10, y2: 7, count: 6, group: 'house' }
   ];
+  plan.bindingLines = bindingLinesFromPileRows(plan.pileRows);
   return plan;
 }
 
@@ -122,7 +127,7 @@ export function createDefaultProject() {
       internalFinish: false, externalFinish: false
     },
     settings: {
-      piles: { spacing: 2.5, boardVolumePerMeter: 0.0225 },
+      piles: { spacing: 2.5, boardVolumePerMeter: 0.0225, bindingLayers: 3, bindingBoardWidthMm: 50, bindingBoardHeightMm: 150, boardStockLength: 6 },
       sip: { floorThickness: '224', wallThickness: '174', ceilingThickness: '224', connectorType: 'thermal', wastePercent: 5 },
       roof: { shape: 'gable', type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0, rafterSection: '50x150', gableType: 'auto', gableCount: 2 },
       delivery: { distance: 30, trips: 2, cargoVolume: 40, baseTrip: 7000, perKm: 50, unloadingPerM3: 500 },
@@ -142,6 +147,7 @@ export function createDefaultProject() {
 function normalizePlan(plan) {
   const fallback = createDefaultPlan();
   if (!plan?.house || !Array.isArray(plan.rooms)) return fallback;
+  const normalizedPileRows = plan.pileRows?.length ? plan.pileRows : fallback.pileRows;
   return {
     ...fallback,
     ...plan,
@@ -149,7 +155,8 @@ function normalizePlan(plan) {
     rooms: plan.rooms.map((room, index) => ({ include: true, bearing: false, ceilingMode: 'flat', id: room.id || `room-${index + 1}`, ...room })),
     platforms: (plan.platforms || []).map(normalizeTerracePlatform),
     openings: plan.openings || [],
-    pileRows: plan.pileRows?.length ? plan.pileRows : fallback.pileRows,
+    pileRows: normalizedPileRows,
+    bindingLines: Array.isArray(plan.bindingLines) ? plan.bindingLines : bindingLinesFromPileRows(normalizedPileRows),
     piles: plan.piles || []
   };
 }

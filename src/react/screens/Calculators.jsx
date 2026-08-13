@@ -426,7 +426,11 @@ export default function Calculators({ type }) {
               value={`${formatNumber(calculation.foundation.bindingLength)} м`}
             />
             <Stat
-              label="Доска"
+              label="Доски по 6 м"
+              value={`${calculation.foundation.boardCount} шт`}
+            />
+            <Stat
+              label="Объём доски"
               value={`${formatNumber(calculation.foundation.boardVolume, 3)} м³`}
             />
           </div>
@@ -440,14 +444,18 @@ export default function Calculators({ type }) {
                 onChange={(value) => setSetting("piles", "spacing", value)}
               />
               <NumberField
-                label="Доска на 1 м обвязки"
-                value={project.settings.piles.boardVolumePerMeter}
-                suffix="м³"
-                step={0.001}
+                label="Слоёв доски 50×150"
+                value={project.settings.piles.bindingLayers || 3}
+                suffix="шт"
+                min={1}
+                max={6}
+                step={1}
                 onChange={(value) =>
-                  setSetting("piles", "boardVolumePerMeter", value)
+                  setSetting("piles", "bindingLayers", Math.max(1, Math.round(value)))
                 }
               />
+              <div className="readout"><span>Закупочная длина</span><strong>{formatNumber(calculation.foundation.purchaseBoardLength)} м · {calculation.foundation.boardCount} × 6 м</strong></div>
+              <div className="readout"><span>Запас / обрезки</span><strong>{formatNumber(calculation.foundation.boardWasteLength)} м</strong></div>
               <Toggle
                 label="Включить в смету"
                 checked={project.services.foundation}

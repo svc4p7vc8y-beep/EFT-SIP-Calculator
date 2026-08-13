@@ -48,6 +48,20 @@ function platformBindingLength(platform, house) {
   return Math.max(0, perimeter - attachment);
 }
 
+export function bindingLinesFromPileRows(rows = []) {
+  return rows.filter((row) => row.group !== 'platform').map((row, index) => ({
+    id: `binding-${row.id || index + 1}`,
+    name: `Обвязка ${index + 1}`,
+    x1: Number(row.x1) || 0,
+    y1: Number(row.y1) || 0,
+    x2: Number(row.x2) || 0,
+    y2: Number(row.y2) || 0,
+    group: 'house',
+    include: true,
+    auto: true
+  }));
+}
+
 export function generateAutoPileRows(plan, spacing = 2.5) {
   const safeSpacing = Math.max(0.5, Number(spacing) || 2.5);
   const createRow = (id, name, a, b, group = 'house') => {
@@ -88,9 +102,17 @@ export function calculateFoundation(plan, settings = {}) {
   const sharedPiles = points.filter((point) => point.source === 'shared').length;
   const housePiles = points.filter((point) => point.source === 'house' || point.source === 'shared').length;
   const platformPiles = points.filter((point) => point.source === 'platform' || point.source === 'shared').length;
-  const houseBindingLength = houseRows.reduce((sum, row) => sum + Math.hypot(row.x2 - row.x1, row.y2 - row.y1), 0);
+  const bindingLines = Array.isArray(plan.bindingLines) ? plan.bindingLines : bindingLinesFromPileRows(houseRows);
+  const houseBindingLength = bindingLines.filter((line) => line.include !== false).reduce((sum, line) => sum + Math.hypot(line.x2 - line.x1, line.y2 - line.y1), 0);
   const platformBinding = (plan.platforms || []).filter((platform) => platform.include !== false).reduce((sum, platform) => sum + platformBindingLength(platform, plan.house), 0);
   const bindingLength = houseBindingLength + platformBinding;
+  const boardWidth = Math.max(0.01, (Number(settings.bindingBoardWidthMm) || 50) / 1000);
+  const boardHeight = Math.max(0.01, (Number(settings.bindingBoardHeightMm) || 150) / 1000);
+  const bindingLayers = Math.max(1, Math.round(Number(settings.bindingLayers) || Math.round((Number(settings.boardVolumePerMeter) || 0.0225) / (boardWidth * boardHeight)) || 3));
+  const boardStockLength = 6;
+  const requiredBoardLength = bindingLength * bindingLayers;
+  const boardCount = requiredBoardLength ? Math.ceil(requiredBoardLength / boardStockLength) : 0;
+  const purchaseBoardLength = boardCount * boardStockLength;
   return {
     points,
     totalPiles: points.length,
@@ -100,6 +122,12 @@ export function calculateFoundation(plan, settings = {}) {
     houseBindingLength: round(houseBindingLength),
     platformBindingLength: round(platformBinding),
     bindingLength: round(bindingLength),
-    boardVolume: round(bindingLength * (Number(settings.boardVolumePerMeter) || 0.0225), 3)
+    bindingLayers,
+    boardStockLength,
+    requiredBoardLength: round(requiredBoardLength, 3),
+    boardCount,
+    purchaseBoardLength: round(purchaseBoardLength, 3),
+    boardWasteLength: round(Math.max(0, purchaseBoardLength - requiredBoardLength), 3),
+    boardVolume: round(purchaseBoardLength * boardWidth * boardHeight, 3)
   };
 }

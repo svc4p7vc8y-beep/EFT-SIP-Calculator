@@ -63,6 +63,7 @@ export function collectSnapAxes(plan, excludeRoomId) {
   }
   for (const wallLine of plan.walls || []) { addPoint({ x: wallLine.x1, y: wallLine.y1 }); addPoint({ x: wallLine.x2, y: wallLine.y2 }); }
   for (const row of plan.pileRows || []) { addPoint({ x: row.x1, y: row.y1 }); addPoint({ x: row.x2, y: row.y2 }); }
+  for (const binding of plan.bindingLines || []) { addPoint({ x: binding.x1, y: binding.y1 }); addPoint({ x: binding.x2, y: binding.y2 }); }
   for (const dimension of plan.dimensions || []) { addPoint({ x: dimension.x1, y: dimension.y1 }); addPoint({ x: dimension.x2, y: dimension.y2 }); }
   for (const platform of plan.platforms || []) {
     addPoint({ x: platform.x, y: platform.y }); addPoint({ x: platform.x + platform.w, y: platform.y });

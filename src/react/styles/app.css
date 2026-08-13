@@ -211,7 +211,10 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .endpoint-handle,.vertex-handle { fill:#fff; stroke:var(--planner-green); stroke-width:3; vector-effect:non-scaling-stroke; cursor:grab; }
 .pile-row-endpoint { fill:#fff8e8; stroke:#a36a17; stroke-width:2; }
 .binding-guide { fill:none; stroke:#d99d38; stroke-width:2; stroke-dasharray:8 5; vector-effect:non-scaling-stroke; pointer-events:none; }
-.binding-guide-line { stroke:#d99d38; stroke-width:2; stroke-dasharray:8 5; opacity:.75; vector-effect:non-scaling-stroke; pointer-events:none; }
+.binding-guide-line { stroke:#a66c19; stroke-width:6; opacity:.84; vector-effect:non-scaling-stroke; cursor:move; }
+.binding-guide-line.selected { stroke:#4f9636; stroke-width:8; opacity:1; }
+.binding-length-text { fill:#85520e; paint-order:stroke; stroke:#fff; stroke-width:4; font-size:9px; font-weight:800; text-anchor:middle; pointer-events:none; }
+.binding-endpoint { fill:#fff; stroke:#4f9636; }
 .manual-pile { fill:#efbb61; stroke:#1a261b; stroke-width:2; vector-effect:non-scaling-stroke; cursor:move; }
 .manual-pile.selected { fill:#fff; stroke:#5d8f32; stroke-width:4; }
 .wall-gap { stroke:#fff; stroke-width:11; vector-effect:non-scaling-stroke; cursor:move; }

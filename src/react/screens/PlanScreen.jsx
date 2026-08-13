@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, DoorOpen, Grid2X2Plus, Hammer, Link2Off, MousePointer2, Pentagon,
+  AlertTriangle, DoorOpen, Grid2X2Plus, Hammer, Layers3, Link2Off, MousePointer2, Pentagon,
   Plus, Redo2, Ruler, Save, Sparkles, Trash2, Undo2, Warehouse, Waves, X, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { calculatePlanMetrics, chooseDimensionSides, polygonArea } from '../../calculations/plan-metrics.js';
 import { calculateTerraceRoof, normalizeTerracePlatform } from '../../calculations/terrace-model.js';
-import { calculateFoundation, generateAutoPileRows } from '../calculations/foundation-model.js';
+import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../calculations/foundation-model.js';
 import { Field, NumberField, ScreenHeader, SelectField, Stat, Toggle } from '../components/ui.jsx';
 import { createCompactPlan, createDefaultPlan, createEmptyPlan } from '../state/project-model.js';
 import { useProject } from '../state/ProjectContext.jsx';
@@ -18,12 +18,12 @@ import {
 
 const VIEW = { width: 1100, height: 760 };
 const SKETCHES_KEY = 'eft-react-plan-sketches-v47';
-const DRAW_TOOLS = new Set(['room', 'wall', 'dimension', 'pileRow', 'terrace', 'porch']);
+const DRAW_TOOLS = new Set(['room', 'wall', 'dimension', 'pileRow', 'bindingLine', 'terrace', 'porch']);
 const TOOLS = [
   ['select', 'Выбор', MousePointer2], ['room', 'Комната', Grid2X2Plus], ['polygon', 'Многоугольная', Pentagon],
   ['wall', 'Стена', Hammer], ['gap', 'Разрыв стены', Link2Off], ['window', 'Окно', Warehouse], ['door', 'Дверь', DoorOpen],
   ['garage', 'Гаражные ворота', Warehouse],
-  ['dimension', 'Размер', Ruler], ['pile', 'Свая', Waves], ['pileRow', 'Ряд свай', Waves],
+  ['dimension', 'Размер', Ruler], ['pile', 'Свая', Waves], ['pileRow', 'Ряд свай', Waves], ['bindingLine', 'Обвязка', Layers3],
   ['terrace', 'Терраса', Plus], ['porch', 'Крыльцо', Plus], ['delete', 'Удалить', Trash2]
 ];
 
@@ -63,7 +63,7 @@ function previewPlan(source, gesture) {
     return plan;
   }
   if (gesture.kind === 'endpoint') {
-    const key = gesture.type === 'wall' ? 'walls' : gesture.type === 'dimension' ? 'dimensions' : 'pileRows';
+    const key = gesture.type === 'wall' ? 'walls' : gesture.type === 'dimension' ? 'dimensions' : gesture.type === 'bindingLine' ? 'bindingLines' : 'pileRows';
     const item = itemFor(key); const point = snapPoint(end, axes);
     if (item) { item[`x${gesture.index + 1}`] = point.x; item[`y${gesture.index + 1}`] = point.y; }
     return plan;
@@ -84,7 +84,7 @@ function previewPlan(source, gesture) {
     const item = itemFor('wallGaps'); const segment = nearestSegment(end, allOpeningSegments(plan));
     if (segment) { item.orientation = segment.axis; item.outer = segment.outer; item.x = segment.axis === 'v' ? segment.fixed : segment.projected; item.y = segment.axis === 'v' ? segment.projected : segment.fixed; }
   } else {
-    const key = gesture.type === 'wall' ? 'walls' : gesture.type === 'dimension' ? 'dimensions' : 'pileRows';
+    const key = gesture.type === 'wall' ? 'walls' : gesture.type === 'dimension' ? 'dimensions' : gesture.type === 'bindingLine' ? 'bindingLines' : 'pileRows';
     const item = itemFor(key);
     if (item) {
       const first = snapPoint({ x: item.x1 + dx, y: item.y1 + dy }, axes);
@@ -211,7 +211,7 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
       axes.xs.push(current.start.x); axes.ys.push(current.start.y);
     }
     if (current?.kind === 'endpoint') {
-      const key = current.type === 'wall' ? 'walls' : current.type === 'dimension' ? 'dimensions' : 'pileRows';
+      const key = current.type === 'wall' ? 'walls' : current.type === 'dimension' ? 'dimensions' : current.type === 'bindingLine' ? 'bindingLines' : 'pileRows';
       const item = (plan[key] || []).find((candidate) => candidate.id === current.id);
       const other = current.index === 0 ? { x: item?.x2, y: item?.y2 } : { x: item?.x1, y: item?.y1 };
       if (Number.isFinite(other.x) && Number.isFinite(other.y)) {
@@ -225,7 +225,7 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
   const toPlan = (event) => resolvePlanPoint(event).point;
   const begin = (event, value) => { event.preventDefault(); event.stopPropagation(); window.getSelection?.()?.removeAllRanges(); svgRef.current.setPointerCapture?.(event.pointerId); setGesture({ ...value, pointerId: event.pointerId, start: toPlan(event), end: toPlan(event) }); };
   const deleteObject = (type, id) => commitPlan((next) => {
-    const key = type === 'room' ? 'rooms' : type === 'platform' ? 'platforms' : type === 'opening' ? 'openings' : type === 'wall' ? 'walls' : type === 'dimension' ? 'dimensions' : type === 'pileRow' ? 'pileRows' : type === 'gap' ? 'wallGaps' : 'piles';
+    const key = type === 'room' ? 'rooms' : type === 'platform' ? 'platforms' : type === 'opening' ? 'openings' : type === 'wall' ? 'walls' : type === 'dimension' ? 'dimensions' : type === 'pileRow' ? 'pileRows' : type === 'bindingLine' ? 'bindingLines' : type === 'gap' ? 'wallGaps' : 'piles';
     next[key] = (next[key] || []).filter((item) => item.id !== id);
   });
   const objectDown = (event, type, id, extra = {}) => {
@@ -289,6 +289,7 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
             next.dimensions.push(dimensionOutsideHouse(line, next.house));
           }
           if (current.type === 'pileRow') next.pileRows.push({ ...line, name: `Ряд ${next.pileRows.length + 1}`, count: Math.max(2, Math.ceil(distance / 2.5) + 1), group: 'house' });
+          if (current.type === 'bindingLine') next.bindingLines.push({ ...line, name: `Обвязка ${next.bindingLines.length + 1}`, group: 'house', include: true });
         });
         setSelected({ type: current.type, id });
       }
@@ -322,10 +323,10 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     {(shownPlan.walls || []).map((wall) => { const q = line(wall); const selectedNow = selected?.type === 'wall' && selected.id === wall.id; return <g key={wall.id} className="planner-object" onPointerDown={(event) => objectDown(event, 'wall', wall.id)}><line className={`standalone-wall ${selectedNow ? 'selected' : ''}`} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><line className="wide-hit" x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />{selectedNow ? [q.a, q.b].map((point, index) => <circle key={index} className="endpoint-handle" cx={point.x} cy={point.y} r="7" onPointerDown={(event) => objectDown(event, 'wall', wall.id, { kind: 'endpoint', index })} />) : null}</g>; })}
     {(shownPlan.wallGaps || []).map((gap) => <g key={gap.id} className="planner-object" onPointerDown={(event) => objectDown(event, 'gap', gap.id)}>{renderCut(gap, `wall-gap ${selected?.id === gap.id ? 'selected' : ''}`)}</g>)}
     {(shownPlan.openings || []).map((opening) => { const q = p(opening.x, opening.y); const size = Math.max(18, opening.width * layout.scale); const selectedNow = selected?.type === 'opening' && selected.id === opening.id; const garage = opening.type === 'door' && opening.doorType === 'garage'; return <g key={opening.id} className={`planner-object ${selectedNow ? 'selected-opening' : ''}`} onPointerDown={(event) => objectDown(event, 'opening', opening.id)}>{renderCut(opening, 'opening-cut')}{renderCut(opening, `opening ${opening.type}${garage ? ' garage' : ''}`)}{garage ? <GarageGate opening={opening} q={q} size={size} /> : opening.type === 'door' ? <DoorLeaf opening={opening} q={q} size={size} plan={shownPlan} /> : null}{opening.type === 'door' ? <text className="opening-tag" x={q.x} y={q.y - 10}>{garage ? 'ГВ' : opening.doorType === 'interior' ? 'МД' : 'ВХ'}</text> : null}</g>; })}
-    {shownPlan.showBinding !== false ? (shownPlan.pileRows || []).map((row) => { const q = line(row); return <line key={`binding-${row.id}`} className="binding-guide-line" x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; }) : null}
     {shownPlan.showPiles !== false ? foundation.points.filter((point) => !hasManualPileAt(point)).map((point, index) => { const q = p(point.x, point.y); return <circle key={`derived-${index}`} className={`pile-point ${point.source}`} cx={q.x} cy={q.y} r="6" />; }) : null}
     {shownPlan.showPiles !== false ? (shownPlan.piles || []).map((pile) => { const q = p(pile.x, pile.y); return <circle key={pile.id} className={`manual-pile ${selected?.id === pile.id ? 'selected' : ''}`} cx={q.x} cy={q.y} r="8" onPointerDown={(event) => objectDown(event, 'pile', pile.id)} />; }) : null}
     {shownPlan.showPiles !== false ? (shownPlan.pileRows || []).map((row) => { const q = line(row); const selectedNow = selected?.type === 'pileRow' && selected.id === row.id; const spacing = Math.hypot(row.x2 - row.x1, row.y2 - row.y1) / Math.max(1, (row.count || 2) - 1); const alignment = pileRowAlignment(row); return <g key={row.id} className="planner-object" onPointerDown={(event) => objectDown(event, 'pileRow', row.id)}><line className={`pile-guide axis-${alignment.state} ${selectedNow ? 'selected' : ''}`} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><line className="wide-hit" x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><text className={`pile-spacing-text axis-${alignment.state}`} x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 - 9}>шаг {formatNumber(spacing)} м</text>{selectedNow ? [q.a, q.b].map((point, index) => <rect key={index} className="endpoint-handle pile-row-endpoint" x={point.x - 6} y={point.y - 6} width="12" height="12" rx="2" transform={`rotate(45 ${point.x} ${point.y})`} onPointerDown={(event) => objectDown(event, 'pileRow', row.id, { kind: 'endpoint', index })} />) : null}</g>; }) : null}
+    {shownPlan.showBinding !== false ? (shownPlan.bindingLines || []).map((binding) => { const q = line(binding); const selectedNow = selected?.type === 'bindingLine' && selected.id === binding.id; const length = Math.hypot(binding.x2 - binding.x1, binding.y2 - binding.y1); return <g key={binding.id} className="planner-object binding-object" onPointerDown={(event) => objectDown(event, 'bindingLine', binding.id)}><line className={`binding-guide-line ${selectedNow ? 'selected' : ''}`} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><line className="wide-hit" x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><text className="binding-length-text" x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 + 14}>{formatNumber(length)} м</text>{selectedNow ? [q.a, q.b].map((point, index) => <circle key={index} className="endpoint-handle binding-endpoint" cx={point.x} cy={point.y} r="7" onPointerDown={(event) => objectDown(event, 'bindingLine', binding.id, { kind: 'endpoint', index })} />) : null}</g>; }) : null}
     {shownPlan.showDimensions !== false ? (shownPlan.dimensions || []).map((dimension) => { const q = line(dimension); const length = Math.hypot(dimension.x2 - dimension.x1, dimension.y2 - dimension.y1); const selectedNow = selected?.type === 'dimension' && selected.id === dimension.id; return <g key={dimension.id} className="planner-object" onPointerDown={(event) => objectDown(event, 'dimension', dimension.id)}><line className={`custom-dimension ${selectedNow ? 'selected' : ''}`} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} /><line className="dimension-tick" x1={q.a.x - 6} y1={q.a.y - 6} x2={q.a.x + 6} y2={q.a.y + 6} /><line className="dimension-tick" x1={q.b.x - 6} y1={q.b.y - 6} x2={q.b.x + 6} y2={q.b.y + 6} /><text className="dimension-text" x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 - 8}>{Math.round(length * 1000)} мм</text>{selectedNow ? [q.a, q.b].map((point, index) => <circle key={index} className="endpoint-handle" cx={point.x} cy={point.y} r="7" onPointerDown={(event) => objectDown(event, 'dimension', dimension.id, { kind: 'endpoint', index })} />) : null}</g>; }) : null}
     {shownPlan.showDimensions !== false ? <g className="outer-dimensions"><line x1={topLeft.x} y1={horizontalY} x2={bottomRight.x} y2={horizontalY} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" /><line className="extension-line" x1={topLeft.x} y1={topLeft.y} x2={topLeft.x} y2={horizontalY} /><line className="extension-line" x1={bottomRight.x} y1={topLeft.y} x2={bottomRight.x} y2={horizontalY} /><text x={(topLeft.x + bottomRight.x) / 2} y={horizontalY - 9}>{Math.round(shownPlan.house.w * 1000).toLocaleString('ru-RU')} мм</text><line x1={verticalX} y1={topLeft.y} x2={verticalX} y2={bottomRight.y} markerStart="url(#planner-arrow)" markerEnd="url(#planner-arrow)" /><line className="extension-line" x1={topLeft.x} y1={topLeft.y} x2={verticalX} y2={topLeft.y} /><line className="extension-line" x1={topLeft.x} y1={bottomRight.y} x2={verticalX} y2={bottomRight.y} /><text transform={`translate(${verticalX - 10} ${(topLeft.y + bottomRight.y) / 2}) rotate(-90)`}>{Math.round(shownPlan.house.h * 1000).toLocaleString('ru-RU')} мм</text></g> : null}
     {(shownPlan.openings || []).map((opening) => <g key={`opening-hit-${opening.id}`} className={`opening-hit-layer opening-hit-${opening.type}-${opening.doorType || 'standard'}`} data-opening-id={opening.id} onPointerDown={(event) => objectDown(event, 'opening', opening.id)}>{renderOpeningHit(opening)}</g>)}
@@ -345,7 +346,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
   const get = (key) => (plan[key] || []).find((item) => item.id === selected?.id);
   const update = (key, mutate) => commitPlan((next) => { const item = (next[key] || []).find((candidate) => candidate.id === selected.id); if (item) mutate(item); });
   const remove = () => {
-    const key = selected.type === 'room' ? 'rooms' : selected.type === 'platform' ? 'platforms' : selected.type === 'opening' ? 'openings' : selected.type === 'wall' ? 'walls' : selected.type === 'dimension' ? 'dimensions' : selected.type === 'pileRow' ? 'pileRows' : selected.type === 'gap' ? 'wallGaps' : 'piles';
+    const key = selected.type === 'room' ? 'rooms' : selected.type === 'platform' ? 'platforms' : selected.type === 'opening' ? 'openings' : selected.type === 'wall' ? 'walls' : selected.type === 'dimension' ? 'dimensions' : selected.type === 'pileRow' ? 'pileRows' : selected.type === 'bindingLine' ? 'bindingLines' : selected.type === 'gap' ? 'wallGaps' : 'piles';
     commitPlan((next) => { next[key] = (next[key] || []).filter((item) => item.id !== selected.id); }); setSelected(null);
   };
   if (!selected) return <RoomList plan={plan} issues={issues} onSelect={setSelected} />;
@@ -353,6 +354,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
   const platform = selected.type === 'platform' ? get('platforms') : null;
   const opening = selected.type === 'opening' ? get('openings') : null;
   const pileRow = selected.type === 'pileRow' ? get('pileRows') : null;
+  const bindingLine = selected.type === 'bindingLine' ? get('bindingLines') : null;
   const wall = selected.type === 'wall' ? get('walls') : null;
   const dimension = selected.type === 'dimension' ? get('dimensions') : null;
   const gap = selected.type === 'gap' ? get('wallGaps') : null;
@@ -389,6 +391,10 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
     const alignmentText = alignment.state === 'aligned' ? `Точно ${alignment.axis === 'vertical' ? 'по вертикали' : 'по горизонтали'}` : alignment.state === 'warning' ? `Смещение ${Math.round(alignment.offset * 1000)} мм` : 'Диагональный ряд';
     return <div className="inspector-form"><h3>{pileRow.name}</h3><div className={`pile-alignment-status ${alignment.state}`}>{alignmentText}</div><Field label="Название"><input value={pileRow.name} onChange={(event) => update('pileRows', (item) => { item.name = event.target.value; })} /></Field><div className="form-grid"><NumberField label="Количество свай" value={pileRow.count} suffix="шт" min={2} max={60} step={1} onChange={(value) => update('pileRows', (item) => { item.count = Math.max(2, Math.round(value)); })} /><NumberField label="Желаемый шаг" value={roundCoord(spacing)} suffix="м" min={.3} max={5} step={.1} onChange={(value) => update('pileRows', (item) => { const rowLength = Math.hypot(item.x2 - item.x1, item.y2 - item.y1); item.count = Math.max(2, Math.round(rowLength / Math.max(.3, value)) + 1); })} /></div><div className="readout"><span>Длина ряда</span><strong>{formatNumber(length)} м</strong></div><div className="readout"><span>Фактическое расстояние</span><strong>{formatNumber(spacing)} м</strong></div><p className="inspector-note">Зелёный ряд стоит точно по оси. Красный показывает небольшое случайное смещение; янтарный — диагональный ряд.</p><button className="button danger-button" onClick={remove}><Trash2 />Удалить ряд</button></div>;
   }
+  if (bindingLine) {
+    const length = Math.hypot(bindingLine.x2 - bindingLine.x1, bindingLine.y2 - bindingLine.y1);
+    return <div className="inspector-form"><h3>{bindingLine.name || 'Линия обвязки'}</h3><Field label="Название"><input value={bindingLine.name || ''} onChange={(event) => update('bindingLines', (item) => { item.name = event.target.value; })} /></Field><Toggle label="Учитывать в расчёте" checked={bindingLine.include !== false} onChange={(value) => update('bindingLines', (item) => { item.include = value; })} /><div className="readout"><span>Чистая длина</span><strong>{formatNumber(length)} м</strong></div><p className="inspector-note">Линию можно двигать целиком, а зелёные концы — перетаскивать по узлам. Закупка доски округляется по общей длине до заготовок 6 м.</p><button className="button danger-button" onClick={remove}><Trash2 />Удалить обвязку</button></div>;
+  }
   if (wall || dimension) { const item = wall || dimension; return <div className="inspector-form"><h3>{wall ? 'Отдельная стена' : 'Размерная линия'}</h3><div className="readout"><span>Длина</span><strong>{formatNumber(Math.hypot(item.x2 - item.x1, item.y2 - item.y1))} м</strong></div><p className="inspector-note">Линию можно двигать целиком; зелёные концы изменяют длину и направление.</p><button className="button danger-button" onClick={remove}><Trash2 />Удалить</button></div>; }
   if (gap) return <div className="inspector-form"><h3>Разрыв стены</h3><NumberField label="Ширина разрыва" value={gap.width * 1000} suffix="мм" step={50} onChange={(value) => update('wallGaps', (item) => { item.width = value / 1000; })} /><p className="inspector-note">Разрыв можно перетащить на другую стену.</p><button className="button danger-button" onClick={remove}><Trash2 />Удалить разрыв</button></div>;
   if (pile) return <div className="inspector-form"><h3>Отдельная свая</h3><div className="form-grid"><NumberField label="X" value={pile.x} suffix="м" onChange={(value) => update('piles', (item) => { item.x = value; })} /><NumberField label="Y" value={pile.y} suffix="м" onChange={(value) => update('piles', (item) => { item.y = value; })} /></div><button className="button danger-button" onClick={remove}><Trash2 />Удалить сваю</button></div>;
@@ -412,7 +418,7 @@ export default function PlanScreen() {
     { id: 'compact', name: 'Компактный · 10 × 7 м', plan: createCompactPlan() },
     { id: 'empty', name: 'Новый чистый план', plan: createEmptyPlan() }, ...customSketches
   ], [customSketches]);
-  const selectTool = (id) => { setTool(id); if (id !== 'polygon') setPolygonDraft([]); };
+  const selectTool = (id) => { setTool(id); if (id !== 'polygon') setPolygonDraft([]); if (id === 'bindingLine' && plan.showBinding === false) commitPlan((next) => { next.showBinding = true; }); };
   const finishPolygon = () => {
     if (polygonDraft.length < 3 || polygonArea(polygonDraft) < .25) return;
     const id = uid('room'); commitPlan((next) => next.rooms.push(withRoomBounds({ id, name: `Комната ${next.rooms.length + 1}`, points: polygonDraft, include: true, bearing: false, ceilingMode: 'flat' })));
@@ -439,21 +445,25 @@ export default function PlanScreen() {
     });
     setSelected(null); setTool('select');
   };
+  const autoBinding = () => {
+    commitPlan((next) => { next.bindingLines = bindingLinesFromPileRows(next.pileRows); next.showBinding = true; });
+    setSelected(null); setTool('select');
+  };
   useEffect(() => {
     const keydown = (event) => {
       if (event.key === 'Escape') { setPolygonDraft([]); setTool('select'); setSelected(null); }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selected && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
         event.preventDefault();
-        const key = selected.type === 'room' ? 'rooms' : selected.type === 'platform' ? 'platforms' : selected.type === 'opening' ? 'openings' : selected.type === 'wall' ? 'walls' : selected.type === 'dimension' ? 'dimensions' : selected.type === 'pileRow' ? 'pileRows' : selected.type === 'gap' ? 'wallGaps' : 'piles';
+        const key = selected.type === 'room' ? 'rooms' : selected.type === 'platform' ? 'platforms' : selected.type === 'opening' ? 'openings' : selected.type === 'wall' ? 'walls' : selected.type === 'dimension' ? 'dimensions' : selected.type === 'pileRow' ? 'pileRows' : selected.type === 'bindingLine' ? 'bindingLines' : selected.type === 'gap' ? 'wallGaps' : 'piles';
         commitPlan((next) => { next[key] = (next[key] || []).filter((item) => item.id !== selected.id); }); setSelected(null);
       }
     };
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
   }, [selected, commitPlan]);
-  const toolHint = tool === 'select' ? 'Выберите и перетащите объект. Окна, двери и ворота можно двигать прямо по стенам.' : tool === 'polygon' ? 'Щёлкайте по узлам комнаты и нажмите «Готово».' : tool === 'dimension' ? 'Протяните размер по объекту — линия автоматически вынесется наружу, затем её можно переместить.' : tool === 'pileRow' ? 'Начало и конец прилипают к узлам. Зелёный — точно по оси, красный — небольшое смещение.' : ['window', 'door', 'garage', 'gap', 'pile'].includes(tool) ? 'Щёлкните место установки. Проёмы прилипнут к ближайшей стене.' : 'Зажмите кнопку мыши и протяните объект.';
-  return <div className="screen plan-screen-v2"><ScreenHeader title="План дома" description="Новый редактор: каждое действие можно выбрать, изменить, удалить и отменить" actions={<><button className="button primary" onClick={newPlan}><Plus />Новый план</button><button className="button secondary auto-piles-button" onClick={autoPiles}><Sparkles />Автосваи</button><select className="sketch-select" value={sketchId} onChange={(event) => setSketchId(event.target.value)}>{sketches.map((sketch) => <option key={sketch.id} value={sketch.id}>{sketch.name}</option>)}</select><button className="button secondary" onClick={loadSketch}>Загрузить</button><button className="button secondary" onClick={saveSketch}><Save />В эскизы</button><button className="button ghost" onClick={undo} disabled={!canUndo}><Undo2 />Отменить</button><button className="button ghost" onClick={redo} disabled={!canRedo}><Redo2 />Повторить</button></>} />
+  const toolHint = tool === 'select' ? 'Выберите и перетащите объект. Окна, двери, ворота и линии обвязки можно двигать.' : tool === 'polygon' ? 'Щёлкайте по узлам комнаты и нажмите «Готово».' : tool === 'dimension' ? 'Протяните размер по объекту — линия автоматически вынесется наружу, затем её можно переместить.' : tool === 'pileRow' ? 'Начало и конец прилипают к узлам. Зелёный — точно по оси, красный — небольшое смещение.' : tool === 'bindingLine' ? 'Протяните направляющую обвязки от узла до узла. Каждая линия сразу входит в расчёт доски.' : ['window', 'door', 'garage', 'gap', 'pile'].includes(tool) ? 'Щёлкните место установки. Проёмы прилипнут к ближайшей стене.' : 'Зажмите кнопку мыши и протяните объект.';
+  return <div className="screen plan-screen-v2"><ScreenHeader title="План дома" description="Новый редактор: каждое действие можно выбрать, изменить, удалить и отменить" actions={<><button className="button primary" onClick={newPlan}><Plus />Новый план</button><button className="button secondary auto-piles-button" onClick={autoPiles}><Sparkles />Автосваи</button><button className="button secondary" onClick={autoBinding}><Layers3 />Автообвязка</button><select className="sketch-select" value={sketchId} onChange={(event) => setSketchId(event.target.value)}>{sketches.map((sketch) => <option key={sketch.id} value={sketch.id}>{sketch.name}</option>)}</select><button className="button secondary" onClick={loadSketch}>Загрузить</button><button className="button secondary" onClick={saveSketch}><Save />В эскизы</button><button className="button ghost" onClick={undo} disabled={!canUndo}><Undo2 />Отменить</button><button className="button ghost" onClick={redo} disabled={!canRedo}><Redo2 />Повторить</button></>} />
     <div className="plan-status-bar"><div className="plan-house-fields"><NumberField label="Габарит X" value={plan.house.w} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.w = value; })} /><NumberField label="Габарит Y" value={plan.house.h} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.h = value; })} /><NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={(value) => commitPlan((next) => { next.wallHeight = value; })} /></div><div className="plan-view-switches"><Toggle label="Сваи" checked={plan.showPiles !== false} onChange={(value) => commitPlan((next) => { next.showPiles = value; })} /><Toggle label="Обвязка" checked={plan.showBinding !== false} onChange={(value) => commitPlan((next) => { next.showBinding = value; })} /><Toggle label="Размеры" checked={plan.showDimensions !== false} onChange={(value) => commitPlan((next) => { next.showDimensions = value; })} /></div><div className="zoom-controls"><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.max(65, (next.zoom || 100) - 10); })}><ZoomOut /></button><strong>{plan.zoom || 100}%</strong><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.min(180, (next.zoom || 100) + 10); })}><ZoomIn /></button></div></div>
     <div className="planner-shell"><aside className="planner-tools">{TOOLS.map(([id, label, Icon]) => <button key={id} className={tool === id ? 'active' : ''} title={label} onClick={() => selectTool(id)}><Icon /><span>{label}</span></button>)}{tool === 'polygon' && polygonDraft.length ? <div className="polygon-actions"><button className="active" onClick={finishPolygon} disabled={polygonDraft.length < 3}><Save /><span>Готово</span></button><button onClick={() => setPolygonDraft([])}><X /><span>Сброс</span></button></div> : null}</aside><div className="planner-canvas"><PlanCanvas plan={plan} tool={tool} selected={selected} setSelected={setSelected} commitPlan={commitPlan} polygonDraft={polygonDraft} setPolygonDraft={setPolygonDraft} issues={issues} /><div className="planner-hint">{toolHint}</div></div><aside className="planner-inspector"><Inspector plan={plan} selected={selected} setSelected={setSelected} commitPlan={commitPlan} issues={issues} /></aside></div>
-    <div className="stats-row planner-stats"><Stat label="Пол всего дома" value={`${formatNumber(metrics.floorArea)} м²`} /><Stat label="Перегородки без задвоений" value={`${formatNumber(metrics.partitionLength)} м`} /><Stat label="Наружные стены" value={`${formatNumber(metrics.exteriorWallNetArea)} м²`} /><Stat label="Сваи" value={`${foundation.totalPiles} шт`} /><Stat label="Обвязка" value={`${formatNumber(foundation.bindingLength)} м`} /><Stat label="Проверка" value={issues.length ? `${issues.length} ошибок` : 'Стыковка верна'} tone={issues.length ? 'danger' : ''} /></div>
+    <div className="stats-row planner-stats"><Stat label="Пол всего дома" value={`${formatNumber(metrics.floorArea)} м²`} /><Stat label="Перегородки без задвоений" value={`${formatNumber(metrics.partitionLength)} м`} /><Stat label="Наружные стены" value={`${formatNumber(metrics.exteriorWallNetArea)} м²`} /><Stat label="Сваи" value={`${foundation.totalPiles} шт`} /><Stat label="Обвязка" value={`${formatNumber(foundation.bindingLength)} м · ${foundation.boardCount} досок × 6 м`} /><Stat label="Проверка" value={issues.length ? `${issues.length} ошибок` : 'Стыковка верна'} tone={issues.length ? 'danger' : ''} /></div>
   </div>;
 }

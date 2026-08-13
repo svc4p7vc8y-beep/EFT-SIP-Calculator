@@ -42,7 +42,7 @@ function scopeDescription(key, project, calculation, lineCount) {
 
   if (key === 'foundation') return {
     summary: `${pluralRu(foundation.totalPiles, 'свая', 'сваи', 'свай')}, обвязка ${formatNumber(foundation.bindingLength)} м`,
-    details: 'Разбивка, монтаж свай, оголовки, крепёж и устройство обвязки'
+    details: `Разбивка, монтаж свай, оголовки, крепёж и ${foundation.boardCount} досок обвязки по 6 м`
   };
   if (key === 'sip') {
     const surfaces = [

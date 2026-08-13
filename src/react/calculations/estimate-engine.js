@@ -138,7 +138,7 @@ function foundationSection(project, index, inputs) {
       makeLine(index, 'foundation', 'Оголовок для свай', count, { key: 'heads' }),
       makeLine(index, 'foundation', 'Монтаж оголовков', count, { key: 'heads-work', kind: 'labor' }),
       makeLine(index, 'foundation', 'Монтаж обвязки', count, { key: 'binding-work', kind: 'labor' }),
-      makeLine(index, 'foundation', 'Доска ест. влажн. сосна 50х150мм', foundation.boardVolume, { key: 'binding-board', unit: 'м³', digits: 3 }),
+      makeLine(index, 'foundation', 'Доска ест. влажн. сосна 50х150мм', foundation.boardVolume, { key: 'binding-board', unit: 'м³', digits: 3, name: `Доска обвязки 50×150 мм · ${foundation.boardCount} шт × 6 м` }),
       makeLine(index, 'foundation', 'Саморезы 6х120', count * inputs.formulas.pileScrewKg, { key: 'binding-screws', unit: 'кг' }),
       makeLine(index, 'foundation', 'Глухари', count * inputs.formulas.pileLagScrews, { key: 'binding-lag-screws', unit: 'шт', name: 'Глухари для крепления обвязки' })
     ])
