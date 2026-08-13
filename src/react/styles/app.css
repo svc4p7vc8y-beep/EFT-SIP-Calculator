@@ -421,11 +421,19 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .print-plan-svg .print-door-swing.garage { stroke:#2679a5; stroke-width:2.8; }
 .print-plan-svg .print-opening-tag { fill:#b85a08; font-size:9px; font-weight:900; paint-order:stroke; stroke:#fff; stroke-width:3; }
 .print-plan-svg .print-opening-group.garage .print-opening-tag { fill:#1f668b; }
-.print-plan-svg .print-binding line,.print-plan-svg .print-binding rect { fill:none; stroke:#d89a28; stroke-width:3; stroke-dasharray:7 4; }
+.print-plan-svg .print-binding line,.print-plan-svg .print-binding rect { fill:none; stroke:#ef9b16; stroke-width:4; stroke-dasharray:8 5; paint-order:stroke; }
 .print-plan-svg .print-piles circle { fill:#f7ba57; stroke:#1e2820; stroke-width:2; }
 .print-plan-svg .print-house-dimensions line { stroke:#556057; stroke-width:1.5; }
 .print-plan-svg .print-house-dimensions path { fill:#556057; }
 .print-plan-svg .print-house-dimensions text { font-size:12px; font-weight:700; }
+.print-plan-svg .print-plan-legend .legend-background { fill:#fff; stroke:#d5ded2; stroke-width:1; }
+.print-plan-svg .print-plan-legend .legend-item text { fill:#334034; font-size:9px; font-weight:700; text-anchor:start; }
+.print-plan-svg .print-plan-legend line { fill:none; vector-effect:non-scaling-stroke; }
+.print-plan-svg .print-plan-legend .legend-outer { stroke:#182019; stroke-width:7; }
+.print-plan-svg .print-plan-legend .legend-inner { stroke:#182019; stroke-width:3; }
+.print-plan-svg .print-plan-legend .legend-binding { stroke:#ef9b16; stroke-width:4; stroke-dasharray:7 4; }
+.print-plan-svg .print-plan-legend .legend-window { stroke:#00aeca; stroke-width:5; }
+.print-plan-svg .print-plan-legend .legend-door { stroke:#d97918; stroke-width:5; }
 .print-roof-svg rect,.print-roof-svg line { fill:none; stroke:#202a21; stroke-width:3; vector-effect:non-scaling-stroke; }
 .print-roof-svg .support { stroke:#5b963e; stroke-width:4; }
 .print-roof-svg .mauerlat,.print-roof-svg .ridge { stroke:#c88b24; stroke-width:7; }

@@ -155,7 +155,7 @@ function GarageGate({ opening, q, size, plan }) {
     const leafX = q.x + direction * half;
     return <g className="garage-gate" aria-label="Двустворчатое открывание гаражных ворот">
       {offsets.map((offset) => <line className="gate-mark" key={offset} x1={q.x - 6} y1={q.y + size * offset} x2={q.x + 6} y2={q.y + size * offset} />)}
-      <g className="door-swing garage-door-swing"><line x1={q.x} y1={q.y - half} x2={leafX} y2={q.y - half} /><line x1={q.x} y1={q.y + half} x2={leafX} y2={q.y + half} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${leafX} ${q.y - half}`} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${leafX} ${q.y + half}`} /></g>
+      <g className="door-swing garage-door-swing"><line x1={q.x} y1={q.y - half} x2={leafX} y2={q.y - half} /><line x1={q.x} y1={q.y + half} x2={leafX} y2={q.y + half} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${leafX} ${q.y - half}`} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${leafX} ${q.y + half}`} /></g>
     </g>;
   }
   const inward = opening.outer ? (opening.y < plan.house.h / 2 ? 1 : -1) : 1;
@@ -163,7 +163,7 @@ function GarageGate({ opening, q, size, plan }) {
   const leafY = q.y + direction * half;
   return <g className="garage-gate" aria-label="Двустворчатое открывание гаражных ворот">
     {offsets.map((offset) => <line className="gate-mark" key={offset} x1={q.x + size * offset} y1={q.y - 6} x2={q.x + size * offset} y2={q.y + 6} />)}
-    <g className="door-swing garage-door-swing"><line x1={q.x - half} y1={q.y} x2={q.x - half} y2={leafY} /><line x1={q.x + half} y1={q.y} x2={q.x + half} y2={leafY} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${q.x - half} ${leafY}`} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${q.x + half} ${leafY}`} /></g>
+    <g className="door-swing garage-door-swing"><line x1={q.x - half} y1={q.y} x2={q.x - half} y2={leafY} /><line x1={q.x + half} y1={q.y} x2={q.x + half} y2={leafY} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${q.x - half} ${leafY}`} /><path d={`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${q.x + half} ${leafY}`} /></g>
   </g>;
 }
 

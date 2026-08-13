@@ -3,7 +3,7 @@ import { calculateFoundation } from '../calculations/foundation-model.js';
 import { boundsOf, lineEndpoints, roomPoints, unifiedWallSegments } from '../planner/geometry.js';
 import { formatNumber } from '../utils/format.js';
 
-const PLAN_VIEW = { width: 760, height: 470, margin: 52 };
+const PLAN_VIEW = { width: 760, height: 500, margin: 62 };
 
 function doorSwingGeometry(opening, q, size, plan) {
   const left = opening.hinge === 'left';
@@ -31,7 +31,7 @@ function garageSwingGeometry(opening, q, size, plan) {
     const leafY = q.y + direction * half;
     return {
       leaves: [{ x1: q.x - half, y1: q.y, x2: q.x - half, y2: leafY }, { x1: q.x + half, y1: q.y, x2: q.x + half, y2: leafY }],
-      arcs: [`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${q.x - half} ${leafY}`, `M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${q.x + half} ${leafY}`]
+      arcs: [`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${q.x - half} ${leafY}`, `M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${q.x + half} ${leafY}`]
     };
   }
   const inward = opening.outer ? (opening.x < plan.house.w / 2 ? 1 : -1) : 1;
@@ -39,7 +39,7 @@ function garageSwingGeometry(opening, q, size, plan) {
   const leafX = q.x + direction * half;
   return {
     leaves: [{ x1: q.x, y1: q.y - half, x2: leafX, y2: q.y - half }, { x1: q.x, y1: q.y + half, x2: leafX, y2: q.y + half }],
-    arcs: [`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${leafX} ${q.y - half}`, `M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${leafX} ${q.y + half}`]
+    arcs: [`M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 0 : 1} ${leafX} ${q.y - half}`, `M ${q.x} ${q.y} A ${half} ${half} 0 0 ${direction > 0 ? 1 : 0} ${leafX} ${q.y + half}`]
   };
 }
 
@@ -97,13 +97,13 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
     {(plan.platforms || []).map((item) => { const q = p(item.x, item.y); return <g key={item.id} className="print-platform"><rect x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} /><text x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 - 3}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text><text x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + 13}>{formatNumber(item.w * item.h)} м²</text></g>; })}
     <rect className="print-house-fill" x={houseStart.x} y={houseStart.y} width={plan.house.w * scale} height={plan.house.h * scale} />
     {(plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(roomBounds.x + roomBounds.w / 2, roomBounds.y + roomBounds.h / 2); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" x={center.x} y={center.y - 7}>{room.name}</text><text x={center.x} y={center.y + 9}>{formatNumber(polygonArea(points))} м²</text></g>; })}
+    <rect className="print-outer-wall" x={houseStart.x} y={houseStart.y} width={plan.house.w * scale} height={plan.house.h * scale} />
+    {unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; })}
+    {(plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })}
     {showBinding ? <g className="print-binding" aria-label="Обвязка на печатном плане">
       {(plan.bindingLines || []).filter((item) => item.include !== false).map((item) => { const q = line(item); return <line key={item.id} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; })}
       {(plan.platforms || []).filter((item) => item.include !== false && item.binding?.mode !== 'none').map((item) => { const q = p(item.x, item.y); return <rect key={item.id} x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />; })}
     </g> : null}
-    <rect className="print-outer-wall" x={houseStart.x} y={houseStart.y} width={plan.house.w * scale} height={plan.house.h * scale} />
-    {unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; })}
-    {(plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })}
     {(plan.openings || []).map(renderOpening)}
     {showPiles ? <g className="print-piles" aria-label="Сваи на печатном плане">{foundation.points.map((point, index) => { const q = p(point.x, point.y); return <circle key={index} cx={q.x} cy={q.y} r="5" />; })}</g> : null}
     {showDimensions ? <g className="print-house-dimensions" aria-label="Размеры на печатном плане">
@@ -113,6 +113,14 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
       <text transform={`translate(${houseStart.x - 31} ${houseStart.y + plan.house.h * scale / 2}) rotate(-90)`}>{Math.round(plan.house.h * 1000).toLocaleString('ru-RU')} мм</text>
       {(plan.dimensions || []).map((item) => { const q = line(item); const length = Math.hypot(item.x2 - item.x1, item.y2 - item.y1); return <g className="print-custom-dimension" key={item.id}><line x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} markerStart="url(#print-plan-arrow)" markerEnd="url(#print-plan-arrow)" /><text x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 - 7}>{Math.round(length * 1000).toLocaleString('ru-RU')} мм</text></g>; })}
     </g> : null}
+    <g className="print-plan-legend" transform="translate(35 456)" aria-label="Условные обозначения плана">
+      <rect className="legend-background" x="0" y="0" width="690" height="34" rx="6" />
+      <g className="legend-item" transform="translate(14 17)"><line className="legend-outer" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Наружная стена</text></g>
+      <g className="legend-item" transform="translate(158 17)"><line className="legend-inner" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Перегородка</text></g>
+      {showBinding ? <g className="legend-item" transform="translate(282 17)"><line className="legend-binding" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Обвязка</text></g> : null}
+      <g className="legend-item" transform="translate(392 17)"><line className="legend-window" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Окно</text></g>
+      <g className="legend-item" transform="translate(490 17)"><line className="legend-door" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Дверь / ворота</text></g>
+    </g>
   </svg>;
 }
 
