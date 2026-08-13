@@ -380,6 +380,34 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .print-brand img { width:68px; height:48px; object-fit:contain; }
 .print-brand div { display:flex; flex-direction:column; gap:4px; }
 .print-brand span { color:var(--muted); font-size:10px; }
+.print-diagram-options { display:flex; align-items:center; gap:16px; margin-bottom:12px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+.print-diagram-options>div { display:flex; flex:1; flex-direction:column; gap:3px; }
+.print-diagram-options strong { font-size:11px; }
+.print-diagram-options span { color:var(--muted); font-size:9px; }
+.print-diagram-options label { display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:var(--surface); font-size:10px; font-weight:700; white-space:nowrap; cursor:pointer; }
+.print-diagrams { display:grid; gap:12px; margin:0 0 18px; }
+.print-diagrams.two { grid-template-columns:1fr 1fr; }
+.print-diagrams.one { grid-template-columns:1fr; }
+.print-diagrams article { min-width:0; padding:10px; border:1px solid #cfdbca; border-radius:9px; background:#fff; break-inside:avoid; }
+.print-diagrams h2 { margin:0 0 6px; color:#376929; font-size:12px; }
+.print-diagrams svg { display:block; width:100%; height:auto; max-height:390px; }
+.print-plan-svg text,.print-roof-svg text { fill:#253025; font-size:11px; text-anchor:middle; }
+.print-plan-svg .print-house-fill { fill:#fbfaf0; }
+.print-plan-svg .print-platform rect { fill:#edf8fb; stroke:#52b9ca; stroke-width:2; stroke-dasharray:7 5; }
+.print-plan-svg .print-room polygon { fill:#fffdf2; stroke:none; }
+.print-plan-svg .print-room .room-title { font-weight:800; }
+.print-plan-svg .print-outer-wall { fill:none; stroke:#182019; stroke-width:9; }
+.print-plan-svg .print-inner-wall { stroke:#182019; stroke-width:4; }
+.print-plan-svg .print-opening { stroke:#fff; stroke-width:9; }
+.print-plan-svg .print-opening.window { stroke:#46bfd3; stroke-width:5; }
+.print-plan-svg .print-opening.door { stroke:#b7772b; stroke-width:5; }
+.print-plan-svg .print-house-dimensions line { stroke:#556057; stroke-width:1.5; }
+.print-plan-svg .print-house-dimensions path { fill:#556057; }
+.print-plan-svg .print-house-dimensions text { font-size:12px; font-weight:700; }
+.print-roof-svg rect,.print-roof-svg line { fill:none; stroke:#202a21; stroke-width:3; vector-effect:non-scaling-stroke; }
+.print-roof-svg .support { stroke:#5b963e; stroke-width:4; }
+.print-roof-svg .mauerlat,.print-roof-svg .ridge { stroke:#c88b24; stroke-width:7; }
+.print-roof-svg text { font-size:12px; font-weight:700; }
 .project-summary { display:grid; grid-template-columns:1fr 1fr; gap:28px; padding:20px 0; }
 .project-summary dl { margin:0; }
 .project-summary dl div { display:grid; grid-template-columns:150px 1fr; padding:6px 0; border-bottom:1px solid var(--line); }
@@ -534,6 +562,8 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .commercial-scope>header { align-items:flex-start; flex-direction:column; gap:5px; }
   .commercial-scope>header p { text-align:left; }
   .commercial-scope-grid { grid-template-columns:1fr; }
+  .print-diagram-options { align-items:stretch; flex-direction:column; }
+  .print-diagrams.two { grid-template-columns:1fr; }
   .rafter-scheme-summary { grid-template-columns:1fr; }
 }
 
@@ -546,6 +576,11 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .print-title { padding-bottom:10px; }
   .project-summary { padding:10px 0; gap:15px; }
   .estimate-totals { margin-bottom:12px; }
+  .print-diagrams { gap:5mm; margin-bottom:5mm; }
+  .print-diagrams.two { grid-template-columns:1fr 1fr; }
+  .print-diagrams article { padding:2.5mm; border-radius:2mm; }
+  .print-diagrams h2 { margin-bottom:1mm; font-size:9pt; }
+  .print-diagrams svg { max-height:85mm; }
   .commercial-scope { margin-bottom:12px; padding:8px; border-radius:5px; background:#f4f8f1!important; }
   .commercial-scope>header { margin-bottom:7px; }
   .commercial-scope>header h2 { font-size:11pt; }
