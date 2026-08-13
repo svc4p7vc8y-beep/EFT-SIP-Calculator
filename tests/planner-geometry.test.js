@@ -22,10 +22,10 @@ test('adjacent room walls are merged into one shared wall', () => {
   assert.equal(walls.length, 1, 'outer room edges are provided by the exterior wall');
 });
 
-test('room movement clamps to the inside of exterior walls and snaps', () => {
+test('room movement can stage a room outside the house and still snaps to the grid', () => {
   const plan = { house: { w: 10, h: 8 }, wallThickness: 0.174 };
   const moved = movePoints(rectanglePoints({ x: 1, y: 1 }, { x: 4, y: 3 }), -4, 10, plan, { xs: [0.174], ys: [5.826] });
-  assert.deepEqual(boundsOf(moved), { x: 0.174, y: 5.826, x2: 3.174, y2: 7.826, w: 3, h: 2 });
+  assert.deepEqual(boundsOf(moved), { x: -3, y: 11, x2: 0, y2: 13, w: 3, h: 2 });
 });
 
 test('opening placement selects the closest shared or outside wall', () => {

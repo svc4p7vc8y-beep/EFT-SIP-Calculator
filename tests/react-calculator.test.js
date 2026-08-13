@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
-import { calculateFoundation } from '../src/react/calculations/foundation-model.js';
+import { calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 
 test('React project produces a priced estimate from one shared model', () => {
@@ -92,4 +92,14 @@ test('automatic links can be disabled and formulas are editable project data', (
 test('every default estimate line resolves to a priced catalog item', () => {
   const calculation = calculateProject(createDefaultProject());
   assert.deepEqual(calculation.lines.filter((line) => !line.catalogId || line.price <= 0), []);
+});
+
+test('automatic pile rows cover the house perimeter and internal walls at the configured spacing', () => {
+  const project = createDefaultProject();
+  project.settings.piles.spacing = 2;
+  const rows = generateAutoPileRows(project.plan, project.settings.piles.spacing);
+  assert.ok(rows.length > 4);
+  assert.ok(rows.every((row) => row.auto && row.count >= 2));
+  assert.ok(rows.every((row) => Math.hypot(row.x2 - row.x1, row.y2 - row.y1) / (row.count - 1) <= 2.001));
+  assert.deepEqual(rows.slice(0, 4).map((row) => row.id), ['auto-top', 'auto-right', 'auto-bottom', 'auto-left']);
 });

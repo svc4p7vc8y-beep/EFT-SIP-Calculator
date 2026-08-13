@@ -1,4 +1,5 @@
 import { terraceAttachmentSide } from '../../calculations/terrace-model.js';
+import { lineEndpoints, unifiedWallSegments } from '../planner/geometry.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -45,6 +46,36 @@ function platformBindingLength(platform, house) {
   const side = terraceAttachmentSide(platform, house);
   const attachment = side === 'left' || side === 'right' ? Number(platform.h) || 0 : Number(platform.w) || 0;
   return Math.max(0, perimeter - attachment);
+}
+
+export function generateAutoPileRows(plan, spacing = 2.5) {
+  const safeSpacing = Math.max(0.5, Number(spacing) || 2.5);
+  const createRow = (id, name, a, b, group = 'house') => {
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    return {
+      id, name, x1: round(a.x, 3), y1: round(a.y, 3), x2: round(b.x, 3), y2: round(b.y, 3),
+      count: Math.max(2, Math.ceil(length / safeSpacing) + 1), group, auto: true
+    };
+  };
+  const rows = [
+    createRow('auto-top', 'Авто · верх', { x: 0, y: 0 }, { x: plan.house.w, y: 0 }),
+    createRow('auto-right', 'Авто · справа', { x: plan.house.w, y: 0 }, { x: plan.house.w, y: plan.house.h }),
+    createRow('auto-bottom', 'Авто · низ', { x: 0, y: plan.house.h }, { x: plan.house.w, y: plan.house.h }),
+    createRow('auto-left', 'Авто · слева', { x: 0, y: 0 }, { x: 0, y: plan.house.h })
+  ];
+  unifiedWallSegments(plan).forEach((segment, index) => {
+    const [a, b] = lineEndpoints(segment);
+    const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const inside = midpoint.x >= 0 && midpoint.x <= plan.house.w && midpoint.y >= 0 && midpoint.y <= plan.house.h;
+    const first = { x: Math.max(0, Math.min(plan.house.w, a.x)), y: Math.max(0, Math.min(plan.house.h, a.y)) };
+    const second = { x: Math.max(0, Math.min(plan.house.w, b.x)), y: Math.max(0, Math.min(plan.house.h, b.y)) };
+    if (inside && Math.hypot(second.x - first.x, second.y - first.y) >= 0.5) rows.push(createRow(`auto-inner-${index + 1}`, `Авто · под стеной ${index + 1}`, first, second));
+  });
+  (plan.walls || []).forEach((wall, index) => {
+    const a = { x: wall.x1, y: wall.y1 }; const b = { x: wall.x2, y: wall.y2 };
+    if (Math.hypot(b.x - a.x, b.y - a.y) >= 0.5) rows.push(createRow(`auto-wall-${index + 1}`, `Авто · отдельная стена ${index + 1}`, a, b));
+  });
+  return rows;
 }
 
 export function calculateFoundation(plan, settings = {}) {

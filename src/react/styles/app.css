@@ -106,6 +106,9 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .zoom-controls { display:flex; align-items:center; gap:7px; }
 .zoom-controls strong { min-width:42px; color:var(--ink); font-size:10px; text-align:center; }
 .planner-shell { height:720px; display:grid; grid-template-columns:94px minmax(0,1fr) 310px; overflow:hidden; border:1px solid #dce4dc; border-radius:12px; background:#fff; box-shadow:var(--shadow); }
+.planner-shell,.planner-shell * { user-select:none; -webkit-user-select:none; }
+.planner-inspector input,.planner-inspector select { user-select:text; -webkit-user-select:text; }
+.auto-piles-button { color:#8b5b12; border-color:#e1c890; background:#fff9e9; }
 .planner-tools { z-index:2; padding:8px 6px; overflow-y:auto; border-right:1px solid #dce4dc; background:#f7f9f6; }
 .planner-tools button { width:100%; min-height:43px; margin-bottom:4px; padding:5px 3px; display:flex; align-items:center; gap:7px; color:#5f6a61; border:0; border-radius:7px; background:transparent; font-size:8px; text-align:left; }
 .planner-tools button svg { flex:0 0 16px; width:16px; height:16px; }

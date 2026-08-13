@@ -74,19 +74,11 @@ export function snapPoint(point, axes, options = {}) {
 
 export function movePoints(points, dx, dy, plan, axes) {
   const moved = points.map((point) => ({ x: point.x + dx, y: point.y + dy }));
-  const bounds = boundsOf(moved);
-  const wall = Number(plan.wallThickness) || 0.174;
-  let correctionX = 0; let correctionY = 0;
-  if (bounds.x < wall) correctionX = wall - bounds.x;
-  if (bounds.x2 > plan.house.w - wall) correctionX = plan.house.w - wall - bounds.x2;
-  if (bounds.y < wall) correctionY = wall - bounds.y;
-  if (bounds.y2 > plan.house.h - wall) correctionY = plan.house.h - wall - bounds.y2;
-  const corrected = moved.map((point) => ({ x: point.x + correctionX, y: point.y + correctionY }));
-  const correctedBounds = boundsOf(corrected);
-  const snappedOrigin = snapPoint({ x: correctedBounds.x, y: correctedBounds.y }, axes);
-  return corrected.map((point) => ({
-    x: roundCoord(point.x + snappedOrigin.x - correctedBounds.x),
-    y: roundCoord(point.y + snappedOrigin.y - correctedBounds.y)
+  const movedBounds = boundsOf(moved);
+  const snappedOrigin = snapPoint({ x: movedBounds.x, y: movedBounds.y }, axes);
+  return moved.map((point) => ({
+    x: roundCoord(point.x + snappedOrigin.x - movedBounds.x),
+    y: roundCoord(point.y + snappedOrigin.y - movedBounds.y)
   }));
 }
 

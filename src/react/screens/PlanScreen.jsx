@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, DoorOpen, Grid2X2Plus, Hammer, Link2Off, MousePointer2, Pentagon,
-  Plus, Redo2, Ruler, Save, Trash2, Undo2, Warehouse, Waves, X, ZoomIn, ZoomOut
+  Plus, Redo2, Ruler, Save, Sparkles, Trash2, Undo2, Warehouse, Waves, X, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { calculatePlanMetrics, chooseDimensionSides, polygonArea } from '../../calculations/plan-metrics.js';
 import { calculateTerraceRoof, normalizeTerracePlatform } from '../../calculations/terrace-model.js';
-import { calculateFoundation } from '../calculations/foundation-model.js';
+import { calculateFoundation, generateAutoPileRows } from '../calculations/foundation-model.js';
 import { Field, NumberField, ScreenHeader, SelectField, Stat, Toggle } from '../components/ui.jsx';
 import { createCompactPlan, createDefaultPlan, createEmptyPlan } from '../state/project-model.js';
 import { useProject } from '../state/ProjectContext.jsx';
@@ -31,7 +31,11 @@ const getStoredSketches = () => {
 
 function layoutFor(plan) {
   const sides = chooseDimensionSides(plan);
-  const bounds = sides.bounds;
+  const roomBounds = (plan.rooms || []).reduce((result, room) => {
+    const bounds = boundsOf(roomPoints(room));
+    return { minX: Math.min(result.minX, bounds.x), minY: Math.min(result.minY, bounds.y), maxX: Math.max(result.maxX, bounds.x2), maxY: Math.max(result.maxY, bounds.y2) };
+  }, { ...sides.bounds });
+  const bounds = roomBounds;
   const margin = 1.5;
   const minX = Math.min(0, bounds.minX) - margin;
   const minY = Math.min(0, bounds.minY) - margin;
@@ -51,8 +55,7 @@ function previewPlan(source, gesture) {
   if (gesture.kind === 'vertex') {
     const room = itemFor('rooms');
     if (room?.points?.[gesture.index]) {
-      const wall = Number(plan.wallThickness) || 0.174;
-      room.points[gesture.index] = snapPoint({ x: Math.max(wall, Math.min(plan.house.w - wall, end.x)), y: Math.max(wall, Math.min(plan.house.h - wall, end.y)) }, axes);
+      room.points[gesture.index] = snapPoint(end, axes);
       Object.assign(room, boundsOf(room.points));
     }
     return plan;
@@ -163,7 +166,7 @@ function PlanCanvas({ plan, tool, selected, setSelected, commitPlan, polygonDraf
     const raw = { x: ((event.clientX - rect.left) / rect.width * VIEW.width - layout.ox) / layout.scale, y: ((event.clientY - rect.top) / rect.height * VIEW.height - layout.oy) / layout.scale };
     return snapPoint(raw, collectSnapAxes(plan, gestureRef.current?.type === 'room' ? gestureRef.current.id : null));
   };
-  const begin = (event, value) => { event.stopPropagation(); svgRef.current.setPointerCapture?.(event.pointerId); setGesture({ ...value, pointerId: event.pointerId, start: toPlan(event), end: toPlan(event) }); };
+  const begin = (event, value) => { event.preventDefault(); event.stopPropagation(); window.getSelection?.()?.removeAllRanges(); svgRef.current.setPointerCapture?.(event.pointerId); setGesture({ ...value, pointerId: event.pointerId, start: toPlan(event), end: toPlan(event) }); };
   const deleteObject = (type, id) => commitPlan((next) => {
     const key = type === 'room' ? 'rooms' : type === 'platform' ? 'platforms' : type === 'opening' ? 'openings' : type === 'wall' ? 'walls' : type === 'dimension' ? 'dimensions' : type === 'pileRow' ? 'pileRows' : type === 'gap' ? 'wallGaps' : 'piles';
     next[key] = (next[key] || []).filter((item) => item.id !== id);
@@ -287,7 +290,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
   if (room) {
     const bounds = boundsOf(roomPoints(room));
     const resize = (axis, value) => update('rooms', (item) => { const old = boundsOf(roomPoints(item)); const sx = axis === 'w' ? value / Math.max(.1, old.w) : 1; const sy = axis === 'h' ? value / Math.max(.1, old.h) : 1; item.points = roomPoints(item).map((point) => ({ x: roundCoord(old.x + (point.x - old.x) * sx), y: roundCoord(old.y + (point.y - old.y) * sy) })); Object.assign(item, boundsOf(item.points)); });
-    return <div className="inspector-form"><h3>{room.name}</h3><Field label="Название"><input value={room.name} onChange={(event) => update('rooms', (item) => { item.name = event.target.value; })} /></Field><div className="form-grid"><NumberField label="Размер X" value={roundCoord(bounds.w)} suffix="м" min={.5} onChange={(value) => resize('w', value)} /><NumberField label="Размер Y" value={roundCoord(bounds.h)} suffix="м" min={.5} onChange={(value) => resize('h', value)} /></div><div className="readout"><span>Площадь помещения</span><strong>{formatNumber(polygonArea(roomPoints(room)))} м²</strong></div><Toggle label="Несущие перегородки" checked={room.bearing} onChange={(value) => update('rooms', (item) => { item.bearing = value; })} /><Toggle label="Учитывать в расчёте" checked={room.include !== false} onChange={(value) => update('rooms', (item) => { item.include = value; })} /><p className="inspector-note">Зелёные узлы меняют форму комнаты. Перетаскивание внутри комнаты двигает её целиком.</p><button className="button danger-button" onClick={remove}><Trash2 />Удалить комнату</button></div>;
+    return <div className="inspector-form"><h3>{room.name}</h3><Field label="Название"><input value={room.name} onChange={(event) => update('rooms', (item) => { item.name = event.target.value; })} /></Field><div className="form-grid"><NumberField label="Размер X" value={roundCoord(bounds.w)} suffix="м" min={.5} onChange={(value) => resize('w', value)} /><NumberField label="Размер Y" value={roundCoord(bounds.h)} suffix="м" min={.5} onChange={(value) => resize('h', value)} /></div><div className="readout"><span>Площадь помещения</span><strong>{formatNumber(polygonArea(roomPoints(room)))} м²</strong></div><Toggle label="Несущие перегородки" checked={room.bearing} onChange={(value) => update('rooms', (item) => { item.bearing = value; })} /><Toggle label="Учитывать в расчёте" checked={room.include !== false} onChange={(value) => update('rooms', (item) => { item.include = value; })} /><p className="inspector-note">Зелёные узлы меняют форму комнаты. Перетаскивание внутри двигает её целиком; комнату можно временно вынести за дом и затем поставить на новое место.</p><button className="button danger-button" onClick={remove}><Trash2 />Удалить комнату</button></div>;
   }
   if (platform) {
     const roof = calculateTerraceRoof(platform, plan.house);
@@ -343,6 +346,13 @@ export default function PlanScreen() {
     const updated = [{ id: uid('sketch'), name, plan: structuredClone(plan) }, ...customSketches].slice(0, 20);
     localStorage.setItem(SKETCHES_KEY, JSON.stringify(updated)); setCustomSketches(updated);
   };
+  const autoPiles = () => {
+    commitPlan((next) => {
+      next.pileRows = generateAutoPileRows(next, project.settings.piles.spacing);
+      next.showPiles = true; next.showBinding = true;
+    });
+    setSelected(null); setTool('select');
+  };
   useEffect(() => {
     const keydown = (event) => {
       if (event.key === 'Escape') { setPolygonDraft([]); setTool('select'); setSelected(null); }
@@ -355,7 +365,7 @@ export default function PlanScreen() {
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
   }, [selected, commitPlan]);
   const toolHint = tool === 'select' ? 'Выберите и перетащите объект. Зелёные точки меняют его форму.' : tool === 'polygon' ? 'Щёлкайте по узлам комнаты и нажмите «Готово».' : tool === 'dimension' ? 'Протяните размер по объекту — линия автоматически вынесется наружу, затем её можно переместить.' : ['window', 'door', 'gap', 'pile'].includes(tool) ? 'Щёлкните место установки. Проёмы прилипнут к ближайшей стене.' : 'Зажмите кнопку мыши и протяните объект.';
-  return <div className="screen plan-screen-v2"><ScreenHeader title="План дома" description="Новый редактор: каждое действие можно выбрать, изменить, удалить и отменить" actions={<><button className="button primary" onClick={newPlan}><Plus />Новый план</button><select className="sketch-select" value={sketchId} onChange={(event) => setSketchId(event.target.value)}>{sketches.map((sketch) => <option key={sketch.id} value={sketch.id}>{sketch.name}</option>)}</select><button className="button secondary" onClick={loadSketch}>Загрузить</button><button className="button secondary" onClick={saveSketch}><Save />В эскизы</button><button className="button ghost" onClick={undo} disabled={!canUndo}><Undo2 />Отменить</button><button className="button ghost" onClick={redo} disabled={!canRedo}><Redo2 />Повторить</button></>} />
+  return <div className="screen plan-screen-v2"><ScreenHeader title="План дома" description="Новый редактор: каждое действие можно выбрать, изменить, удалить и отменить" actions={<><button className="button primary" onClick={newPlan}><Plus />Новый план</button><button className="button secondary auto-piles-button" onClick={autoPiles}><Sparkles />Автосваи</button><select className="sketch-select" value={sketchId} onChange={(event) => setSketchId(event.target.value)}>{sketches.map((sketch) => <option key={sketch.id} value={sketch.id}>{sketch.name}</option>)}</select><button className="button secondary" onClick={loadSketch}>Загрузить</button><button className="button secondary" onClick={saveSketch}><Save />В эскизы</button><button className="button ghost" onClick={undo} disabled={!canUndo}><Undo2 />Отменить</button><button className="button ghost" onClick={redo} disabled={!canRedo}><Redo2 />Повторить</button></>} />
     <div className="plan-status-bar"><div className="plan-house-fields"><NumberField label="Габарит X" value={plan.house.w} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.w = value; })} /><NumberField label="Габарит Y" value={plan.house.h} suffix="м" min={3} onChange={(value) => commitPlan((next) => { next.house.h = value; })} /><NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={(value) => commitPlan((next) => { next.wallHeight = value; })} /></div><div className="plan-view-switches"><Toggle label="Сваи" checked={plan.showPiles !== false} onChange={(value) => commitPlan((next) => { next.showPiles = value; })} /><Toggle label="Обвязка" checked={plan.showBinding !== false} onChange={(value) => commitPlan((next) => { next.showBinding = value; })} /><Toggle label="Размеры" checked={plan.showDimensions !== false} onChange={(value) => commitPlan((next) => { next.showDimensions = value; })} /></div><div className="zoom-controls"><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.max(65, (next.zoom || 100) - 10); })}><ZoomOut /></button><strong>{plan.zoom || 100}%</strong><button className="icon-button" onClick={() => commitPlan((next) => { next.zoom = Math.min(180, (next.zoom || 100) + 10); })}><ZoomIn /></button></div></div>
     <div className="planner-shell"><aside className="planner-tools">{TOOLS.map(([id, label, Icon]) => <button key={id} className={tool === id ? 'active' : ''} title={label} onClick={() => selectTool(id)}><Icon /><span>{label}</span></button>)}{tool === 'polygon' && polygonDraft.length ? <div className="polygon-actions"><button className="active" onClick={finishPolygon} disabled={polygonDraft.length < 3}><Save /><span>Готово</span></button><button onClick={() => setPolygonDraft([])}><X /><span>Сброс</span></button></div> : null}</aside><div className="planner-canvas"><PlanCanvas plan={plan} tool={tool} selected={selected} setSelected={setSelected} commitPlan={commitPlan} polygonDraft={polygonDraft} setPolygonDraft={setPolygonDraft} issues={issues} /><div className="planner-hint">{toolHint}</div></div><aside className="planner-inspector"><Inspector plan={plan} selected={selected} setSelected={setSelected} commitPlan={commitPlan} issues={issues} /></aside></div>
     <div className="stats-row planner-stats"><Stat label="Площадь помещений" value={`${formatNumber(metrics.roomArea)} м²`} /><Stat label="Перегородки без задвоений" value={`${formatNumber(metrics.partitionLength)} м`} /><Stat label="Наружные стены" value={`${formatNumber(metrics.exteriorWallNetArea)} м²`} /><Stat label="Сваи" value={`${foundation.totalPiles} шт`} /><Stat label="Обвязка" value={`${formatNumber(foundation.bindingLength)} м`} /><Stat label="Проверка" value={issues.length ? `${issues.length} ошибок` : 'Стыковка верна'} tone={issues.length ? 'danger' : ''} /></div>
