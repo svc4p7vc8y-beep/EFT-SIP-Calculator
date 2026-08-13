@@ -348,6 +348,21 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .project-summary dt { color:var(--muted); font-size:10px; }
 .project-summary dd { margin:0; font-size:10px; font-weight:700; }
 .estimate-totals { display:grid; grid-template-columns:1fr 1fr 1.25fr; gap:10px; margin-bottom:22px; }
+.commercial-scope { margin:0 0 24px; padding:16px; border:1px solid #cdddc5; border-radius:11px; background:linear-gradient(145deg,#f7faf5,#edf5e8); break-inside:avoid; }
+.commercial-scope>header { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-bottom:12px; }
+.commercial-scope>header span { color:#5f7653; font-size:8px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.commercial-scope>header h2 { margin:3px 0 0; color:#2d5422; font-size:15px; }
+.commercial-scope>header p { max-width:280px; margin:0; color:#657063; font-size:9px; text-align:right; }
+.commercial-scope-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.commercial-scope-item { min-width:0; padding:10px; border:1px solid #d8e4d2; border-radius:8px; background:rgba(255,255,255,.82); break-inside:avoid; }
+.commercial-scope-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.commercial-scope-heading h3 { margin:0; color:#20351c; font-size:10px; line-height:1.35; }
+.commercial-scope-heading strong { color:#477b32; font-size:10px; white-space:nowrap; }
+.commercial-scope-item p { margin:7px 0 3px; color:#263a25; font-size:9px; font-weight:700; line-height:1.4; }
+.commercial-scope-item small { display:block; min-height:25px; color:#697468; font-size:8px; line-height:1.45; }
+.commercial-scope-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+.commercial-scope-tags span { padding:2px 6px; color:#426934; border-radius:999px; background:#e7f1e1; font-size:7px; font-weight:800; }
+.commercial-scope>footer { margin-top:10px; padding-top:9px; color:#586555; border-top:1px solid #d2dfcc; font-size:8px; line-height:1.45; }
 .estimate-section { margin:22px 0; break-inside:avoid; }
 .estimate-section h2 { margin:0 0 8px; padding-bottom:7px; color:var(--green-dark); border-bottom:1px solid var(--line); font-size:13px; }
 .estimate-footer { display:flex; justify-content:space-between; gap:30px; align-items:flex-end; margin-top:25px; padding-top:18px; border-top:3px solid var(--green); }
@@ -438,6 +453,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .screen-header { flex-direction:column; gap:12px; }
   .screen-actions { width:100%; flex-wrap:wrap; }
   .two-column-layout,.project-summary { grid-template-columns:1fr; }
+  .commercial-scope-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .plan-workbench { height:auto; min-height:740px; grid-template-columns:1fr; grid-template-rows:54px 560px auto; overflow:visible; }
   .plan-status-bar { grid-template-columns:1fr; }
   .plan-house-fields { grid-template-columns:repeat(3,minmax(0,1fr)); }
@@ -473,6 +489,9 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .print-title { flex-direction:column; gap:16px; }
   .print-title>div:last-child { text-align:left; }
   .project-summary dl div { grid-template-columns:120px 1fr; }
+  .commercial-scope>header { align-items:flex-start; flex-direction:column; gap:5px; }
+  .commercial-scope>header p { text-align:left; }
+  .commercial-scope-grid { grid-template-columns:1fr; }
 }
 
 @media print {
@@ -484,6 +503,18 @@ button:disabled { cursor:not-allowed; opacity:.42; }
   .print-title { padding-bottom:10px; }
   .project-summary { padding:10px 0; gap:15px; }
   .estimate-totals { margin-bottom:12px; }
+  .commercial-scope { margin-bottom:12px; padding:8px; border-radius:5px; background:#f4f8f1!important; }
+  .commercial-scope>header { margin-bottom:7px; }
+  .commercial-scope>header h2 { font-size:11pt; }
+  .commercial-scope>header p { font-size:7pt; }
+  .commercial-scope-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
+  .commercial-scope-item { padding:5px; border-radius:3px; }
+  .commercial-scope-heading h3,.commercial-scope-heading strong { font-size:7.2pt; }
+  .commercial-scope-item p { margin:3px 0 1px; font-size:6.8pt; }
+  .commercial-scope-item small { min-height:0; font-size:6pt; }
+  .commercial-scope-tags { margin-top:3px; }
+  .commercial-scope-tags span { padding:1px 4px; font-size:5.5pt; }
+  .commercial-scope>footer { margin-top:5px; padding-top:4px; font-size:6pt; }
   .estimate-section { margin:12px 0; }
   .data-table { min-width:0; font-size:7.5pt; }
   .data-table th,.data-table td { padding:4px 5px; }

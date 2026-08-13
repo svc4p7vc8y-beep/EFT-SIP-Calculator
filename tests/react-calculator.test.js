@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
+import { buildCommercialScope } from '../src/react/calculations/commercial-scope.js';
 import { calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 
@@ -13,6 +14,32 @@ test('React project produces a priced estimate from one shared model', () => {
   assert.ok(result.totals.materials > 0);
   assert.ok(result.totals.labor > 0);
   assert.equal(result.totals.total, result.totals.materials + result.totals.labor);
+});
+
+test('commercial proposal lists only priced sections and explains their scope', () => {
+  const project = createDefaultProject();
+  project.services.engineeringElectric = true;
+  project.services.internalFinish = false;
+  const calculation = calculateProject(project);
+  const scope = buildCommercialScope(project, calculation);
+  const foundation = scope.find((item) => item.key === 'foundation');
+  const engineering = scope.find((item) => item.key === 'engineering');
+
+  assert.match(foundation.summary, new RegExp(`^${calculation.foundation.totalPiles} сва`));
+  assert.deepEqual(foundation.coverage, ['Материалы', 'Работы']);
+  assert.match(foundation.total, /₽/);
+  assert.match(engineering.summary, /электрика/);
+  assert.equal(scope.some((item) => item.key === 'internal'), false);
+});
+
+test('commercial proposal follows project estimate edits instead of promising removed sections', () => {
+  const project = createDefaultProject();
+  project.services.openings = false;
+  project.services.delivery = false;
+  const scope = buildCommercialScope(project, calculateProject(project));
+
+  assert.equal(scope.some((item) => item.key === 'openings'), false);
+  assert.equal(scope.some((item) => item.key === 'delivery'), false);
 });
 
 test('warm main roof and terrace roofs are cut only in the roof section', () => {
