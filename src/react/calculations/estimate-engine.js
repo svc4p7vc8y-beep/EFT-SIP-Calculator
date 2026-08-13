@@ -45,6 +45,34 @@ function compact(lines) {
   return lines.filter(Boolean);
 }
 
+function applyProjectEstimateEdits(project, sections) {
+  const overrides = new Map((project.estimateOverrides || []).map((item) => [item.lineId, item]));
+  const customBySection = new Map();
+  (project.customEstimateLines || []).forEach((line) => {
+    if (!customBySection.has(line.section)) customBySection.set(line.section, []);
+    customBySection.get(line.section).push({
+      ...line,
+      custom: true,
+      qty: Math.max(0, Number(line.qty) || 0),
+      price: Math.max(0, Number(line.price) || 0),
+      kind: line.kind === 'labor' ? 'labor' : 'material'
+    });
+  });
+  return sections.map((section) => {
+    const generated = section.lines.flatMap((line) => {
+      const override = overrides.get(line.id);
+      if (override?.excluded) return [];
+      if (!override) return [line];
+      return [{
+        ...line,
+        ...Object.fromEntries(['name', 'kind', 'unit', 'qty', 'price'].filter((key) => override[key] !== undefined).map((key) => [key, override[key]])),
+        projectOverride: true
+      }];
+    });
+    return { ...section, lines: [...generated, ...(customBySection.get(section.key) || [])] };
+  });
+}
+
 function sipPanelName(thickness) {
   return `СИП-панель 2500×1250×${thickness} мм`;
 }
@@ -112,7 +140,7 @@ function foundationSection(project, index, inputs) {
       makeLine(index, 'foundation', 'Монтаж обвязки', count, { key: 'binding-work', kind: 'labor' }),
       makeLine(index, 'foundation', 'Доска ест. влажн. сосна 50х150мм', foundation.boardVolume, { key: 'binding-board', unit: 'м³', digits: 3 }),
       makeLine(index, 'foundation', 'Саморезы 6х120', count * inputs.formulas.pileScrewKg, { key: 'binding-screws', unit: 'кг' }),
-      makeLine(index, 'foundation', 'Уголок металлический крепёжный', count * inputs.formulas.pileCorners, { key: 'binding-corners', unit: 'шт' })
+      makeLine(index, 'foundation', 'Глухари', count * inputs.formulas.pileLagScrews, { key: 'binding-lag-screws', unit: 'шт', name: 'Глухари для крепления обвязки' })
     ])
   };
 }
@@ -350,7 +378,7 @@ export function calculateProject(project) {
   const engineering = engineeringSection(project, index, inputs);
   const finishes = finishSections(project, index, inputs);
   const delivery = deliverySection(project, index, inputs);
-  const sections = [
+  const sections = applyProjectEstimateEdits(project, [
     { key: 'foundation', title: 'Свайно-винтовой фундамент и обвязка', lines: foundation.lines },
     { key: 'sip', title: 'СИП-конструкции и перегородки', lines: sip.lines },
     { key: 'roof', title: 'Кровля и фронтоны', lines: roof.lines },
@@ -360,7 +388,7 @@ export function calculateProject(project) {
     { key: 'internal', title: 'Внутренняя отделка', lines: finishes.internalLines },
     { key: 'external', title: 'Наружная отделка', lines: finishes.externalLines },
     { key: 'delivery', title: 'Доставка и логистика', lines: delivery.lines }
-  ].filter((section) => section.lines.length);
+  ]).filter((section) => section.lines.length || (project.estimateOverrides || []).some((item) => item.section === section.key));
   const lines = sections.flatMap((section) => section.lines);
   const totals = lines.reduce((acc, line) => {
     const sum = line.qty * line.price;

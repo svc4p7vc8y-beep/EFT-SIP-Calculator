@@ -6,6 +6,7 @@ import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import {
   NumberField,
   Panel,
+  EditableEstimateTable,
   PreviewTable,
   ScreenHeader,
   SelectField,
@@ -13,6 +14,13 @@ import {
   Toggle,
 } from "../components/ui.jsx";
 import { formatNumber } from "../utils/format.js";
+import {
+  addEstimateLine,
+  changeEstimateLine,
+  removeEstimateLine,
+  resetEstimateLine,
+  resetEstimateSection,
+} from "../state/estimate-edits.js";
 
 const TITLES = {
   piles: [
@@ -47,8 +55,48 @@ const TITLES = {
 };
 
 function SectionResult({ calculation, sectionKey }) {
+  const { project, commit } = useProject();
   const section = calculation.sections.find((item) => item.key === sectionKey);
-  return <PreviewTable lines={section?.lines || []} />;
+  const lines = section?.lines || [];
+  const hiddenCount = (project.estimateOverrides || []).filter(
+    (item) => item.section === sectionKey && item.excluded,
+  ).length;
+  return (
+    <EditableEstimateTable
+      lines={lines}
+      hiddenCount={hiddenCount}
+      onChangeLine={(line, changes) =>
+        commit((next) => {
+          changeEstimateLine(next, line, changes);
+          return next;
+        })
+      }
+      onRemoveLine={(line) =>
+        commit((next) => {
+          removeEstimateLine(next, line);
+          return next;
+        })
+      }
+      onResetLine={(line) =>
+        commit((next) => {
+          resetEstimateLine(next, line.id);
+          return next;
+        })
+      }
+      onAddLine={() =>
+        commit((next) => {
+          addEstimateLine(next, sectionKey);
+          return next;
+        })
+      }
+      onResetSection={() =>
+        commit((next) => {
+          resetEstimateSection(next, sectionKey);
+          return next;
+        })
+      }
+    />
+  );
 }
 
 function RoofConstructionPanels({

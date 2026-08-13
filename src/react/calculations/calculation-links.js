@@ -37,7 +37,7 @@ export const DEFAULT_FORMULAS = {
   spiralPackPerPanels: 35,
   pileConcreteM3: 0.01333,
   pileScrewKg: 0.12,
-  pileCorners: 2,
+  pileLagScrews: 4,
   rafterLinearMPerM2: 2.456,
   gableBoardM3PerM2: 0.015,
   lathM3PerM2: 0.00655,

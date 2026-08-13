@@ -260,11 +260,38 @@ test('automatic links can be disabled and formulas are editable project data', (
   const project = createDefaultProject();
   project.settings.links.roofRidgeFromPlan = false;
   project.settings.roof.ridgeLength = 7.25;
-  project.settings.formulas.pileCorners = 4;
+  project.settings.formulas.pileLagScrews = 6;
   const calculation = calculateProject(project);
   assert.equal(calculation.inputs.roof.ridgeLength, 7.25);
-  const corners = calculation.lines.find((line) => line.id === 'foundation:binding-corners');
-  assert.equal(corners.qty, calculation.foundation.totalPiles * 4);
+  const lagScrews = calculation.lines.find((line) => line.id === 'foundation:binding-lag-screws');
+  assert.equal(lagScrews.qty, calculation.foundation.totalPiles * 6);
+  assert.equal(lagScrews.catalogId, 'MAT-069');
+  assert.equal(calculation.lines.some((line) => /Уголок металлический/.test(line.name)), false);
+});
+
+test('project estimate overrides do not change the price list and can be reset', () => {
+  const project = createDefaultProject();
+  const base = calculateProject(project);
+  const pileLine = base.lines.find((line) => line.id === 'foundation:piles');
+  const catalogPrice = project.priceMat.find((item) => item.id === pileLine.catalogId).price;
+  project.estimateOverrides = [{ lineId: pileLine.id, section: 'foundation', price: catalogPrice + 123 }];
+  const overridden = calculateProject(project).lines.find((line) => line.id === pileLine.id);
+  assert.equal(overridden.price, catalogPrice + 123);
+  assert.equal(overridden.projectOverride, true);
+  assert.equal(project.priceMat.find((item) => item.id === pileLine.catalogId).price, catalogPrice);
+  project.estimateOverrides = [];
+  assert.equal(calculateProject(project).lines.find((line) => line.id === pileLine.id).price, catalogPrice);
+});
+
+test('price-list changes reach non-overridden estimate lines while custom project rows join the estimate', () => {
+  const project = createDefaultProject();
+  const base = calculateProject(project).lines.find((line) => line.id === 'foundation:piles');
+  project.priceMat.find((item) => item.id === base.catalogId).price += 500;
+  project.customEstimateLines = [{ id: 'custom-foundation-test', section: 'foundation', name: 'Проектная позиция', kind: 'material', unit: 'шт', qty: 3, price: 120, source: 'project-custom', custom: true }];
+  const calculation = calculateProject(project);
+  assert.equal(calculation.lines.find((line) => line.id === base.id).price, base.price + 500);
+  assert.ok(calculation.sections.find((section) => section.key === 'foundation').lines.some((line) => line.id === 'custom-foundation-test'));
+  assert.ok(calculation.totals.materials >= 360);
 });
 
 test('every default estimate line resolves to a priced catalog item', () => {

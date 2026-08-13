@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { formatMoney, formatNumber } from '../utils/format.js';
 
 export function Field({ label, hint, children, className = '' }) {
@@ -51,3 +52,29 @@ export const PreviewTable = memo(function PreviewTable({ lines, empty = 'Нет 
     </div>
   );
 });
+
+export function EditableEstimateTable({ lines, empty = 'Нет позиций для расчёта', onChangeLine, onRemoveLine, onResetLine, onAddLine, onResetSection, hiddenCount = 0 }) {
+  const total = (lines || []).reduce((sum, line) => sum + line.qty * line.price, 0);
+  const changed = hiddenCount > 0 || (lines || []).some((line) => line.custom || line.projectOverride);
+  return <div className="estimate-editor">
+    <div className="estimate-editor-toolbar no-print">
+      <div><strong>Ведомость текущего проекта</strong><span>Правки не изменяют общий прайс-лист</span></div>
+      <div><button className="button secondary compact-button" onClick={onAddLine}><Plus />Добавить позицию</button>{changed ? <button className="button secondary compact-button" onClick={onResetSection}><RotateCcw />Сбросить правки{hiddenCount ? ` · скрыто ${hiddenCount}` : ''}</button> : null}</div>
+    </div>
+    {!lines?.length ? <div className="empty-state">{empty}</div> : <div className="table-wrap">
+      <table className="data-table editable-estimate-table">
+        <thead><tr><th>Номенклатура</th><th>Вид</th><th>Ед.</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th className="no-print">Действия</th></tr></thead>
+        <tbody>{lines.map((line) => <tr key={line.id} className={line.custom ? 'custom-estimate-line' : line.projectOverride ? 'overridden-estimate-line' : ''}>
+          <td><input className="estimate-cell-input no-print" aria-label={`Наименование: ${line.name}`} value={line.name} onChange={(event) => onChangeLine(line, { name: event.target.value })} /><span className="print-only">{line.name}</span></td>
+          <td><select className="estimate-cell-input no-print" aria-label={`Вид: ${line.name}`} value={line.kind} onChange={(event) => onChangeLine(line, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select><span className={`kind ${line.kind} print-only`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td>
+          <td><input className="estimate-cell-input unit-input no-print" aria-label={`Единица: ${line.name}`} value={line.unit} onChange={(event) => onChangeLine(line, { unit: event.target.value })} /><span className="print-only">{line.unit}</span></td>
+          <td><input className="estimate-cell-input number-input no-print" type="number" min="0" step="0.01" aria-label={`Количество: ${line.name}`} value={line.qty} onChange={(event) => onChangeLine(line, { qty: Number(event.target.value) })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
+          <td><input className="estimate-cell-input number-input no-print" type="number" min="0" step="1" aria-label={`Цена: ${line.name}`} value={line.price} onChange={(event) => onChangeLine(line, { price: Number(event.target.value) })} /><span className="print-only">{formatMoney(line.price)}</span></td>
+          <td>{formatMoney(line.qty * line.price)}</td>
+          <td className="estimate-row-actions no-print">{line.projectOverride ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>
+        </tr>)}</tbody>
+        <tfoot><tr><td colSpan="5">Итого раздела</td><td>{formatMoney(total)}</td><td className="no-print" /></tr></tfoot>
+      </table>
+    </div>}
+  </div>;
+}

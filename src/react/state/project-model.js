@@ -2,7 +2,7 @@ import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 
-export const REACT_PROJECT_VERSION = 53;
+export const REACT_PROJECT_VERSION = 54;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -134,7 +134,8 @@ export function createDefaultProject() {
     },
     priceMat: clone(catalog.priceMat),
     priceLab: clone(catalog.priceLab),
-    estimateOverrides: []
+    estimateOverrides: [],
+    customEstimateLines: []
   };
 }
 
@@ -200,7 +201,8 @@ export function migrateProject(raw) {
     },
     priceMat: normalizeCatalog(raw.priceMat, base.priceMat, upgradeFrameCatalog),
     priceLab: normalizeCatalog(raw.priceLab, base.priceLab),
-    estimateOverrides: Array.isArray(raw.estimateOverrides) ? raw.estimateOverrides : []
+    estimateOverrides: Array.isArray(raw.estimateOverrides) ? raw.estimateOverrides : [],
+    customEstimateLines: Array.isArray(raw.customEstimateLines) ? raw.customEstimateLines : []
   };
 }
 
