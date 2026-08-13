@@ -186,12 +186,13 @@ function openingSection(project, index) {
   project.plan.openings.forEach((opening, openingIndex) => {
     const width = Math.round((opening.width || 0.8) * 1000);
     const height = Math.round((opening.height || 2) * 1000);
-    const type = opening.type === 'window' ? 'Окно' : opening.doorType === 'interior' ? 'Комплект межкомнатной двери' : 'Дверь входная';
+    const garage = opening.type === 'door' && opening.doorType === 'garage';
+    const type = opening.type === 'window' ? 'Окно' : garage ? 'Гаражные ворота' : opening.doorType === 'interior' ? 'Комплект межкомнатной двери' : 'Дверь входная';
     const item = findCatalog(index, `${type} ${width}`) || findCatalog(index, type);
     lines.push(makeLine(index, 'openings', item?.name || `${type} ${width}×${height}`, 1, { key: `opening-${openingIndex}`, name: item?.name || `${type} ${width}×${height} мм`, unit: 'шт' }));
-    const work = opening.type === 'window' ? 'Монтаж окна' : opening.doorType === 'interior' ? 'Установка межкомнатной двери' : 'Монтаж двери';
+    const work = opening.type === 'window' ? 'Монтаж окна' : garage ? 'Монтаж гаражных ворот' : opening.doorType === 'interior' ? 'Установка межкомнатной двери' : 'Монтаж двери';
     lines.push(makeLine(index, 'openings', work, opening.type === 'window' ? opening.width * opening.height : 1, { key: `work-${openingIndex}`, kind: 'labor' }));
-    lines.push(makeLine(index, 'openings', 'Комплект крепежа для монтажа окна / двери', 1, { key: `fastener-${openingIndex}`, unit: 'компл' }));
+    if (!garage) lines.push(makeLine(index, 'openings', 'Комплект крепежа для монтажа окна / двери', 1, { key: `fastener-${openingIndex}`, unit: 'компл' }));
   });
   return { lines: compact(lines) };
 }

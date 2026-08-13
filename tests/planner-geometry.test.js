@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, movePoints, nearestSegment,
-  pileRowAlignment, planIssues, rectanglePoints, snapPoint, unifiedWallSegments
+  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, snapPoint, unifiedWallSegments
 } from '../src/react/planner/geometry.js';
 
 const room = (id, name, x1, y1, x2, y2) => ({
@@ -20,6 +20,18 @@ test('adjacent room walls are merged into one shared wall', () => {
   assert.equal(shared[0].start, 0.174);
   assert.equal(shared[0].end, 7.826);
   assert.equal(walls.length, 1, 'outer room edges are provided by the exterior wall');
+});
+
+test('room faces drawn on the outside wall do not become duplicate partitions', () => {
+  const plan = {
+    house: { w: 10, h: 8 }, wallThickness: 0.174,
+    rooms: [room('a', 'A', 0, 0, 5, 8), room('b', 'B', 5, 0, 10, 8)], walls: []
+  };
+  const walls = unifiedWallSegments(plan);
+  assert.equal(walls.length, 1);
+  assert.equal(walls[0].axis, 'v');
+  assert.equal(walls[0].fixed, 5);
+  assert.equal(walls[0].end - walls[0].start, 8);
 });
 
 test('room movement can stage a room outside the house and still snaps to the grid', () => {
@@ -54,6 +66,27 @@ test('opening placement selects the closest shared or outside wall', () => {
   assert.equal(inside.fixed, 5);
   assert.equal(outside.outer, true);
   assert.equal(outside.fixed, 10);
+});
+
+test('windows and doors move to walls while garage gates stay on the outside contour', () => {
+  const plan = {
+    house: { w: 10, h: 8 }, wallThickness: 0.174,
+    rooms: [room('a', 'A', 0.174, 0.174, 5, 7.826), room('b', 'B', 5, 0.174, 9.826, 7.826)], walls: []
+  };
+  const movedDoor = projectOpeningToWall({ type: 'door', doorType: 'entrance', width: 0.9 }, { x: 5.08, y: 4 }, plan);
+  assert.equal(movedDoor.x, 5);
+  assert.equal(movedDoor.outer, false);
+  assert.equal(movedDoor.doorType, 'interior');
+  const movedWindow = projectOpeningToWall({ type: 'window', width: 1.2 }, { x: 9.9, y: 3 }, plan);
+  assert.equal(movedWindow.x, 10);
+  assert.equal(movedWindow.outer, true);
+  const garage = projectOpeningToWall({ type: 'door', doorType: 'garage', width: 2.5 }, { x: 5, y: 4 }, plan, { lockDoorType: true });
+  assert.equal(garage.outer, true);
+  assert.equal(garage.orientation, 'h');
+  assert.equal(garage.y, 0);
+  assert.equal(garage.doorType, 'garage');
+  const cornerGarage = projectOpeningToWall({ type: 'door', doorType: 'garage', width: 2.5 }, { x: 0.1, y: 0 }, plan, { lockDoorType: true });
+  assert.equal(cornerGarage.x, 1.25, 'the full gate stays inside its wall segment');
 });
 
 test('plan diagnostics marks overlaps and rooms outside the house', () => {

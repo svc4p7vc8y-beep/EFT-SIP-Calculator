@@ -3,10 +3,11 @@ import { Download, Plus, RotateCcw, Search, Trash2, Upload } from 'lucide-react'
 import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { Panel, ScreenHeader, Stat } from '../components/ui.jsx';
 import { useProject } from '../state/ProjectContext.jsx';
+import { REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney, uid } from '../utils/format.js';
 
 function downloadCatalog(project) {
-  const blob = new Blob([JSON.stringify({ format: 'eft-price-catalog', appVersion: 46, priceMat: project.priceMat, priceLab: project.priceLab }, null, 2)], { type: 'application/json;charset=utf-8' });
+  const blob = new Blob([JSON.stringify({ format: 'eft-price-catalog', appVersion: REACT_PROJECT_VERSION, priceMat: project.priceMat, priceLab: project.priceLab }, null, 2)], { type: 'application/json;charset=utf-8' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = 'Прайс-лист_ЭФТ.json';

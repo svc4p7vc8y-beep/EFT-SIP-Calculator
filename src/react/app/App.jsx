@@ -103,7 +103,8 @@ export function App() {
       <header className="app-header">
         <div className="brand">
           <img src="./icons/eft-logo.png" alt="Логотип ЭФТ" />
-          <div><strong>ЭнергоЭффективные Технологии</strong><span>React-конструктор СИП-домов · v{REACT_PROJECT_VERSION} · новый план</span></div>
+          <div><strong>ЭнергоЭффективные Технологии</strong><span>React-конструктор СИП-домов</span></div>
+          <span className="version-badge">Версия {REACT_PROJECT_VERSION}</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div><span>Материалы</span><strong>{formatMoney(calculation.totals.materials)}</strong></div>

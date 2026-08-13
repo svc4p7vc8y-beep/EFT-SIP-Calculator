@@ -16,6 +16,24 @@ test('shared and partially overlapping room walls count once', () => {
   assert.equal(metrics.partitionLength, 12.4);
 });
 
+test('room faces and drawn lines along the outside wall are not partitions', () => {
+  const plan = {
+    house: { w: 10, h: 8 }, wallThickness: 0.174, wallHeight: 2.5,
+    rooms: [
+      { x: 0, y: 0, w: 5, h: 8 },
+      { x: 5, y: 0, w: 5, h: 8 }
+    ],
+    walls: [
+      { x1: 0, y1: 0, x2: 10, y2: 0 },
+      { x1: 5, y1: 0, x2: 5, y2: 8 }
+    ],
+    openings: []
+  };
+  const metrics = calculatePlanMetrics(plan);
+  assert.equal(metrics.partitionLength, 8);
+  assert.equal(metrics.partitionGrossArea, 20);
+});
+
 test('outer openings reduce exterior walls and interior doors reduce partitions', () => {
   const plan = {
     house: { w: 6, h: 4 }, wallThickness: 0.2, wallHeight: 2.5,

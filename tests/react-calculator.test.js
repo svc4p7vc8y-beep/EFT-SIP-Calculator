@@ -62,6 +62,18 @@ test('SIP floor and ceiling cover an empty house without drawn rooms', () => {
   assert.equal(result.sip.cutting.find((row) => row.key === 'ceiling').area, 80);
 });
 
+test('garage gates from the plan reach the openings estimate as their own item', () => {
+  const project = createDefaultProject();
+  project.plan.openings.push({ id: 'garage-1', type: 'door', doorType: 'garage', width: 2.5, height: 2.2, x: 4, y: 0, orientation: 'h', outer: true });
+  const result = calculateProject(project);
+  const gate = result.lines.find((line) => line.id === 'openings:opening-1');
+  const work = result.lines.find((line) => line.id === 'openings:work-1');
+  assert.equal(gate.catalogId, 'MAT-189');
+  assert.equal(work.catalogId, 'LAB-110');
+  assert.match(gate.name, /Гаражные ворота/);
+  assert.equal(result.lines.some((line) => line.id === 'openings:fastener-1'), false);
+});
+
 test('second light moves room area from SIP ceiling to insulated rafters', () => {
   const project = createDefaultProject();
   const room = project.plan.rooms[0];
@@ -113,11 +125,13 @@ test('known empty starter rates are repaired from the current catalog', () => {
 
 test('new catalog rows are added to an older saved project', () => {
   const project = createDefaultProject();
-  project.priceLab = project.priceLab.filter((item) => item.id !== 'LAB-108');
-  project.priceMat = project.priceMat.filter((item) => item.id !== 'MAT-187');
+  project.priceLab = project.priceLab.filter((item) => !['LAB-108', 'LAB-110'].includes(item.id));
+  project.priceMat = project.priceMat.filter((item) => !['MAT-187', 'MAT-189'].includes(item.id));
   const restored = migrateProject(project);
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-108').price, 1500);
+  assert.equal(restored.priceLab.find((item) => item.id === 'LAB-110').price, 0);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-187').price, 587);
+  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-189').price, 0);
 });
 
 test('plan geometry drives roof, engineering, finishing and delivery inputs', () => {

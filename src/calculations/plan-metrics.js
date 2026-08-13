@@ -41,12 +41,17 @@ const openingArea = (opening) => Math.max(0, Number(opening.width) || 0) * Math.
 
 const isOuterEdge = (a, b, plan, tolerance) => {
   const wall = Number(plan.wallThickness) || 0.174;
-  const inner = { left: wall, top: wall, right: plan.house.w - wall, bottom: plan.house.h - wall };
+  const width = Number(plan.house.w) || 0;
+  const height = Number(plan.house.h) || 0;
+  const vertical = Math.abs(a.x - b.x) <= tolerance;
+  const horizontal = Math.abs(a.y - b.y) <= tolerance;
+  const inLeftWall = a.x >= -tolerance && b.x >= -tolerance && a.x <= wall + tolerance && b.x <= wall + tolerance;
+  const inRightWall = a.x >= width - wall - tolerance && b.x >= width - wall - tolerance && a.x <= width + tolerance && b.x <= width + tolerance;
+  const inTopWall = a.y >= -tolerance && b.y >= -tolerance && a.y <= wall + tolerance && b.y <= wall + tolerance;
+  const inBottomWall = a.y >= height - wall - tolerance && b.y >= height - wall - tolerance && a.y <= height + tolerance && b.y <= height + tolerance;
   return (
-    (Math.abs(a.x - inner.left) <= tolerance && Math.abs(b.x - inner.left) <= tolerance) ||
-    (Math.abs(a.x - inner.right) <= tolerance && Math.abs(b.x - inner.right) <= tolerance) ||
-    (Math.abs(a.y - inner.top) <= tolerance && Math.abs(b.y - inner.top) <= tolerance) ||
-    (Math.abs(a.y - inner.bottom) <= tolerance && Math.abs(b.y - inner.bottom) <= tolerance)
+    (vertical && (inLeftWall || inRightWall)) ||
+    (horizontal && (inTopWall || inBottomWall))
   );
 };
 
@@ -103,8 +108,7 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
   });
   (plan.walls || []).forEach((wall) => addSegment(
     { x: wall.x1, y: wall.y1 },
-    { x: wall.x2, y: wall.y2 },
-    true
+    { x: wall.x2, y: wall.y2 }
   ));
 
   let partitionLength = 0;

@@ -125,6 +125,8 @@ const axialSegment = (a, b, source = {}) => {
 
 export function roomWallSegments(plan) {
   const wall = Number(plan.wallThickness) || 0.174;
+  const width = Number(plan.house?.w) || 0;
+  const height = Number(plan.house?.h) || 0;
   const segments = [];
   for (const room of plan.rooms || []) {
     const points = roomPoints(room);
@@ -132,9 +134,9 @@ export function roomWallSegments(plan) {
       const next = points[(index + 1) % points.length];
       const segment = axialSegment(point, next, { roomId: room.id });
       const outerFace = segment.axis === 'v'
-        ? Math.abs(segment.fixed - wall) <= EPS || Math.abs(segment.fixed - (plan.house.w - wall)) <= EPS
+        ? (segment.fixed >= -EPS && segment.fixed <= wall + EPS) || (segment.fixed >= width - wall - EPS && segment.fixed <= width + EPS)
         : segment.axis === 'h'
-          ? Math.abs(segment.fixed - wall) <= EPS || Math.abs(segment.fixed - (plan.house.h - wall)) <= EPS
+          ? (segment.fixed >= -EPS && segment.fixed <= wall + EPS) || (segment.fixed >= height - wall - EPS && segment.fixed <= height + EPS)
           : false;
       if (!outerFace) segments.push(segment);
     });
@@ -185,6 +187,34 @@ export function nearestSegment(point, segments) {
     if (!best || distance < best.distance) best = { ...segment, projected, distance };
   }
   return best;
+}
+
+export function projectOpeningToWall(opening, point, plan, options = {}) {
+  const lockDoorType = options.lockDoorType === true;
+  const isDoor = opening?.type === 'door';
+  const doorType = opening?.doorType;
+  let segments = allOpeningSegments(plan);
+  if (isDoor && (doorType === 'garage' || (lockDoorType && doorType === 'entrance'))) {
+    segments = segments.filter((segment) => segment.outer);
+  } else if (isDoor && lockDoorType && doorType === 'interior') {
+    segments = segments.filter((segment) => !segment.outer);
+  }
+  const segment = nearestSegment(point, segments);
+  if (!segment) return { ...opening };
+  const halfWidth = Math.min(Math.max(0, Number(opening?.width) || 0) / 2, Math.max(0, segment.end - segment.start) / 2);
+  const projected = Math.max(segment.start + halfWidth, Math.min(segment.end - halfWidth, segment.projected));
+  const result = {
+    ...opening,
+    orientation: segment.axis,
+    outer: segment.outer,
+    x: segment.axis === 'v' ? segment.fixed : projected,
+    y: segment.axis === 'v' ? projected : segment.fixed
+  };
+  if (isDoor) {
+    if (doorType === 'garage') result.doorType = 'garage';
+    else if (!lockDoorType) result.doorType = segment.outer ? 'entrance' : 'interior';
+  }
+  return result;
 }
 
 const pointOnBoundary = (point, polygon) => polygon.some((a, index) => {

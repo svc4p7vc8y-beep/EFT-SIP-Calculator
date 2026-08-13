@@ -14,6 +14,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .brand div { display:flex; flex-direction:column; gap:3px; }
 .brand strong { font-size:14px; }
 .brand span { color:var(--muted); font-size:11px; }
+.brand>.version-badge { display:inline-flex; align-items:center; min-height:24px; padding:3px 8px; color:#fff; border-radius:999px; background:var(--green); font-size:10px; font-weight:800; white-space:nowrap; }
 .header-totals { margin-left:auto; display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--panel); }
 .header-totals div { min-width:118px; padding:9px 14px; border-right:1px solid var(--line); display:flex; flex-direction:column; }
 .header-totals div:last-child { border:0; }
@@ -125,6 +126,9 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .room-fill.invalid { fill:rgba(255,208,208,.58); }
 .room-fill.open-rafter { fill:rgba(220,239,250,.68); }
 .room-fill.open-rafter.selected { fill:rgba(190,226,244,.78); }
+.selected-room-overlay { pointer-events:none; }
+.selected-room-outline { fill:none; stroke:#69aa3f; stroke-width:4; stroke-dasharray:9 4; vector-effect:non-scaling-stroke; pointer-events:none; }
+.selected-room-handle { pointer-events:all; }
 .room-dimensions { fill:#708075; font-size:8px; text-anchor:middle; pointer-events:none; }
 .room-ceiling-mode { fill:#24708d; font-size:8px; font-weight:800; text-anchor:middle; pointer-events:none; }
 .unified-wall,.standalone-wall { stroke:var(--planner-wall); stroke-width:6; stroke-linecap:square; vector-effect:non-scaling-stroke; }
@@ -188,10 +192,14 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .opening-cut { stroke:#fff; stroke-width:12; vector-effect:non-scaling-stroke; }
 .opening { fill:none; stroke:#00aeca; stroke-width:6; vector-effect:non-scaling-stroke; }
 .opening.door { stroke:#10a8c1; }
+.opening.garage { stroke:#2679a5; stroke-width:8; }
+.opening-hit { fill:transparent; stroke:none; cursor:move; pointer-events:all; }
+.planner-object:hover>.opening { stroke:#e49e2f; }
 .selected-opening .opening { stroke:#e49e2f; stroke-width:6; }
 .opening-tag { fill:#16abc5; stroke:#16abc5; stroke-width:.035; }
 .door-swing { fill:none; stroke:#008ba3; stroke-width:3; vector-effect:non-scaling-stroke; pointer-events:none; }
 .door-swing path { opacity:.9; }
+.garage-gate { fill:none; stroke:#2679a5; stroke-width:2; vector-effect:non-scaling-stroke; pointer-events:none; }
 .pile-guide { stroke:#e3a643; stroke-width:2; stroke-dasharray:7 5; opacity:.85; vector-effect:non-scaling-stroke; }
 .pile-guide.axis-aligned { stroke:#4f9636; }
 .pile-guide.axis-warning { stroke:#d7493e; stroke-width:3; opacity:1; }

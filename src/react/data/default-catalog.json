@@ -1,5 +1,5 @@
 {
-  "appVersion": 46,
+  "appVersion": 48,
   "format": "eft-price-catalog",
   "priceLab": [
     {
@@ -793,6 +793,14 @@
       "name": "Монтаж настила террасы",
       "price": 1200,
       "unit": "м2"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "LAB-110",
+      "kind": "labor",
+      "name": "Монтаж гаражных ворот",
+      "price": 0,
+      "unit": "компл"
     }
   ],
   "priceMat": [
@@ -2195,6 +2203,14 @@
       "name": "Унитаз с бачком",
       "price": 15000,
       "unit": "шт"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "MAT-189",
+      "kind": "material",
+      "name": "Гаражные ворота по индивидуальному размеру",
+      "price": 0,
+      "unit": "компл"
     }
   ],
   "priceMode": "reference",
