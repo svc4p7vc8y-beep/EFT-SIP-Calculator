@@ -201,6 +201,7 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .zoom-controls { display:flex; align-items:center; gap:7px; }
 .zoom-controls strong { min-width:42px; color:var(--ink); font-size:10px; text-align:center; }
 .planner-shell { height:720px; display:grid; grid-template-columns:112px minmax(0,1fr) 380px; overflow:hidden; border:1px solid #dce4dc; border-radius:12px; background:#fff; box-shadow:var(--shadow); }
+.mobile-plan-editor-only,.mobile-plan-commandbar { display:none!important; }
 .planner-shell,.planner-shell * { user-select:none; -webkit-user-select:none; }
 .planner-inspector input,.planner-inspector select { user-select:text; -webkit-user-select:text; }
 .auto-piles-button { color:#8b5b12; border-color:#e1c890; background:#fff9e9; }
