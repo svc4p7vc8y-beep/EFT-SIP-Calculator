@@ -255,6 +255,10 @@ function RoofPlanOverlay({ plan, roof, p }) {
     return <line key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
   });
   const corners = roofRect;
+  const hipConnections = vertical
+    ? [[corners[0], ridge[0]], [corners[1], ridge[0]], [corners[2], ridge[1]], [corners[3], ridge[1]]]
+    : [[corners[0], ridge[0]], [corners[3], ridge[0]], [corners[1], ridge[1]], [corners[2], ridge[1]]];
+  const caption = p(centerX, y1);
   return <g className={`roof-plan-overlay roof-${shape}`} aria-label="План кровли сверху">
     {roof.showRoofCover !== false ? <polygon className="roof-cover-plane" points={roofRect.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
     {roof.showMauerlat !== false ? <polygon className="roof-mauerlat" points={contour.map((point) => { const q = p(point.x, point.y); return `${q.x},${q.y}`; }).join(' ')} /> : null}
@@ -262,9 +266,9 @@ function RoofPlanOverlay({ plan, roof, p }) {
     {roof.showCounterLath === true ? <g className="roof-counter-lath">{rafters}</g> : null}
     {roof.showLath !== false ? <g className="roof-lath">{laths}</g> : null}
     {shape !== 'flat' ? <line className="roof-ridge" x1={ridge[0].x} y1={ridge[0].y} x2={ridge[1].x} y2={ridge[1].y} /> : null}
-    {shape === 'hip' ? <g className="roof-hips"><line x1={corners[0].x} y1={corners[0].y} x2={ridge[0].x} y2={ridge[0].y} /><line x1={corners[1].x} y1={corners[1].y} x2={ridge[0].x} y2={ridge[0].y} /><line x1={corners[2].x} y1={corners[2].y} x2={ridge[1].x} y2={ridge[1].y} /><line x1={corners[3].x} y1={corners[3].y} x2={ridge[1].x} y2={ridge[1].y} /></g> : null}
+    {shape === 'hip' ? <g className="roof-hips">{hipConnections.map(([corner, ridgePoint], index) => <line key={index} x1={corner.x} y1={corner.y} x2={ridgePoint.x} y2={ridgePoint.y} />)}</g> : null}
     <polygon className="roof-overhang-outline" points={roofRect.map((point) => `${point.x},${point.y}`).join(' ')} />
-    <text className="roof-plan-caption" x={p(centerX, centerY).x} y={p(centerX, centerY).y - 18}>{shape === 'hip' ? 'Вальмовая кровля' : shape === 'flat' ? 'Плоская кровля' : 'Двускатная кровля'}</text>
+    <text className="roof-plan-caption" x={caption.x} y={caption.y - 14}>{shape === 'hip' ? 'Вальмовая кровля' : shape === 'flat' ? 'Плоская кровля' : 'Двускатная кровля'}</text>
   </g>;
 }
 
