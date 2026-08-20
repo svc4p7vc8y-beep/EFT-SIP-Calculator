@@ -2,7 +2,7 @@ import { calculatePlanMetrics, calculateSipCutting, calculateSipRoofCutting, roo
 import { calculateTerraceRoof } from '../../calculations/terrace-model.js';
 import { calculateFoundation } from './foundation-model.js';
 import { deriveLinkedInputs } from './calculation-links.js';
-import { calculateSipJoinery } from './sip-joinery.js';
+import { calculateSipConsumables, calculateSipJoinery } from './sip-joinery.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -118,6 +118,9 @@ function sipSection(project, metrics, index, inputs) {
     ['floor', sip.floorThickness], ['walls', sip.wallThickness], ['ceiling', sip.ceilingThickness]
   ];
   const groupNames = { floor: 'Пол', walls: 'Наружные стены', ceiling: 'Потолок', partitions: 'Перегородки' };
+  const joinery = calculateSipJoinery(project.plan, project.services, sip, f);
+  const consumables = calculateSipConsumables(cutting, joinery, sip, f);
+  const consumablesByKey = new Map(consumables.rows.map((row) => [row.key, row]));
   const lines = [];
   panelGroups.forEach(([key, thickness]) => {
     const row = byKey.get(key);
@@ -126,16 +129,21 @@ function sipSection(project, metrics, index, inputs) {
     const installQuery = key === 'ceiling' ? 'Монтаж сип-панели потолка' : 'Монтаж сип-панели пол/стены';
     lines.push(makeLine(index, 'sip', installQuery, row.area, { key: `install-${key}`, kind: 'labor', ...lineOptions }));
     lines.push(makeLine(index, 'sip', 'Раскрой сип-панелей', row.cutMeters, { key: `cut-${key}`, kind: 'labor', ...lineOptions }));
-    lines.push(makeLine(index, 'sip', 'Пеноклей для СИП-панелей 650 мл', Math.ceil(row.panels * inputs.formulas.foamUnitsPerPanel), { key: `foam-${key}`, ...lineOptions }));
-    lines.push(makeLine(index, 'sip', 'Саморезы конст.', row.area * inputs.formulas.structuralFastenerKgPerM2, { key: `fasteners-${key}`, unit: 'кг', ...lineOptions }));
-    lines.push(makeLine(index, 'sip', 'Саморезы 4.2 x 75', row.area * inputs.formulas.seamScrewKgPerM2, { key: `seam-screws-${key}`, unit: 'кг', ...lineOptions }));
-    lines.push(makeLine(index, 'sip', 'Крепёж спиральный', Math.ceil(row.panels / inputs.formulas.spiralPackPerPanels), { key: `spiral-fasteners-${key}`, unit: 'уп', ...lineOptions }));
+    const usage = consumablesByKey.get(key);
+    lines.push(makeLine(index, 'sip', 'Пеноклей для СИП-панелей 650 мл', usage.foamUnits, { key: `foam-${key}`, name: consumables.mode === 'node' ? `Пеноклей для СИП-панелей 650 мл · ${round(usage.foamLength, 1)} м швов` : undefined, ...lineOptions }));
+    lines.push(makeLine(index, 'sip', 'Саморезы конст.', usage.structuralKg, { key: `fasteners-${key}`, unit: 'кг', name: consumables.mode === 'node' ? `Саморезы конструкционные ${usage.structuralSize} · ${usage.structuralCount} шт` : undefined, ...lineOptions }));
+    if (consumables.mode === 'node') {
+      lines.push(makeLine(index, 'sip', 'Саморезы 3.5 x 41', usage.seamKg, { key: `seam-screws-${key}`, unit: 'кг', name: `Саморезы 3,8×41 · ${usage.seamCount} шт`, ...lineOptions }));
+      lines.push(makeLine(index, 'sip', 'Саморезы 4.2 x 75', usage.edgeKg, { key: `edge-screws-${key}`, unit: 'кг', name: `Саморезы 4,2×75 · ${usage.edgeCount} шт`, ...lineOptions }));
+    } else {
+      lines.push(makeLine(index, 'sip', 'Саморезы 4.2 x 75', usage.seamKg, { key: `seam-screws-${key}`, unit: 'кг', ...lineOptions }));
+      lines.push(makeLine(index, 'sip', 'Крепёж спиральный', usage.spiralPacks, { key: `spiral-fasteners-${key}`, unit: 'уп', ...lineOptions }));
+    }
   });
   if (project.services.partitions && metrics.partitionNetArea) {
     lines.push(makeLine(index, 'sip', 'Доска ест.влажн. сосна 50*100мм', metrics.partitionNetArea * f.partitionBoardM3PerM2, { key: 'partition-board', unit: 'м³', source: 'partitions', estimateGroup: groupNames.partitions }));
     lines.push(makeLine(index, 'sip', 'Возведение перегородок из доски 100х50', metrics.partitionNetArea, { key: 'partition-work', kind: 'labor', source: 'partitions', estimateGroup: groupNames.partitions }));
   }
-  const joinery = calculateSipJoinery(project.plan, project.services, sip, f);
   joinery.rows.forEach((row) => {
     const key = `${row.key}-connector`;
     if (joinery.type === 'thermal') {
@@ -149,7 +157,7 @@ function sipSection(project, metrics, index, inputs) {
     lines.push(makeLine(index, 'sip', `Доска сухая строганая ${row.endBoardDepth}×45 мм`, row.endBoardLength, { key: `${row.key}-edge-board`, unit: 'м.п.', source: `sip-${row.key}-edges`, estimateGroup: groupNames[row.key] }));
   });
   const groupOrder = new Map(['Пол', 'Наружные стены', 'Потолок', 'Перегородки'].map((name, order) => [name, order]));
-  return { lines: compact(lines).sort((a, b) => (groupOrder.get(a.estimateGroup) ?? 99) - (groupOrder.get(b.estimateGroup) ?? 99)), cutting, joinery };
+  return { lines: compact(lines).sort((a, b) => (groupOrder.get(a.estimateGroup) ?? 99) - (groupOrder.get(b.estimateGroup) ?? 99)), cutting, joinery, consumables };
 }
 
 function foundationSection(project, index, inputs) {

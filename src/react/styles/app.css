@@ -215,10 +215,16 @@ button:disabled { cursor:not-allowed; opacity:.42; }
 .planner-tools button:hover,.planner-tools button.active { color:#37661f; background:#e5f1dd; }
 .polygon-actions { margin-top:8px; padding-top:8px; border-top:1px solid #dce4dc; }
 .planner-canvas { position:relative; min-width:0; overflow:hidden; background:#fff; }
-.plan-layer-tabs { position:absolute; z-index:6; top:12px; left:12px; display:grid; grid-template-columns:repeat(4,66px); gap:5px; }
-.plan-layer-tabs button { min-height:42px; padding:4px 3px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; color:#536056; border:1px solid #d6e0d4; border-radius:9px; background:rgba(255,255,255,.95); font-size:7.5px; line-height:1; font-weight:800; box-shadow:0 3px 12px rgba(28,52,23,.08); }
+.plan-layer-tabs { position:absolute; z-index:6; top:12px; left:12px; display:grid; grid-template-columns:repeat(4,78px); gap:5px; }
+.plan-layer-tab { position:relative; display:grid; grid-template-columns:1fr 24px; min-height:44px; border:1px solid #d6e0d4; border-radius:9px; overflow:hidden; background:rgba(255,255,255,.95); box-shadow:0 3px 12px rgba(28,52,23,.08); }
+.plan-layer-tab.active { border-color:#8fba76; background:#e9f4e2; }
+.plan-layer-tab:not(.visible) { opacity:.66; }
+.plan-layer-tabs button { min-height:42px; padding:4px 2px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; color:#536056; border:0; border-radius:0; background:transparent; font-size:7.5px; line-height:1; font-weight:800; box-shadow:none; }
 .plan-layer-tabs button svg { width:15px; height:15px; }
-.plan-layer-tabs button.active { color:#315f20; border-color:#8fba76; background:#e9f4e2; }
+.plan-layer-tabs .layer-select.active { color:#315f20; }
+.plan-layer-tabs .layer-visibility { min-height:100%; padding:0; border-left:1px solid #dce4da; color:#477638; }
+.plan-layer-tabs .layer-visibility svg { width:13px; height:13px; }
+.plan-layer-tab:not(.visible) .layer-visibility { color:#89928b; background:#f0f2ef; }
 .canvas-history-controls { position:absolute; z-index:7; top:12px; right:12px; display:flex; gap:5px; padding:4px; border:1px solid #d6e0d4; border-radius:10px; background:rgba(255,255,255,.96); box-shadow:0 3px 12px rgba(28,52,23,.08); }
 .canvas-history-controls button { width:36px; height:34px; display:grid; place-items:center; color:#375332; border:0; border-radius:7px; background:#f2f6ef; }
 .canvas-history-controls button:hover:not(:disabled) { background:#e1efda; }

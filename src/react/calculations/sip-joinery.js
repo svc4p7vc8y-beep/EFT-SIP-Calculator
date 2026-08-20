@@ -15,7 +15,7 @@ export function sipTimberProfile(panelThickness) {
   return { panelThickness: thickness, core, endBoardDepth: core - 5, thermalDepth: core - 5 };
 }
 
-function gridJointLength(width, height, panelWidth, panelLength) {
+export function gridJointLength(width, height, panelWidth, panelLength) {
   const seams = (across, along, unitAcross, unitAlong) => (
     Math.max(0, Math.ceil(across / unitAcross) - 1) * along +
     Math.max(0, Math.ceil(along / unitAlong) - 1) * across
@@ -24,6 +24,77 @@ function gridJointLength(width, height, panelWidth, panelLength) {
     seams(width, height, panelWidth, panelLength),
     seams(width, height, panelLength, panelWidth)
   );
+}
+
+const positive = (value, fallback) => Math.max(0.0001, Number(value) || fallback);
+const nonnegative = (value, fallback) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
+
+function structuralScrew(panelThickness, formulas) {
+  const thickness = Number(panelThickness) || 174;
+  if (thickness <= 124) return { size: '8×180', kgEach: positive(formulas.sipStructuralScrewKg124, 0.055) };
+  if (thickness <= 174) return { size: '8×220', kgEach: positive(formulas.sipStructuralScrewKg174, 0.068) };
+  return { size: '8×280', kgEach: positive(formulas.sipStructuralScrewKg224, 0.086) };
+}
+
+export function calculateSipConsumables(cuttingRows, joinery, sipSettings, formulas = {}) {
+  const cuttingByKey = new Map((cuttingRows || []).map((row) => [row.key, row]));
+  const mode = sipSettings.consumablesMode === 'quick' ? 'quick' : 'node';
+  const includeEdges = sipSettings.foamScope !== 'joints';
+  const seamSpacing = positive(formulas.sipSeamScrewSpacingM, 0.15);
+  const edgeSpacing = positive(formulas.sipEdgeScrewSpacingM, 0.4);
+  const structuralSpacing = positive(formulas.sipStructuralScrewSpacingM, 0.6);
+  const foamPerMeter = nonnegative(formulas.foamUnitsPerJointMeter, 0.035);
+  const supportPerPanel = Math.round(nonnegative(formulas.sipPanelSupportScrews, 8));
+  const seamKgEach = nonnegative(formulas.sipSeamScrewKgEach, 0.003);
+  const edgeKgEach = nonnegative(formulas.sipEdgeScrewKgEach, 0.006);
+
+  const rows = (joinery.rows || []).map((joineryRow) => {
+    const cutting = cuttingByKey.get(joineryRow.key) || { panels: 0, area: 0 };
+    if (mode === 'quick') {
+      return {
+        key: joineryRow.key,
+        label: joineryRow.label,
+        mode,
+        foamLength: 0,
+        foamUnits: Math.ceil(cutting.panels * nonnegative(formulas.foamUnitsPerPanel, 0.5)),
+        structuralKg: round(cutting.area * nonnegative(formulas.structuralFastenerKgPerM2, 0.045)),
+        seamKg: round(cutting.area * nonnegative(formulas.seamScrewKgPerM2, 0.012)),
+        spiralPacks: Math.ceil(cutting.panels / positive(formulas.spiralPackPerPanels, 35))
+      };
+    }
+    const foamLength = joineryRow.jointLength + (includeEdges ? joineryRow.endBoardLength : 0);
+    const seamCount = Math.ceil((joineryRow.jointLength * 2) / seamSpacing) + cutting.panels * supportPerPanel;
+    const edgeCount = Math.ceil(joineryRow.endBoardLength / edgeSpacing);
+    const structuralCount = Math.ceil(joineryRow.endBoardLength / structuralSpacing);
+    const structural = structuralScrew(joineryRow.panelThickness, formulas);
+    return {
+      key: joineryRow.key,
+      label: joineryRow.label,
+      mode,
+      foamLength: round(foamLength),
+      foamUnits: Math.ceil(foamLength * foamPerMeter),
+      seamCount,
+      seamKg: round(seamCount * seamKgEach),
+      edgeCount,
+      edgeKg: round(edgeCount * edgeKgEach),
+      structuralCount,
+      structuralSize: structural.size,
+      structuralKg: round(structuralCount * structural.kgEach),
+      spiralPacks: 0
+    };
+  });
+  return {
+    mode,
+    foamScope: includeEdges ? 'joints-and-edges' : 'joints',
+    rows,
+    totals: rows.reduce((total, row) => ({
+      foamLength: round(total.foamLength + (row.foamLength || 0)),
+      foamUnits: total.foamUnits + row.foamUnits,
+      seamCount: total.seamCount + (row.seamCount || 0),
+      edgeCount: total.edgeCount + (row.edgeCount || 0),
+      structuralCount: total.structuralCount + (row.structuralCount || 0)
+    }), { foamLength: 0, foamUnits: 0, seamCount: 0, edgeCount: 0, structuralCount: 0 })
+  };
 }
 
 export function calculateSipJoinery(plan, services, sipSettings, formulas = {}) {

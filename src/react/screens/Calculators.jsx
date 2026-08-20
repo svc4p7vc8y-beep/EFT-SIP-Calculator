@@ -661,6 +661,26 @@ export default function Calculators({ type }) {
                 step={1}
                 onChange={(value) => setSetting("sip", "wastePercent", value)}
               />
+              <SelectField
+                label="Расчёт пеноклея и крепежа"
+                value={project.settings.sip.consumablesMode || "node"}
+                onChange={(value) => setSetting("sip", "consumablesMode", value)}
+                options={[
+                  { value: "node", label: "По швам и узлам · подробный" },
+                  { value: "quick", label: "По площади · старый быстрый" },
+                ]}
+              />
+              {project.settings.sip.consumablesMode !== "quick" ? (
+                <SelectField
+                  label="Пеноклей наносится"
+                  value={project.settings.sip.foamScope || "joints-and-edges"}
+                  onChange={(value) => setSetting("sip", "foamScope", value)}
+                  options={[
+                    { value: "joints-and-edges", label: "Стыки и торцы панелей" },
+                    { value: "joints", label: "Только стыки панелей" },
+                  ]}
+                />
+              ) : null}
             </div>
             <p className="panel-note">При шаге 625 мм каждая целая панель 1250 × 2500 мм распускается вдоль на две части. Покупное количество панелей не удваивается, а продольный рез и дополнительные стыки силового каркаса рассчитываются автоматически.</p>
             <div className="frame-type-guide">
@@ -690,6 +710,36 @@ export default function Calculators({ type }) {
                 onChange={(value) => setService("partitions", value)}
               />
             </div>
+          </Panel>
+          <Panel
+            title="Расход пеноклея и крепежа"
+            description={calculation.sip.consumables.mode === "node"
+              ? "Количество считается по геометрии стыков и торцов. В смете крепёж оценивается по цене за килограмм; количество штук переводится через настраиваемую массу одного самореза."
+              : "Сохранённый быстрый режим старых проектов: пеноклей считается от количества панелей, крепёж — от площади."}
+          >
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  {calculation.sip.consumables.mode === "node" ? (
+                    <tr><th>Конструкция</th><th>Обработано швов</th><th>Пеноклей</th><th>3,8×41</th><th>4,2×75</th><th>Конструкционные</th></tr>
+                  ) : (
+                    <tr><th>Конструкция</th><th>Пеноклей</th><th>Конструкционный крепёж</th><th>Крепёж шва</th><th>Спиральный крепёж</th></tr>
+                  )}
+                </thead>
+                <tbody>
+                  {calculation.sip.consumables.rows.map((row) => calculation.sip.consumables.mode === "node" ? (
+                    <tr key={row.key}>
+                      <td>{row.label}</td><td>{formatNumber(row.foamLength)} м</td><td>{row.foamUnits} бал.</td><td>{row.seamCount} шт</td><td>{row.edgeCount} шт</td><td>{row.structuralSize} · {row.structuralCount} шт</td>
+                    </tr>
+                  ) : (
+                    <tr key={row.key}>
+                      <td>{row.label}</td><td>{row.foamUnits} бал.</td><td>{formatNumber(row.structuralKg, 3)} кг</td><td>{formatNumber(row.seamKg, 3)} кг</td><td>{row.spiralPacks} уп.</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {calculation.sip.consumables.mode === "node" ? <p className="panel-note">Нормы шага, масса крепежа и расход 0,035 баллона на метр доступны в ⚙ «Связи и формулы». Переключение режима сразу пересчитывает ведомость и смету.</p> : null}
           </Panel>
           <Panel
             title="Раскрой СИП-панелей"

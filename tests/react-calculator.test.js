@@ -48,6 +48,21 @@ test('print plan layers default to piles, binding and dimensions and survive mig
   assert.equal(restored.settings.print.showDimensions, false);
 });
 
+test('plan and roof visibility layers have independent saved defaults', () => {
+  const project = createDefaultProject();
+  assert.equal(project.plan.showPiles, true);
+  assert.equal(project.plan.showBinding, true);
+  assert.equal(project.plan.showPlan, true);
+  assert.equal(project.plan.showRoof, false);
+  project.plan.showPlan = false;
+  project.plan.showRoof = true;
+  const restored = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(restored.plan.showPlan, false);
+  assert.equal(restored.plan.showRoof, true);
+  assert.equal(restored.plan.showPiles, true);
+  assert.equal(restored.plan.showBinding, true);
+});
+
 test('625 mm SIP layout increases floor and ceiling joints and cutting without doubling panels', () => {
   const standardProject = createDefaultProject();
   const standard = calculateProject(standardProject);
@@ -637,4 +652,46 @@ test('pile rows share one pile at corners and crossing nodes', () => {
   assert.equal(foundation.totalPiles, 6, 'the crossing and shared corner are each counted once');
   assert.equal(foundation.points.filter((point) => point.x === 5 && point.y === 4).length, 1);
   assert.equal(foundation.points.filter((point) => point.x === 10 && point.y === 4).length, 1);
+});
+
+test('new SIP projects calculate adhesive and fasteners from joints and nodes', () => {
+  const project = createDefaultProject();
+  const result = calculateProject(project);
+  assert.equal(project.settings.sip.consumablesMode, 'node');
+  assert.equal(result.sip.consumables.mode, 'node');
+  result.sip.consumables.rows.forEach((row) => {
+    const joinery = result.sip.joinery.rows.find((item) => item.key === row.key);
+    assert.equal(row.foamUnits, Math.ceil((joinery.jointLength + joinery.endBoardLength) * project.settings.formulas.foamUnitsPerJointMeter));
+    assert.ok(row.seamCount > 0);
+    assert.ok(row.edgeCount > 0);
+    assert.ok(row.structuralCount > 0);
+    assert.match(row.structuralSize, /^8×(180|220|280)$/);
+  });
+  assert.ok(result.lines.some((line) => line.name.includes('3,8×41') && line.name.includes('шт')));
+  assert.ok(result.lines.some((line) => line.name.includes('4,2×75') && line.name.includes('шт')));
+});
+
+test('quick SIP consumables preserve the version 78 area formulas', () => {
+  const project = createDefaultProject();
+  project.settings.sip.consumablesMode = 'quick';
+  const result = calculateProject(project);
+  result.sip.consumables.rows.forEach((row) => {
+    const cutting = result.sip.cutting.find((item) => item.key === row.key);
+    assert.equal(row.foamUnits, Math.ceil(cutting.panels * project.settings.formulas.foamUnitsPerPanel));
+    assert.equal(row.structuralKg, Math.round(cutting.area * project.settings.formulas.structuralFastenerKgPerM2 * 1000) / 1000);
+    assert.equal(row.seamKg, Math.round(cutting.area * project.settings.formulas.seamScrewKgPerM2 * 1000) / 1000);
+  });
+  assert.ok(result.lines.some((line) => line.id === 'sip:spiral-fasteners-floor'));
+});
+
+test('migration keeps old projects on quick SIP consumables unless they chose a mode', () => {
+  const legacy = createDefaultProject();
+  legacy.appVersion = 78;
+  delete legacy.settings.sip.consumablesMode;
+  assert.equal(migrateProject(legacy).settings.sip.consumablesMode, 'quick');
+
+  const explicit = createDefaultProject();
+  explicit.appVersion = 78;
+  explicit.settings.sip.consumablesMode = 'node';
+  assert.equal(migrateProject(explicit).settings.sip.consumablesMode, 'node');
 });

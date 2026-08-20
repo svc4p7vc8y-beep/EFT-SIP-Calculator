@@ -28,8 +28,13 @@ const FORMULA_GROUPS = [
     ['panelArea', 'Площадь одной СИП-панели', 'м²'], ['panelWidth', 'Ширина СИП-панели', 'м'],
     ['panelLength', 'Длина СИП-панели', 'м'], ['sipTimberReservePercent', 'Запас бруса и торцевой доски', '%'],
     ['partitionBoardM3PerM2', 'Доска перегородок на 1 м²', 'м³'],
-    ['foamUnitsPerPanel', 'Баллонов пены на панель', 'шт'], ['structuralFastenerKgPerM2', 'Конструкционного крепежа на 1 м²', 'кг'],
-    ['seamScrewKgPerM2', 'Саморезов шва на 1 м²', 'кг'], ['spiralPackPerPanels', 'Панелей на упаковку спирального крепежа', 'шт']
+    ['foamUnitsPerJointMeter', 'Пеноклея на 1 м шва', 'баллона'], ['sipSeamScrewSpacingM', 'Шаг саморезов 3,8×41', 'м'],
+    ['sipPanelSupportScrews', 'Саморезов 3,8×41 на панель к основанию', 'шт'], ['sipEdgeScrewSpacingM', 'Шаг саморезов 4,2×75', 'м'],
+    ['sipStructuralScrewSpacingM', 'Шаг конструкционных саморезов', 'м'], ['sipSeamScrewKgEach', 'Масса одного самореза 3,8×41', 'кг'],
+    ['sipEdgeScrewKgEach', 'Масса одного самореза 4,2×75', 'кг'], ['sipStructuralScrewKg124', 'Масса одного 8×180', 'кг'],
+    ['sipStructuralScrewKg174', 'Масса одного 8×220', 'кг'], ['sipStructuralScrewKg224', 'Масса одного 8×280', 'кг'],
+    ['foamUnitsPerPanel', 'Быстрый режим: баллонов на панель', 'шт'], ['structuralFastenerKgPerM2', 'Быстрый режим: конструкционного крепежа на 1 м²', 'кг'],
+    ['seamScrewKgPerM2', 'Быстрый режим: саморезов шва на 1 м²', 'кг'], ['spiralPackPerPanels', 'Быстрый режим: панелей на упаковку', 'шт']
   ]],
   ['Фундамент, кровля, терраса', [
     ['pileConcreteM3', 'Пескобетона на сваю', 'м³'], ['pileScrewKg', 'Саморезов обвязки на сваю', 'кг'],

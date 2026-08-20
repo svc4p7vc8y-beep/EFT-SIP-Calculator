@@ -3,7 +3,7 @@ import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 78;
+export const REACT_PROJECT_VERSION = 80;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -40,6 +40,8 @@ export function createDefaultPlan() {
     zoom: 100,
     showPiles: true,
     showBinding: true,
+    showPlan: true,
+    showRoof: false,
     showDimensions: true,
     rooms: [
       polygonRoom('room-1', 'Спальня / шкаф', [[e, e], [4.874, e], [4.874, 4.204], [e, 4.204]], { note: 'шкаф' }),
@@ -77,7 +79,7 @@ export function createDefaultPlan() {
 export function createEmptyPlan() {
   const plan = {
     house: { w: 10, h: 8 }, wallHeight: 2.5, wallThickness: 0.174, partitionThickness: 0.1,
-    zoom: 100, showPiles: true, showBinding: true, showDimensions: true,
+    zoom: 100, showPiles: true, showBinding: true, showPlan: true, showRoof: false, showDimensions: true,
     rooms: [], walls: [], wallGaps: [], openings: [], dimensions: [], platforms: [], piles: [],
     pileRows: [
       { id: 'pile-top', name: 'Верхний ряд', x1: 0, y1: 0, x2: 10, y2: 0, count: 6, group: 'house' },
@@ -131,7 +133,8 @@ export function createDefaultProject() {
       sip: {
         floorThickness: '224', wallThickness: '174', ceilingThickness: '224',
         floorPanelWidth: '1.25', ceilingPanelWidth: '1.25',
-        connectorType: 'thermal', wastePercent: 5
+        connectorType: 'thermal', wastePercent: 5,
+        consumablesMode: 'node', foamScope: 'joints-and-edges'
       },
       roof: {
         shape: 'gable', type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0,
@@ -206,6 +209,7 @@ export function migrateProject(raw) {
   const base = createDefaultProject();
   if (!raw || typeof raw !== 'object') return base;
   const savedVersion = Number(raw.appVersion);
+  const preserveLegacyConsumables = (!Number.isFinite(savedVersion) || savedVersion < 79) && !raw.settings?.sip?.consumablesMode;
   const upgradeFrameCatalog = !Number.isFinite(savedVersion) || savedVersion < 51;
   const upgradeV61Catalog = !Number.isFinite(savedVersion) || savedVersion < 61;
   const upgradeV65Catalog = !Number.isFinite(savedVersion) || savedVersion < 65;
@@ -232,7 +236,7 @@ export function migrateProject(raw) {
       ...base.settings,
       ...(raw.settings || {}),
       piles: { ...base.settings.piles, ...(raw.settings?.piles || {}) },
-      sip: { ...base.settings.sip, ...(raw.settings?.sip || {}) },
+      sip: { ...base.settings.sip, ...(raw.settings?.sip || {}), ...(preserveLegacyConsumables ? { consumablesMode: 'quick' } : {}) },
       roof: { ...base.settings.roof, ...(raw.settings?.roof || {}) },
       delivery: { ...base.settings.delivery, ...(raw.settings?.delivery || {}) },
       engineering: { ...base.settings.engineering, ...(raw.settings?.engineering || {}) },
