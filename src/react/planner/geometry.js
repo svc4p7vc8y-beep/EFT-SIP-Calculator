@@ -13,6 +13,13 @@ export function roomPoints(room) {
   ];
 }
 
+export function houseContourPoints(plan = {}) {
+  if (Array.isArray(plan?.house?.points) && plan.house.points.length >= 3) return plan.house.points;
+  const width = Number(plan?.house?.w) || 0;
+  const height = Number(plan?.house?.h) || 0;
+  return [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: height }, { x: 0, y: height }];
+}
+
 export function boundsOf(points = []) {
   const xs = points.map((point) => Number(point.x) || 0);
   const ys = points.map((point) => Number(point.y) || 0);
@@ -54,6 +61,7 @@ export function collectSnapAxes(plan, excludeRoomId) {
     const next = { x: roundCoord(point.x), y: roundCoord(point.y) };
     xs.add(next.x); ys.add(next.y); points.set(`${next.x}:${next.y}`, next);
   };
+  houseContourPoints(plan).forEach(addPoint);
   [0, wall, plan.house.w - wall, plan.house.w].forEach((x) => {
     [0, wall, plan.house.h - wall, plan.house.h].forEach((y) => addPoint({ x, y }));
   });
@@ -146,19 +154,23 @@ const axialSegment = (a, b, source = {}) => {
 
 export function roomWallSegments(plan) {
   const wall = Number(plan.wallThickness) || 0.174;
-  const width = Number(plan.house?.w) || 0;
-  const height = Number(plan.house?.h) || 0;
+  const contour = houseContourPoints(plan);
+  const pointSegmentDistance = (point, a, b) => {
+    const dx = b.x - a.x; const dy = b.y - a.y;
+    const lengthSquared = dx * dx + dy * dy;
+    const ratio = lengthSquared ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared)) : 0;
+    return Math.hypot(point.x - (a.x + ratio * dx), point.y - (a.y + ratio * dy));
+  };
   const segments = [];
   for (const room of plan.rooms || []) {
     const points = roomPoints(room);
     points.forEach((point, index) => {
       const next = points[(index + 1) % points.length];
       const segment = axialSegment(point, next, { roomId: room.id });
-      const outerFace = segment.axis === 'v'
-        ? (segment.fixed >= -EPS && segment.fixed <= wall + EPS) || (segment.fixed >= width - wall - EPS && segment.fixed <= width + EPS)
-        : segment.axis === 'h'
-          ? (segment.fixed >= -EPS && segment.fixed <= wall + EPS) || (segment.fixed >= height - wall - EPS && segment.fixed <= height + EPS)
-          : false;
+      const outerFace = contour.some((edgeStart, edgeIndex) => {
+        const edgeEnd = contour[(edgeIndex + 1) % contour.length];
+        return pointSegmentDistance(point, edgeStart, edgeEnd) <= wall + EPS && pointSegmentDistance(next, edgeStart, edgeEnd) <= wall + EPS;
+      });
       if (!outerFace) segments.push(segment);
     });
   }
@@ -187,11 +199,10 @@ export function unifiedWallSegments(plan) {
 }
 
 export function allOpeningSegments(plan) {
+  const contour = houseContourPoints(plan);
+  const outerSegments = contour.map((point, index) => axialSegment(point, contour[(index + 1) % contour.length], { outer: true })).filter((segment) => segment.axis !== 'd');
   const segments = [
-    { axis: 'v', fixed: 0, start: 0, end: plan.house.h, outer: true },
-    { axis: 'v', fixed: plan.house.w, start: 0, end: plan.house.h, outer: true },
-    { axis: 'h', fixed: 0, start: 0, end: plan.house.w, outer: true },
-    { axis: 'h', fixed: plan.house.h, start: 0, end: plan.house.w, outer: true },
+    ...outerSegments,
     ...unifiedWallSegments(plan).filter((segment) => segment.axis !== 'd').map((segment) => ({ ...segment, outer: false })),
     ...(plan.walls || []).map((wall) => ({ ...axialSegment({ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }), outer: false })).filter((segment) => segment.axis !== 'd')
   ];
@@ -257,9 +268,10 @@ export function pointInPolygon(point, polygon) {
 export function planIssues(plan) {
   const wall = Number(plan.wallThickness) || 0.174;
   const issues = [];
+  const contour = houseContourPoints(plan);
   for (const room of plan.rooms || []) {
     const points = roomPoints(room);
-    if (points.some((point) => point.x < wall - EPS || point.x > plan.house.w - wall + EPS || point.y < wall - EPS || point.y > plan.house.h - wall + EPS)) {
+    if (points.some((point) => !pointInPolygon(point, contour) && !pointOnBoundary(point, contour))) {
       issues.push({ type: 'outside', roomIds: [room.id], message: `${room.name}: выходит за внутренний контур дома` });
     }
   }

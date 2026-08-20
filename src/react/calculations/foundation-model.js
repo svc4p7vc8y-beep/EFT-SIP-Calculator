@@ -1,5 +1,5 @@
 import { terraceAttachmentSide } from '../../calculations/terrace-model.js';
-import { lineEndpoints, unifiedWallSegments } from '../planner/geometry.js';
+import { houseContourPoints, lineEndpoints, unifiedWallSegments } from '../planner/geometry.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -14,18 +14,20 @@ function rowPoints(row) {
   });
 }
 
-function perimeterRows(platform, spacing) {
+function perimeterRows(platform, spacing, house) {
   const x1 = Number(platform.x) || 0;
   const y1 = Number(platform.y) || 0;
   const x2 = x1 + (Number(platform.w) || 0);
   const y2 = y1 + (Number(platform.h) || 0);
   const count = (length) => Math.max(2, Math.ceil(length / spacing) + 1);
+  const houseSide = platform.foundation?.mode === 'shared' ? terraceAttachmentSide(platform, house) : null;
+  const attached = { top: 'bottom', right: 'left', bottom: 'top', left: 'right' }[houseSide] || null;
   return [
-    { x1, y1, x2, y2: y1, count: count(x2 - x1), group: 'platform' },
-    { x1: x2, y1, x2, y2, count: count(y2 - y1), group: 'platform' },
-    { x1, y1: y2, x2, y2, count: count(x2 - x1), group: 'platform' },
-    { x1, y1, x2: x1, y2, count: count(y2 - y1), group: 'platform' }
-  ];
+    { side: 'top', x1, y1, x2, y2: y1, count: count(x2 - x1), group: 'platform' },
+    { side: 'right', x1: x2, y1, x2, y2, count: count(y2 - y1), group: 'platform' },
+    { side: 'bottom', x1, y1: y2, x2, y2, count: count(x2 - x1), group: 'platform' },
+    { side: 'left', x1, y1, x2: x1, y2, count: count(y2 - y1), group: 'platform' }
+  ].filter((row) => row.side !== attached);
 }
 
 function uniquePoints(groups, tolerance = 0.12) {
@@ -62,6 +64,23 @@ export function bindingLinesFromPileRows(rows = []) {
   }));
 }
 
+export function generateAutoBindingLines(plan, verticalRows = 4, horizontalRows = 5) {
+  const w = Math.max(0.5, Number(plan?.house?.w) || 0.5);
+  const h = Math.max(0.5, Number(plan?.house?.h) || 0.5);
+  const vCount = Math.max(2, Math.min(24, Math.round(Number(verticalRows) || 4)));
+  const hCount = Math.max(2, Math.min(24, Math.round(Number(horizontalRows) || 5)));
+  const lines = [];
+  for (let index = 0; index < vCount; index += 1) {
+    const x = vCount === 1 ? 0 : w * index / (vCount - 1);
+    lines.push({ id: `auto-binding-v-${index + 1}`, name: `Авто · вертикаль ${index + 1}`, x1: round(x, 3), y1: 0, x2: round(x, 3), y2: round(h, 3), group: 'house', include: true, auto: true, axis: 'vertical' });
+  }
+  for (let index = 0; index < hCount; index += 1) {
+    const y = hCount === 1 ? 0 : h * index / (hCount - 1);
+    lines.push({ id: `auto-binding-h-${index + 1}`, name: `Авто · горизонталь ${index + 1}`, x1: 0, y1: round(y, 3), x2: round(w, 3), y2: round(y, 3), group: 'house', include: true, auto: true, axis: 'horizontal' });
+  }
+  return lines;
+}
+
 export function generateAutoPileRows(plan, spacing = 2.5) {
   const safeSpacing = Math.max(0.5, Number(spacing) || 2.5);
   const createRow = (id, name, a, b, group = 'house') => {
@@ -71,12 +90,16 @@ export function generateAutoPileRows(plan, spacing = 2.5) {
       count: Math.max(2, Math.ceil(length / safeSpacing) + 1), group, auto: true
     };
   };
-  const rows = [
-    createRow('auto-top', 'Авто · верх', { x: 0, y: 0 }, { x: plan.house.w, y: 0 }),
-    createRow('auto-right', 'Авто · справа', { x: plan.house.w, y: 0 }, { x: plan.house.w, y: plan.house.h }),
-    createRow('auto-bottom', 'Авто · низ', { x: 0, y: plan.house.h }, { x: plan.house.w, y: plan.house.h }),
-    createRow('auto-left', 'Авто · слева', { x: 0, y: 0 }, { x: 0, y: plan.house.h })
-  ];
+  const contour = houseContourPoints(plan);
+  const rectangleIds = ['auto-top', 'auto-right', 'auto-bottom', 'auto-left'];
+  const rectangleNames = ['Авто · верх', 'Авто · справа', 'Авто · низ', 'Авто · слева'];
+  const customContour = Array.isArray(plan?.house?.points) && plan.house.points.length >= 3;
+  const rows = contour.map((point, index) => createRow(
+    customContour ? `auto-contour-${index + 1}` : rectangleIds[index],
+    customContour ? `Авто · контур ${index + 1}` : rectangleNames[index],
+    point,
+    contour[(index + 1) % contour.length]
+  ));
   unifiedWallSegments(plan).forEach((segment, index) => {
     const [a, b] = lineEndpoints(segment);
     const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -95,10 +118,21 @@ export function generateAutoPileRows(plan, spacing = 2.5) {
 export function calculateFoundation(plan, settings = {}) {
   const spacing = Math.max(0.5, Number(settings.spacing) || 2.5);
   const houseRows = (plan.pileRows || []).filter((row) => row.group !== 'platform');
-  const housePoints = houseRows.flatMap(rowPoints).concat((plan.piles || []).map((pile) => ({ ...pile, source: 'house' })));
+  const housePoints = uniquePoints([houseRows.flatMap(rowPoints).concat((plan.piles || []).map((pile) => ({ ...pile, source: 'house' })))], 0.05);
   const platforms = (plan.platforms || []).filter((platform) => platform.include !== false && platform.foundation?.mode !== 'none');
-  const platformPoints = platforms.flatMap((platform) => perimeterRows(platform, spacing).flatMap(rowPoints));
-  const points = uniquePoints([housePoints, platformPoints]);
+  const platformPoints = platforms.flatMap((platform) => perimeterRows(platform, spacing, plan.house).flatMap(rowPoints));
+  // Опора террасы/крыльца рядом с домовой опорой считается общей, даже если геометрически точки не совпали идеально.
+  // Это убирает бессмысленные дубли свай вдоль примыкания площадки к дому.
+  const sharedReuseDistance = Math.max(0.18, Math.min(0.6, Number(settings.sharedPileReuseDistance) || spacing * 0.2));
+  const exclusions = plan.excludedPiles || [];
+  const isExcluded = (point) => exclusions.some((excluded) => Math.hypot(excluded.x - point.x, excluded.y - point.y) <= 0.015);
+  const points = housePoints.filter((point) => !isExcluded(point)).map((point) => ({ ...point }));
+  platformPoints.forEach((point) => {
+    const nearbyHouse = points.find((candidate) => (candidate.source === 'house' || candidate.source === 'shared') && Math.hypot(candidate.x - point.x, candidate.y - point.y) <= sharedReuseDistance);
+    if (nearbyHouse) { nearbyHouse.source = 'shared'; return; }
+    const nearbyPlatform = points.find((candidate) => candidate.source === 'platform' && Math.hypot(candidate.x - point.x, candidate.y - point.y) <= 0.05);
+    if (!nearbyPlatform && !isExcluded(point)) points.push({ ...point, source: 'platform' });
+  });
   const sharedPiles = points.filter((point) => point.source === 'shared').length;
   const housePiles = points.filter((point) => point.source === 'house' || point.source === 'shared').length;
   const platformPiles = points.filter((point) => point.source === 'platform' || point.source === 'shared').length;
@@ -119,6 +153,7 @@ export function calculateFoundation(plan, settings = {}) {
     housePiles,
     platformPiles,
     sharedPiles,
+    sharedReuseDistance: round(sharedReuseDistance, 2),
     houseBindingLength: round(houseBindingLength),
     platformBindingLength: round(platformBinding),
     bindingLength: round(bindingLength),

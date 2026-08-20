@@ -3,7 +3,7 @@ import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { DEFAULT_FORMULAS, DEFAULT_LINKS } from '../calculations/calculation-links.js';
 import { bindingLinesFromPileRows } from '../calculations/foundation-model.js';
 
-export const REACT_PROJECT_VERSION = 72;
+export const REACT_PROJECT_VERSION = 76;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = 'eft-react-project-v46';
@@ -137,6 +137,7 @@ export function createDefaultProject() {
         shape: 'gable', type: 'cold', ridgeHeight: 1.8, ridgeLength: 9.66, wastePercent: 10, warmPercent: 0,
         eaveOverhang: 0.5, gableOverhang: 0.3,
         structureMode: 'auto', rafterSystem: 'hanging', rafterStep: 0.6, rafterSection: '50x150', lathStep: 0.35,
+        showRoofCover: true, showMauerlat: true, showRafters: true, showLath: true, showCounterLath: false,
         includeEaveTrim: true, includeVergeTrim: true, includeRidgeSeal: true,
         includeGutter: false,
         gableType: 'auto', gableCount: 2
@@ -173,7 +174,8 @@ export function normalizePlan(plan) {
     house: { ...fallback.house, ...plan.house },
     rooms: plan.rooms.map((room, index) => ({ include: true, bearing: false, ceilingMode: 'flat', id: room.id || `room-${index + 1}`, ...room })),
     platforms: (plan.platforms || []).map(normalizeTerracePlatform),
-    openings: plan.openings || [],
+    openings: (plan.openings || []).map((opening) => ({ includeInEstimate: true, subtractFromSip: true, ...opening })),
+    excludedPiles: plan.excludedPiles || [],
     pileRows: normalizedPileRows,
     bindingLines: Array.isArray(plan.bindingLines) ? plan.bindingLines : bindingLinesFromPileRows(normalizedPileRows),
     piles: plan.piles || []

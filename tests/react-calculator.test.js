@@ -440,6 +440,28 @@ test('shared terrace foundation removes coincident piles and can be disabled', (
   assert.equal(houseOnly.platformBindingLength, 0);
 });
 
+test('shared terrace omits the full pile row attached to the house', () => {
+  const project = createDefaultProject();
+  project.plan.house = { w: 8, h: 6 };
+  project.plan.rooms = [];
+  project.plan.piles = [];
+  project.plan.pileRows = [{ id: 'bottom', x1: 0, y1: 6, x2: 8, y2: 6, count: 5, group: 'house' }];
+  project.plan.platforms = [{ id: 'terrace', kind: 'terrace', x: 2, y: 6, w: 4, h: 2, include: true, foundation: { mode: 'shared' }, binding: { mode: 'none' }, roof: { mode: 'none' } }];
+  const result = calculateFoundation(project.plan, { ...project.settings.piles, spacing: 2 });
+  assert.equal(result.points.some((point) => point.source === 'platform' && Math.abs(point.y - 6) < .01), false);
+  assert.ok(result.points.some((point) => point.source === 'platform' && Math.abs(point.y - 8) < .01));
+});
+
+test('a derived pile can be excluded from the current plan', () => {
+  const project = createDefaultProject();
+  const initial = calculateFoundation(project.plan, project.settings.piles);
+  const removed = initial.points[0];
+  project.plan.excludedPiles = [{ x: removed.x, y: removed.y }];
+  const result = calculateFoundation(project.plan, project.settings.piles);
+  assert.equal(result.totalPiles, initial.totalPiles - 1);
+  assert.equal(result.points.some((point) => Math.hypot(point.x - removed.x, point.y - removed.y) < .05), false);
+});
+
 test('drawn binding lines drive board volume rounded to six-meter stock', () => {
   const project = createDefaultProject();
   project.plan.platforms.forEach((platform) => { platform.binding.mode = 'none'; });

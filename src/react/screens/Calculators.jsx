@@ -789,6 +789,7 @@ export default function Calculators({ type }) {
                 onChange={(value) => setSetting("roof", "shape", value)}
                 options={[
                   { value: "gable", label: "Двускатная" },
+                  { value: "hip", label: "Вальмовая" },
                   { value: "flat", label: "Плоская" },
                 ]}
               />

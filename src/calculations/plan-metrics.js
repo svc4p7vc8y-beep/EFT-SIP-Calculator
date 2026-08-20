@@ -39,20 +39,29 @@ const mergeIntervals = (intervals, tolerance) => {
 
 const openingArea = (opening) => Math.max(0, Number(opening.width) || 0) * Math.max(0, Number(opening.height) || 0);
 
+const houseContourPoints = (plan) => Array.isArray(plan?.house?.points) && plan.house.points.length >= 3
+  ? plan.house.points
+  : [{ x: 0, y: 0 }, { x: Number(plan?.house?.w) || 0, y: 0 }, { x: Number(plan?.house?.w) || 0, y: Number(plan?.house?.h) || 0 }, { x: 0, y: Number(plan?.house?.h) || 0 }];
+
+const polygonPerimeter = (points) => points.reduce((sum, point, index) => {
+  const next = points[(index + 1) % points.length];
+  return sum + Math.hypot(next.x - point.x, next.y - point.y);
+}, 0);
+
+const pointSegmentDistance = (point, a, b) => {
+  const dx = b.x - a.x; const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const ratio = lengthSquared ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared)) : 0;
+  return Math.hypot(point.x - (a.x + ratio * dx), point.y - (a.y + ratio * dy));
+};
+
 const isOuterEdge = (a, b, plan, tolerance) => {
   const wall = Number(plan.wallThickness) || 0.174;
-  const width = Number(plan.house.w) || 0;
-  const height = Number(plan.house.h) || 0;
-  const vertical = Math.abs(a.x - b.x) <= tolerance;
-  const horizontal = Math.abs(a.y - b.y) <= tolerance;
-  const inLeftWall = a.x >= -tolerance && b.x >= -tolerance && a.x <= wall + tolerance && b.x <= wall + tolerance;
-  const inRightWall = a.x >= width - wall - tolerance && b.x >= width - wall - tolerance && a.x <= width + tolerance && b.x <= width + tolerance;
-  const inTopWall = a.y >= -tolerance && b.y >= -tolerance && a.y <= wall + tolerance && b.y <= wall + tolerance;
-  const inBottomWall = a.y >= height - wall - tolerance && b.y >= height - wall - tolerance && a.y <= height + tolerance && b.y <= height + tolerance;
-  return (
-    (vertical && (inLeftWall || inRightWall)) ||
-    (horizontal && (inTopWall || inBottomWall))
-  );
+  const contour = houseContourPoints(plan);
+  return contour.some((edgeStart, index) => {
+    const edgeEnd = contour[(index + 1) % contour.length];
+    return pointSegmentDistance(a, edgeStart, edgeEnd) <= wall + tolerance && pointSegmentDistance(b, edgeStart, edgeEnd) <= wall + tolerance;
+  });
 };
 
 const inferOuterOpening = (opening, plan, tolerance) => {
@@ -122,10 +131,14 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
   let doorArea = 0;
   (plan.openings || []).forEach((opening) => {
     const area = openingArea(opening);
-    if (opening.type === 'window') windowArea += area;
-    if (opening.type === 'door') doorArea += area;
-    if (inferOuterOpening(opening, plan, tolerance)) exteriorOpeningsArea += area;
-    else if (opening.type === 'door') interiorOpeningsArea += area;
+    if (opening.includeInEstimate !== false) {
+      if (opening.type === 'window') windowArea += area;
+      if (opening.type === 'door') doorArea += area;
+    }
+    if (opening.subtractFromSip !== false) {
+      if (inferOuterOpening(opening, plan, tolerance)) exteriorOpeningsArea += area;
+      else if (opening.type === 'door') interiorOpeningsArea += area;
+    }
   });
 
   const wallHeight = Math.max(0, Number(plan.wallHeight) || 2.5);
@@ -137,8 +150,9 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
     else interiorGapLength += width;
   });
   partitionLength = Math.max(0, partitionLength - interiorGapLength);
-  const perimeter = 2 * ((Number(plan.house.w) || 0) + (Number(plan.house.h) || 0));
-  const floorArea = Math.max(0, Number(plan.house.w) || 0) * Math.max(0, Number(plan.house.h) || 0);
+  const houseContour = houseContourPoints(plan);
+  const perimeter = polygonPerimeter(houseContour);
+  const floorArea = polygonArea(houseContour);
   openCeilingArea = Math.min(floorArea, openCeilingArea);
   const ceilingArea = Math.max(0, floorArea - openCeilingArea);
   const partitionGrossArea = partitionLength * wallHeight;
@@ -234,6 +248,25 @@ export function roofGeometry({ span, ridgeLength, ridgeHeight, shape = 'gable', 
   const halfSpan = safeSpan / 2;
   const wallSlopeLength = Math.hypot(halfSpan, safeHeight);
   const slopeLength = Math.hypot(halfSpan + safeEaveOverhang, safeHeight);
+  if (shape === 'hip') {
+    const shortWall = Math.min(safeSpan, safeLength);
+    const longWall = Math.max(safeSpan, safeLength);
+    const halfHipSpan = shortWall / 2;
+    const hipWallSlope = Math.hypot(halfHipSpan, safeHeight);
+    const slopeCoefficient = halfHipSpan > 0 ? hipWallSlope / halfHipSpan : 1;
+    const hipRoofSpan = shortWall + safeEaveOverhang * 2;
+    const hipRoofLength = longWall + safeEaveOverhang * 2;
+    const hipRidgeLength = Math.max(0, hipRoofLength - hipRoofSpan);
+    const hipLength = Math.hypot(hipRoofSpan / Math.sqrt(2), safeHeight);
+    return {
+      shape: 'hip', slopeLength: round(hipRoofSpan / 2 * slopeCoefficient, 3), wallSlopeLength: round(hipWallSlope, 3),
+      slopeArea: round(hipRoofSpan * hipRoofLength * slopeCoefficient / 4, 2),
+      totalSlopeArea: round(hipRoofSpan * hipRoofLength * slopeCoefficient, 2), gableArea: 0,
+      slopeCoefficient: round(slopeCoefficient, 3), roofSpan: round(hipRoofSpan, 3), roofLength: round(hipRoofLength, 3),
+      ridgeLength: round(hipRidgeLength, 3), hipLength: round(hipLength * 4, 3),
+      eaveOverhang: round(safeEaveOverhang, 3), gableOverhang: 0
+    };
+  }
   return {
     shape: 'gable',
     slopeLength: round(slopeLength, 3),
@@ -248,7 +281,11 @@ export function roofGeometry({ span, ridgeLength, ridgeHeight, shape = 'gable', 
 }
 
 export function planFootprintBounds(plan) {
-  const bounds = { minX: 0, minY: 0, maxX: Number(plan?.house?.w) || 0, maxY: Number(plan?.house?.h) || 0 };
+  const contour = houseContourPoints(plan);
+  const bounds = {
+    minX: Math.min(...contour.map((point) => point.x)), minY: Math.min(...contour.map((point) => point.y)),
+    maxX: Math.max(...contour.map((point) => point.x)), maxY: Math.max(...contour.map((point) => point.y))
+  };
   (plan?.platforms || []).forEach((platform) => {
     let minX = Number(platform.x) || 0;
     let minY = Number(platform.y) || 0;

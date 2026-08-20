@@ -176,3 +176,35 @@ test('house dimensions move to the free perimeter side', () => {
   });
   assert.equal(topTerrace.horizontal, 'bottom');
 });
+
+test('irregular outer contour drives house area and perimeter', () => {
+  const metrics = calculatePlanMetrics({
+    house: { w: 10, h: 10, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 8 }, { x: 6, y: 8 }, { x: 6, y: 10 }, { x: 4, y: 10 }, { x: 4, y: 8 }, { x: 0, y: 8 }] },
+    wallThickness: .174, partitionThickness: .1, wallHeight: 2.5,
+    rooms: [], walls: [], openings: [], wallGaps: []
+  });
+  assert.equal(metrics.floorArea, 84);
+  assert.equal(metrics.perimeter, 40);
+});
+
+test('opening supply and SIP cutting can be controlled independently', () => {
+  const metrics = calculatePlanMetrics({
+    house: { w: 10, h: 8 }, wallThickness: .174, partitionThickness: .1, wallHeight: 2.5,
+    rooms: [], walls: [], wallGaps: [], openings: [
+      { type: 'window', width: 2, height: 1, x: 5, y: 0, orientation: 'h', outer: true, includeInEstimate: false, subtractFromSip: true },
+      { type: 'door', width: 1, height: 2, x: 0, y: 4, orientation: 'v', outer: true, includeInEstimate: true, subtractFromSip: false }
+    ]
+  });
+  assert.equal(metrics.windowArea, 0);
+  assert.equal(metrics.doorArea, 2);
+  assert.equal(metrics.exteriorOpeningsArea, 2);
+});
+
+test('hip roof has no gables and includes ridge plus four hip rafters', () => {
+  const geometry = roofGeometry({ span: 8, ridgeLength: 10, ridgeHeight: 3, shape: 'hip', eaveOverhang: .5 });
+  assert.equal(geometry.shape, 'hip');
+  assert.equal(geometry.gableArea, 0);
+  assert.ok(geometry.ridgeLength > 0);
+  assert.ok(geometry.hipLength > 0);
+  assert.ok(geometry.totalSlopeArea > 80);
+});

@@ -177,7 +177,7 @@ function roofSection(project, metrics, index, inputs) {
   if (!project.services.roof) return { lines: [], extensionLines: [], geometry: null, terraceRoofs: [], coldArea: 0, warmArea: 0, coldSlopeArea: 0, warmSlopeArea: 0, gableArea: 0, insulatedRafterArea: 0, terracePostCount: 0, totalArea: 0, mauerlatLength: 0, mauerlatPurchaseLength: 0, ridgeBeamLength: 0, ridgeBeamPurchaseLength: 0, mainEaveTrimPurchaseLength: 0, mainVergeTrimPurchaseLength: 0 };
   const { roof } = project.settings;
   const span = Number(project.plan.house.h) || 0;
-  const mainRoofShape = roof.shape === 'flat' ? 'flat' : 'gable';
+  const mainRoofShape = ['flat', 'hip'].includes(roof.shape) ? roof.shape : 'gable';
   const eaveOverhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
   const geometry = roofGeometry({
@@ -207,8 +207,8 @@ function roofSection(project, metrics, index, inputs) {
     if (platform.roof?.mode === 'warm') warmSlopeArea += result.netArea;
     if (platform.roof?.mode === 'cold') coldSlopeArea += result.netArea;
   });
-  const mainGableType = mainRoofShape === 'flat' || roof.gableType === 'none' ? 'none' : roof.gableType === 'cold' ? 'cold' : roof.gableType === 'sip' ? 'sip' : roof.type === 'sip' ? 'sip' : 'cold';
-  const mainGableCount = mainRoofShape === 'flat' ? 0 : Math.min(2, Math.max(0, Math.round(Number(roof.gableCount) || 0)));
+  const mainGableType = mainRoofShape !== 'gable' || roof.gableType === 'none' ? 'none' : roof.gableType === 'cold' ? 'cold' : roof.gableType === 'sip' ? 'sip' : roof.type === 'sip' ? 'sip' : 'cold';
+  const mainGableCount = mainRoofShape === 'gable' ? Math.min(2, Math.max(0, Math.round(Number(roof.gableCount) || 0))) : 0;
   const mainGableArea = mainGableType === 'none' ? 0 : geometry.gableArea * mainGableCount / 2;
   const mainColdGableArea = mainGableType === 'cold' ? mainGableArea : 0;
   const mainWarmGableArea = mainGableType === 'sip' ? mainGableArea : 0;
@@ -232,24 +232,27 @@ function roofSection(project, metrics, index, inputs) {
   const rafterSection = rafterStructure.section;
   const rafterDepth = rafterSection === '50x200' ? 0.2 : 0.15;
   const terracePostCount = terraceRoofs.reduce((sum, item) => sum + item.result.postCount, 0);
-  const mauerlatLength = mainRoofShape === 'flat' ? 0 : houseLength * 2;
+  const mauerlatLength = mainRoofShape === 'flat' ? 0 : mainRoofShape === 'hip' ? metrics.perimeter : houseLength * 2;
   const mauerlatPurchaseLength = mauerlatLength * inputs.formulas.mauerlatReserve;
   const mauerlatBoardCount = mauerlatPurchaseLength ? Math.ceil(mauerlatPurchaseLength / 6) : 0;
   const mauerlatVolume = mauerlatBoardCount * 6 * 0.1 * 0.15;
   const anchorSpacing = Math.max(0.1, inputs.formulas.mauerlatAnchorSpacing);
-  const mauerlatAnchors = mauerlatLength ? 2 * (Math.ceil(houseLength / anchorSpacing) + 1) : 0;
-  const ridgeBeamLength = mainRoofShape === 'flat' ? 0 : geometry.roofLength;
+  const mauerlatAnchors = !mauerlatLength ? 0 : mainRoofShape === 'hip'
+    ? Math.ceil(mauerlatLength / anchorSpacing) + 1
+    : 2 * (Math.ceil(houseLength / anchorSpacing) + 1);
+  const ridgeBeamLength = mainRoofShape === 'flat' ? 0 : mainRoofShape === 'hip' ? geometry.ridgeLength + geometry.hipLength : geometry.roofLength;
   const ridgeBeamPurchaseLength = ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
   const rafterReserve = rafterStructure.system === 'truss'
     ? inputs.formulas.trussRafterReserve
     : rafterStructure.system === 'hanging' ? inputs.formulas.hangingRafterReserve : inputs.formulas.layeredRafterReserve;
-  const mainRafterLegLength = mainColdSlopeArea ? rafterStructure.legCount * geometry.slopeLength : 0;
+  const hipRafterLength = mainRoofShape === 'hip' ? geometry.hipLength : 0;
+  const mainRafterLegLength = mainColdSlopeArea ? rafterStructure.legCount * geometry.slopeLength + hipRafterLength : 0;
   const mainRafterRequiredLength = mainRafterLegLength * rafterReserve + ridgeBeamPurchaseLength;
   const mainRafterBoardCount = mainRafterRequiredLength ? Math.ceil(mainRafterRequiredLength / 6) : 0;
   const mainRafterPurchaseLength = mainRafterBoardCount * 6;
   const mainRafterVolume = mainRafterPurchaseLength * 0.05 * rafterDepth;
-  const mainEaveLength = mainRoofShape === 'flat' ? 0 : geometry.roofLength * 2;
-  const mainVergeLength = mainRoofShape === 'flat' ? 0 : geometry.slopeLength * 4;
+  const mainEaveLength = mainRoofShape === 'flat' ? 0 : mainRoofShape === 'hip' ? 2 * (geometry.roofLength + geometry.roofSpan) : geometry.roofLength * 2;
+  const mainVergeLength = mainRoofShape === 'gable' ? geometry.slopeLength * 4 : 0;
   const mainEaveTrimPurchaseLength = mainEaveLength * inputs.formulas.roofTrimReserve;
   const mainVergeTrimPurchaseLength = mainVergeLength * inputs.formulas.roofTrimReserve;
   const mainCoverPurchaseArea = mainArea * (1 + roof.wastePercent / 100);
@@ -317,7 +320,7 @@ function roofSection(project, metrics, index, inputs) {
     ];
   }));
   const gutterLength = roof.includeGutter === true ? mainEaveLength : 0;
-  const gutterRunCount = mainRoofShape === 'flat' ? 1 : 2;
+  const gutterRunCount = mainRoofShape === 'hip' ? 4 : mainRoofShape === 'flat' ? 1 : 2;
   const gutterStockLength = 3;
   const gutterPieces = gutterLength ? Math.ceil(gutterLength / gutterStockLength) : 0;
   const gutterConnectors = gutterLength ? Math.max(0, gutterPieces - gutterRunCount) : 0;
@@ -333,7 +336,7 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, 'roof', 'Анкер-шпилька для крепления мауэрлата', mauerlatAnchors, { key: 'mauerlat-anchors', unit: 'шт' }),
     makeLine(index, 'roof', 'Монтаж стропильной системы', mainColdSlopeArea, { key: 'rafters-work', kind: 'labor', name: rafterStructure.system === 'truss' ? 'Монтаж стропильных ферм' : 'Монтаж стропильной системы' }),
     makeLine(index, 'roof', 'Монтаж обрешётки и контробрешётки', mainArea, { key: 'lath-work', kind: 'labor' }),
-    makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', mainRafterVolume, { key: 'rafters', unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм · ${mainRafterBoardCount} шт × 6 м, включая коньковый прогон` }),
+    makeLine(index, 'roof', rafterSection === '50x200' ? 'Доска ест. влажн. сосна 50х200мм' : 'Доска ест. влажн. сосна 50х150мм', mainRafterVolume, { key: 'rafters', unit: 'м³', digits: 3, name: `Стропильная доска ${rafterSection.replace('x', '×')} мм · ${mainRafterBoardCount} шт × 6 м, включая ${mainRoofShape === 'hip' ? 'коньковый и накосные стропила' : 'коньковый прогон'}` }),
     makeLine(index, 'roof', 'Доска ест. влажн. сосна 50х150мм', mainGableBoardVolume, { key: 'gable-frame', unit: 'м³', digits: 3, name: `Каркас холодных фронтонов · доска 50×150 мм · ${mainGableBoardCount} шт × 6 м`, source: 'gables' }),
     makeLine(index, 'roof', 'Монтаж каркаса фронтонов', mainColdGableArea, { key: 'gable-frame-work', kind: 'labor', source: 'gables' }),
     makeLine(index, 'roof', 'Доска ест.влажн. сосна 25*100мм', mainLathVolume, { key: 'lath', unit: 'м³', digits: 3, name: `Обрешётка 25×100 мм · шаг ${Math.round(lathStep * 1000)} мм · ${mainLathBoardCount} шт × 6 м` }),
@@ -419,7 +422,7 @@ function terraceSection(project, index, inputs) {
 function openingSection(project, index) {
   if (!project.services.openings) return { lines: [] };
   const lines = [];
-  project.plan.openings.forEach((opening, openingIndex) => {
+  project.plan.openings.filter((opening) => opening.includeInEstimate !== false).forEach((opening, openingIndex) => {
     const width = Math.round((opening.width || 0.8) * 1000);
     const height = Math.round((opening.height || 2) * 1000);
     const garage = opening.type === 'door' && opening.doorType === 'garage';

@@ -1,7 +1,7 @@
 import { formatMoney, formatNumber } from '../utils/format.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
-const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная' };
+const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
 const CONNECTOR_TYPES = { thermal: 'термобрус', 'board-pack': 'клеёный пакет досок', solid: 'брус естественной влажности' };
 
 function openingCounts(openings = []) {
