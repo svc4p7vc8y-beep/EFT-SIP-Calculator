@@ -113,7 +113,7 @@ const TOOLS = [
   ["room", "Прямоугольная комната", SquareDashed],
   ["polygon", "Комната свободной формы", Pentagon],
   ["houseContour", "Контур дома", Home],
-  ["wall", "Стена", BrickWall],
+  ["wall", "Перегородка", BrickWall],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
