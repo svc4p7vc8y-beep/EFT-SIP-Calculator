@@ -2117,6 +2117,8 @@ select,
 }
 .blank-plan-prompt { fill: #477831; font-size: 24px; font-weight: 800; text-anchor: middle; pointer-events: none; }
 .blank-plan-prompt-subtitle { fill: #7b877b; font-size: 13px; font-weight: 600; }
+.draft-alignment-guides { pointer-events: none; }
+.draft-alignment-guides line { stroke: #66a842; stroke-width: 1.5; stroke-dasharray: 10 7; opacity: .72; vector-effect: non-scaling-stroke; }
 .room-shape {
   fill: rgba(249, 247, 226, 0.55);
   stroke: #172018;
@@ -2857,6 +2859,12 @@ select,
   stroke: #182019;
   stroke-width: 4;
 }
+.print-roof-top-layer { pointer-events: none; }
+.print-roof-overhang { fill: rgba(196, 150, 73, .09); stroke: #8d621f; stroke-width: 3; stroke-dasharray: 8 5; }
+.print-roof-ridge { stroke: #9a5f16; stroke-width: 8; }
+.print-roof-diagonals line { stroke: #9a5f16; stroke-width: 6; }
+.print-roof-rafters line { stroke: #52685b; stroke-width: 2; opacity: .78; }
+.print-roof-caption { fill: #67451b !important; font-size: 18px !important; font-weight: 850; paint-order: stroke; stroke: #fff; stroke-width: 4; }
 .print-plan-svg .print-opening-cut {
   stroke: #fff;
   stroke-width: 12;

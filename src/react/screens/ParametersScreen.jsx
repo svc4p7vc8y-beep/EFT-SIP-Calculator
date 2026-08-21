@@ -956,7 +956,6 @@ export default function ParametersScreen() {
             id="engineering"
             number="09"
             title="Инженерия и отделка"
-            description="Автополя связаны с площадью, мокрыми комнатами, перегородками и проёмами."
           >
             <LinkedGroup
               title="Инженерия из плана"
@@ -1085,7 +1084,11 @@ export default function ParametersScreen() {
               <div className="toggle-grid">
                 {[
                   ["includePlan", "План дома", true],
-                  ["includeRoof", "Схема кровли", false],
+                  ["includeRoof", "Крыша на контуре", false],
+                  ["showContour", "Контур дома", true],
+                  ["showRooms", "Комнаты", true],
+                  ["showOpenings", "Окна и двери", true],
+                  ["showPlatforms", "Пристройки", true],
                   ["showPiles", "Сваи", true],
                   ["showBinding", "Обвязка", true],
                   ["showDimensions", "Размеры", true],

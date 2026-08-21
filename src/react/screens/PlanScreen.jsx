@@ -1141,7 +1141,7 @@ function PlanCanvas({
       plan,
       current?.type === "room" ? current.id : null,
     );
-    if (tool === "polygon" && polygonDraft.length) {
+    if (["polygon", "houseContour"].includes(tool) && polygonDraft.length) {
       polygonDraft.forEach((point) => {
         axes.xs.push(point.x);
         axes.ys.push(point.y);
@@ -2479,6 +2479,13 @@ function PlanCanvas({
           p={p}
         />
       ) : null}
+      {hoverSnap?.snap && (DRAW_TOOLS.has(tool) || ["polygon", "houseContour"].includes(tool)) ? (() => {
+        const q = p(hoverSnap.point.x, hoverSnap.point.y);
+        return <g className="draft-alignment-guides" aria-label="Направляющие выравнивания">
+          {hoverSnap.snap.matchedX ? <line x1={q.x} y1="0" x2={q.x} y2={VIEW.height} /> : null}
+          {hoverSnap.snap.matchedY ? <line x1="0" y1={q.y} x2={VIEW.width} y2={q.y} /> : null}
+        </g>;
+      })() : null}
       {hoverSnap?.snap && (tool !== "select" || gesture)
         ? (() => {
             const q = p(hoverSnap.point.x, hoverSnap.point.y);
@@ -2674,11 +2681,6 @@ function RoofLayerInspector({ roof, commitRoof }) {
           />
         ) : null}
       </div>
-      <p className="inspector-note">
-        Слой показывает схему сверху и сразу передаёт форму, свесы, шаги и
-        сечение в калькулятор кровли. Несущие узлы и сечения перед
-        строительством подтверждаются конструктором.
-      </p>
     </div>
   );
 }

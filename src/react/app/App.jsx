@@ -57,7 +57,7 @@ export function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('eft-react-theme') || 'light');
   const [menuOpen, setMenuOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
-  const [notice, setNotice] = useState('Проект сохраняется автоматически');
+  const [notice, setNotice] = useState('Готово');
   const fileRef = useRef(null);
   const calculation = useMemo(() => calculateProject(project), [project]);
 
@@ -117,7 +117,7 @@ export function App() {
           <button className="icon-button" onClick={undo} disabled={!canUndo} aria-label="Отменить"><ChevronLeft /></button>
           <button className="icon-button" onClick={redo} disabled={!canRedo} aria-label="Повторить"><ChevronRight /></button>
           <button className="icon-button" onClick={changeTheme} aria-label="Сменить тему">{theme === 'light' ? <Moon /> : <Sun />}</button>
-          <button className={`icon-button ${active === 'calculation-settings' ? 'active' : ''}`} onClick={() => setActive('calculation-settings')} aria-label="Настройка расчётов" title="Связи и формулы"><Settings2 /></button>
+          <button className={`icon-button ${active === 'calculation-settings' ? 'active' : ''}`} onClick={() => setActive('calculation-settings')} aria-label="Настройка расчётов" title="Настройки"><Settings2 /></button>
           <button className="icon-button" onClick={newProject} aria-label="Новый проект"><FilePlus2 /></button>
           <button className="icon-button" onClick={saveProject} aria-label="Сохранить проект"><Save /></button>
           <button className="icon-button" onClick={() => fileRef.current?.click()} aria-label="Открыть проект"><FileUp /></button>

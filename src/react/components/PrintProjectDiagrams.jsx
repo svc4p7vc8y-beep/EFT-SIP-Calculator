@@ -43,19 +43,56 @@ function garageSwingGeometry(opening, q, size, plan) {
   };
 }
 
-function planBounds(plan) {
+function planBounds(plan, options = {}) {
   const points = [
     ...houseContourPoints(plan),
-    ...(plan.rooms || []).flatMap(roomPoints),
-    ...(plan.platforms || []).flatMap((item) => [
+    ...(options.showRooms === false ? [] : (plan.rooms || []).flatMap(roomPoints)),
+    ...(options.showPlatforms === false ? [] : (plan.platforms || []).flatMap((item) => [
       { x: item.x, y: item.y }, { x: item.x + item.w, y: item.y + item.h }
-    ])
+    ]))
   ];
   return boundsOf(points);
 }
 
-export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
-  const bounds = planBounds(plan);
+function PrintRoofTopLayer({ plan, roof = {}, p }) {
+  const contour = houseContourPoints(plan);
+  const bounds = boundsOf(contour);
+  const shape = ['flat', 'hip'].includes(roof.shape) ? roof.shape : 'gable';
+  const vertical = bounds.h >= bounds.w;
+  const eave = Math.max(0, Number(roof.eaveOverhang) || 0);
+  const gable = Math.max(0, Number(roof.gableOverhang) || 0);
+  const overhangX = shape === 'gable' ? (vertical ? eave : gable) : eave;
+  const overhangY = shape === 'gable' ? (vertical ? gable : eave) : eave;
+  const x1 = bounds.x - overhangX; const x2 = bounds.x2 + overhangX;
+  const y1 = bounds.y - overhangY; const y2 = bounds.y2 + overhangY;
+  const centerX = (x1 + x2) / 2; const centerY = (y1 + y2) / 2;
+  const step = Math.max(0.3, Number(roof.rafterStep) || 0.6);
+  const longStart = vertical ? y1 : x1;
+  const longEnd = vertical ? y2 : x2;
+  const rafterCount = Math.max(2, Math.ceil((longEnd - longStart) / step) + 1);
+  const rafters = Array.from({ length: rafterCount }, (_, index) => longStart + ((longEnd - longStart) * index) / Math.max(1, rafterCount - 1));
+  const a = p(x1, y1); const b = p(x2, y2);
+  const ridgeInset = shape === 'hip' ? Math.min((x2 - x1), (y2 - y1)) / 2 : 0;
+  const ridgeA = vertical ? p(centerX, y1 + ridgeInset) : p(x1 + ridgeInset, centerY);
+  const ridgeB = vertical ? p(centerX, y2 - ridgeInset) : p(x2 - ridgeInset, centerY);
+  return <g className={`print-roof-top-layer ${shape}`} aria-label="Крыша из текущего плана">
+    <rect className="print-roof-overhang" x={a.x} y={a.y} width={b.x - a.x} height={b.y - a.y} />
+    {shape !== 'flat' ? <line className="print-roof-ridge" x1={ridgeA.x} y1={ridgeA.y} x2={ridgeB.x} y2={ridgeB.y} /> : null}
+    {shape === 'hip' ? <g className="print-roof-diagonals">
+      <line x1={a.x} y1={a.y} x2={ridgeA.x} y2={ridgeA.y} /><line x1={b.x} y1={a.y} x2={ridgeB.x} y2={ridgeB.y} />
+      <line x1={a.x} y1={b.y} x2={ridgeA.x} y2={ridgeA.y} /><line x1={b.x} y1={b.y} x2={ridgeB.x} y2={ridgeB.y} />
+    </g> : null}
+    <g className="print-roof-rafters">{rafters.map((value, index) => {
+      const q1 = vertical ? p(x1, value) : p(value, y1);
+      const q2 = vertical ? p(x2, value) : p(value, y2);
+      return <line key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />;
+    })}</g>
+    <text className="print-roof-caption" x={p(centerX, centerY).x} y={p(centerX, centerY).y - 12}>{shape === 'hip' ? 'Вальмовая кровля' : shape === 'flat' ? 'Плоская кровля' : 'Двускатная кровля'}</text>
+  </g>;
+}
+
+export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSettings }) {
+  const bounds = planBounds(plan, options);
   const scale = Math.min(
     (PLAN_VIEW.width - PLAN_VIEW.margin * 2) / Math.max(1, bounds.w),
     (PLAN_VIEW.height - PLAN_VIEW.margin * 2) / Math.max(1, bounds.h)
@@ -70,6 +107,10 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
   const showPiles = options.showPiles !== false;
   const showBinding = options.showBinding !== false;
   const showDimensions = options.showDimensions !== false;
+  const showContour = options.showContour !== false;
+  const showRooms = options.showRooms !== false;
+  const showOpenings = options.showOpenings !== false;
+  const showPlatforms = options.showPlatforms !== false;
   const foundation = calculateFoundation(plan, pileSettings);
   const line = (item) => ({ a: p(item.x1, item.y1), b: p(item.x2, item.y2) });
   const openingLine = (opening) => {
@@ -97,17 +138,18 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
   };
   return <svg className="print-plan-svg" viewBox={`0 0 ${PLAN_VIEW.width} ${PLAN_VIEW.height}`} role="img" aria-label="План дома для печати">
     <defs><marker id="print-plan-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" /></marker></defs>
-    {(plan.platforms || []).map((item) => { const q = p(item.x, item.y); return <g key={item.id} className="print-platform"><rect x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} /><text className="print-platform-title" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 - 9}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text><text className="print-platform-area" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + 19}>{formatNumber(item.w * item.h)} м²</text></g>; })}
-    <polygon className="print-house-fill" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} />
-    {(plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(roomBounds.x + roomBounds.w / 2, roomBounds.y + roomBounds.h / 2); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" x={center.x} y={center.y - 7}>{room.name}</text><text x={center.x} y={center.y + 9}>{formatNumber(polygonArea(points))} м²</text></g>; })}
-    <polygon className="print-outer-wall" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} />
-    {unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; })}
-    {(plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; })}
+    {showPlatforms ? (plan.platforms || []).map((item) => { const q = p(item.x, item.y); return <g key={item.id} className="print-platform"><rect x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} /><text className="print-platform-title" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 - 9}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text><text className="print-platform-area" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + 19}>{formatNumber(item.w * item.h)} м²</text></g>; }) : null}
+    {showContour || showRooms || options.showRoof ? <polygon className="print-house-fill" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
+    {options.showRoof ? <PrintRoofTopLayer plan={plan} roof={roofSettings} p={p} /> : null}
+    {showRooms ? (plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(roomBounds.x + roomBounds.w / 2, roomBounds.y + roomBounds.h / 2); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" x={center.x} y={center.y - 7}>{room.name}</text><text x={center.x} y={center.y + 9}>{formatNumber(polygonArea(points))} м²</text></g>; }) : null}
+    {showContour || options.showRoof ? <polygon className="print-outer-wall" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
+    {showRooms ? unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; }) : null}
+    {showRooms ? (plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; }) : null}
     {showBinding ? <g className="print-binding" aria-label="Обвязка на печатном плане">
       {(plan.bindingLines || []).filter((item) => item.include !== false).map((item) => { const q = line(item); return <line key={item.id} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; })}
       {(plan.platforms || []).filter((item) => item.include !== false && item.binding?.mode !== 'none').map((item) => { const q = p(item.x, item.y); return <rect key={item.id} x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />; })}
     </g> : null}
-    {(plan.openings || []).map(renderOpening)}
+    {showOpenings ? (plan.openings || []).map(renderOpening) : null}
     {showPiles ? <g className="print-piles" aria-label="Сваи на печатном плане">{foundation.points.map((point, index) => { const q = p(point.x, point.y); return <circle key={index} cx={q.x} cy={q.y} r="5" />; })}</g> : null}
     {showDimensions ? <g className="print-house-dimensions" aria-label="Размеры на печатном плане">
       <line x1={houseStart.x} y1={houseStart.y - 24} x2={houseStart.x + houseBounds.w * scale} y2={houseStart.y - 24} markerStart="url(#print-plan-arrow)" markerEnd="url(#print-plan-arrow)" />
@@ -116,14 +158,14 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {} }) {
       <text transform={`translate(${houseStart.x - 31} ${houseStart.y + houseBounds.h * scale / 2}) rotate(-90)`}>{Math.round(houseBounds.h * 1000).toLocaleString('ru-RU')} мм</text>
       {(plan.dimensions || []).map((item) => { const q = line(item); const length = Math.hypot(item.x2 - item.x1, item.y2 - item.y1); return <g className="print-custom-dimension" key={item.id}><line x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} markerStart="url(#print-plan-arrow)" markerEnd="url(#print-plan-arrow)" /><text x={(q.a.x + q.b.x) / 2} y={(q.a.y + q.b.y) / 2 - 7}>{Math.round(length * 1000).toLocaleString('ru-RU')} мм</text></g>; })}
     </g> : null}
-    <g className="print-plan-legend" transform="translate(35 456)" aria-label="Условные обозначения плана">
+    {options.showLegend === false ? null : <g className="print-plan-legend" transform="translate(35 456)" aria-label="Условные обозначения плана">
       <rect className="legend-background" x="0" y="0" width="690" height="34" rx="6" />
       <g className="legend-item" transform="translate(14 17)"><line className="legend-outer" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Наружная стена</text></g>
       <g className="legend-item" transform="translate(158 17)"><line className="legend-inner" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Перегородка</text></g>
       {showBinding ? <g className="legend-item" transform="translate(282 17)"><line className="legend-binding" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Обвязка</text></g> : null}
       <g className="legend-item" transform="translate(392 17)"><line className="legend-window" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Окно</text></g>
       <g className="legend-item" transform="translate(490 17)"><line className="legend-door" x1="0" y1="0" x2="25" y2="0" /><text x="32" y="4">Дверь / ворота</text></g>
-    </g>
+    </g>}
   </svg>;
 }
 
@@ -163,7 +205,7 @@ export function PrintProjectDiagrams({ project, calculation }) {
   const includeRoof = options.includeRoof === true;
   if (!includePlan && !includeRoof) return null;
   return <section className={`print-diagrams ${includePlan && includeRoof ? 'two' : 'one'}`} aria-label="Иллюстрации проекта">
-    {includePlan ? <article><h2>План дома</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} options={options} /></article> : null}
-    {includeRoof ? <article><h2>Схема кровли</h2><PrintRoofDiagram project={project} roof={calculation.roof} /></article> : null}
+    {includePlan ? <article><h2>План комнат</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} options={options} /></article> : null}
+    {includeRoof ? <article><h2>Крыша на контуре дома</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={{ showRoof: true, showContour: true, showRooms: false, showOpenings: false, showPlatforms: false, showPiles: false, showBinding: false, showDimensions: false, showLegend: false }} /></article> : null}
   </section>;
 }

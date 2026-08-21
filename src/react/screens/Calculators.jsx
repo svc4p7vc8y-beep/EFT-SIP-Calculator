@@ -713,14 +713,6 @@ export default function Calculators({ type }) {
   return (
     <div className="screen">
       <ScreenHeader title={title} description={description} />
-      <div className="calculation-link-banner">
-        <strong>Данные связаны с планом</strong>
-        <span>
-          Поля с расчётными значениями обновляются автоматически. Ручное
-          изменение такого поля отключает соответствующую связь; включить её
-          снова можно кнопкой ⚙ вверху.
-        </span>
-      </div>
       {type === "piles" ? (
         <>
           <div className="stats-row">

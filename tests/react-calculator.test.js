@@ -77,10 +77,11 @@ test('React project produces a priced estimate from one shared model', () => {
   assert.equal(result.totals.total, result.totals.materials + result.totals.labor);
 });
 
-test('print plan layers default to piles, binding and dimensions and survive migration', () => {
+test('print plan and roof layers default independently and survive migration', () => {
   const project = createDefaultProject();
   assert.deepEqual(project.settings.print, {
-    includePlan: true, includeRoof: false, showPiles: true, showBinding: true, showDimensions: true
+    includePlan: true, includeRoof: false, showContour: true, showRooms: true,
+    showOpenings: true, showPlatforms: true, showPiles: true, showBinding: true, showDimensions: true
   });
   project.settings.print.showPiles = false;
   project.settings.print.showDimensions = false;
@@ -88,6 +89,7 @@ test('print plan layers default to piles, binding and dimensions and survive mig
   assert.equal(restored.settings.print.showPiles, false);
   assert.equal(restored.settings.print.showBinding, true);
   assert.equal(restored.settings.print.showDimensions, false);
+  assert.equal(restored.settings.print.showRooms, true);
 });
 
 test('plan and roof visibility layers have independent saved defaults', () => {

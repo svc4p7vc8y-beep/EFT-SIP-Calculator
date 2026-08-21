@@ -62,7 +62,21 @@ test('pointer snaps to a nearby real node without an exact hit', () => {
   assert.deepEqual(snapPoint({ x: 1.48, y: 1.69 }, axes, { tolerance: 0.15, pointTolerance: 0.35 }), { x: 1.237, y: 1.456 });
   const resolved = snapPointDetails({ x: 1.48, y: 1.69 }, axes, { tolerance: 0.15, pointTolerance: 0.35 });
   assert.equal(resolved.snap.kind, 'node');
+  assert.equal(resolved.snap.matchedX, true);
+  assert.equal(resolved.snap.matchedY, true);
   assert.deepEqual(resolved.point, { x: 1.237, y: 1.456 });
+});
+
+test('alignment snap reports which drawing guide should be shown', () => {
+  const resolved = snapPointDetails(
+    { x: 4.08, y: 2.43 },
+    { xs: [4], ys: [7], points: [] },
+    { grid: 0.1, tolerance: 0.12 }
+  );
+  assert.equal(resolved.snap.kind, 'axis');
+  assert.equal(resolved.snap.matchedX, true);
+  assert.equal(resolved.snap.matchedY, false);
+  assert.deepEqual(resolved.point, { x: 4, y: 2.4 });
 });
 
 test('pile row alignment distinguishes an exact axis from a small accidental offset', () => {

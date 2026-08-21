@@ -95,7 +95,7 @@ export function snapPointDetails(point, axes, options = {}) {
   }
   if (closestPoint) {
     const snapped = { x: roundCoord(closestPoint.x), y: roundCoord(closestPoint.y) };
-    return { point: snapped, snap: { kind: 'node', ...snapped, distance: roundCoord(closestDistance) } };
+    return { point: snapped, snap: { kind: 'node', ...snapped, matchedX: true, matchedY: true, distance: roundCoord(closestDistance) } };
   }
   const snapValue = (value, candidates) => {
     let best = Math.round(value / grid) * grid;
@@ -112,7 +112,7 @@ export function snapPointDetails(point, axes, options = {}) {
   const snapped = { x: x.value, y: y.value };
   return {
     point: snapped,
-    snap: x.matched || y.matched ? { kind: x.matched && y.matched ? 'intersection' : 'axis', ...snapped } : null
+    snap: x.matched || y.matched ? { kind: x.matched && y.matched ? 'intersection' : 'axis', ...snapped, matchedX: x.matched, matchedY: y.matched } : null
   };
 }
 
