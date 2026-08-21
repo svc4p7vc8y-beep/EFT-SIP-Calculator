@@ -208,7 +208,7 @@ function applyMainRoofComplexity(lines, shape) {
   });
 }
 
-function sipSection(project, metrics, index, inputs) {
+function sipSection(project, metrics, index, inputs, roofResult) {
   const { sip } = project.settings;
   const surfaces = {
     floor: project.services.sipFloor ? metrics.floorArea : 0,
@@ -218,6 +218,7 @@ function sipSection(project, metrics, index, inputs) {
       project.services.partitions && sip.partitionType === "sip"
         ? metrics.partitionNetArea
         : 0,
+    gables: Math.max(0, Number(roofResult?.warmGableArea) || 0),
   };
   const f = inputs.formulas;
   const cutting = calculateSipCutting(surfaces, {
@@ -226,6 +227,7 @@ function sipSection(project, metrics, index, inputs) {
     panelLength: f.panelLength,
     extraWastePercent: sip.wastePercent,
     includePartitions: sip.partitionType === "sip",
+    includeGables: surfaces.gables > 0,
     layoutWidths: {
       floor: sip.floorPanelWidth,
       ceiling: sip.ceilingPanelWidth,
@@ -1067,6 +1069,29 @@ function roofSection(project, metrics, index, inputs) {
           name: `Раскрой SIP-фронтона ${title}`,
           source,
         }),
+        makeLine(
+          index,
+          "roof",
+          "Пеноклей для СИП-панелей 650 мл",
+          Math.ceil(gableSip.panels * inputs.formulas.foamUnitsPerPanel),
+          {
+            key: `${key}-gable-sip-foam`,
+            name: `Пеноклей для СИП-фронтона ${title}`,
+            source,
+          },
+        ),
+        makeLine(
+          index,
+          "roof",
+          "Саморезы конст.",
+          gableSip.area * inputs.formulas.structuralFastenerKgPerM2,
+          {
+            key: `${key}-gable-sip-fasteners`,
+            unit: "кг",
+            name: `Саморезы конструкционные · СИП-фронтон ${title}`,
+            source,
+          },
+        ),
         makeLine(index, "roof", postQuery, result.postVolume, {
           key: `${key}-posts-${result.postSection}`,
           unit: "м³",
@@ -1860,7 +1885,7 @@ export function calculateProject(project) {
   const index = catalogIndex(project);
   const foundation = foundationSection(project, index, inputs);
   const roof = roofSection(project, metrics, index, inputs);
-  const sip = sipSection(project, metrics, index, inputs);
+  const sip = sipSection(project, metrics, index, inputs, roof);
   const terrace = terraceSection(project, index, inputs);
   const openings = openingSection(project, index);
   const engineering = engineeringSection(project, index, inputs);

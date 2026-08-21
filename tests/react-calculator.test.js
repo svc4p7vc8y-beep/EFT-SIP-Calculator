@@ -154,13 +154,13 @@ test('commercial proposal follows project estimate edits instead of promising re
   assert.equal(scope.some((item) => item.key === 'delivery'), false);
 });
 
-test('warm main roof and terrace roofs are cut only in the roof section', () => {
+test('warm roof planes stay in roof while SIP gables also appear in panel cutting', () => {
   const project = createDefaultProject();
   project.settings.roof.type = 'sip';
   project.plan.platforms[0].roof.mode = 'warm';
   const result = calculateProject(project);
   assert.ok(result.roof.warmArea > 0);
-  assert.deepEqual(result.sip.cutting.map((row) => row.key), ['floor', 'walls', 'ceiling']);
+  assert.deepEqual(result.sip.cutting.map((row) => row.key), ['floor', 'walls', 'ceiling', 'gables']);
   assert.ok(result.roof.sipCutting.area > 0);
   assert.ok(result.roof.sipCutting.panels > 0);
   assert.equal(result.lines.filter((line) => line.id === 'roof:sip-panel').length, 1);
@@ -254,6 +254,36 @@ test('warm gables use wall SIP panels instead of a cold timber frame', () => {
   assert.equal(result.roof.warmGableArea, result.roof.geometry.gableArea);
   assert.ok(result.lines.some((line) => line.id === 'roof:gable-sip-panel' && line.name.includes('174')));
   assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
+  const gableCutting = result.sip.cutting.find((row) => row.key === 'gables');
+  assert.equal(gableCutting.label, 'Фронтоны SIP');
+  assert.equal(gableCutting.area, result.roof.warmGableArea);
+  assert.equal(gableCutting.panels, result.roof.gableSipCutting.panels);
+  assert.ok(gableCutting.cutMeters > 0);
+});
+
+test('cold framed gables stay out of SIP cutting', () => {
+  const project = createDefaultProject();
+  project.settings.roof.gableType = 'cold';
+  const result = calculateProject(project);
+  assert.ok(result.roof.coldGableArea > 0);
+  assert.equal(result.sip.cutting.some((row) => row.key === 'gables'), false);
+  assert.ok(result.lines.some((line) => line.id === 'roof:gable-frame'));
+});
+
+test('warm terrace gables add SIP cutting, adhesive and structural fasteners', () => {
+  const project = createDefaultProject();
+  project.settings.roof.gableType = 'none';
+  const terrace = project.plan.platforms[0];
+  terrace.roof.mode = 'warm';
+  terrace.roof.shape = 'gable';
+  terrace.roof.gableType = 'sip';
+  terrace.roof.gableCount = 1;
+  const result = calculateProject(project);
+  const source = 'platform-terrace-main-roof';
+  const gableCutting = result.sip.cutting.find((row) => row.key === 'gables');
+  assert.equal(gableCutting.area, result.roof.warmGableArea);
+  assert.ok(result.roof.extensionLines.some((line) => line.source === source && line.id.endsWith('gable-sip-foam')));
+  assert.ok(result.roof.extensionLines.some((line) => line.source === source && line.id.endsWith('gable-sip-fasteners')));
 });
 
 test('terrace roof adds its slopes, posts and optional gable to the roof estimate', () => {

@@ -263,6 +263,7 @@ const CUTTING_RULES = {
   walls: { label: "Стены", waste: 1.05, cutNorm: 0.324 },
   ceiling: { label: "Потолок", waste: 1.03, cutNorm: 0.165 },
   partitions: { label: "Перегородки", waste: 1.05, cutNorm: 0.324 },
+  gables: { label: "Фронтоны SIP", waste: 1.1, cutNorm: 0.324 },
   roof: { label: "Крыша", waste: 1.1, cutNorm: 0.324 },
 };
 
@@ -307,6 +308,7 @@ function calculateCuttingRows(keys, surfaces, options = {}) {
 export function calculateSipCutting(surfaces, options = {}) {
   const keys = ["floor", "walls", "ceiling"];
   if (options.includePartitions === true) keys.push("partitions");
+  if (options.includeGables === true) keys.push("gables");
   return calculateCuttingRows(keys, surfaces, options);
 }
 

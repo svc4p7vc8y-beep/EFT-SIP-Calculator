@@ -386,7 +386,7 @@ function RoofConstructionPanels({
             step={0.05}
             onChange={(value) => setSetting("roof", "lathStep", value)}
           />
-          {project.settings.roof.shape !== "flat" ? (
+          {project.settings.roof.shape === "gable" ? (
             <>
               <SelectField
                 label="Фронтоны основной крыши"
@@ -394,8 +394,8 @@ function RoofConstructionPanels({
                 onChange={(value) => setSetting("roof", "gableType", value)}
                 options={[
                   { value: "auto", label: "По типу кровли" },
-                  { value: "cold", label: "Холодные каркасные" },
-                  { value: "sip", label: "Тёплые SIP" },
+                  { value: "cold", label: "Каркасные · доска 50×150 + ОСБ" },
+                  { value: "sip", label: "Из SIP-панелей" },
                   { value: "none", label: "Не учитывать" },
                 ]}
               />
@@ -590,8 +590,8 @@ function RoofConstructionPanels({
                             }
                             options={[
                               { value: "auto", label: "По типу кровли" },
-                              { value: "cold", label: "Холодный" },
-                              { value: "sip", label: "Тёплый SIP" },
+                              { value: "cold", label: "Каркасный · 50×150 + ОСБ" },
+                              { value: "sip", label: "Из SIP-панелей" },
                               { value: "none", label: "Без фронтона" },
                             ]}
                           />
@@ -823,6 +823,11 @@ export default function Calculators({ type }) {
               label="Перегородки"
               value={`${formatNumber(calculation.metrics.partitionNetArea)} м²`}
             />
+            <Stat
+              label="SIP-фронтоны"
+              value={`${formatNumber(calculation.roof.warmGableArea)} м² · ${calculation.roof.gableSipCutting?.panels || 0} пан.`}
+              tone={calculation.roof.warmGableArea ? "accent" : ""}
+            />
           </div>
           <Panel
             title="Панели и силовой каркас"
@@ -1052,7 +1057,7 @@ export default function Calculators({ type }) {
           </Panel>
           <Panel
             title="Раскрой СИП-панелей"
-            description={project.settings.sip.partitionType === "sip" ? "Пол, наружные стены, горизонтальный потолок и SIP-перегородки. Крыша считается отдельно во вкладке «Кровля»." : "Только пол, наружные стены и горизонтальный потолок. Крыша рассчитывается во вкладке «Кровля», каркасные перегородки не раскраиваются."}
+            description={project.settings.sip.partitionType === "sip" ? "Пол, наружные стены, горизонтальный потолок, SIP-перегородки и тёплые SIP-фронтоны. Плоскости крыши считаются отдельно во вкладке «Кровля»." : "Пол, наружные стены, горизонтальный потолок и тёплые SIP-фронтоны. Плоскости крыши рассчитываются во вкладке «Кровля», каркасные конструкции не входят в раскрой панелей."}
           >
             <div className="table-wrap">
               <table className="data-table">
@@ -1087,8 +1092,13 @@ export default function Calculators({ type }) {
                 </tbody>
               </table>
             </div>
+            {calculation.roof.coldGableArea > 0 ? (
+              <p className="panel-note">
+                Каркасные фронтоны: {formatNumber(calculation.roof.coldGableArea)} м². Для них считаются доска 50×150 мм, ОСБ, крепёж и монтаж; в раскрой СИП-панелей они не входят.
+              </p>
+            ) : null}
           </Panel>
-          <Panel title="Ведомость СИП и каркасных перегородок">
+          <Panel title="Ведомость СИП-конструкций и перегородок">
             <SectionResult calculation={calculation} sectionKey="sip" />
           </Panel>
         </>
@@ -1125,6 +1135,15 @@ export default function Calculators({ type }) {
             <Stat
               label="СИП-панели кровли"
               value={`${calculation.roof.sipCutting?.panels || 0} шт`}
+            />
+            <Stat
+              label="Каркасные фронтоны"
+              value={`${formatNumber(calculation.roof.coldGableArea)} м²`}
+            />
+            <Stat
+              label="СИП-фронтоны"
+              value={`${formatNumber(calculation.roof.warmGableArea)} м² · ${calculation.roof.gableSipCutting?.panels || 0} пан.`}
+              tone={calculation.roof.warmGableArea ? "accent" : ""}
             />
             <Stat
               label="Утепление второго света"

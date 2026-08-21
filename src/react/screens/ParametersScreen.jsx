@@ -740,7 +740,7 @@ export default function ParametersScreen() {
                   { value: "combo", label: "Комбинированная" },
                 ],
               },
-              project.settings.roof.shape !== "flat" && {
+              project.settings.roof.shape === "gable" && {
                 path: "settings.roof.ridgeHeight",
                 label: "Высота конька",
                 suffix: "м",
@@ -840,18 +840,18 @@ export default function ParametersScreen() {
                 max: 1.2,
                 step: 0.05,
               },
-              project.settings.roof.shape !== "flat" && {
+              project.settings.roof.shape === "gable" && {
                 path: "settings.roof.gableType",
                 label: "Фронтоны",
                 type: "select",
                 options: [
                   { value: "auto", label: "По типу кровли" },
-                  { value: "cold", label: "Холодные" },
-                  { value: "sip", label: "Тёплые SIP" },
+                  { value: "cold", label: "Каркасные · 50×150 + ОСБ" },
+                  { value: "sip", label: "Из SIP-панелей" },
                   { value: "none", label: "Нет" },
                 ],
               },
-              project.settings.roof.shape !== "flat" && {
+              project.settings.roof.shape === "gable" && {
                 path: "settings.roof.gableCount",
                 label: "Фронтонов",
                 suffix: "шт",
@@ -1264,8 +1264,8 @@ function PlatformEditor({ platform, index, project, update }) {
                   onChange={(value) => set("roof.gableType", value)}
                   options={[
                     { value: "auto", label: "По типу" },
-                    { value: "cold", label: "Холодные" },
-                    { value: "sip", label: "Тёплые SIP" },
+                    { value: "cold", label: "Каркасные · 50×150 + ОСБ" },
+                    { value: "sip", label: "Из SIP-панелей" },
                     { value: "none", label: "Нет" },
                   ]}
                 />
