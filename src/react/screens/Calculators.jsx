@@ -53,6 +53,20 @@ const TITLES = {
     "Рейсы, расстояние, объём и погрузочно-разгрузочные работы",
   ],
 };
+const PANEL_FAMILIES = [
+  { value: "pps", label: "PPS" },
+  { value: "mineral-wool", label: "Минвата" },
+  { value: "csp-pps", label: "CSP PPS" },
+];
+const PANEL_THICKNESSES = ["124", "174", "224"].map((value) => ({
+  value,
+  label: `${value} мм`,
+}));
+const ROOF_COVERINGS = [
+  { value: "profile", label: "Профлист С-21" },
+  { value: "metal-tile", label: "Металлочерепица" },
+  { value: "soft", label: "Мягкая кровля + OSB" },
+];
 
 function SectionResult({ calculation, sectionKey }) {
   const { project, commit } = useProject();
@@ -103,49 +117,191 @@ function RafterSystemPreview({ calculation }) {
   const roof = calculation.roof;
   const structure = roof.rafterStructure || {};
   const count = Math.max(2, structure.pairCount || 2);
-  const planRafters = Array.from({ length: count }, (_, index) => 370 + index * (318 / Math.max(1, count - 1)));
+  const planRafters = Array.from(
+    { length: count },
+    (_, index) => 370 + index * (318 / Math.max(1, count - 1)),
+  );
   const layered = structure.system === "layered";
   const truss = structure.system === "truss";
-  const systemLabel = layered ? "Наслонная" : truss ? "Стропильная ферма" : structure.system === "flat" ? "Балки плоской кровли" : "Висячая";
+  const systemLabel = layered
+    ? "Наслонная"
+    : truss
+      ? "Стропильная ферма"
+      : structure.system === "flat"
+        ? "Балки плоской кровли"
+        : "Висячая";
   return (
     <div className="rafter-scheme">
-      <svg viewBox="0 0 760 220" role="img" aria-label="Схема стропильной системы">
+      <svg
+        viewBox="0 0 760 220"
+        role="img"
+        aria-label="Схема стропильной системы"
+      >
         <g className="roof-scheme-house">
           <rect x="45" y="135" width="250" height="52" />
           <line x1="35" y1="135" x2="170" y2="38" />
           <line x1="170" y1="38" x2="305" y2="135" />
-          <rect className="roof-scheme-mauerlat" x="48" y="127" width="18" height="8" />
-          <rect className="roof-scheme-mauerlat" x="274" y="127" width="18" height="8" />
-          <rect className="roof-scheme-ridge-block" x="166" y="32" width="8" height="14" />
-          {layered ? <>
-            <rect className="roof-scheme-mauerlat" x="155" y="127" width="30" height="8" />
-            <line className="roof-scheme-support" x1="170" y1="46" x2="170" y2="127" />
-            <line className="roof-scheme-support" x1="170" y1="121" x2="108" y2="83" />
-            <line className="roof-scheme-support" x1="170" y1="121" x2="232" y2="83" />
-          </> : truss ? <>
-            <line className="roof-scheme-support" x1="48" y1="127" x2="292" y2="127" />
-            <line className="roof-scheme-support" x1="170" y1="42" x2="170" y2="127" />
-            <line className="roof-scheme-support" x1="105" y1="85" x2="170" y2="127" />
-            <line className="roof-scheme-support" x1="235" y1="85" x2="170" y2="127" />
-          </> : <line className="roof-scheme-support" x1="84" y1="100" x2="256" y2="100" />}
-          <text x="170" y="207" textAnchor="middle">{layered ? "Наслонная · прогон, стойка и подкосы" : truss ? "Стропильная ферма · пояс и решётка" : "Висячая система · поднятая затяжка A-frame"}</text>
+          <rect
+            className="roof-scheme-mauerlat"
+            x="48"
+            y="127"
+            width="18"
+            height="8"
+          />
+          <rect
+            className="roof-scheme-mauerlat"
+            x="274"
+            y="127"
+            width="18"
+            height="8"
+          />
+          <rect
+            className="roof-scheme-ridge-block"
+            x="166"
+            y="32"
+            width="8"
+            height="14"
+          />
+          {layered ? (
+            <>
+              <rect
+                className="roof-scheme-mauerlat"
+                x="155"
+                y="127"
+                width="30"
+                height="8"
+              />
+              <line
+                className="roof-scheme-support"
+                x1="170"
+                y1="46"
+                x2="170"
+                y2="127"
+              />
+              <line
+                className="roof-scheme-support"
+                x1="170"
+                y1="121"
+                x2="108"
+                y2="83"
+              />
+              <line
+                className="roof-scheme-support"
+                x1="170"
+                y1="121"
+                x2="232"
+                y2="83"
+              />
+            </>
+          ) : truss ? (
+            <>
+              <line
+                className="roof-scheme-support"
+                x1="48"
+                y1="127"
+                x2="292"
+                y2="127"
+              />
+              <line
+                className="roof-scheme-support"
+                x1="170"
+                y1="42"
+                x2="170"
+                y2="127"
+              />
+              <line
+                className="roof-scheme-support"
+                x1="105"
+                y1="85"
+                x2="170"
+                y2="127"
+              />
+              <line
+                className="roof-scheme-support"
+                x1="235"
+                y1="85"
+                x2="170"
+                y2="127"
+              />
+            </>
+          ) : (
+            <line
+              className="roof-scheme-support"
+              x1="84"
+              y1="100"
+              x2="256"
+              y2="100"
+            />
+          )}
+          <text x="170" y="207" textAnchor="middle">
+            {layered
+              ? "Наслонная · прогон, стойка и подкосы"
+              : truss
+                ? "Стропильная ферма · пояс и решётка"
+                : "Висячая система · поднятая затяжка A-frame"}
+          </text>
         </g>
         <g className="roof-scheme-plan">
           <rect x="370" y="38" width="318" height="149" />
-          <line className="roof-scheme-mauerlat-line" x1="374" y1="45" x2="684" y2="45" />
-          <line className="roof-scheme-mauerlat-line" x1="374" y1="180" x2="684" y2="180" />
-          <line className="roof-scheme-ridge" x1="370" y1="112" x2="688" y2="112" />
-          {planRafters.map((x) => <line key={x} x1={x} y1="38" x2={x} y2="187" />)}
-          <text x="529" y="207" textAnchor="middle">{structure.pairCount || 0} пар · шаг {formatNumber(structure.step || 0.6)} м</text>
+          <line
+            className="roof-scheme-mauerlat-line"
+            x1="374"
+            y1="45"
+            x2="684"
+            y2="45"
+          />
+          <line
+            className="roof-scheme-mauerlat-line"
+            x1="374"
+            y1="180"
+            x2="684"
+            y2="180"
+          />
+          <line
+            className="roof-scheme-ridge"
+            x1="370"
+            y1="112"
+            x2="688"
+            y2="112"
+          />
+          {planRafters.map((x) => (
+            <line key={x} x1={x} y1="38" x2={x} y2="187" />
+          ))}
+          <text x="529" y="207" textAnchor="middle">
+            {structure.pairCount || 0} пар · шаг{" "}
+            {formatNumber(structure.step || 0.6)} м
+          </text>
         </g>
       </svg>
       <div className="rafter-scheme-summary">
-        <div><span>Система</span><strong>{systemLabel}</strong></div>
-        <div><span>Стропильные ноги</span><strong>{structure.legCount || 0} шт · {formatNumber(roof.rafterLegLength)} м</strong></div>
-        <div><span>Закупка</span><strong>{roof.rafterBoardCount || 0} досок × 6 м</strong></div>
-        <div><span>Конёк</span><strong>{roof.mainRoofShape === "flat" ? "не применяется" : `${formatNumber(roof.ridgeBeamLength)} м · всегда включён`}</strong></div>
+        <div>
+          <span>Система</span>
+          <strong>{systemLabel}</strong>
+        </div>
+        <div>
+          <span>Стропильные ноги</span>
+          <strong>
+            {structure.legCount || 0} шт · {formatNumber(roof.rafterLegLength)}{" "}
+            м
+          </strong>
+        </div>
+        <div>
+          <span>Закупка</span>
+          <strong>{roof.rafterBoardCount || 0} досок × 6 м</strong>
+        </div>
+        <div>
+          <span>Конёк</span>
+          <strong>
+            {roof.mainRoofShape === "flat"
+              ? "не применяется"
+              : `${formatNumber(roof.ridgeBeamLength)} м · всегда включён`}
+          </strong>
+        </div>
       </div>
-      <p className="inspector-note">Схема служит для расчёта комплектации. Несущую способность и узлы крепления необходимо подтвердить конструктивным проектом.</p>
+      <p className="inspector-note">
+        Схема служит для расчёта комплектации. Несущую способность и узлы
+        крепления необходимо подтвердить конструктивным проектом.
+      </p>
     </div>
   );
 }
@@ -167,26 +323,54 @@ function RoofConstructionPanels({
             label="Режим расчёта"
             value={project.settings.roof.structureMode || "auto"}
             onChange={(value) => setSetting("roof", "structureMode", value)}
-            options={[{ value: "auto", label: "Автоматически по плану" }, { value: "manual", label: "Ручная настройка" }]}
+            options={[
+              { value: "auto", label: "Автоматически по плану" },
+              { value: "manual", label: "Ручная настройка" },
+            ]}
           />
           <SelectField
             label="Тип стропильной системы"
-            value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.system : (project.settings.roof.rafterSystem || "hanging")}
-            disabled={(project.settings.roof.structureMode || "auto") === "auto"}
+            value={
+              (project.settings.roof.structureMode || "auto") === "auto"
+                ? calculation.roof.rafterStructure.system
+                : project.settings.roof.rafterSystem || "hanging"
+            }
+            disabled={
+              (project.settings.roof.structureMode || "auto") === "auto"
+            }
             onChange={(value) => setSetting("roof", "rafterSystem", value)}
-            options={[{ value: "hanging", label: "Висячая · без внутренней опоры" }, { value: "layered", label: "Наслонная · с опорой" }, { value: "truss", label: "Стропильная ферма" }]}
+            options={[
+              { value: "hanging", label: "Висячая · без внутренней опоры" },
+              { value: "layered", label: "Наслонная · с опорой" },
+              { value: "truss", label: "Стропильная ферма" },
+            ]}
           />
           <NumberField
             label="Чистый шаг между стропилами"
-            value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.step : project.settings.roof.rafterStep}
-            suffix="м" min={0.3} max={1.2} step={0.05}
-            disabled={(project.settings.roof.structureMode || "auto") === "auto"}
+            value={
+              (project.settings.roof.structureMode || "auto") === "auto"
+                ? calculation.roof.rafterStructure.step
+                : project.settings.roof.rafterStep
+            }
+            suffix="м"
+            min={0.3}
+            max={1.2}
+            step={0.05}
+            disabled={
+              (project.settings.roof.structureMode || "auto") === "auto"
+            }
             onChange={(value) => setSetting("roof", "rafterStep", value)}
           />
           <SelectField
             label="Стропильная доска"
-            value={(project.settings.roof.structureMode || "auto") === "auto" ? calculation.roof.rafterStructure.section : (project.settings.roof.rafterSection || "50x150")}
-            disabled={(project.settings.roof.structureMode || "auto") === "auto"}
+            value={
+              (project.settings.roof.structureMode || "auto") === "auto"
+                ? calculation.roof.rafterStructure.section
+                : project.settings.roof.rafterSection || "50x150"
+            }
+            disabled={
+              (project.settings.roof.structureMode || "auto") === "auto"
+            }
             onChange={(value) => setSetting("roof", "rafterSection", value)}
             options={[
               { value: "50x150", label: "50×150 мм" },
@@ -196,33 +380,38 @@ function RoofConstructionPanels({
           <NumberField
             label="Шаг обрешётки"
             value={project.settings.roof.lathStep ?? 0.35}
-            suffix="м" min={0.1} max={1.2} step={0.05}
+            suffix="м"
+            min={0.1}
+            max={1.2}
+            step={0.05}
             onChange={(value) => setSetting("roof", "lathStep", value)}
           />
-          {project.settings.roof.shape !== "flat" ? <>
-            <SelectField
-              label="Фронтоны основной крыши"
-              value={project.settings.roof.gableType || "auto"}
-              onChange={(value) => setSetting("roof", "gableType", value)}
-              options={[
-                { value: "auto", label: "По типу кровли" },
-                { value: "cold", label: "Холодные каркасные" },
-                { value: "sip", label: "Тёплые SIP" },
-                { value: "none", label: "Не учитывать" },
-              ]}
-            />
-            <NumberField
-              label="Количество фронтонов"
-              value={project.settings.roof.gableCount ?? 2}
-              suffix="шт"
-              min={0}
-              max={2}
-              step={1}
-              onChange={(value) =>
-                setSetting("roof", "gableCount", Math.round(value))
-              }
-            />
-          </> : null}
+          {project.settings.roof.shape !== "flat" ? (
+            <>
+              <SelectField
+                label="Фронтоны основной крыши"
+                value={project.settings.roof.gableType || "auto"}
+                onChange={(value) => setSetting("roof", "gableType", value)}
+                options={[
+                  { value: "auto", label: "По типу кровли" },
+                  { value: "cold", label: "Холодные каркасные" },
+                  { value: "sip", label: "Тёплые SIP" },
+                  { value: "none", label: "Не учитывать" },
+                ]}
+              />
+              <NumberField
+                label="Количество фронтонов"
+                value={project.settings.roof.gableCount ?? 2}
+                suffix="шт"
+                min={0}
+                max={2}
+                step={1}
+                onChange={(value) =>
+                  setSetting("roof", "gableCount", Math.round(value))
+                }
+              />
+            </>
+          ) : null}
           <div className="readout">
             <span>Площадь фронтонов</span>
             <strong>{formatNumber(calculation.roof.gableArea)} м²</strong>
@@ -233,7 +422,10 @@ function RoofConstructionPanels({
           </div>
           <div className="readout">
             <span>Стропильные пары</span>
-            <strong>{calculation.roof.rafterStructure.pairCount} шт · модуль {formatNumber(calculation.roof.rafterStructure.module, 2)} м</strong>
+            <strong>
+              {calculation.roof.rafterStructure.pairCount} шт · модуль{" "}
+              {formatNumber(calculation.roof.rafterStructure.module, 2)} м
+            </strong>
           </div>
           <div className="readout">
             <span>Обрешётка</span>
@@ -247,11 +439,40 @@ function RoofConstructionPanels({
         description="Коньковая планка и её монтаж всегда входят в двускатную кровлю. Остальные элементы можно включать и выключать; материалы и работы сразу меняются в ведомости и смете."
       >
         <div className="toggle-grid roof-accessory-grid">
-          <Toggle label="Карнизные планки" hint={`${formatNumber(calculation.roof.mainEaveTrimPurchaseLength)} м с запасом`} checked={project.settings.roof.includeEaveTrim !== false} onChange={(value) => setSetting("roof", "includeEaveTrim", value)} />
-          <Toggle label="Торцевые (ветровые) планки" hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`} checked={project.settings.roof.includeVergeTrim !== false} onChange={(value) => setSetting("roof", "includeVergeTrim", value)} />
-          <Toggle label="Уплотнитель под конёк" hint="Коньковая планка при этом остаётся" checked={project.settings.roof.includeRidgeSeal !== false} onChange={(value) => setSetting("roof", "includeRidgeSeal", value)} />
-          <Toggle label="Водосточная система" hint={project.settings.roof.includeGutter === true ? `${formatNumber(calculation.roof.gutterLength)} м жёлоба · ${calculation.roof.gutterOutlets} выпуска` : "Жёлоба, трубы, крепёж и монтаж"} checked={project.settings.roof.includeGutter === true} onChange={(value) => setSetting("roof", "includeGutter", value)} />
-          <div className="fixed-roof-accessory"><span>Коньковая планка</span><strong>Обязательно · {formatNumber(calculation.roof.ridgeBeamLength)} м</strong></div>
+          <Toggle
+            label="Карнизные планки"
+            hint={`${formatNumber(calculation.roof.mainEaveTrimPurchaseLength)} м с запасом`}
+            checked={project.settings.roof.includeEaveTrim !== false}
+            onChange={(value) => setSetting("roof", "includeEaveTrim", value)}
+          />
+          <Toggle
+            label="Торцевые (ветровые) планки"
+            hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`}
+            checked={project.settings.roof.includeVergeTrim !== false}
+            onChange={(value) => setSetting("roof", "includeVergeTrim", value)}
+          />
+          <Toggle
+            label="Уплотнитель под конёк"
+            hint="Коньковая планка при этом остаётся"
+            checked={project.settings.roof.includeRidgeSeal !== false}
+            onChange={(value) => setSetting("roof", "includeRidgeSeal", value)}
+          />
+          <Toggle
+            label="Водосточная система"
+            hint={
+              project.settings.roof.includeGutter === true
+                ? `${formatNumber(calculation.roof.gutterLength)} м жёлоба · ${calculation.roof.gutterOutlets} выпуска`
+                : "Жёлоба, трубы, крепёж и монтаж"
+            }
+            checked={project.settings.roof.includeGutter === true}
+            onChange={(value) => setSetting("roof", "includeGutter", value)}
+          />
+          <div className="fixed-roof-accessory">
+            <span>Коньковая планка</span>
+            <strong>
+              Обязательно · {formatNumber(calculation.roof.ridgeBeamLength)} м
+            </strong>
+          </div>
         </div>
       </Panel>
       <Panel
@@ -550,11 +771,26 @@ export default function Calculators({ type }) {
                 max={6}
                 step={1}
                 onChange={(value) =>
-                  setSetting("piles", "bindingLayers", Math.max(1, Math.round(value)))
+                  setSetting(
+                    "piles",
+                    "bindingLayers",
+                    Math.max(1, Math.round(value)),
+                  )
                 }
               />
-              <div className="readout"><span>Закупочная длина</span><strong>{formatNumber(calculation.foundation.purchaseBoardLength)} м · {calculation.foundation.boardCount} × 6 м</strong></div>
-              <div className="readout"><span>Запас / обрезки</span><strong>{formatNumber(calculation.foundation.boardWasteLength)} м</strong></div>
+              <div className="readout">
+                <span>Закупочная длина</span>
+                <strong>
+                  {formatNumber(calculation.foundation.purchaseBoardLength)} м ·{" "}
+                  {calculation.foundation.boardCount} × 6 м
+                </strong>
+              </div>
+              <div className="readout">
+                <span>Запас / обрезки</span>
+                <strong>
+                  {formatNumber(calculation.foundation.boardWasteLength)} м
+                </strong>
+              </div>
               <Toggle
                 label="Включить в смету"
                 checked={project.services.foundation}
@@ -602,34 +838,53 @@ export default function Calculators({ type }) {
           >
             <div className="form-grid four">
               <SelectField
-                label="Панель пола"
+                label="Тип панели пола"
+                value={project.settings.sip.floorPanelFamily || "pps"}
+                onChange={(value) => setSetting("sip", "floorPanelFamily", value)}
+                options={PANEL_FAMILIES}
+              />
+              <SelectField
+                label="Толщина пола"
                 value={project.settings.sip.floorThickness}
                 onChange={(value) => setSetting("sip", "floorThickness", value)}
-                options={["124", "174", "224"].map((value) => ({
-                  value,
-                  label: `${value} мм`,
-                }))}
+                options={PANEL_THICKNESSES}
               />
               <SelectField
-                label="Панель стен"
+                label="Тип панели стен"
+                value={project.settings.sip.wallPanelFamily || "pps"}
+                onChange={(value) => setSetting("sip", "wallPanelFamily", value)}
+                options={PANEL_FAMILIES}
+              />
+              <SelectField
+                label="Толщина стен"
                 value={project.settings.sip.wallThickness}
                 onChange={(value) => setSetting("sip", "wallThickness", value)}
-                options={["124", "174", "224"].map((value) => ({
-                  value,
-                  label: `${value} мм`,
-                }))}
+                options={PANEL_THICKNESSES}
               />
               <SelectField
-                label="Панель потолка"
+                label="Тип панели потолка"
+                value={project.settings.sip.ceilingPanelFamily || "pps"}
+                onChange={(value) => setSetting("sip", "ceilingPanelFamily", value)}
+                options={PANEL_FAMILIES}
+              />
+              <SelectField
+                label="Толщина потолка"
                 value={project.settings.sip.ceilingThickness}
                 onChange={(value) =>
                   setSetting("sip", "ceilingThickness", value)
                 }
-                options={["124", "174", "224"].map((value) => ({
-                  value,
-                  label: `${value} мм`,
-                }))}
+                options={PANEL_THICKNESSES}
               />
+              <SelectField
+                label="Тип перегородок"
+                value={project.settings.sip.partitionType || "frame"}
+                onChange={(value) => setSetting("sip", "partitionType", value)}
+                options={[{ value: "frame", label: "Каркасные" }, { value: "sip", label: "SIP-панели" }]}
+              />
+              {project.settings.sip.partitionType === "sip" ? <>
+                <SelectField label="Тип панели перегородок" value={project.settings.sip.partitionPanelFamily || "pps"} onChange={(value) => setSetting("sip", "partitionPanelFamily", value)} options={PANEL_FAMILIES} />
+                <SelectField label="Толщина перегородок" value={project.settings.sip.partitionThickness || "124"} onChange={(value) => setSetting("sip", "partitionThickness", value)} options={PANEL_THICKNESSES} />
+              </> : null}
               <SelectField
                 label="Тип силового каркаса"
                 value={project.settings.sip.connectorType || "thermal"}
@@ -639,7 +894,9 @@ export default function Calculators({ type }) {
               <SelectField
                 label="Раскладка панелей пола"
                 value={project.settings.sip.floorPanelWidth || "1.25"}
-                onChange={(value) => setSetting("sip", "floorPanelWidth", value)}
+                onChange={(value) =>
+                  setSetting("sip", "floorPanelWidth", value)
+                }
                 options={[
                   { value: "1.25", label: "1250 × 2500 мм · стандарт" },
                   { value: "0.625", label: "625 × 2500 мм · усиленная" },
@@ -648,7 +905,9 @@ export default function Calculators({ type }) {
               <SelectField
                 label="Шаг панелей потолка"
                 value={project.settings.sip.ceilingPanelWidth || "1.25"}
-                onChange={(value) => setSetting("sip", "ceilingPanelWidth", value)}
+                onChange={(value) =>
+                  setSetting("sip", "ceilingPanelWidth", value)
+                }
                 options={[
                   { value: "1.25", label: "1250 мм · стандарт" },
                   { value: "0.625", label: "625 мм · усиленный" },
@@ -664,7 +923,9 @@ export default function Calculators({ type }) {
               <SelectField
                 label="Расчёт пеноклея и крепежа"
                 value={project.settings.sip.consumablesMode || "node"}
-                onChange={(value) => setSetting("sip", "consumablesMode", value)}
+                onChange={(value) =>
+                  setSetting("sip", "consumablesMode", value)
+                }
                 options={[
                   { value: "node", label: "По швам и узлам · подробный" },
                   { value: "quick", label: "По площади · старый быстрый" },
@@ -676,17 +937,39 @@ export default function Calculators({ type }) {
                   value={project.settings.sip.foamScope || "joints-and-edges"}
                   onChange={(value) => setSetting("sip", "foamScope", value)}
                   options={[
-                    { value: "joints-and-edges", label: "Стыки и торцы панелей" },
+                    {
+                      value: "joints-and-edges",
+                      label: "Стыки и торцы панелей",
+                    },
                     { value: "joints", label: "Только стыки панелей" },
                   ]}
                 />
               ) : null}
             </div>
-            <p className="panel-note">При шаге 625 мм каждая целая панель 1250 × 2500 мм распускается вдоль на две части. Покупное количество панелей не удваивается, а продольный рез и дополнительные стыки силового каркаса рассчитываются автоматически.</p>
+            <p className="panel-note">
+              При шаге 625 мм каждая целая панель 1250 × 2500 мм распускается
+              вдоль на две части. Покупное количество панелей не удваивается, а
+              продольный рез и дополнительные стыки силового каркаса
+              рассчитываются автоматически.
+            </p>
             <div className="frame-type-guide">
-              <article><strong>1. Термобрус</strong><span>95×95 · 95×145 · 95×195 мм</span><small>Премиальный и самый дорогой вариант</small></article>
-              <article><strong>2. Клеёный пакет досок</strong><span>95×95 · 95×145 · 95×195 мм</span><small>Средний вариант, цена 50% термобруса</small></article>
-              <article><strong>3. Брус естественной влажности</strong><span>100×100 · 100×150 · 100×200 мм</span><small>Экономичный вариант, цена доски пересчитана за 1 м.п.</small></article>
+              <article>
+                <strong>1. Термобрус</strong>
+                <span>95×95 · 95×145 · 95×195 мм</span>
+                <small>Премиальный и самый дорогой вариант</small>
+              </article>
+              <article>
+                <strong>2. Клеёный пакет досок</strong>
+                <span>95×95 · 95×145 · 95×195 мм</span>
+                <small>Средний вариант, цена 50% термобруса</small>
+              </article>
+              <article>
+                <strong>3. Брус естественной влажности</strong>
+                <span>100×100 · 100×150 · 100×200 мм</span>
+                <small>
+                  Экономичный вариант, цена доски пересчитана за 1 м.п.
+                </small>
+              </article>
             </div>
             <div className="toggle-grid">
               <Toggle
@@ -705,7 +988,7 @@ export default function Calculators({ type }) {
                 onChange={(value) => setService("sipCeiling", value)}
               />
               <Toggle
-                label="Каркасные перегородки"
+                label={project.settings.sip.partitionType === "sip" ? "SIP-перегородки" : "Каркасные перегородки"}
                 checked={project.services.partitions}
                 onChange={(value) => setService("partitions", value)}
               />
@@ -713,37 +996,71 @@ export default function Calculators({ type }) {
           </Panel>
           <Panel
             title="Расход пеноклея и крепежа"
-            description={calculation.sip.consumables.mode === "node"
-              ? "Количество считается по геометрии стыков и торцов. В смете крепёж оценивается по цене за килограмм; количество штук переводится через настраиваемую массу одного самореза."
-              : "Сохранённый быстрый режим старых проектов: пеноклей считается от количества панелей, крепёж — от площади."}
+            description={
+              calculation.sip.consumables.mode === "node"
+                ? "Количество считается по геометрии стыков и торцов. В смете крепёж оценивается по цене за килограмм; количество штук переводится через настраиваемую массу одного самореза."
+                : "Сохранённый быстрый режим старых проектов: пеноклей считается от количества панелей, крепёж — от площади."
+            }
           >
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   {calculation.sip.consumables.mode === "node" ? (
-                    <tr><th>Конструкция</th><th>Обработано швов</th><th>Пеноклей</th><th>3,8×41</th><th>4,2×75</th><th>Конструкционные</th></tr>
+                    <tr>
+                      <th>Конструкция</th>
+                      <th>Обработано швов</th>
+                      <th>Пеноклей</th>
+                      <th>3,8×41</th>
+                      <th>4,2×75</th>
+                      <th>Конструкционные</th>
+                    </tr>
                   ) : (
-                    <tr><th>Конструкция</th><th>Пеноклей</th><th>Конструкционный крепёж</th><th>Крепёж шва</th><th>Спиральный крепёж</th></tr>
+                    <tr>
+                      <th>Конструкция</th>
+                      <th>Пеноклей</th>
+                      <th>Конструкционный крепёж</th>
+                      <th>Крепёж шва</th>
+                      <th>Спиральный крепёж</th>
+                    </tr>
                   )}
                 </thead>
                 <tbody>
-                  {calculation.sip.consumables.rows.map((row) => calculation.sip.consumables.mode === "node" ? (
-                    <tr key={row.key}>
-                      <td>{row.label}</td><td>{formatNumber(row.foamLength)} м</td><td>{row.foamUnits} бал.</td><td>{row.seamCount} шт</td><td>{row.edgeCount} шт</td><td>{row.structuralSize} · {row.structuralCount} шт</td>
-                    </tr>
-                  ) : (
-                    <tr key={row.key}>
-                      <td>{row.label}</td><td>{row.foamUnits} бал.</td><td>{formatNumber(row.structuralKg, 3)} кг</td><td>{formatNumber(row.seamKg, 3)} кг</td><td>{row.spiralPacks} уп.</td>
-                    </tr>
-                  ))}
+                  {calculation.sip.consumables.rows.map((row) =>
+                    calculation.sip.consumables.mode === "node" ? (
+                      <tr key={row.key}>
+                        <td>{row.label}</td>
+                        <td>{formatNumber(row.foamLength)} м</td>
+                        <td>{row.foamUnits} бал.</td>
+                        <td>{row.seamCount} шт</td>
+                        <td>{row.edgeCount} шт</td>
+                        <td>
+                          {row.structuralSize} · {row.structuralCount} шт
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={row.key}>
+                        <td>{row.label}</td>
+                        <td>{row.foamUnits} бал.</td>
+                        <td>{formatNumber(row.structuralKg, 3)} кг</td>
+                        <td>{formatNumber(row.seamKg, 3)} кг</td>
+                        <td>{row.spiralPacks} уп.</td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
-            {calculation.sip.consumables.mode === "node" ? <p className="panel-note">Нормы шага, масса крепежа и расход 0,035 баллона на метр доступны в ⚙ «Связи и формулы». Переключение режима сразу пересчитывает ведомость и смету.</p> : null}
+            {calculation.sip.consumables.mode === "node" ? (
+              <p className="panel-note">
+                Нормы шага, масса крепежа и расход 0,035 баллона на метр
+                доступны в ⚙ «Связи и формулы». Переключение режима сразу
+                пересчитывает ведомость и смету.
+              </p>
+            ) : null}
           </Panel>
           <Panel
             title="Раскрой СИП-панелей"
-            description="Только пол, наружные стены и горизонтальный потолок. Крыша рассчитывается во вкладке «Кровля», каркасные перегородки не раскраиваются."
+            description={project.settings.sip.partitionType === "sip" ? "Пол, наружные стены, горизонтальный потолок и SIP-перегородки. Крыша считается отдельно во вкладке «Кровля»." : "Только пол, наружные стены и горизонтальный потолок. Крыша рассчитывается во вкладке «Кровля», каркасные перегородки не раскраиваются."}
           >
             <div className="table-wrap">
               <table className="data-table">
@@ -764,7 +1081,12 @@ export default function Calculators({ type }) {
                       <td>{row.label}</td>
                       <td>{formatNumber(row.area)} м²</td>
                       <td>{row.panels} шт</td>
-                      <td>{Math.round(row.layoutWidth * 1000)} мм{row.splitCutMeters > 0 ? ` · продольный рез ${formatNumber(row.splitCutMeters)} м` : ''}</td>
+                      <td>
+                        {Math.round(row.layoutWidth * 1000)} мм
+                        {row.splitCutMeters > 0
+                          ? ` · продольный рез ${formatNumber(row.splitCutMeters)} м`
+                          : ""}
+                      </td>
                       <td>{formatNumber(row.purchasedArea)} м²</td>
                       <td>{formatNumber(row.offcutArea)} м²</td>
                       <td>{formatNumber(row.cutMeters)} м</td>
@@ -778,6 +1100,12 @@ export default function Calculators({ type }) {
             <SectionResult calculation={calculation} sectionKey="sip" />
           </Panel>
         </>
+      ) : null}
+      {type === "roof" && project.settings.roof.shape === "hip" ? (
+        <div className="roof-cost-warning" role="note">
+          <strong>! Вальмовая кровля — повышенная сложность</strong>
+          <span>Материалы основной крыши увеличены на 25%, стоимость работ — на 50%. Прайс-лист и кровли террас не изменяются.</span>
+        </div>
       ) : null}
       {type === "roof" ? (
         <RoofConstructionPanels
@@ -844,6 +1172,12 @@ export default function Calculators({ type }) {
                 ]}
               />
               <SelectField
+                label="Кровельное покрытие"
+                value={project.settings.roof.covering || "profile"}
+                onChange={(value) => setSetting("roof", "covering", value)}
+                options={ROOF_COVERINGS}
+              />
+              <SelectField
                 label="Тип"
                 value={project.settings.roof.type}
                 onChange={(value) => setSetting("roof", "type", value)}
@@ -853,14 +1187,20 @@ export default function Calculators({ type }) {
                   { value: "combo", label: "Комбинированная" },
                 ]}
               />
-              {project.settings.roof.shape !== "flat" ? <NumberField
+              {project.settings.roof.shape !== "flat" ? (
+                <NumberField
                   label="Высота конька"
                   value={project.settings.roof.ridgeHeight}
                   suffix="м"
                   onChange={(value) => setSetting("roof", "ridgeHeight", value)}
-                /> : null}
+                />
+              ) : null}
               <NumberField
-                label={project.settings.roof.shape === "flat" ? "Длина кровли" : "Длина конька"}
+                label={
+                  project.settings.roof.shape === "flat"
+                    ? "Длина кровли"
+                    : "Длина конька"
+                }
                 value={project.settings.roof.ridgeLength}
                 suffix="м"
                 onChange={(value) => setSetting("roof", "ridgeLength", value)}
@@ -892,7 +1232,10 @@ export default function Calculators({ type }) {
               />
               <div className="readout">
                 <span>Габарит кровли со свесами</span>
-                <strong>{formatNumber(calculation.roof.geometry?.roofLength)} × {formatNumber(calculation.roof.geometry?.roofSpan)} м</strong>
+                <strong>
+                  {formatNumber(calculation.roof.geometry?.roofLength)} ×{" "}
+                  {formatNumber(calculation.roof.geometry?.roofSpan)} м
+                </strong>
               </div>
               {project.settings.roof.type === "combo" ? (
                 <NumberField

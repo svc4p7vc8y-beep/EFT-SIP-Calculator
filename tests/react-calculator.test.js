@@ -5,6 +5,40 @@ import { buildCommercialScope } from '../src/react/calculations/commercial-scope
 import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
 import { createDefaultProject, createProjectWithCurrentPrices, migrateProject } from '../src/react/state/project-model.js';
 import { verifyPricePasscode } from '../src/react/security/price-access.js';
+import { moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
+
+test('house resize keeps rooms, roof, pile rows and binding on the same scaled axes', () => {
+  const project = createDefaultProject();
+  project.settings.links.roofRidgeFromPlan = false;
+  project.settings.roof.ridgeLength = project.plan.house.w;
+  const roomPoint = { ...project.plan.rooms[0].points[1] };
+  const pileEnd = project.plan.pileRows[0].x2;
+  const bindingEnd = project.plan.bindingLines[0].x2;
+
+  resizeProjectHouse(project, project.plan.house.w * 1.2, project.plan.house.h * 1.5);
+
+  assert.equal(project.plan.rooms[0].points[1].x, Math.round(roomPoint.x * 1.2 * 1000) / 1000);
+  assert.equal(project.plan.rooms[0].points[1].y, Math.round(roomPoint.y * 1.5 * 1000) / 1000);
+  assert.equal(project.plan.pileRows[0].x2, Math.round(pileEnd * 1.2 * 1000) / 1000);
+  assert.equal(project.plan.bindingLines[0].x2, Math.round(bindingEnd * 1.2 * 1000) / 1000);
+  assert.equal(project.settings.roof.ridgeLength, project.plan.house.w);
+});
+
+test('moving a partition keeps adjoining partitions connected', () => {
+  const plan = {
+    walls: [
+      { id: 'moving', x1: 2, y1: 1, x2: 2, y2: 5 },
+      { id: 'top', x1: 0, y1: 1, x2: 2, y2: 1 },
+      { id: 'bottom', x1: 2, y1: 5, x2: 6, y2: 5 },
+    ],
+  };
+  moveConnectedWall(plan, 'moving', 1.25, 4);
+  assert.deepEqual(plan.walls[0], { id: 'moving', x1: 3.25, y1: 1, x2: 3.25, y2: 5 });
+  assert.equal(plan.walls[1].x2, 3.25);
+  assert.equal(plan.walls[2].x1, 3.25);
+  assert.equal(plan.walls[1].y2, 1);
+  assert.equal(plan.walls[2].y1, 5);
+});
 
 test('price editor accepts only the configured passcode', () => {
   assert.equal(verifyPricePasscode('1455'), true);
@@ -694,4 +728,89 @@ test('migration keeps old projects on quick SIP consumables unless they chose a 
   explicit.appVersion = 78;
   explicit.settings.sip.consumablesMode = 'node';
   assert.equal(migrateProject(explicit).settings.sip.consumablesMode, 'node');
+});
+
+test('version 83 catalog contains all SIP panel families at approved prices', () => {
+  const project = createDefaultProject();
+  const prices = new Map(project.priceMat.map((item) => [item.name, item.price]));
+  assert.equal(prices.get('СИП-панель PPS 2500×1250×124 мм'), 5623);
+  assert.equal(prices.get('СИП-панель PPS 2500×1250×174 мм'), 6543);
+  assert.equal(prices.get('СИП-панель PPS 2500×1250×224 мм'), 7463);
+  assert.equal(prices.get('СИП-панель минвата 2500×1250×124 мм'), 8331);
+  assert.equal(prices.get('СИП-панель минвата 2500×1250×174 мм'), 10283);
+  assert.equal(prices.get('СИП-панель минвата 2500×1250×224 мм'), 12313);
+  assert.equal(prices.get('СИП-панель CSP PPS 2500×1250×124 мм'), 7123);
+  assert.equal(prices.get('СИП-панель CSP PPS 2500×1250×174 мм'), 8043);
+  assert.equal(prices.get('СИП-панель CSP PPS 2500×1250×224 мм'), 8963);
+  assert.equal(prices.get('Металлочерепица окрашенный (полиэстер) 0,45 мм'), 840);
+});
+
+test('SIP partitions use their selected panel family and thickness', () => {
+  const project = createDefaultProject();
+  project.settings.sip.partitionType = 'sip';
+  project.settings.sip.partitionPanelFamily = 'mineral-wool';
+  project.settings.sip.partitionThickness = '174';
+  const result = calculateProject(project);
+  const partitionPanel = result.lines.find((line) => line.id === 'sip:panel-partitions');
+  assert.equal(partitionPanel.catalogId, 'MAT-194');
+  assert.equal(partitionPanel.price, 10283);
+  assert.ok(result.sip.cutting.some((row) => row.key === 'partitions' && row.panels > 0));
+  assert.equal(result.lines.some((line) => line.id === 'sip:partition-board'), false);
+});
+
+test('roof covering selection switches metal tile and soft roof OSB', () => {
+  const metal = createDefaultProject();
+  metal.settings.roof.covering = 'metal-tile';
+  const metalResult = calculateProject(metal);
+  assert.equal(metalResult.lines.find((line) => line.id === 'roof:cover').catalogId, 'MAT-037');
+  assert.equal(metalResult.lines.find((line) => line.id === 'roof:cover').price, 840);
+
+  const soft = createDefaultProject();
+  soft.settings.roof.covering = 'soft';
+  const softResult = calculateProject(soft);
+  assert.equal(softResult.lines.find((line) => line.id === 'roof:cover').catalogId, 'MAT-199');
+  assert.ok(softResult.lines.some((line) => line.id === 'roof:roof-osb' && line.qty > 0));
+  assert.ok(softResult.lines.some((line) => line.id === 'roof:roof-osb-work' && line.qty > 0));
+  assert.equal(softResult.lines.some((line) => line.id === 'roof:roof-screws'), false);
+});
+
+test('cold framed gables receive OSB sheets even with profiled covering', () => {
+  const project = createDefaultProject();
+  project.settings.roof.covering = 'profile';
+  project.settings.roof.gableType = 'cold';
+  const result = calculateProject(project);
+  const osb = result.lines.find((line) => line.id === 'roof:roof-osb');
+  assert.equal(osb.catalogId, 'MAT-111');
+  assert.ok(osb.qty > 0);
+  assert.equal(osb.source, 'gables');
+});
+
+test('hip roof adds 25 percent material quantity and 50 percent labor cost without changing the price list', () => {
+  const project = createDefaultProject();
+  project.settings.roof.shape = 'hip';
+  project.plan.platforms[0].roof.mode = 'cold';
+  const result = calculateProject(project);
+  const cover = result.lines.find((line) => line.id === 'roof:cover');
+  const coverWork = result.lines.find((line) => line.id === 'roof:cover-work');
+  const terraceCover = result.lines.find((line) => line.id === 'roof:platform-terrace-main-cover');
+  assert.equal(cover.quantityCoefficient, 1.25);
+  assert.equal(cover.qty, Math.round(cover.baseQty * 1.25 * 100) / 100);
+  assert.equal(coverWork.costCoefficient, 1.5);
+  assert.equal(coverWork.price, coverWork.basePrice * 1.5);
+  assert.equal(terraceCover.quantityCoefficient, undefined);
+  assert.equal(project.priceMat.find((item) => item.id === 'MAT-041').price, 620);
+  assert.equal(project.priceLab.find((item) => item.id === 'LAB-031').price, 700);
+  assert.equal(result.roof.materialComplexityCoefficient, 1.25);
+  assert.equal(result.roof.laborComplexityCoefficient, 1.5);
+});
+
+test('gable roof keeps base quantities and labor prices', () => {
+  const project = createDefaultProject();
+  project.settings.roof.shape = 'gable';
+  const result = calculateProject(project);
+  const cover = result.lines.find((line) => line.id === 'roof:cover');
+  const coverWork = result.lines.find((line) => line.id === 'roof:cover-work');
+  assert.equal(cover.quantityCoefficient, undefined);
+  assert.equal(coverWork.costCoefficient, undefined);
+  assert.equal(coverWork.price, 700);
 });

@@ -146,6 +146,88 @@ export function movePoints(points, dx, dy, plan, axes) {
   }));
 }
 
+const scalePoint = (point, scaleX, scaleY) => ({
+  x: roundCoord((Number(point?.x) || 0) * scaleX),
+  y: roundCoord((Number(point?.y) || 0) * scaleY)
+});
+
+const scaleLine = (line, scaleX, scaleY) => {
+  line.x1 = roundCoord((Number(line.x1) || 0) * scaleX);
+  line.y1 = roundCoord((Number(line.y1) || 0) * scaleY);
+  line.x2 = roundCoord((Number(line.x2) || 0) * scaleX);
+  line.y2 = roundCoord((Number(line.y2) || 0) * scaleY);
+};
+
+/** Keeps every plan layer on the same axes when the house length or width changes. */
+export function resizePlanToHouse(plan, width, height) {
+  const oldWidth = Math.max(0.001, Number(plan?.house?.w) || 0.001);
+  const oldHeight = Math.max(0.001, Number(plan?.house?.h) || 0.001);
+  const nextWidth = Math.max(0.001, Number(width) || oldWidth);
+  const nextHeight = Math.max(0.001, Number(height) || oldHeight);
+  const scaleX = nextWidth / oldWidth;
+  const scaleY = nextHeight / oldHeight;
+
+  if (Array.isArray(plan.house.points)) plan.house.points = plan.house.points.map((point) => scalePoint(point, scaleX, scaleY));
+  plan.house.w = roundCoord(nextWidth);
+  plan.house.h = roundCoord(nextHeight);
+  for (const room of plan.rooms || []) {
+    room.points = roomPoints(room).map((point) => scalePoint(point, scaleX, scaleY));
+    Object.assign(room, boundsOf(room.points));
+  }
+  for (const platform of plan.platforms || []) {
+    platform.x = roundCoord((Number(platform.x) || 0) * scaleX);
+    platform.y = roundCoord((Number(platform.y) || 0) * scaleY);
+    platform.w = roundCoord((Number(platform.w) || 0) * scaleX);
+    platform.h = roundCoord((Number(platform.h) || 0) * scaleY);
+  }
+  for (const line of [...(plan.walls || []), ...(plan.pileRows || []), ...(plan.bindingLines || []), ...(plan.dimensions || [])]) scaleLine(line, scaleX, scaleY);
+  for (const item of [...(plan.piles || []), ...(plan.excludedPiles || [])]) Object.assign(item, scalePoint(item, scaleX, scaleY));
+  for (const opening of plan.openings || []) {
+    opening.x = roundCoord((Number(opening.x) || 0) * scaleX);
+    opening.y = roundCoord((Number(opening.y) || 0) * scaleY);
+  }
+  for (const gap of plan.wallGaps || []) {
+    gap.x = roundCoord((Number(gap.x) || 0) * scaleX);
+    gap.y = roundCoord((Number(gap.y) || 0) * scaleY);
+  }
+  return { scaleX, scaleY };
+}
+
+export function resizeProjectHouse(project, width, height) {
+  const oldWidth = Math.max(0.001, Number(project?.plan?.house?.w) || 0.001);
+  const result = resizePlanToHouse(project.plan, width, height);
+  if (project.settings?.links?.roofRidgeFromPlan === false && Number.isFinite(Number(project.settings?.roof?.ridgeLength))) {
+    project.settings.roof.ridgeLength = roundCoord(Number(project.settings.roof.ridgeLength) * (Number(width) || oldWidth) / oldWidth);
+  }
+  return result;
+}
+
+/** Moves a partition and keeps every partition joined to either endpoint connected. */
+export function moveConnectedWall(plan, wallId, dx, dy, tolerance = 0.08) {
+  const wall = (plan.walls || []).find((item) => item.id === wallId);
+  if (!wall) return null;
+  const oldA = { x: Number(wall.x1) || 0, y: Number(wall.y1) || 0 };
+  const oldB = { x: Number(wall.x2) || 0, y: Number(wall.y2) || 0 };
+  const horizontal = Math.abs(oldB.x - oldA.x) >= Math.abs(oldB.y - oldA.y);
+  const moveX = horizontal ? 0 : Number(dx) || 0;
+  const moveY = horizontal ? Number(dy) || 0 : 0;
+  const newA = { x: roundCoord(oldA.x + moveX), y: roundCoord(oldA.y + moveY) };
+  const newB = { x: roundCoord(oldB.x + moveX), y: roundCoord(oldB.y + moveY) };
+  const near = (point, target) => Math.hypot(point.x - target.x, point.y - target.y) <= tolerance;
+
+  for (const neighbor of plan.walls || []) {
+    if (neighbor.id === wallId) continue;
+    const first = { x: Number(neighbor.x1) || 0, y: Number(neighbor.y1) || 0 };
+    const second = { x: Number(neighbor.x2) || 0, y: Number(neighbor.y2) || 0 };
+    if (near(first, oldA)) { neighbor.x1 = newA.x; neighbor.y1 = newA.y; }
+    else if (near(first, oldB)) { neighbor.x1 = newB.x; neighbor.y1 = newB.y; }
+    if (near(second, oldA)) { neighbor.x2 = newA.x; neighbor.y2 = newA.y; }
+    else if (near(second, oldB)) { neighbor.x2 = newB.x; neighbor.y2 = newB.y; }
+  }
+  Object.assign(wall, { x1: newA.x, y1: newA.y, x2: newB.x, y2: newB.y });
+  return wall;
+}
+
 const axialSegment = (a, b, source = {}) => {
   if (Math.abs(a.y - b.y) <= EPS) return { axis: 'h', fixed: roundCoord((a.y + b.y) / 2), start: Math.min(a.x, b.x), end: Math.max(a.x, b.x), ...source };
   if (Math.abs(a.x - b.x) <= EPS) return { axis: 'v', fixed: roundCoord((a.x + b.x) / 2), start: Math.min(a.y, b.y), end: Math.max(a.y, b.y), ...source };

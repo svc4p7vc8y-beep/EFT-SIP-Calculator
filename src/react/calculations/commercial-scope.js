@@ -2,6 +2,7 @@ import { formatMoney, formatNumber } from '../utils/format.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
 const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
+const ROOF_COVERINGS = { profile: 'профлист С-21', 'metal-tile': 'металлочерепица', soft: 'мягкая кровля с OSB' };
 const CONNECTOR_TYPES = { thermal: 'термобрус', 'board-pack': 'клеёный пакет досок', solid: 'брус естественной влажности' };
 
 function openingCounts(openings = []) {
@@ -53,16 +54,17 @@ function scopeDescription(key, project, calculation, lineCount) {
     ];
     return {
       summary: joinParts(surfaces),
-      details: `Панели, раскладка пола ${Math.round(Number(project.settings.sip.floorPanelWidth || 1.25) * 1000)} мм и потолка ${Math.round(Number(project.settings.sip.ceilingPanelWidth || 1.25) * 1000)} мм, соединения (${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}), резка, торцевые доски, крепёж и монтаж`
+      details: `Панели ${project.settings.sip.floorPanelFamily || 'pps'}/${project.settings.sip.wallPanelFamily || 'pps'}/${project.settings.sip.ceilingPanelFamily || 'pps'}, раскладка пола ${Math.round(Number(project.settings.sip.floorPanelWidth || 1.25) * 1000)} мм и потолка ${Math.round(Number(project.settings.sip.ceilingPanelWidth || 1.25) * 1000)} мм, соединения (${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}), резка, торцевые доски, крепёж и монтаж`
     };
   }
   if (key === 'roof') {
     const coveredPlatforms = platforms.filter((platform) => platform.roof?.mode && platform.roof.mode !== 'none').length;
     return {
-      summary: `${ROOF_SHAPES[project.settings.roof.shape] || 'двускатная'} ${ROOF_TYPES[project.settings.roof.type] || 'холодная'} кровля, ${formatNumber(roof.totalArea)} м²`,
+      summary: `${ROOF_SHAPES[project.settings.roof.shape] || 'двускатная'} ${ROOF_TYPES[project.settings.roof.type] || 'холодная'} кровля, ${ROOF_COVERINGS[project.settings.roof.covering] || 'профлист С-21'}, ${formatNumber(roof.totalArea)} м²`,
       details: joinParts([
         `основная кровля, ${roof.rafterStructure?.system === 'layered' ? 'наслонная система' : roof.rafterStructure?.system === 'truss' ? 'стропильные фермы' : 'висячая система'} с чистым шагом ${formatNumber(roof.rafterStructure?.step || .6)} м`,
         `обрешётка с шагом ${formatNumber(roof.lathStep || .35, 2)} м`,
+        project.settings.roof.shape === 'hip' && `коэффициент вальмовой кровли: материалы +25%, работы +50%`,
         `конёк включён`,
         project.settings.roof.includeGutter === true && `водосточная система ${formatNumber(roof.gutterLength)} м`,
         roof.gableArea > 0 && `фронтоны ${formatNumber(roof.gableArea)} м²`,
