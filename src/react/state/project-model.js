@@ -6,7 +6,7 @@ import {
 } from "../calculations/calculation-links.js";
 import { bindingLinesFromPileRows } from "../calculations/foundation-model.js";
 
-export const REACT_PROJECT_VERSION = 87;
+export const REACT_PROJECT_VERSION = 88;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";

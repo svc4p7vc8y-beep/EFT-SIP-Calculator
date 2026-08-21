@@ -90,6 +90,7 @@ import {
   roundCoord,
   shouldClosePolygon,
   moveConnectedWall,
+  nudgePlanSelection,
   resizeProjectHouse,
   resizePlanToHouse,
   snapPoint,
@@ -1111,7 +1112,19 @@ function PlanCanvas({
     [layout],
   );
   const rawPlanPoint = (event) => {
-    const rect = svgRef.current.getBoundingClientRect();
+    const svg = svgRef.current;
+    const matrix = svg?.getScreenCTM?.();
+    if (svg && matrix) {
+      const screenPoint = svg.createSVGPoint();
+      screenPoint.x = event.clientX;
+      screenPoint.y = event.clientY;
+      const viewPoint = screenPoint.matrixTransform(matrix.inverse());
+      return {
+        x: (viewPoint.x - layout.ox) / layout.scale,
+        y: (viewPoint.y - layout.oy) / layout.scale,
+      };
+    }
+    const rect = svg.getBoundingClientRect();
     return {
       x:
         (((event.clientX - rect.left) / rect.width) * VIEW.width - layout.ox) /
@@ -1773,14 +1786,14 @@ function PlanCanvas({
                 <text
                   className="platform-label"
                   x={q.x + (platform.w * layout.scale) / 2}
-                  y={q.y + (platform.h * layout.scale) / 2 - 5}
+                  y={q.y + (platform.h * layout.scale) / 2 - 10}
                 >
                   {platform.kind === "porch" ? "Крыльцо" : "Терраса"}
                 </text>
                 <text
                   className="platform-area"
                   x={q.x + (platform.w * layout.scale) / 2}
-                  y={q.y + (platform.h * layout.scale) / 2 + 13}
+                  y={q.y + (platform.h * layout.scale) / 2 + 20}
                 >
                   {formatNumber(platform.w * platform.h)} м²
                 </text>
@@ -3649,80 +3662,9 @@ function MobileSelectionAdjuster({
       line.x2 = roundCoord(line.x1 + (dx / len) * next);
       line.y2 = roundCoord(line.y1 + (dy / len) * next);
     });
-  const moveRoomExact = (next, item, dx, dy) => {
-    const axes = collectSnapAxes(next, item.id);
-    item.points = movePoints(roomPoints(item), dx, dy, next, axes);
-    Object.assign(item, boundsOf(item.points));
-  };
   const nudgeSelected = (dx, dy) =>
     commitPlan((next) => {
-      if (!selected) return;
-      if (selected.type === "room") {
-        const item = (next.rooms || []).find(
-          (candidate) => candidate.id === selected.id,
-        );
-        if (item) moveRoomExact(next, item, dx, dy);
-        return;
-      }
-      if (selected.type === "opening") {
-        const item = (next.openings || []).find(
-          (candidate) => candidate.id === selected.id,
-        );
-        if (!item) return;
-        const target = {
-          x: roundCoord(item.x + dx),
-          y: roundCoord(item.y + dy),
-        };
-        Object.assign(
-          item,
-          projectOpeningToWall(item, target, next, {
-            lockDoorType: item.doorType === "garage",
-          }),
-        );
-        return;
-      }
-      if (selected.type === "platform") {
-        const item = (next.platforms || []).find(
-          (candidate) => candidate.id === selected.id,
-        );
-        if (item) {
-          item.x = roundCoord(item.x + dx);
-          item.y = roundCoord(item.y + dy);
-        }
-        return;
-      }
-      if (selected.type === "pile" || selected.type === "gap") {
-        const key = selected.type === "pile" ? "piles" : "wallGaps";
-        const item = (next[key] || []).find(
-          (candidate) => candidate.id === selected.id,
-        );
-        if (item) {
-          item.x = roundCoord(item.x + dx);
-          item.y = roundCoord(item.y + dy);
-        }
-        return;
-      }
-      const key =
-        selected.type === "wall"
-          ? "walls"
-          : selected.type === "bindingLine"
-            ? "bindingLines"
-            : selected.type === "dimension"
-              ? "dimensions"
-              : selected.type === "pileRow"
-                ? "pileRows"
-                : null;
-      if (key) {
-        const item = (next[key] || []).find(
-          (candidate) => candidate.id === selected.id,
-        );
-        if (item) {
-          item.x1 = roundCoord(item.x1 + dx);
-          item.y1 = roundCoord(item.y1 + dy);
-          item.x2 = roundCoord(item.x2 + dx);
-          item.y2 = roundCoord(item.y2 + dy);
-        }
-      }
+      nudgePlanSelection(next, selected, dx, dy);
     });
 
   let title = "План дома";
@@ -4579,31 +4521,12 @@ export default function PlanScreen({ onNavigate }) {
               ? step
               : 0;
         commitPlan((next) => {
-          if (selected.type === "room") {
-            const room = next.rooms.find((item) => item.id === selected.id);
-            if (room) {
-              room.points = roomPoints(room).map((point) => ({
-                x: roundCoord(point.x + dx),
-                y: roundCoord(point.y + dy),
-              }));
-              Object.assign(room, boundsOf(room.points));
-            }
-          } else if (selected.type === "dimension") {
-            const dimension = next.dimensions.find(
-              (item) => item.id === selected.id,
-            );
-            if (dimension) {
-              dimension.x1 = roundCoord(dimension.x1 + dx);
-              dimension.y1 = roundCoord(dimension.y1 + dy);
-              dimension.x2 = roundCoord(dimension.x2 + dx);
-              dimension.y2 = roundCoord(dimension.y2 + dy);
-            }
-          } else if (selected.type === "outerDimensions") {
+          if (selected.type === "outerDimensions") {
             next.outerDimensionOffset = {
               x: roundCoord((next.outerDimensionOffset?.x || 0) + dx),
               y: roundCoord((next.outerDimensionOffset?.y || 0) + dy),
             };
-          }
+          } else nudgePlanSelection(next, selected, dx, dy);
         });
       }
     };

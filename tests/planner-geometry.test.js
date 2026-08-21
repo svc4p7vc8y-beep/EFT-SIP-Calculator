@@ -2,11 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   allOpeningSegments, boundsOf, collectSnapAxes, dimensionOutsideHouse, movePoints, nearestSegment,
-  pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, shouldClosePolygon, snapPoint, snapPointDetails, unifiedWallSegments
+  nudgePlanSelection, pileRowAlignment, planIssues, projectOpeningToWall, rectanglePoints, shouldClosePolygon, snapPoint, snapPointDetails, unifiedWallSegments
 } from '../src/react/planner/geometry.js';
 
 const room = (id, name, x1, y1, x2, y2) => ({
   id, name, points: rectanglePoints({ x: x1, y: y1 }, { x: x2, y: y2 })
+});
+
+test('keyboard arrows move platforms freely and openings along their wall', () => {
+  const plan = {
+    house: { w: 8, h: 6 }, wallThickness: 0.174,
+    rooms: [], walls: [], pileRows: [], bindingLines: [], dimensions: [], piles: [], wallGaps: [],
+    platforms: [{ id: 'terrace', x: 1, y: 6, w: 4, h: 2 }],
+    openings: [{ id: 'window', type: 'window', orientation: 'h', outer: true, x: 2, y: 0, width: 1.2, height: 1.2 }],
+  };
+  assert.equal(nudgePlanSelection(plan, { type: 'platform', id: 'terrace' }, 0.1, -0.1), true);
+  assert.deepEqual({ x: plan.platforms[0].x, y: plan.platforms[0].y }, { x: 1.1, y: 5.9 });
+  assert.equal(nudgePlanSelection(plan, { type: 'opening', id: 'window' }, 0.1, 0), true);
+  assert.deepEqual({ x: plan.openings[0].x, y: plan.openings[0].y }, { x: 2.1, y: 0 });
 });
 
 test('adjacent room walls are merged into one shared wall', () => {

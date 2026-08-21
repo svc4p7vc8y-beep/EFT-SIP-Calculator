@@ -335,6 +335,73 @@ export function projectOpeningToWall(opening, point, plan, options = {}) {
   return result;
 }
 
+/** Moves selected objects by an exact keyboard step and keeps openings attached to walls. */
+export function nudgePlanSelection(plan, selected, dx, dy) {
+  if (!selected) return false;
+  const byId = (key) => (plan[key] || []).find((item) => item.id === selected.id);
+  if (selected.type === 'room') {
+    const room = byId('rooms');
+    if (!room) return false;
+    room.points = roomPoints(room).map((point) => ({ x: roundCoord(point.x + dx), y: roundCoord(point.y + dy) }));
+    Object.assign(room, boundsOf(room.points));
+    return true;
+  }
+  if (selected.type === 'platform') {
+    const platform = byId('platforms');
+    if (!platform) return false;
+    platform.x = roundCoord(platform.x + dx);
+    platform.y = roundCoord(platform.y + dy);
+    return true;
+  }
+  if (selected.type === 'opening') {
+    const opening = byId('openings');
+    if (!opening) return false;
+    const target = {
+      x: roundCoord(opening.x + (opening.orientation === 'h' ? dx : 0)),
+      y: roundCoord(opening.y + (opening.orientation === 'v' ? dy : 0)),
+    };
+    Object.assign(opening, projectOpeningToWall(opening, target, plan, {
+      lockDoorType: opening.type === 'door',
+    }));
+    return true;
+  }
+  if (selected.type === 'gap') {
+    const gap = byId('wallGaps');
+    if (!gap) return false;
+    const target = {
+      x: roundCoord(gap.x + (gap.orientation === 'h' ? dx : 0)),
+      y: roundCoord(gap.y + (gap.orientation === 'v' ? dy : 0)),
+    };
+    const segment = nearestSegment(target, allOpeningSegments(plan));
+    if (!segment) return false;
+    gap.orientation = segment.axis;
+    gap.outer = segment.outer;
+    gap.x = segment.axis === 'v' ? segment.fixed : roundCoord(segment.projected);
+    gap.y = segment.axis === 'v' ? roundCoord(segment.projected) : segment.fixed;
+    return true;
+  }
+  if (selected.type === 'pile') {
+    const pile = byId('piles');
+    if (!pile) return false;
+    pile.x = roundCoord(pile.x + dx);
+    pile.y = roundCoord(pile.y + dy);
+    return true;
+  }
+  const key = selected.type === 'wall' ? 'walls'
+    : selected.type === 'dimension' ? 'dimensions'
+      : selected.type === 'pileRow' ? 'pileRows'
+        : selected.type === 'bindingLine' ? 'bindingLines'
+          : null;
+  if (!key) return false;
+  const line = byId(key);
+  if (!line) return false;
+  line.x1 = roundCoord(line.x1 + dx);
+  line.y1 = roundCoord(line.y1 + dy);
+  line.x2 = roundCoord(line.x2 + dx);
+  line.y2 = roundCoord(line.y2 + dy);
+  return true;
+}
+
 const pointOnBoundary = (point, polygon) => polygon.some((a, index) => {
   const b = polygon[(index + 1) % polygon.length];
   const cross = Math.abs((point.y - a.y) * (b.x - a.x) - (point.x - a.x) * (b.y - a.y));
