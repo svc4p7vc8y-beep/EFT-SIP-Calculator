@@ -98,6 +98,14 @@ import {
 } from "../planner/geometry.js";
 
 const VIEW = { width: 1100, height: 760 };
+const WALL_THICKNESS_OPTIONS = [124, 174, 224].map((millimeters) => ({
+  value: String(millimeters),
+  label: `${millimeters} мм`,
+}));
+const PARTITION_THICKNESS_OPTIONS = [100, 124, 174, 224].map((millimeters) => ({
+  value: String(millimeters),
+  label: `${millimeters} мм`,
+}));
 const SKETCHES_KEY = "eft-react-plan-sketches-v47";
 const DRAW_TOOLS = new Set([
   "room",
@@ -828,22 +836,81 @@ function RoofPlanOverlay({ plan, roof, p }) {
   }
   const rafters = [...commonRafters, ...jackRafters];
   const lathStep = Math.max(0.1, Number(roof.lathStep) || 0.35);
-  const acrossLength = vertical ? x2 - x1 : y2 - y1;
-  const laths = Array.from(
-    { length: Math.max(2, Math.ceil(acrossLength / lathStep) + 1) },
-    (_, index) => {
-      const value =
-        (vertical ? x1 : y1) +
-        Math.min(
-          acrossLength,
-          (index * acrossLength) /
-            Math.max(1, Math.ceil(acrossLength / lathStep)),
-        );
-      const a = vertical ? p(value, y1) : p(x1, value);
-      const b = vertical ? p(value, y2) : p(x2, value);
-      return <line key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
-    },
-  );
+  let laths = [];
+  if (shape === "hip" && !vertical) {
+    const topBottom = spacedValues(y1, y2, lathStep).map((value, index) => {
+      const ratio = Math.abs(value - centerY) / Math.max(0.001, centerY - y1);
+      const left = ridgeA.x - ratio * (ridgeA.x - x1);
+      const right = ridgeB.x + ratio * (x2 - ridgeB.x);
+      const a = p(left, value);
+      const b = p(right, value);
+      return <line key={`main-${index}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+    });
+    const sideLaths = [
+      ...spacedValues(x1, ridgeA.x, lathStep)
+        .slice(0, -1)
+        .map((value, index) => {
+          const ratio = (value - x1) / Math.max(0.001, ridgeA.x - x1);
+          const a = p(value, y1 + ratio * (centerY - y1));
+          const b = p(value, y2 - ratio * (y2 - centerY));
+          return (
+            <line key={`left-${index}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+          );
+        }),
+      ...spacedValues(ridgeB.x, x2, lathStep)
+        .slice(1)
+        .map((value, index) => {
+          const ratio = (x2 - value) / Math.max(0.001, x2 - ridgeB.x);
+          const a = p(value, y1 + ratio * (centerY - y1));
+          const b = p(value, y2 - ratio * (y2 - centerY));
+          return (
+            <line key={`right-${index}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+          );
+        }),
+    ];
+    laths = [...topBottom, ...sideLaths];
+  } else if (shape === "hip" && vertical) {
+    const leftRight = spacedValues(x1, x2, lathStep).map((value, index) => {
+      const ratio = Math.abs(value - centerX) / Math.max(0.001, centerX - x1);
+      const top = ridgeA.y - ratio * (ridgeA.y - y1);
+      const bottom = ridgeB.y + ratio * (y2 - ridgeB.y);
+      const a = p(value, top);
+      const b = p(value, bottom);
+      return <line key={`main-${index}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+    });
+    const endLaths = [
+      ...spacedValues(y1, ridgeA.y, lathStep)
+        .slice(0, -1)
+        .map((value, index) => {
+          const ratio = (value - y1) / Math.max(0.001, ridgeA.y - y1);
+          const a = p(x1 + ratio * (centerX - x1), value);
+          const b = p(x2 - ratio * (x2 - centerX), value);
+          return (
+            <line key={`top-${index}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+          );
+        }),
+      ...spacedValues(ridgeB.y, y2, lathStep)
+        .slice(1)
+        .map((value, index) => {
+          const ratio = (y2 - value) / Math.max(0.001, y2 - ridgeB.y);
+          const a = p(x1 + ratio * (centerX - x1), value);
+          const b = p(x2 - ratio * (x2 - centerX), value);
+          return (
+            <line key={`bottom-${index}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+          );
+        }),
+    ];
+    laths = [...leftRight, ...endLaths];
+  } else {
+    const acrossLength = vertical ? x2 - x1 : y2 - y1;
+    laths = spacedValues(vertical ? x1 : y1, vertical ? x2 : y2, lathStep).map(
+      (value, index) => {
+        const a = vertical ? p(value, y1) : p(x1, value);
+        const b = vertical ? p(value, y2) : p(x2, value);
+        return <line key={index} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+      },
+    );
+  }
   const corners = roofRect;
   const hipConnections = vertical
     ? [
@@ -858,7 +925,6 @@ function RoofPlanOverlay({ plan, roof, p }) {
         [corners[1], ridge[1]],
         [corners[2], ridge[1]],
       ];
-  const caption = p(centerX, y1);
   return (
     <g
       className={`roof-plan-overlay roof-${shape}`}
@@ -884,12 +950,13 @@ function RoofPlanOverlay({ plan, roof, p }) {
       {roof.showRafters !== false ? (
         <g className="roof-structural-layer">
           <g
-            className="roof-rafters"
+            className="roof-rafters roof-common-rafters"
             data-common-rafters={commonRafters.length}
             data-jack-rafters={jackRafters.length}
           >
-            {rafters}
+            {commonRafters}
           </g>
+          <g className="roof-rafters roof-jack-rafters">{jackRafters}</g>
           {shape !== "flat" ? (
             <line
               className="roof-ridge"
@@ -922,12 +989,31 @@ function RoofPlanOverlay({ plan, roof, p }) {
         className="roof-overhang-outline"
         points={roofRect.map((point) => `${point.x},${point.y}`).join(" ")}
       />
-      <text className="roof-plan-caption" x={caption.x} y={caption.y - 14}>
-        {shape === "hip"
-          ? "Вальмовая кровля"
-          : shape === "flat"
-            ? "Плоская кровля"
-            : "Двускатная кровля"}
+    </g>
+  );
+}
+
+function RoofPlanCaption({ plan, roof, p }) {
+  const bounds = boundsOf(houseContourPoints(plan));
+  const shape = ["flat", "hip"].includes(roof.shape) ? roof.shape : "gable";
+  const caption = p(bounds.x + bounds.w / 2, bounds.y + 0.55);
+  const label =
+    shape === "hip"
+      ? "Вальмовая кровля"
+      : shape === "flat"
+        ? "Плоская кровля"
+        : "Двускатная кровля";
+  return (
+    <g className="roof-plan-caption" pointerEvents="none">
+      <rect
+        x={caption.x - 103}
+        y={caption.y - 23}
+        width="206"
+        height="30"
+        rx="5"
+      />
+      <text x={caption.x} y={caption.y}>
+        {label}
       </text>
     </g>
   );
@@ -1445,17 +1531,48 @@ function PlanCanvas({
   const houseBounds = boundsOf(houseContour);
   const topLeft = p(houseBounds.x, houseBounds.y);
   const bottomRight = p(houseBounds.x2, houseBounds.y2);
-  const footprint = layout.sides.bounds;
+  const roofShape = ["flat", "hip"].includes(roof?.shape)
+    ? roof.shape
+    : "gable";
+  const roofVertical = houseBounds.h >= houseBounds.w;
+  const eaveOverhang = Math.max(0, Number(roof?.eaveOverhang) || 0);
+  const gableOverhang = Math.max(0, Number(roof?.gableOverhang) || 0);
+  const roofXOverhang =
+    roofShape === "gable"
+      ? roofVertical
+        ? eaveOverhang
+        : gableOverhang
+      : eaveOverhang;
+  const roofYOverhang =
+    roofShape === "gable"
+      ? roofVertical
+        ? gableOverhang
+        : eaveOverhang
+      : eaveOverhang;
+  const footprint = visibleLayers.roof
+    ? {
+        minX: Math.min(layout.sides.bounds.minX, houseBounds.x - roofXOverhang),
+        minY: Math.min(layout.sides.bounds.minY, houseBounds.y - roofYOverhang),
+        maxX: Math.max(
+          layout.sides.bounds.maxX,
+          houseBounds.x2 + roofXOverhang,
+        ),
+        maxY: Math.max(
+          layout.sides.bounds.maxY,
+          houseBounds.y2 + roofYOverhang,
+        ),
+      }
+    : layout.sides.bounds;
   const dimensionOffset = shownPlan.outerDimensionOffset || { x: 0, y: 0 };
   const horizontalY =
     (layout.sides.horizontal === "top"
-      ? p(0, footprint.minY).y - 30
-      : p(0, footprint.maxY).y + 30) +
+      ? p(0, footprint.minY).y - 46
+      : p(0, footprint.maxY).y + 46) +
     (dimensionOffset.y || 0) * layout.scale;
   const verticalX =
     (layout.sides.vertical === "left"
-      ? p(footprint.minX, 0).x - 30
-      : p(footprint.maxX, 0).x + 30) +
+      ? p(footprint.minX, 0).x - 46
+      : p(footprint.maxX, 0).x + 46) +
     (dimensionOffset.x || 0) * layout.scale;
   const line = (item) => ({ a: p(item.x1, item.y1), b: p(item.x2, item.y2) });
   const textScale = Math.max(0.85, Math.min(3.2, layout.scale / 55));
@@ -1470,6 +1587,14 @@ function PlanCanvas({
   const selectedRoomScreen = selectedRoom
     ? roomPoints(selectedRoom).map((point) => p(point.x, point.y))
     : [];
+  const partitionWidth = Math.max(
+    4,
+    (Number(shownPlan.partitionThickness) || 0.1) * layout.scale,
+  );
+  const outerWallWidth = Math.max(
+    5,
+    (Number(shownPlan.wallThickness) || 0.174) * layout.scale,
+  );
   const drawSegment = (segment, key) => {
     const [a, b] = lineEndpoints(segment);
     const q1 = p(a.x, a.y);
@@ -1482,6 +1607,7 @@ function PlanCanvas({
           y1={q1.y}
           x2={q2.x}
           y2={q2.y}
+          style={{ strokeWidth: partitionWidth + 4 }}
         />
         <line
           className="wall-band-hatch"
@@ -1489,6 +1615,7 @@ function PlanCanvas({
           y1={q1.y}
           x2={q2.x}
           y2={q2.y}
+          style={{ strokeWidth: partitionWidth }}
         />
       </g>
     );
@@ -1587,6 +1714,24 @@ function PlanCanvas({
         >
           <path d="M0 0L10 5L0 10Z" fill="currentColor" />
         </marker>
+        <pattern
+          id="planner-wall-texture"
+          width="8"
+          height="8"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(45)"
+        >
+          <rect width="8" height="8" fill="#f3f0e4" />
+          <line
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="8"
+            stroke="#b9b4a5"
+            strokeWidth="2"
+            opacity=".62"
+          />
+        </pattern>
       </defs>
       <rect
         className="plan-grid-hit"
@@ -1650,6 +1795,9 @@ function PlanCanvas({
             })
             .join(" ")}
         />
+      ) : null}
+      {visibleLayers.roof ? (
+        <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} />
       ) : null}
       {visibleLayers.plan
         ? (shownPlan.rooms || []).map((room, roomIndex) => {
@@ -1731,7 +1879,7 @@ function PlanCanvas({
           onPointerDown={(event) => objectDown(event, "houseContour", "house")}
         >
           <polygon
-            className="outer-wall"
+            className="outer-wall outer-wall-border"
             points={houseContour
               .map((point) => {
                 const q = p(point.x, point.y);
@@ -1739,7 +1887,19 @@ function PlanCanvas({
               })
               .join(" ")}
             style={{
-              strokeWidth: Math.max(7, shownPlan.wallThickness * layout.scale),
+              strokeWidth: outerWallWidth + 5,
+            }}
+          />
+          <polygon
+            className="outer-wall outer-wall-texture"
+            points={houseContour
+              .map((point) => {
+                const q = p(point.x, point.y);
+                return `${q.x},${q.y}`;
+              })
+              .join(" ")}
+            style={{
+              strokeWidth: outerWallWidth,
             }}
           />
           {selected?.type === "houseContour"
@@ -1770,7 +1930,7 @@ function PlanCanvas({
           )
         : null}
       {visibleLayers.roof ? (
-        <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} />
+        <RoofPlanCaption plan={shownPlan} roof={roof || {}} p={p} />
       ) : null}
       {selectedRoom ? (
         <g className="selected-room-overlay">
@@ -1814,6 +1974,7 @@ function PlanCanvas({
                   y1={q.a.y}
                   x2={q.b.x}
                   y2={q.b.y}
+                  style={{ strokeWidth: partitionWidth + 4 }}
                 />
                 <line
                   className="wall-band-hatch"
@@ -1821,6 +1982,7 @@ function PlanCanvas({
                   y1={q.a.y}
                   x2={q.b.x}
                   y2={q.b.y}
+                  style={{ strokeWidth: partitionWidth }}
                 />
                 <line
                   className="wide-hit"
@@ -4010,6 +4172,28 @@ export default function PlanScreen({ onNavigate }) {
       }),
     [commit],
   );
+  const changeWallThickness = useCallback(
+    (millimeters) =>
+      commit((next) => {
+        const thickness = Number(millimeters) || 174;
+        next.plan.wallThickness = thickness / 1000;
+        next.settings.sip.wallThickness = String(thickness);
+        return next;
+      }),
+    [commit],
+  );
+  const changePartitionThickness = useCallback(
+    (millimeters) =>
+      commit((next) => {
+        const thickness = Number(millimeters) || 100;
+        next.plan.partitionThickness = thickness / 1000;
+        if ([124, 174, 224].includes(thickness)) {
+          next.settings.sip.partitionThickness = String(thickness);
+        }
+        return next;
+      }),
+    [commit],
+  );
   const resizeHouse = useCallback(
     (width, height) =>
       commit((next) => {
@@ -4784,18 +4968,18 @@ export default function PlanScreen({ onNavigate }) {
       <div className="plan-status-bar">
         <div className="plan-house-fields">
           <NumberField
-          label="Длина"
+            label="Длина"
             value={plan.house.w}
             suffix="м"
             min={3}
-          onChange={(value) => resizeHouse(value, plan.house.h)}
+            onChange={(value) => resizeHouse(value, plan.house.h)}
           />
           <NumberField
-          label="Ширина"
+            label="Ширина"
             value={plan.house.h}
             suffix="м"
             min={3}
-          onChange={(value) => resizeHouse(plan.house.w, value)}
+            onChange={(value) => resizeHouse(plan.house.w, value)}
           />
           <NumberField
             label="Высота стен"
@@ -4807,6 +4991,18 @@ export default function PlanScreen({ onNavigate }) {
                 next.wallHeight = value;
               })
             }
+          />
+          <SelectField
+            label="Наружная стена"
+            value={String(Math.round((plan.wallThickness || 0.174) * 1000))}
+            options={WALL_THICKNESS_OPTIONS}
+            onChange={changeWallThickness}
+          />
+          <SelectField
+            label="Перегородка"
+            value={String(Math.round((plan.partitionThickness || 0.1) * 1000))}
+            options={PARTITION_THICKNESS_OPTIONS}
+            onChange={changePartitionThickness}
           />
         </div>
         <div className="plan-view-switches">

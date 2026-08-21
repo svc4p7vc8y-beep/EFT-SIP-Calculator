@@ -152,6 +152,20 @@ export default function ParametersScreen() {
         );
         return next;
       }
+      if (path === "plan.wallThickness") {
+        const millimeters = Number(value) || 174;
+        next.plan.wallThickness = millimeters / 1000;
+        next.settings.sip.wallThickness = String(millimeters);
+        return next;
+      }
+      if (path === "plan.partitionThickness") {
+        const millimeters = Number(value) || 100;
+        next.plan.partitionThickness = millimeters / 1000;
+        if ([124, 174, 224].includes(millimeters)) {
+          next.settings.sip.partitionThickness = String(millimeters);
+        }
+        return next;
+      }
       const keys = path.split(".");
       let target = next;
       keys.slice(0, -1).forEach((key) => {
@@ -405,16 +419,21 @@ export default function ParametersScreen() {
               {
                 path: "plan.wallThickness",
                 label: "Наружная стена",
-                suffix: "м",
-                min: 0.1,
-                step: 0.001,
+                type: "select",
+                value: String(Math.round(project.plan.wallThickness * 1000)),
+                options: thicknesses,
               },
               {
                 path: "plan.partitionThickness",
                 label: "Перегородка",
-                suffix: "м",
-                min: 0.05,
-                step: 0.001,
+                type: "select",
+                value: String(
+                  Math.round(project.plan.partitionThickness * 1000),
+                ),
+                options: [
+                  { value: "100", label: "100 мм · каркасная" },
+                  ...thicknesses,
+                ],
               },
             ])}
             <div className="parameter-readouts">
