@@ -6,7 +6,7 @@ import {
 } from "../calculations/calculation-links.js";
 import { bindingLinesFromPileRows } from "../calculations/foundation-model.js";
 
-export const REACT_PROJECT_VERSION = 86;
+export const REACT_PROJECT_VERSION = 87;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -282,6 +282,17 @@ export function createEmptyPlan() {
     ],
   };
   plan.bindingLines = bindingLinesFromPileRows(plan.pileRows);
+  return plan;
+}
+
+/** A truly clean drawing sheet. Nominal size only keeps the first view readable. */
+export function createBlankPlan() {
+  const plan = createEmptyPlan();
+  plan.house = { w: 10, h: 8, contourDefined: false };
+  plan.pileRows = [];
+  plan.bindingLines = [];
+  plan.piles = [];
+  plan.excludedPiles = [];
   return plan;
 }
 

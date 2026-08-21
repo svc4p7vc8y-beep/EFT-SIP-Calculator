@@ -170,7 +170,7 @@ button:disabled {
 }
 .app-layout {
   display: grid;
-  grid-template-columns: 254px minmax(0, 1fr) 360px;
+  grid-template-columns: 254px minmax(0, 1fr) 280px;
   min-height: calc(100vh - 76px);
 }
 .sidebar {
@@ -379,12 +379,12 @@ button:disabled {
 }
 .summary-section-title {
   width: 100%;
-  min-height: 38px;
+  min-height: 48px;
   display: grid;
   grid-template-columns: 17px minmax(0, 1fr) 14px;
   align-items: center;
   gap: 8px;
-  padding: 0 2px;
+  padding: 0 5px;
   color: var(--ink);
   border: 0;
   background: transparent;
@@ -401,24 +401,27 @@ button:disabled {
   width: 13px;
   height: 13px;
   color: var(--muted);
+  transition: transform .16s ease;
 }
+.summary-section.open .summary-section-title svg:last-child { transform: rotate(90deg); }
 .summary-section-title strong {
-  font-size: 10px;
+  font-size: 12px;
 }
 .summary-section-body {
-  padding: 0 2px 12px 27px;
+  padding: 0 2px 14px;
 }
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
 }
 .summary-grid.three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 .summary-value {
   min-width: 0;
-  padding: 7px;
+  min-height: 47px;
+  padding: 8px 10px;
   border-radius: 7px;
   background: var(--surface);
 }
@@ -427,7 +430,7 @@ button:disabled {
   overflow: hidden;
   margin-bottom: 3px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 9px;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -435,7 +438,7 @@ button:disabled {
 .summary-value strong {
   display: block;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -447,9 +450,33 @@ button:disabled {
 .summary-detail {
   margin: 7px 0 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.45;
 }
+.summary-open-calculator {
+  width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: center;
+  gap: 6px; margin-top: 10px; color: var(--green-dark); border: 1px solid #bfd4b2;
+  border-radius: 8px; background: var(--green-soft); font-size: 10px; font-weight: 750;
+}
+.summary-open-calculator svg { width: 13px; height: 13px; }
+.summary-breakdown { margin-top: 12px; }
+.summary-breakdown h3 { margin: 10px 0 6px; color: var(--muted); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+.summary-material-card { margin-bottom: 7px; padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+.summary-material-card header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 7px; font-size: 10px; }
+.summary-material-card header b { color: var(--green-dark); white-space: nowrap; }
+.summary-material-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 9px; margin: 0; }
+.summary-material-card dl div { display: flex; justify-content: space-between; gap: 5px; font-size: 8px; }
+.summary-material-card dt { color: var(--muted); }
+.summary-material-card dd { margin: 0; font-weight: 700; white-space: nowrap; }
+.summary-material-line { display: flex; flex-direction: column; gap: 3px; padding: 7px 1px; border-top: 1px dashed var(--line); font-size: 9px; }
+.summary-material-line span { color: var(--muted); }
+.summary-material-line strong { font-size: 10px; line-height: 1.35; }
+.summary-material-line.accent { padding: 8px; border: 0; border-radius: 7px; background: var(--green-soft); }
+.summary-estimate-materials { margin-top: 11px; }
+.summary-estimate-materials h3 { margin: 0 0 5px; color: var(--muted); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+.summary-estimate-materials > div { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; padding: 6px 1px; border-top: 1px dashed var(--line); font-size: 9px; }
+.summary-estimate-materials span { line-height: 1.3; }
+.summary-estimate-materials strong { color: var(--green-dark); white-space: nowrap; }
 .summary-openings {
   max-height: 126px;
   overflow-y: auto;
@@ -1434,6 +1461,14 @@ select,
   user-select: none;
   -webkit-user-select: none;
 }
+/* The global project summary already carries the room list. Keep the canvas wide
+   until an object is selected and needs its exact inspector. */
+.planner-shell:has(.planner-inspector .room-summary) {
+  grid-template-columns: 82px minmax(0, 1fr);
+}
+.planner-inspector:has(.room-summary) {
+  display: none;
+}
 .planner-inspector input,
 .planner-inspector select {
   user-select: text;
@@ -1459,9 +1494,10 @@ select,
   flex: 1 1 auto;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   padding: 4px 1px;
 }
+.planner-tools-scroll::-webkit-scrollbar { width: 0; height: 0; }
 .planner-tools-fixed {
   flex: 0 0 auto;
   padding: 3px 1px;
@@ -2079,6 +2115,8 @@ select,
 .house-fill {
   fill: #fffef7;
 }
+.blank-plan-prompt { fill: #477831; font-size: 24px; font-weight: 800; text-anchor: middle; pointer-events: none; }
+.blank-plan-prompt-subtitle { fill: #7b877b; font-size: 13px; font-weight: 600; }
 .room-shape {
   fill: rgba(249, 247, 226, 0.55);
   stroke: #172018;
@@ -3326,7 +3364,7 @@ select,
 
 @media (max-width: 1450px) {
   .app-layout {
-    grid-template-columns: 254px minmax(0, 1fr) 332px;
+    grid-template-columns: 254px minmax(0, 1fr) 270px;
   }
   .workspace {
     padding: 18px;
@@ -3334,12 +3372,6 @@ select,
   .project-summary-sidebar {
     padding-right: 10px;
     padding-left: 10px;
-  }
-  .app-layout:has(.plan-screen-v2) {
-    grid-template-columns: 254px minmax(0, 1fr);
-  }
-  .app-layout:has(.plan-screen-v2) > .project-summary-sidebar {
-    display: none;
   }
   .plan-screen-v2 .screen-header {
     display: grid;
@@ -3364,6 +3396,10 @@ select,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+@media (min-width: 1181px) {
+  .plan-screen-v2 .screen-header h1 { font-size: 18px; }
+  .plan-screen-v2 .screen-header p { font-size: 10px; }
+}
 @media (max-width: 1180px) {
   .app-layout {
     grid-template-columns: 254px minmax(0, 1fr);
@@ -3371,6 +3407,10 @@ select,
   .project-summary-sidebar {
     display: none;
   }
+  .planner-shell:has(.planner-inspector .room-summary) {
+    grid-template-columns: 82px minmax(0, 1fr) 270px;
+  }
+  .planner-inspector:has(.room-summary) { display: block; }
 }
 @media (max-width: 1100px) {
   .brand {

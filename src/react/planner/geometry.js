@@ -54,17 +54,20 @@ export function dimensionOutsideHouse(line, house, offset = 0.8) {
 
 export function collectSnapAxes(plan, excludeRoomId) {
   const wall = Number(plan.wallThickness) || 0.174;
-  const xs = new Set([0, wall, plan.house.w - wall, plan.house.w]);
-  const ys = new Set([0, wall, plan.house.h - wall, plan.house.h]);
+  const hasHouse = plan?.house?.contourDefined !== false;
+  const xs = new Set(hasHouse ? [0, wall, plan.house.w - wall, plan.house.w] : []);
+  const ys = new Set(hasHouse ? [0, wall, plan.house.h - wall, plan.house.h] : []);
   const points = new Map();
   const addPoint = (point) => {
     const next = { x: roundCoord(point.x), y: roundCoord(point.y) };
     xs.add(next.x); ys.add(next.y); points.set(`${next.x}:${next.y}`, next);
   };
-  houseContourPoints(plan).forEach(addPoint);
-  [0, wall, plan.house.w - wall, plan.house.w].forEach((x) => {
-    [0, wall, plan.house.h - wall, plan.house.h].forEach((y) => addPoint({ x, y }));
-  });
+  if (hasHouse) {
+    houseContourPoints(plan).forEach(addPoint);
+    [0, wall, plan.house.w - wall, plan.house.w].forEach((x) => {
+      [0, wall, plan.house.h - wall, plan.house.h].forEach((y) => addPoint({ x, y }));
+    });
+  }
   for (const room of plan.rooms || []) {
     if (room.id === excludeRoomId) continue;
     for (const point of roomPoints(room)) addPoint(point);
@@ -245,6 +248,7 @@ export function roomWallSegments(plan) {
   };
   const segments = [];
   for (const room of plan.rooms || []) {
+    if (room.extension) continue;
     const points = roomPoints(room);
     points.forEach((point, index) => {
       const next = points[(index + 1) % points.length];
@@ -352,6 +356,7 @@ export function planIssues(plan) {
   const issues = [];
   const contour = houseContourPoints(plan);
   for (const room of plan.rooms || []) {
+    if (room.extension) continue;
     const points = roomPoints(room);
     if (points.some((point) => !pointInPolygon(point, contour) && !pointOnBoundary(point, contour))) {
       issues.push({ type: 'outside', roomIds: [room.id], message: `${room.name}: выходит за внутренний контур дома` });

@@ -246,7 +246,15 @@ function sipSection(project, metrics, index, inputs) {
   };
   const joinery = calculateSipJoinery(
     project.plan,
-    project.services,
+    project.plan.house?.contourDefined === false
+      ? {
+          ...project.services,
+          sipFloor: false,
+          sipWalls: false,
+          sipCeiling: false,
+          partitions: false,
+        }
+      : project.services,
     sip,
     f,
     metrics,
@@ -535,7 +543,7 @@ function foundationSection(project, index, inputs) {
 }
 
 function roofSection(project, metrics, index, inputs) {
-  if (!project.services.roof)
+  if (!project.services.roof || project.plan.house?.contourDefined === false)
     return {
       lines: [],
       extensionLines: [],

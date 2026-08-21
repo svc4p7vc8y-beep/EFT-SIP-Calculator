@@ -134,11 +134,14 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
 
   let roomArea = 0;
   let openCeilingArea = 0;
+  let extensionArea = 0;
+  let extensionPerimeterDelta = 0;
   (plan.rooms || []).forEach((room) => {
     const points = roomPoints(room);
     if (room.include !== false) {
       const area = polygonArea(points);
       roomArea += area;
+      if (room.extension) extensionArea += area;
       if (room.ceilingMode === "open-rafter") {
         const configured =
           room.openCeilingArea == null
@@ -146,6 +149,19 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
             : Math.max(0, Number(room.openCeilingArea) || 0);
         openCeilingArea += Math.min(area, configured);
       }
+    }
+    if (room.extension) {
+      let perimeter = 0;
+      let attached = 0;
+      for (let index = 0; index < points.length; index += 1) {
+        const a = points[index];
+        const b = points[(index + 1) % points.length];
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        perimeter += length;
+        if (isOuterEdge(a, b, plan, tolerance)) attached += length;
+      }
+      extensionPerimeterDelta += perimeter - attached * 2;
+      return;
     }
     for (let index = 0; index < points.length; index += 1) {
       addSegment(points[index], points[(index + 1) % points.length]);
@@ -193,8 +209,11 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
   });
   partitionLength = Math.max(0, partitionLength - interiorGapLength);
   const houseContour = houseContourPoints(plan);
-  const perimeter = polygonPerimeter(houseContour);
-  const floorArea = polygonArea(houseContour);
+  const contourDefined = plan.house.contourDefined !== false;
+  const perimeter = contourDefined
+    ? Math.max(0, polygonPerimeter(houseContour) + extensionPerimeterDelta)
+    : 0;
+  const floorArea = contourDefined ? polygonArea(houseContour) + extensionArea : 0;
   openCeilingArea = Math.min(floorArea, openCeilingArea);
   const ceilingArea = Math.max(0, floorArea - openCeilingArea);
   const partitionGrossArea = partitionLength * wallHeight;

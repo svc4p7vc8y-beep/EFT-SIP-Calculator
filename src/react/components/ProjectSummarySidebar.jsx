@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -35,18 +36,26 @@ function SummaryValue({ label, value, tone }) {
   );
 }
 
-function SummarySection({ title, icon: Icon, target, onNavigate, children }) {
+function SummarySection({ title, icon: Icon, target, onNavigate, open, onToggle, children }) {
   return (
-    <section className="summary-section">
+    <section className={`summary-section ${open ? "open" : ""}`}>
       <button
         className="summary-section-title"
-        onClick={() => onNavigate(target)}
+        onClick={onToggle}
+        aria-expanded={open}
       >
         <Icon />
         <strong>{title}</strong>
         <ChevronRight />
       </button>
-      <div className="summary-section-body">{children}</div>
+      {open ? (
+        <div className="summary-section-body">
+          {children}
+          <button className="summary-open-calculator" onClick={() => onNavigate(target)}>
+            Открыть раздел <ChevronRight />
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -58,12 +67,31 @@ function openingLabel(opening) {
   return "Входная дверь";
 }
 
+function SectionMaterials({ calculation, sectionKey }) {
+  const lines = calculation.sections?.find((section) => section.key === sectionKey)?.lines
+    ?.filter((line) => line.kind !== "labor") || [];
+  if (!lines.length) return <p className="summary-detail">Материалы раздела пока не рассчитаны.</p>;
+  return (
+    <div className="summary-estimate-materials">
+      <h3>Материалы в смете</h3>
+      {lines.map((line) => (
+        <div key={line.id}>
+          <span>{line.name}</span>
+          <strong>{formatNumber(line.qty, Number(line.qty) % 1 ? 2 : 0)} {line.unit}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ProjectSummarySidebar({
   project,
   calculation,
   onNavigate,
 }) {
+  const [openSection, setOpenSection] = useState("home");
   const { plan } = project;
+  const contourMissing = plan.house?.contourDefined === false;
   const { metrics, foundation, roof } = calculation;
   const issues = planIssues(plan);
   const openings = plan.openings || [];
@@ -89,6 +117,10 @@ export default function ProjectSummarySidebar({
     project.services.openings && "проёмы",
     project.services.delivery && "доставка",
   ].filter(Boolean);
+  const sipConsumables = calculation.sip?.consumables;
+  const structuralFastener = sipConsumables?.mode === "node"
+    ? `${sipConsumables.totals?.structuralCount || 0} шт`
+    : `${formatNumber((sipConsumables?.rows || []).reduce((sum, row) => sum + (Number(row.structuralKg) || 0), 0), 2)} кг`;
 
   return (
     <aside
@@ -102,16 +134,20 @@ export default function ProjectSummarySidebar({
         </div>
         <small>№ {project.meta?.projectNum || "—"}</small>
       </header>
-      <div className={`summary-health ${issues.length ? "warning" : "ok"}`}>
-        {issues.length ? <AlertTriangle /> : <CheckCircle2 />}
+      <div className={`summary-health ${issues.length || contourMissing ? "warning" : "ok"}`}>
+        {issues.length || contourMissing ? <AlertTriangle /> : <CheckCircle2 />}
         <span>
           <strong>
-            {issues.length
+            {contourMissing
+              ? "Контур дома не задан"
+              : issues.length
               ? `${issues.length} несостыковок`
               : "План согласован"}
           </strong>
           <small>
-            {issues.length
+            {contourMissing
+              ? "Нарисуйте и замкните внешний контур"
+              : issues.length
               ? "Проверьте красные комнаты"
               : "Стены и площади состыкованы"}
           </small>
@@ -133,6 +169,8 @@ export default function ProjectSummarySidebar({
         icon={Home}
         target="plan"
         onNavigate={onNavigate}
+        open={openSection === "home"}
+        onToggle={() => setOpenSection((value) => value === "home" ? "" : "home")}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -165,6 +203,8 @@ export default function ProjectSummarySidebar({
         icon={Layers3}
         target="sip"
         onNavigate={onNavigate}
+        open={openSection === "sip"}
+        onToggle={() => setOpenSection((value) => value === "sip" ? "" : "sip")}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -204,6 +244,34 @@ export default function ProjectSummarySidebar({
         <p className="summary-detail">
           {CONNECTOR_TYPES[project.settings.sip.connectorType] || "Термобрус"}
         </p>
+        <div className="summary-breakdown" aria-label="Полный раскрой SIP">
+          <h3>Раскрой SIP-панелей</h3>
+          {(calculation.sip?.cutting || []).map((row) => (
+            <div className="summary-material-card" key={row.key}>
+              <header><strong>{row.label}</strong><b>{row.panels} пан.</b></header>
+              <dl>
+                <div><dt>Чистая площадь</dt><dd>{formatNumber(row.area)} м²</dd></div>
+                <div><dt>Раскладка</dt><dd>{Math.round(row.layoutWidth * 1000)} мм</dd></div>
+                <div><dt>Закупка</dt><dd>{formatNumber(row.purchasedArea)} м²</dd></div>
+                <div><dt>Остаток</dt><dd>{formatNumber(row.offcutArea)} м²</dd></div>
+                <div><dt>Резка</dt><dd>{formatNumber(row.cutMeters)} м</dd></div>
+              </dl>
+            </div>
+          ))}
+          <h3>Соединения и крепёж</h3>
+          {(calculation.sip?.joinery?.rows || []).map((row) => (
+            <div className="summary-material-line" key={row.key}>
+              <span>{row.label}</span>
+              <strong>{formatNumber(row.jointLength)} м стыков · {formatNumber(row.endBoardLength)} м торцов</strong>
+            </div>
+          ))}
+          <div className="summary-material-line accent">
+            <span>Пеноклей / крепёж</span>
+            <strong>
+              {sipConsumables?.totals?.foamUnits || 0} бал. · крепёж {structuralFastener}
+            </strong>
+          </div>
+        </div>
       </SummarySection>
 
       <SummarySection
@@ -211,6 +279,8 @@ export default function ProjectSummarySidebar({
         icon={HardHat}
         target="piles"
         onNavigate={onNavigate}
+        open={openSection === "piles"}
+        onToggle={() => setOpenSection((value) => value === "piles" ? "" : "piles")}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -238,6 +308,7 @@ export default function ProjectSummarySidebar({
             value={`${foundation.sharedPiles} шт`}
           />
         </div>
+        <SectionMaterials calculation={calculation} sectionKey="foundation" />
       </SummarySection>
 
       <SummarySection
@@ -245,6 +316,8 @@ export default function ProjectSummarySidebar({
         icon={Ruler}
         target="roof"
         onNavigate={onNavigate}
+        open={openSection === "roof"}
+        onToggle={() => setOpenSection((value) => value === "roof" ? "" : "roof")}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -317,6 +390,7 @@ export default function ProjectSummarySidebar({
             ? `Плоская кровля: длина ${formatNumber(project.settings.roof.ridgeLength)} м`
             : `Конёк: высота ${formatNumber(project.settings.roof.ridgeHeight)} м · длина ${formatNumber(project.settings.roof.ridgeLength)} м · ${roof.rafterStructure?.system === "layered" ? "наслонная система" : roof.rafterStructure?.system === "truss" ? "стропильные фермы" : "висячая система"}`}
         </p>
+        <SectionMaterials calculation={calculation} sectionKey="roof" />
       </SummarySection>
 
       <SummarySection
@@ -324,6 +398,8 @@ export default function ProjectSummarySidebar({
         icon={Trees}
         target="terrace"
         onNavigate={onNavigate}
+        open={openSection === "terrace"}
+        onToggle={() => setOpenSection((value) => value === "terrace" ? "" : "terrace")}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -346,6 +422,7 @@ export default function ProjectSummarySidebar({
                 : "холодная кровля"}
           </p>
         ))}
+        <SectionMaterials calculation={calculation} sectionKey="terrace" />
       </SummarySection>
 
       <SummarySection
@@ -353,6 +430,8 @@ export default function ProjectSummarySidebar({
         icon={PanelTop}
         target="openings"
         onNavigate={onNavigate}
+        open={openSection === "openings"}
+        onToggle={() => setOpenSection((value) => value === "openings" ? "" : "openings")}
       >
         <div className="summary-grid three">
           <SummaryValue label="Окна" value={`${windows}`} />
@@ -376,6 +455,7 @@ export default function ProjectSummarySidebar({
             <p>Проёмы не заданы</p>
           )}
         </div>
+        <SectionMaterials calculation={calculation} sectionKey="openings" />
       </SummarySection>
 
       <SummarySection
@@ -383,6 +463,8 @@ export default function ProjectSummarySidebar({
         icon={DoorOpen}
         target="parameters"
         onNavigate={onNavigate}
+        open={openSection === "parameters"}
+        onToggle={() => setOpenSection((value) => value === "parameters" ? "" : "parameters")}
       >
         <p className="summary-detail">
           В расчёте:{" "}

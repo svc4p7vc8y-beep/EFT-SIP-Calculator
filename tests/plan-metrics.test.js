@@ -2,6 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculatePlanMetrics, calculateSipCutting, calculateSipRoofCutting, chooseDimensionSides, roofGeometry } from '../src/calculations/plan-metrics.js';
 
+test('attached room extension adds floor and outside perimeter without becoming a partition', () => {
+  const metrics = calculatePlanMetrics({
+    house: { w: 8, h: 6 }, wallHeight: 2.5, wallThickness: 0.174,
+    rooms: [{ id: 'extension', name: 'Пристройка', extension: true, include: true, points: [
+      { x: 8, y: 2 }, { x: 10, y: 2 }, { x: 10, y: 5 }, { x: 8, y: 5 },
+    ] }], walls: [], openings: [], wallGaps: [], platforms: [],
+  });
+  assert.equal(metrics.floorArea, 54);
+  assert.equal(metrics.perimeter, 32);
+  assert.equal(metrics.partitionLength, 0);
+});
+
 test('shared and partially overlapping room walls count once', () => {
   const plan = {
     house: { w: 10, h: 8 }, wallThickness: 0.2, wallHeight: 2.5,

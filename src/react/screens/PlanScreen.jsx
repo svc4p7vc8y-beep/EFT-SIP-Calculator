@@ -64,7 +64,7 @@ import {
 import {
   createCompactPlan,
   createDefaultPlan,
-  createEmptyPlan,
+  createBlankPlan,
 } from "../state/project-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { formatNumber, uid } from "../utils/format.js";
@@ -91,6 +91,7 @@ import {
   shouldClosePolygon,
   moveConnectedWall,
   resizeProjectHouse,
+  resizePlanToHouse,
   snapPoint,
   snapPointDetails,
   unifiedWallSegments,
@@ -109,6 +110,7 @@ const PARTITION_THICKNESS_OPTIONS = [100, 124, 174, 224].map((millimeters) => ({
 const SKETCHES_KEY = "eft-react-plan-sketches-v47";
 const DRAW_TOOLS = new Set([
   "room",
+  "extension",
   "wall",
   "dimension",
   "pileRow",
@@ -119,6 +121,7 @@ const DRAW_TOOLS = new Set([
 const TOOLS = [
   ["select", "Выбор", MousePointer2],
   ["room", "Прямоугольная комната", SquareDashed],
+  ["extension", "Пристройка-комната", HousePlus],
   ["polygon", "Комната свободной формы", Pentagon],
   ["houseContour", "Контур дома", Home],
   ["wall", "Перегородка", BrickWall],
@@ -1447,20 +1450,21 @@ function PlanCanvas({
         finalGesture.end.x - finalGesture.start.x,
         finalGesture.end.y - finalGesture.start.y,
       );
-      if (["room", "terrace", "porch"].includes(current.type)) {
+      if (["room", "extension", "terrace", "porch"].includes(current.type)) {
         const points = rectanglePoints(finalGesture.start, finalGesture.end);
         const bounds = boundsOf(points);
         if (bounds.w >= 0.5 && bounds.h >= 0.5) {
           const id = uid(current.type);
           commitPlan((next) => {
-            if (current.type === "room")
+            if (["room", "extension"].includes(current.type))
               next.rooms.push(
                 withRoomBounds({
                   id,
-                  name: `Комната ${next.rooms.length + 1}`,
+                  name: current.type === "extension" ? `Пристройка ${next.rooms.length + 1}` : `Комната ${next.rooms.length + 1}`,
                   points,
                   include: true,
                   bearing: false,
+                  extension: current.type === "extension",
                   ceilingMode: "flat",
                 }),
               );
@@ -1481,7 +1485,7 @@ function PlanCanvas({
               );
           });
           selectCreated({
-            type: current.type === "room" ? "room" : "platform",
+            type: ["room", "extension"].includes(current.type) ? "room" : "platform",
             id,
           });
         }
@@ -1528,6 +1532,7 @@ function PlanCanvas({
   };
 
   const houseContour = houseContourPoints(shownPlan);
+  const houseDefined = shownPlan.house?.contourDefined !== false;
   const houseBounds = boundsOf(houseContour);
   const topLeft = p(houseBounds.x, houseBounds.y);
   const bottomRight = p(houseBounds.x2, houseBounds.y2);
@@ -1739,6 +1744,14 @@ function PlanCanvas({
         height={VIEW.height}
         fill="url(#planner-grid)"
       />
+      {!houseDefined && !polygonDraft.length ? (
+        <g className="blank-plan-prompt">
+          <text x={VIEW.width / 2} y={VIEW.height / 2 - 12}>Чистый план</text>
+          <text className="blank-plan-prompt-subtitle" x={VIEW.width / 2} y={VIEW.height / 2 + 18}>
+            Ставьте точки внешнего контура с шагом 100 мм и замкните его
+          </text>
+        </g>
+      ) : null}
       {visibleLayers.plan || visibleLayers.piles || visibleLayers.binding
         ? (shownPlan.platforms || []).map((platform) => {
             const q = p(platform.x, platform.y);
@@ -1785,7 +1798,7 @@ function PlanCanvas({
             );
           })
         : null}
-      {visibleLayers.plan || visibleLayers.roof ? (
+      {houseDefined && (visibleLayers.plan || visibleLayers.roof) ? (
         <polygon
           className="house-fill"
           points={houseContour
@@ -1796,7 +1809,7 @@ function PlanCanvas({
             .join(" ")}
         />
       ) : null}
-      {visibleLayers.roof ? (
+      {houseDefined && visibleLayers.roof ? (
         <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} />
       ) : null}
       {visibleLayers.plan
@@ -1819,6 +1832,12 @@ function PlanCanvas({
                     .map((point) => `${point.x},${point.y}`)
                     .join(" ")}
                 />
+                {room.extension ? (
+                  <>
+                    <polygon className="outer-wall outer-wall-border extension-wall" points={screen.map((point) => `${point.x},${point.y}`).join(" ")} style={{ strokeWidth: outerWallWidth + 5 }} />
+                    <polygon className="outer-wall outer-wall-texture extension-wall" points={screen.map((point) => `${point.x},${point.y}`).join(" ")} style={{ strokeWidth: outerWallWidth }} />
+                  </>
+                ) : null}
                 <text
                   className="room-name"
                   style={{ fontSize: roomNameSize }}
@@ -1873,7 +1892,7 @@ function PlanCanvas({
             );
           })
         : null}
-      {visibleLayers.plan || visibleLayers.roof ? (
+      {houseDefined && (visibleLayers.plan || visibleLayers.roof) ? (
         <g
           className={`planner-object house-contour-object ${selected?.type === "houseContour" ? "selected" : ""}`}
           onPointerDown={(event) => objectDown(event, "houseContour", "house")}
@@ -1929,7 +1948,7 @@ function PlanCanvas({
             drawSegment(segment, `unified-${index}`),
           )
         : null}
-      {visibleLayers.roof ? (
+      {houseDefined && visibleLayers.roof ? (
         <RoofPlanCaption plan={shownPlan} roof={roof || {}} p={p} />
       ) : null}
       {selectedRoom ? (
@@ -2300,7 +2319,7 @@ function PlanCanvas({
             );
           })
         : null}
-      {visibleLayers.plan && shownPlan.showDimensions !== false ? (
+      {houseDefined && visibleLayers.plan && shownPlan.showDimensions !== false ? (
         <g
           className={`outer-dimensions ${selected?.type === "outerDimensions" ? "selected" : ""}`}
           style={{ fontSize: dimensionTextSize }}
@@ -2729,9 +2748,34 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
   }
   if (selected.type === "houseContour") {
     const contour = houseContourPoints(plan);
+    const contourBounds = boundsOf(contour);
     return (
       <div className="inspector-form">
         <h3>Внешний контур дома</h3>
+        <div className="form-grid">
+          <NumberField
+            label="Точная длина"
+            value={contourBounds.w}
+            suffix="м"
+            min={0.5}
+            step={0.01}
+            onChange={(value) => commitPlan((next) => {
+              resizePlanToHouse(next, value, contourBounds.h);
+              next.house.contourDefined = true;
+            })}
+          />
+          <NumberField
+            label="Точная ширина"
+            value={contourBounds.h}
+            suffix="м"
+            min={0.5}
+            step={0.01}
+            onChange={(value) => commitPlan((next) => {
+              resizePlanToHouse(next, contourBounds.w, value);
+              next.house.contourDefined = true;
+            })}
+          />
+        </div>
         <div className="readout">
           <span>Точек контура</span>
           <strong>{contour.length}</strong>
@@ -2749,6 +2793,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
           onClick={() =>
             commitPlan((next) => {
               delete next.house.points;
+              next.house.contourDefined = true;
             })
           }
         >
@@ -3475,6 +3520,7 @@ function RoofMarkIcon(props) {
 
 const MOBILE_TOOLS = [
   ["room", "Комната", SquareDashed],
+  ["extension", "Пристройка", HousePlus],
   ["polygon", "Свободная", Pentagon],
   ["houseContour", "Контур дома", Home],
   ["wall", "Перегородка", BrickWall],
@@ -4226,7 +4272,7 @@ export default function PlanScreen({ onNavigate }) {
         name: "Компактный · 10 × 7 м",
         plan: createCompactPlan(),
       },
-      { id: "empty", name: "Новый чистый план", plan: createEmptyPlan() },
+      { id: "empty", name: "Новый чистый план", plan: createBlankPlan() },
       ...customSketches,
     ],
     [customSketches],
@@ -4301,10 +4347,15 @@ export default function PlanScreen({ onNavigate }) {
         y: roundCoord(point.y),
       }));
       const bounds = boundsOf(points);
+      const normalized = points.map((point) => ({
+        x: roundCoord(point.x - bounds.x),
+        y: roundCoord(point.y - bounds.y),
+      }));
       commitPlan((next) => {
-        next.house.points = points;
-        next.house.w = roundCoord(bounds.x2);
-        next.house.h = roundCoord(bounds.y2);
+        next.house.points = normalized;
+        next.house.w = roundCoord(bounds.w);
+        next.house.h = roundCoord(bounds.h);
+        next.house.contourDefined = true;
       });
       setPolygonDraft([]);
       setSelected({ type: "houseContour", id: "house" });
@@ -4328,6 +4379,19 @@ export default function PlanScreen({ onNavigate }) {
     setSelected({ type: "room", id });
     setTool("select");
   };
+  const resizeDraftContour = (axis, value) => {
+    setPolygonDraft((current) => {
+      if (current.length < 2) return current;
+      const bounds = boundsOf(current);
+      const source = axis === "w" ? bounds.w : bounds.h;
+      if (source < 0.01 || value < 0.1) return current;
+      const scale = value / source;
+      return current.map((point) => ({
+        x: roundCoord(axis === "w" ? bounds.x + (point.x - bounds.x) * scale : point.x),
+        y: roundCoord(axis === "h" ? bounds.y + (point.y - bounds.y) * scale : point.y),
+      }));
+    });
+  };
   const loadSketch = () => {
     const sketch = sketches.find((item) => item.id === sketchId);
     if (!sketch) return;
@@ -4347,12 +4411,14 @@ export default function PlanScreen({ onNavigate }) {
   };
   const newPlan = () => {
     commit((next) => {
-      next.plan = createEmptyPlan();
+      next.plan = createBlankPlan();
       return next;
     });
     setSketchId("empty");
     setSelected(null);
-    setTool("select");
+    setTool("houseContour");
+    setActiveLayer("plan");
+    setTransferStatus("Чистый план открыт: нарисуйте замкнутый внешний контур дома");
     setPolygonDraft([]);
   };
   const saveSketch = () => {
@@ -4853,7 +4919,7 @@ export default function PlanScreen({ onNavigate }) {
         title="План дома"
         actions={
           <>
-            <button className="button primary" onClick={newPlan}>
+            <button className="button primary new-plan-button" onClick={newPlan}>
               <Plus />
               Новый план
             </button>
@@ -4959,10 +5025,12 @@ export default function PlanScreen({ onNavigate }) {
         <div className="plan-transfer-status">
           <Share2 />
           <span>{transferStatus}</span>
-          <small>
-            Файл плана не содержит прайс-лист, данные заказчика и ручные правки
-            сметы.
-          </small>
+          {!transferStatus.startsWith("Чистый план") ? (
+            <small>
+              Файл плана не содержит прайс-лист, данные заказчика и ручные правки
+              сметы.
+            </small>
+          ) : null}
         </div>
       ) : null}
       <div className="plan-status-bar">
@@ -5179,7 +5247,15 @@ export default function PlanScreen({ onNavigate }) {
           </div>
         </div>
         <aside className="planner-inspector">
-          {activeLayer === "roof" && !selected ? (
+          {tool === "houseContour" && polygonDraft.length >= 2 ? (
+            <div className="inspector-form contour-draft-inspector">
+              <h3>Новый контур</h3>
+              <p className="inspector-note">На поле точки идут кратно 10 см. Здесь можно задать точный общий размер до замыкания.</p>
+              <NumberField label="Точная длина" value={boundsOf(polygonDraft).w} suffix="м" min={0.1} step={0.01} onChange={(value) => resizeDraftContour("w", value)} />
+              <NumberField label="Точная ширина" value={boundsOf(polygonDraft).h} suffix="м" min={0.1} step={0.01} onChange={(value) => resizeDraftContour("h", value)} />
+              <button className="button primary" disabled={polygonDraft.length < 3} onClick={finishPolygon}><Save />Замкнуть контур</button>
+            </div>
+          ) : activeLayer === "roof" && !selected ? (
             <RoofLayerInspector
               roof={project.settings.roof}
               commitRoof={commitRoof}

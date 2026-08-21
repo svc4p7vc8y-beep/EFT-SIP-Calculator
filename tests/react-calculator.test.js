@@ -3,9 +3,17 @@ import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { buildCommercialScope } from '../src/react/calculations/commercial-scope.js';
 import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
-import { createDefaultProject, createProjectWithCurrentPrices, migrateProject } from '../src/react/state/project-model.js';
+import { createBlankPlan, createDefaultProject, createProjectWithCurrentPrices, migrateProject } from '../src/react/state/project-model.js';
 import { verifyPricePasscode } from '../src/react/security/price-access.js';
 import { moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
+
+test('new blank plan starts without a contour, piles or binding', () => {
+  const plan = createBlankPlan();
+  assert.equal(plan.house.contourDefined, false);
+  assert.deepEqual(plan.rooms, []);
+  assert.deepEqual(plan.pileRows, []);
+  assert.deepEqual(plan.bindingLines, []);
+});
 
 test('house resize keeps rooms, roof, pile rows and binding on the same scaled axes', () => {
   const project = createDefaultProject();
