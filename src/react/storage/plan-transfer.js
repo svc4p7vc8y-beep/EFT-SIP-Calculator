@@ -7,7 +7,7 @@ const PLAN_SERVICES = [
 export function createPlanTransfer(project) {
   return {
     format: 'eft-house-plan',
-    schemaVersion: 2,
+    schemaVersion: 3,
     appVersion: REACT_PROJECT_VERSION,
     savedAt: new Date().toISOString(),
     sourceProject: project.meta?.projectNum || '',

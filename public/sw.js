@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v91-desktop-1';
+const CACHE_NAME = 'eft-calculator-react-v93-desktop-1';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

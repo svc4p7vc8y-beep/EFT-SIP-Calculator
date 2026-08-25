@@ -175,9 +175,8 @@ export function calculateSipJoinery(
   const floorPlans = metrics.floorPlans?.length
     ? metrics.floorPlans
     : [{ plan, metrics }];
-  const wallAssembly = floorPlans.reduce(
-    (total, item) => {
-      const currentPlan = item.plan;
+  const wallAssemblyFor = (item) => {
+      const currentPlan = item?.plan || plan;
       const currentWidth = Math.max(0, Number(currentPlan.house?.w) || 0);
       const currentHeight = Math.max(0, Number(currentPlan.house?.h) || 0);
       const currentWallHeight = Math.max(0, Number(currentPlan.wallHeight) || 2.5);
@@ -196,16 +195,14 @@ export function calculateSipJoinery(
         0,
       );
       return {
-        joints: total.joints + 2 * wallSeams(currentWidth) + 2 * wallSeams(currentHeight),
-        edges:
-          total.edges +
-          2 * currentPerimeter +
-          4 * currentWallHeight +
-          openingEdges,
+        joints: 2 * wallSeams(currentWidth) + 2 * wallSeams(currentHeight),
+        edges: 2 * currentPerimeter + 4 * currentWallHeight + openingEdges,
       };
-    },
-    { joints: 0, edges: 0 },
-  );
+    };
+  const firstWallAssembly = wallAssemblyFor(floorPlans[0]);
+  const secondWallAssembly = floorPlans[1]
+    ? wallAssemblyFor(floorPlans[1])
+    : { joints: 0, edges: 0 };
   const topPlan = floorPlans.at(-1)?.plan || plan;
   const topWidth = Math.max(0, Number(topPlan.house?.w) || width);
   const topHeight = Math.max(0, Number(topPlan.house?.h) || height);
@@ -234,10 +231,19 @@ export function calculateSipJoinery(
     services.sipWalls
       ? {
           key: "walls",
-          label: "Наружные стены",
+          label: "Наружные стены 1 этажа",
           thickness: sipSettings.wallThickness,
-          jointLength: wallAssembly.joints,
-          endBoardLength: wallAssembly.edges,
+          jointLength: firstWallAssembly.joints,
+          endBoardLength: firstWallAssembly.edges,
+        }
+      : null,
+    services.sipWalls && floorPlans.length > 1
+      ? {
+          key: "wallsSecondFloor",
+          label: "Наружные стены 2 этажа",
+          thickness: sipSettings.wallThickness,
+          jointLength: secondWallAssembly.joints,
+          endBoardLength: secondWallAssembly.edges,
         }
       : null,
     services.sipSecondFloor && Number(metrics.secondFloorArea) > 0
@@ -276,19 +282,42 @@ export function calculateSipJoinery(
       : null,
     services.partitions &&
     sipSettings.partitionType === "sip" &&
-    Number(metrics.partitionNetArea) > 0
+    Number(metrics.firstFloorPartitionNetArea ?? metrics.partitionNetArea) > 0
       ? {
           key: "partitions",
-          label: "Перегородки",
+          label: "Перегородки 1 этажа",
           thickness: sipSettings.partitionThickness,
           jointLength:
             Math.max(
               0,
-              Math.ceil((Number(metrics.partitionLength) || 0) / panelWidth) -
+              Math.ceil(
+                (Number(metrics.firstFloorPartitionLength ?? metrics.partitionLength) || 0) /
+                  panelWidth,
+              ) -
                 1,
             ) * wallHeight,
           endBoardLength:
-            (Number(metrics.partitionLength) || 0) * 2 + wallHeight * 2,
+            (Number(metrics.firstFloorPartitionLength ?? metrics.partitionLength) || 0) * 2 +
+            wallHeight * 2,
+        }
+      : null,
+    services.partitions &&
+    sipSettings.partitionType === "sip" &&
+    Number(metrics.secondFloorPartitionNetArea) > 0
+      ? {
+          key: "partitionsSecondFloor",
+          label: "Перегородки 2 этажа",
+          thickness: sipSettings.partitionThickness,
+          jointLength:
+            Math.max(
+              0,
+              Math.ceil(
+                (Number(metrics.secondFloorPartitionLength) || 0) / panelWidth,
+              ) - 1,
+            ) * Math.max(0, Number(secondPlan?.wallHeight) || wallHeight),
+          endBoardLength:
+            (Number(metrics.secondFloorPartitionLength) || 0) * 2 +
+            Math.max(0, Number(secondPlan?.wallHeight) || wallHeight) * 2,
         }
       : null,
   ]

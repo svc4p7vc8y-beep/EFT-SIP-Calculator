@@ -246,6 +246,12 @@ function calculateBuildingMetrics(project) {
     ...base,
     floorCount,
     floorPlans,
+    firstFloorExteriorWallNetArea: base.exteriorWallNetArea,
+    secondFloorExteriorWallNetArea: secondMetrics?.exteriorWallNetArea || 0,
+    firstFloorPartitionLength: base.partitionLength,
+    secondFloorPartitionLength: secondMetrics?.partitionLength || 0,
+    firstFloorPartitionNetArea: base.partitionNetArea,
+    secondFloorPartitionNetArea: secondMetrics?.partitionNetArea || 0,
     roomArea: sum("roomArea"),
     unassignedArea: sum("unassignedArea"),
     exteriorWallGrossArea: sum("exteriorWallGrossArea"),
@@ -279,11 +285,21 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       project.services.sipSecondFloor && metrics.floorCount > 1
         ? metrics.secondFloorArea
         : 0,
-    walls: project.services.sipWalls ? metrics.exteriorWallNetArea : 0,
+    walls: project.services.sipWalls ? metrics.firstFloorExteriorWallNetArea : 0,
+    wallsSecondFloor:
+      project.services.sipWalls && metrics.floorCount > 1
+        ? metrics.secondFloorExteriorWallNetArea
+        : 0,
     ceiling: project.services.sipCeiling ? metrics.ceilingArea : 0,
     partitions:
       project.services.partitions && sip.partitionType === "sip"
-        ? metrics.partitionNetArea
+        ? metrics.firstFloorPartitionNetArea
+        : 0,
+    partitionsSecondFloor:
+      project.services.partitions &&
+      sip.partitionType === "sip" &&
+      metrics.floorCount > 1
+        ? metrics.secondFloorPartitionNetArea
         : 0,
     gables: Math.max(0, Number(roofResult?.warmGableArea) || 0),
   };
@@ -294,6 +310,8 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     panelLength: f.panelLength,
     extraWastePercent: sip.wastePercent,
     includePartitions: sip.partitionType === "sip",
+    includeSecondFloorWalls: surfaces.wallsSecondFloor > 0,
+    includeSecondFloorPartitions: surfaces.partitionsSecondFloor > 0,
     includeSecondFloor: surfaces.secondFloor > 0,
     includeGables: surfaces.gables > 0,
     layoutWidths: {
@@ -311,15 +329,23 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       sip.secondFloorPanelFamily,
     ],
     ["walls", sip.wallThickness, sip.wallPanelFamily],
+    ["wallsSecondFloor", sip.wallThickness, sip.wallPanelFamily],
     ["ceiling", sip.ceilingThickness, sip.ceilingPanelFamily],
     ["partitions", sip.partitionThickness, sip.partitionPanelFamily],
+    [
+      "partitionsSecondFloor",
+      sip.partitionThickness,
+      sip.partitionPanelFamily,
+    ],
   ];
   const groupNames = {
     floor: "Пол",
     secondFloor: "Межэтажное перекрытие / пол 2 этажа",
-    walls: "Наружные стены",
+    walls: "Наружные стены 1 этажа",
+    wallsSecondFloor: "Наружные стены 2 этажа",
     ceiling: "Потолок",
-    partitions: "Перегородки",
+    partitions: "Перегородки 1 этажа",
+    partitionsSecondFloor: "Перегородки 2 этажа",
   };
   const joinery = calculateSipJoinery(
     project.plan,
@@ -357,7 +383,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     const installQuery =
       key === "ceiling"
         ? "Монтаж сип-панели потолка"
-        : key === "partitions"
+        : key.startsWith("partitions")
           ? "Монтаж сип-перегородок"
           : "Монтаж сип-панели пол/стены";
     lines.push(
@@ -436,39 +462,49 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       );
     }
   });
-  if (
-    project.services.partitions &&
-    sip.partitionType !== "sip" &&
-    metrics.partitionNetArea
-  ) {
-    lines.push(
-      makeLine(
-        index,
-        "sip",
-        "Доска ест.влажн. сосна 50*100мм",
-        metrics.partitionNetArea * f.partitionBoardM3PerM2,
-        {
-          key: "partition-board",
-          unit: "м³",
-          source: "partitions",
-          estimateGroup: groupNames.partitions,
-        },
-      ),
-    );
-    lines.push(
-      makeLine(
-        index,
-        "sip",
-        "Возведение перегородок из доски 100х50",
-        metrics.partitionNetArea,
-        {
-          key: "partition-work",
-          kind: "labor",
-          source: "partitions",
-          estimateGroup: groupNames.partitions,
-        },
-      ),
-    );
+  if (project.services.partitions && sip.partitionType !== "sip") {
+    [
+      {
+        key: "partitions",
+        area: metrics.firstFloorPartitionNetArea,
+        suffix: "",
+      },
+      {
+        key: "partitionsSecondFloor",
+        area: metrics.secondFloorPartitionNetArea,
+        suffix: "-secondFloor",
+      },
+    ].forEach(({ key, area, suffix }) => {
+      if (!(area > 0)) return;
+      lines.push(
+        makeLine(
+          index,
+          "sip",
+          "Доска ест.влажн. сосна 50*100мм",
+          area * f.partitionBoardM3PerM2,
+          {
+            key: `partition-board${suffix}`,
+            unit: "м³",
+            source: key,
+            estimateGroup: groupNames[key],
+          },
+        ),
+      );
+      lines.push(
+        makeLine(
+          index,
+          "sip",
+          "Возведение перегородок из доски 100х50",
+          area,
+          {
+            key: `partition-work${suffix}`,
+            kind: "labor",
+            source: key,
+            estimateGroup: groupNames[key],
+          },
+        ),
+      );
+    });
   }
   joinery.rows.forEach((row) => {
     const key = `${row.key}-connector`;

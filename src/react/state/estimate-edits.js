@@ -35,6 +35,32 @@ export function scopeEstimateOverrideToCurrentCatalog(project, line) {
   }
 }
 
+export function releasePlanLinkedQuantityOverrides(project) {
+  const linkedSections = new Set([
+    "sip",
+    "openings",
+    "engineering",
+    "internal",
+    "external",
+    "delivery",
+  ]);
+  project.estimateOverrides = (project.estimateOverrides || [])
+    .map((override) => {
+      if (!linkedSections.has(override.section) || override.qty === undefined)
+        return override;
+      const next = { ...override };
+      delete next.qty;
+      return next;
+    })
+    .filter(
+      (override) =>
+        override.excluded ||
+        ["name", "kind", "unit", "price"].some(
+          (key) => override[key] !== undefined,
+        ),
+    );
+}
+
 export function removeEstimateLine(project, line) {
   if (line.custom) {
     project.customEstimateLines = (project.customEstimateLines || []).filter((item) => item.id !== line.id);

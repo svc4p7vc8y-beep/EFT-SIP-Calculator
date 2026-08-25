@@ -69,6 +69,7 @@ import {
   ensureProjectFloorCount,
 } from "../state/project-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
+import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
 import { formatNumber, uid } from "../utils/format.js";
 import {
   applyPlanTransfer,
@@ -4234,11 +4235,42 @@ export default function PlanScreen({ onNavigate }) {
   const addSecondFloor = () => {
     commit((next) => {
       ensureProjectFloorCount(next, 2);
+      releasePlanLinkedQuantityOverrides(next);
       return next;
     });
     setActiveFloor(2);
     setSelected(null);
     setTool("select");
+    setTransferStatus(
+      "Второй этаж добавлен: его стены, пол, перегородки и проёмы включены в расчёт",
+    );
+  };
+  const removeSecondFloor = () => {
+    if (!window.confirm("Удалить второй этаж и все его помещения, стены и проёмы?"))
+      return;
+    commit((next) => {
+      ensureProjectFloorCount(next, 1);
+      releasePlanLinkedQuantityOverrides(next);
+      return next;
+    });
+    setActiveFloor(1);
+    setSelected(null);
+    setTool("select");
+    setPolygonDraft([]);
+    setTransferStatus("Второй этаж удалён. Смета пересчитана для одного этажа");
+  };
+  const clearSecondFloor = () => {
+    if (!window.confirm("Очистить план второго этажа, сохранив сам этаж?")) return;
+    commit((next) => {
+      ensureProjectFloorCount(next, 2);
+      next.upperFloors[0] = createUpperFloorPlan(next.plan);
+      releasePlanLinkedQuantityOverrides(next);
+      return next;
+    });
+    setSelected(null);
+    setTool("select");
+    setPolygonDraft([]);
+    setTransferStatus("План второго этажа очищен; внешний контур сохранён");
   };
   const issues = useMemo(() => planIssues(plan), [plan]);
   const sketches = useMemo(
@@ -4409,19 +4441,22 @@ export default function PlanScreen({ onNavigate }) {
     setPolygonDraft([]);
   };
   const newPlan = () => {
+    if (!window.confirm("Создать новый чистый план? Текущую геометрию можно вернуть кнопкой «Отменить»."))
+      return;
     commit((next) => {
-      if (activeFloor === 1) next.plan = createBlankPlan();
-      else {
-        ensureProjectFloorCount(next, 2);
-        next.upperFloors[activeFloor - 2] = createUpperFloorPlan(next.plan);
-      }
+      next.plan = createBlankPlan();
+      ensureProjectFloorCount(next, 1);
+      releasePlanLinkedQuantityOverrides(next);
       return next;
     });
+    setActiveFloor(1);
     setSketchId("empty");
     setSelected(null);
     setTool("houseContour");
     setActiveLayer("plan");
-    setTransferStatus("Чистый план открыт: нарисуйте замкнутый внешний контур дома");
+    setTransferStatus(
+      "Новый одноэтажный план открыт: нарисуйте замкнутый внешний контур дома",
+    );
     setPolygonDraft([]);
   };
   const saveSketch = () => {
@@ -4640,13 +4675,20 @@ export default function PlanScreen({ onNavigate }) {
             1 этаж
           </button>
           {floorCount > 1 ? (
-            <button
-              type="button"
-              className={activeFloor === 2 ? "active" : ""}
-              onClick={() => setActiveFloor(2)}
-            >
-              2 этаж
-            </button>
+            <>
+              <button
+                type="button"
+                className={activeFloor === 2 ? "active" : ""}
+                onClick={() => setActiveFloor(2)}
+              >
+                2 этаж
+              </button>
+              {activeFloor === 2 ? (
+                <button type="button" onClick={removeSecondFloor} title="Удалить второй этаж">
+                  <Trash2 />
+                </button>
+              ) : null}
+            </>
           ) : (
             <button type="button" onClick={addSecondFloor}>+ этаж</button>
           )}
@@ -5055,13 +5097,25 @@ export default function PlanScreen({ onNavigate }) {
             1 этаж
           </button>
           {floorCount > 1 ? (
-            <button
-              type="button"
-              className={activeFloor === 2 ? "active" : ""}
-              onClick={() => setActiveFloor(2)}
-            >
-              2 этаж
-            </button>
+            <>
+              <button
+                type="button"
+                className={activeFloor === 2 ? "active" : ""}
+                onClick={() => setActiveFloor(2)}
+              >
+                2 этаж
+              </button>
+              {activeFloor === 2 ? (
+                <>
+                  <button type="button" onClick={clearSecondFloor}>
+                    Очистить 2 этаж
+                  </button>
+                  <button type="button" className="remove-floor" onClick={removeSecondFloor}>
+                    <Trash2 /> Удалить 2 этаж
+                  </button>
+                </>
+              ) : null}
+            </>
           ) : (
             <button type="button" className="add-floor" onClick={addSecondFloor}>
               <Plus /> Второй этаж

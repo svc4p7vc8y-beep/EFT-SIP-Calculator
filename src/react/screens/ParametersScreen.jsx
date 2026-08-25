@@ -15,7 +15,10 @@ import {
 import { formatNumber } from "../utils/format.js";
 import { resizeProjectHouse } from "../planner/geometry.js";
 import { ensureProjectFloorCount } from "../state/project-model.js";
-import { scopeEstimateOverrideToCurrentCatalog } from "../state/estimate-edits.js";
+import {
+  releasePlanLinkedQuantityOverrides,
+  scopeEstimateOverrideToCurrentCatalog,
+} from "../state/estimate-edits.js";
 
 const thicknesses = ["124", "174", "224"].map((value) => ({
   value,
@@ -149,6 +152,7 @@ export default function ParametersScreen() {
     commit((next) => {
       if (path === "meta.floors") {
         ensureProjectFloorCount(next, value);
+        releasePlanLinkedQuantityOverrides(next);
         return next;
       }
       if (path === "plan.house.w" || path === "plan.house.h") {

@@ -11,6 +11,7 @@ test('shared plan file keeps full geometry and construction settings without pri
   source.priceMat[0].price = 999999;
   const payload = createPlanTransfer(source);
   assert.equal(payload.format, 'eft-house-plan');
+  assert.equal(payload.schemaVersion, 3);
   assert.equal(payload.plan.rooms[0].name, 'План коллеги');
   assert.equal(payload.settings.roof.eaveOverhang, 0.75);
   assert.equal(payload.priceMat, undefined);

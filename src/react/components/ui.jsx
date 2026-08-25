@@ -69,7 +69,7 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
         <tbody>{lines.flatMap((line, index) => {
           const group = line.estimateGroup || 'Дополнительные позиции';
           const previousGroup = index ? (lines[index - 1].estimateGroup || 'Дополнительные позиции') : null;
-          return [grouped && group !== previousGroup ? <tr className="estimate-group-row" key={`group-${group}`}><th colSpan="7">{group}</th></tr> : null, <tr key={line.id} className={line.custom ? 'custom-estimate-line' : line.projectOverride ? 'overridden-estimate-line' : ''}>
+          return [grouped && group !== previousGroup ? <tr className="estimate-group-row" key={`group-${group}-${index}`}><th colSpan="7">{group}</th></tr> : null, <tr key={line.id} className={line.custom ? 'custom-estimate-line' : line.projectOverride ? 'overridden-estimate-line' : ''}>
           <td><input className="estimate-cell-input no-print" aria-label={`Наименование: ${line.name}`} value={line.name} onChange={(event) => onChangeLine(line, { name: event.target.value })} /><span className="print-only">{line.name}</span></td>
           <td><select className="estimate-cell-input no-print" aria-label={`Вид: ${line.name}`} value={line.kind} onChange={(event) => onChangeLine(line, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select><span className={`kind ${line.kind} print-only`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td>
           <td><input className="estimate-cell-input unit-input no-print" aria-label={`Единица: ${line.name}`} value={line.unit} onChange={(event) => onChangeLine(line, { unit: event.target.value })} /><span className="print-only">{line.unit}</span></td>

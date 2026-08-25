@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
+import { calculateAdjustedPrice } from '../calculations/price-adjustments.js';
 import { createProjectWithCurrentPrices, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney } from '../utils/format.js';
 import ProjectSummarySidebar from '../components/ProjectSummarySidebar.jsx';
@@ -33,7 +34,7 @@ const NAV_ITEMS = [
 ];
 
 function downloadProject(project) {
-  const payload = { ...project, savedAt: new Date().toISOString(), appVersion: REACT_PROJECT_VERSION, schemaVersion: 3 };
+  const payload = { ...project, savedAt: new Date().toISOString(), appVersion: REACT_PROJECT_VERSION, schemaVersion: 4 };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -60,6 +61,10 @@ export function App() {
   const [notice, setNotice] = useState('Готово');
   const fileRef = useRef(null);
   const calculation = useMemo(() => calculateProject(project), [project]);
+  const adjustedPrice = useMemo(
+    () => calculateAdjustedPrice(project, calculation),
+    [project, calculation],
+  );
 
   const changeTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -111,6 +116,7 @@ export function App() {
           <div><span>Материалы</span><strong>{formatMoney(calculation.totals.materials)}</strong></div>
           <div><span>Работы</span><strong>{formatMoney(calculation.totals.labor)}</strong></div>
           <div className="grand"><span>Итого</span><strong>{formatMoney(calculation.totals.total)}</strong></div>
+          <div className="adjusted"><span>Изменённая цена</span><strong>{formatMoney(adjustedPrice.total)}</strong></div>
         </div>
         <div className="header-actions">
           <button className="icon-button mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Открыть меню"><Menu /></button>

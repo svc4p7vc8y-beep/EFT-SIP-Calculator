@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
+import { calculateAdjustedPrice } from '../src/react/calculations/price-adjustments.js';
 import { buildCommercialScope } from '../src/react/calculations/commercial-scope.js';
 import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
 import { createBlankPlan, createDefaultProject, createProjectWithCurrentPrices, ensureProjectFloorCount, migrateProject } from '../src/react/state/project-model.js';
 import { verifyPricePasscode } from '../src/react/security/price-access.js';
 import { moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
+import { releasePlanLinkedQuantityOverrides } from '../src/react/state/estimate-edits.js';
 
 test('new blank plan starts without a contour, piles or binding', () => {
   const plan = createBlankPlan();
@@ -66,6 +68,36 @@ test('a new project inherits current protected prices without sharing array refe
   assert.equal(current.priceMat[0].price, 12345);
 });
 
+test('floor changes release linked quantities but preserve project prices', () => {
+  const project = createDefaultProject();
+  project.estimateOverrides = [
+    {
+      lineId: 'sip:panel-walls',
+      section: 'sip',
+      catalogId: 'MAT-010',
+      qty: 1,
+      price: 7777,
+    },
+    {
+      lineId: 'foundation:pile',
+      section: 'foundation',
+      qty: 4,
+      price: 8888,
+    },
+  ];
+
+  releasePlanLinkedQuantityOverrides(project);
+
+  assert.deepEqual(project.estimateOverrides[0], {
+    lineId: 'sip:panel-walls',
+    section: 'sip',
+    catalogId: 'MAT-010',
+    price: 7777,
+  });
+  assert.equal(project.estimateOverrides[1].qty, 4);
+  assert.equal(project.estimateOverrides[1].price, 8888);
+});
+
 test('React project produces a priced estimate from one shared model', () => {
   const project = createDefaultProject();
   const result = calculateProject(project);
@@ -75,6 +107,34 @@ test('React project produces a priced estimate from one shared model', () => {
   assert.ok(result.totals.materials > 0);
   assert.ok(result.totals.labor > 0);
   assert.equal(result.totals.total, result.totals.materials + result.totals.labor);
+});
+
+test('hidden group discounts and markups change only the separate adjusted price', () => {
+  const project = createDefaultProject();
+  const calculation = calculateProject(project);
+  const originalPrices = calculation.lines.map((line) => line.price);
+  const foundation = calculation.sections.find((section) => section.key === 'foundation');
+  const roof = calculation.sections.find((section) => section.key === 'roof');
+  const foundationMaterials = foundation.lines.filter((line) => line.kind !== 'labor').reduce((sum, line) => sum + line.qty * line.price, 0);
+  const roofLabor = roof.lines.filter((line) => line.kind === 'labor').reduce((sum, line) => sum + line.qty * line.price, 0);
+
+  project.settings.priceAdjustments.foundation.materials = -10;
+  project.settings.priceAdjustments.roof.labor = 50;
+  const adjusted = calculateAdjustedPrice(project, calculation);
+
+  assert.equal(adjusted.baseTotal, calculation.totals.total);
+  assert.equal(adjusted.delta, foundationMaterials * -0.1 + roofLabor * 0.5);
+  assert.equal(adjusted.total, calculation.totals.total + adjusted.delta);
+  assert.deepEqual(calculation.lines.map((line) => line.price), originalPrices);
+  assert.equal(calculateProject(project).totals.total, calculation.totals.total);
+});
+
+test('older projects receive zero hidden price adjustments', () => {
+  const oldProject = createDefaultProject();
+  delete oldProject.settings.priceAdjustments;
+  const migrated = migrateProject(oldProject);
+  const calculation = calculateProject(migrated);
+  assert.equal(calculateAdjustedPrice(migrated, calculation).total, calculation.totals.total);
 });
 
 test('second floor has its own plan and a separately priced interstory SIP floor', () => {
@@ -92,6 +152,59 @@ test('second floor has its own plan and a separately priced interstory SIP floor
   assert.ok(cutting.panels > 0);
   assert.equal(panel.catalogId, 'MAT-194');
   assert.equal(panel.price, 10283);
+});
+
+test('second-floor perimeter, partitions, windows and doors reach their calculators and disappear with the floor', () => {
+  const project = createDefaultProject();
+  project.settings.sip.partitionType = 'sip';
+  const oneFloor = calculateProject(project);
+  ensureProjectFloorCount(project, 2);
+  const upper = project.upperFloors[0];
+  upper.walls.push({ id: 'upper-wall', x1: 4, y1: 0.174, x2: 4, y2: 6 });
+  upper.openings.push(
+    {
+      id: 'upper-window',
+      type: 'window',
+      width: 1.2,
+      height: 1.4,
+      x: 2,
+      y: 0,
+      orientation: 'h',
+      outer: true,
+      includeInEstimate: true,
+      subtractFromSip: true,
+    },
+    {
+      id: 'upper-door',
+      type: 'door',
+      doorType: 'interior',
+      width: 0.8,
+      height: 2,
+      x: 4,
+      y: 3,
+      orientation: 'v',
+      outer: false,
+      includeInEstimate: true,
+      subtractFromSip: true,
+    },
+  );
+  const twoFloors = calculateProject(project);
+  const upperWalls = twoFloors.sip.cutting.find((row) => row.key === 'wallsSecondFloor');
+  const upperPartitions = twoFloors.sip.cutting.find((row) => row.key === 'partitionsSecondFloor');
+  assert.ok(upperWalls.area > 0);
+  assert.ok(upperPartitions.area > 0);
+  assert.ok(twoFloors.lines.some((line) => line.id === 'sip:panel-wallsSecondFloor'));
+  assert.ok(twoFloors.lines.some((line) => line.id === 'sip:panel-partitionsSecondFloor'));
+  assert.ok(twoFloors.sections.find((section) => section.key === 'openings').lines.length >= 6);
+  assert.ok(twoFloors.totals.total > oneFloor.totals.total);
+
+  ensureProjectFloorCount(project, 1);
+  const removed = calculateProject(project);
+  assert.equal(removed.metrics.floorCount, 1);
+  assert.equal(removed.lines.some((line) => line.id === 'sip:panel-secondFloor'), false);
+  assert.equal(removed.lines.some((line) => line.id === 'sip:panel-wallsSecondFloor'), false);
+  assert.equal(removed.lines.some((line) => line.id === 'sip:panel-partitionsSecondFloor'), false);
+  assert.equal(removed.totals.total, oneFloor.totals.total);
 });
 
 test('reinforced second-floor layout adds cutting and joints without doubling panel purchases', () => {
@@ -487,9 +600,9 @@ test('SIP estimate is grouped by floor, walls, ceiling and partitions', () => {
   const project = createDefaultProject();
   const result = calculateProject(project);
   const sipLines = result.sections.find((section) => section.key === 'sip').lines;
-  assert.deepEqual([...new Set(sipLines.map((line) => line.estimateGroup))], ['Пол', 'Наружные стены', 'Потолок', 'Перегородки']);
+  assert.deepEqual([...new Set(sipLines.map((line) => line.estimateGroup))], ['Пол', 'Потолок', 'Наружные стены 1 этажа', 'Перегородки 1 этажа']);
   assert.ok(sipLines.some((line) => line.estimateGroup === 'Пол' && line.name.includes('Пеноклей')));
-  assert.ok(sipLines.some((line) => line.estimateGroup === 'Наружные стены' && line.source === 'sip-walls-joints'));
+  assert.ok(sipLines.some((line) => line.estimateGroup === 'Наружные стены 1 этажа' && line.source === 'sip-walls-joints'));
 });
 
 test('SIP adhesive uses the 650 ml catalog item at 550 rubles', () => {

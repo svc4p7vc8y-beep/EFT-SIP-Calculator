@@ -5,8 +5,12 @@ import {
   DEFAULT_LINKS,
 } from "../calculations/calculation-links.js";
 import { bindingLinesFromPileRows } from "../calculations/foundation-model.js";
+import {
+  createDefaultPriceAdjustments,
+  normalizePriceAdjustments,
+} from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 91;
+export const REACT_PROJECT_VERSION = 93;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -566,6 +570,7 @@ export function createDefaultProject() {
       },
       links: clone(DEFAULT_LINKS),
       formulas: clone(DEFAULT_FORMULAS),
+      priceAdjustments: createDefaultPriceAdjustments(),
     },
     priceMat: clone(catalog.priceMat),
     priceLab: clone(catalog.priceLab),
@@ -781,6 +786,9 @@ export function migrateProject(raw) {
         ...base.settings.formulas,
         ...(raw.settings?.formulas || {}),
       },
+      priceAdjustments: normalizePriceAdjustments(
+        raw.settings?.priceAdjustments,
+      ),
     },
     priceMat: normalizeCatalog(raw.priceMat, base.priceMat, materialUpgradeIds),
     priceLab: normalizeCatalog(raw.priceLab, base.priceLab, laborUpgradeIds),
