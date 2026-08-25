@@ -121,6 +121,7 @@ const DRAW_TOOLS = new Set([
   "bindingLine",
   "terrace",
   "porch",
+  "stairOpening",
 ]);
 const TOOLS = [
   ["select", "Выбор", MousePointer2],
@@ -132,6 +133,7 @@ const TOOLS = [
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
+  ["stairOpening", "Лестничный проём", Grid3X3],
   ["dimension", "Размер", Ruler],
   ["pile", "Отдельная свая", CircleDot],
   ["pileRow", "Ряд свай", ListTree],
@@ -148,6 +150,23 @@ const getStoredSketches = () => {
     return [];
   }
 };
+
+function fitFloorOpening(opening = {}, house = {}) {
+  const houseWidth = Math.max(0, Number(house.w) || 0);
+  const houseLength = Math.max(0, Number(house.h) || 0);
+  const width = Math.min(Math.max(0, Number(opening.width) || 0), houseWidth);
+  const length = Math.min(Math.max(0, Number(opening.length) || 0), houseLength);
+  return {
+    x: roundCoord(
+      Math.max(0, Math.min(Number(opening.x) || 0, Math.max(0, houseWidth - width))),
+    ),
+    y: roundCoord(
+      Math.max(0, Math.min(Number(opening.y) || 0, Math.max(0, houseLength - length))),
+    ),
+    width: roundCoord(width),
+    length: roundCoord(length),
+  };
+}
 
 function layoutFor(plan) {
   const sides = chooseDimensionSides(plan);
@@ -1028,6 +1047,8 @@ function RoofPlanCaption({ plan, roof, p }) {
 
 function PlanCanvas({
   plan,
+  floorOpening,
+  commitFloorOpening,
   roof,
   activeLayer = "plan",
   visibleLayers = { plan: true },
@@ -1063,6 +1084,18 @@ function PlanCanvas({
     setGestureState(gestureRef.current);
   };
   const shownPlan = useMemo(() => previewPlan(plan, gesture), [plan, gesture]);
+  const shownFloorOpening = useMemo(() => {
+    const current = fitFloorOpening(floorOpening, plan.house);
+    if (gesture?.type !== "floorOpening" || gesture.kind !== "move") return current;
+    return fitFloorOpening(
+      {
+        ...current,
+        x: current.x + gesture.end.x - gesture.start.x,
+        y: current.y + gesture.end.y - gesture.start.y,
+      },
+      plan.house,
+    );
+  }, [floorOpening, gesture, plan.house]);
   const selectCreated = useCallback(
     (selection) => {
       if (onCreated) onCreated(selection);
@@ -1226,6 +1259,19 @@ function PlanCanvas({
       next[key] = (next[key] || []).filter((item) => item.id !== id);
     });
   const objectDown = (event, type, id, extra = {}) => {
+    if (type === "floorOpening") {
+      if (tool === "delete") {
+        event.stopPropagation();
+        commitFloorOpening?.({ x: 0, y: 0, width: 0, length: 0 });
+        setSelected(null);
+        return;
+      }
+      if (tool !== "select") return;
+      event.stopPropagation();
+      selectExisting({ type: "floorOpening", id: "floor-opening" });
+      begin(event, { kind: "move", type: "floorOpening", id: "floor-opening" });
+      return;
+    }
     if (tool === "delete") {
       event.stopPropagation();
       deleteObject(type, id);
@@ -1466,10 +1512,23 @@ function PlanCanvas({
         finalGesture.end.x - finalGesture.start.x,
         finalGesture.end.y - finalGesture.start.y,
       );
-      if (["room", "extension", "terrace", "porch"].includes(current.type)) {
+      if (["room", "extension", "terrace", "porch", "stairOpening"].includes(current.type)) {
         const points = rectanglePoints(finalGesture.start, finalGesture.end);
         const bounds = boundsOf(points);
         if (bounds.w >= 0.5 && bounds.h >= 0.5) {
+          if (current.type === "stairOpening") {
+            commitFloorOpening?.(fitFloorOpening({
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.w,
+              length: bounds.h,
+            }, plan.house));
+            selectCreated({ type: "floorOpening", id: "floor-opening" });
+            svgRef.current.releasePointerCapture?.(event.pointerId);
+            setGesture(null);
+            finishPointer(event);
+            return;
+          }
           const id = uid(current.type);
           commitPlan((next) => {
             if (["room", "extension"].includes(current.type))
@@ -1537,6 +1596,17 @@ function PlanCanvas({
         });
         selectCreated({ type: current.type, id });
       }
+    } else if (current.type === "floorOpening") {
+      commitFloorOpening?.(
+        fitFloorOpening(
+          {
+            ...floorOpening,
+            x: (Number(floorOpening?.x) || 0) + finalGesture.end.x - finalGesture.start.x,
+            y: (Number(floorOpening?.y) || 0) + finalGesture.end.y - finalGesture.start.y,
+          },
+          plan.house,
+        ),
+      );
     } else {
       const next = previewPlan(plan, finalGesture);
       if (JSON.stringify(next) !== JSON.stringify(plan))
@@ -1908,6 +1978,42 @@ function PlanCanvas({
             );
           })
         : null}
+      {visibleLayers.plan &&
+      shownFloorOpening.width > 0 &&
+      shownFloorOpening.length > 0 ? (
+        (() => {
+          const q = p(shownFloorOpening.x, shownFloorOpening.y);
+          const width = shownFloorOpening.width * layout.scale;
+          const height = shownFloorOpening.length * layout.scale;
+          const selectedNow = selected?.type === "floorOpening";
+          return (
+            <g
+              className={`planner-object stair-opening ${selectedNow ? "selected" : ""}`}
+              aria-label="Лестничный проём между этажами"
+              onPointerDown={(event) =>
+                objectDown(event, "floorOpening", "floor-opening")
+              }
+            >
+              <rect x={q.x} y={q.y} width={width} height={height} />
+              {Array.from({ length: 6 }, (_, index) => (
+                <line
+                  key={index}
+                  x1={q.x + (width * index) / 5}
+                  y1={q.y}
+                  x2={q.x + (width * index) / 5}
+                  y2={q.y + height}
+                />
+              ))}
+              <text x={q.x + width / 2} y={q.y + height / 2 - 5}>
+                Лестничный проём
+              </text>
+              <text className="stair-opening-area" x={q.x + width / 2} y={q.y + height / 2 + 18}>
+                {formatNumber(shownFloorOpening.width)} × {formatNumber(shownFloorOpening.length)} м · {formatNumber(shownFloorOpening.width * shownFloorOpening.length)} м²
+              </text>
+            </g>
+          );
+        })()
+      ) : null}
       {houseDefined && (visibleLayers.plan || visibleLayers.roof) ? (
         <g
           className={`planner-object house-contour-object ${selected?.type === "houseContour" ? "selected" : ""}`}
@@ -2422,16 +2528,16 @@ function PlanCanvas({
               x2: gesture.end.x,
               y2: gesture.end.y,
             });
-            return ["room", "terrace", "porch"].includes(gesture.type) ? (
+            return ["room", "terrace", "porch", "stairOpening"].includes(gesture.type) ? (
               <g>
                 <rect
-                  className="draft-shape"
+                  className={`draft-shape ${gesture.type === "stairOpening" ? "stair-opening-draft" : ""}`}
                   x={Math.min(a.x, b.x)}
                   y={Math.min(a.y, b.y)}
                   width={Math.abs(b.x - a.x)}
                   height={Math.abs(b.y - a.y)}
                 />
-                {gesture.type === "room" ? (
+                {["room", "stairOpening"].includes(gesture.type) ? (
                   <DraftRoomDimensions
                     start={gesture.start}
                     end={gesture.end}
@@ -2684,6 +2790,40 @@ function RoofLayerInspector({ roof, commitRoof }) {
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSelected }) {
+  const opening = fitFloorOpening(floorOpening, house);
+  const update = (key, value) =>
+    commitFloorOpening({ ...opening, [key]: value });
+  return (
+    <div className="inspector-form">
+      <h3>Лестничный проём</h3>
+      <p className="inspector-note">
+        Один связанный проём показывается на первом и втором этажах. Он вычитается
+        из межэтажного перекрытия и учитывается в торцевой обвязке SIP.
+      </p>
+      <div className="form-grid">
+        <NumberField label="X" value={opening.x} suffix="м" min={0} step={0.1} onChange={(value) => update("x", value)} />
+        <NumberField label="Y" value={opening.y} suffix="м" min={0} step={0.1} onChange={(value) => update("y", value)} />
+        <NumberField label="Ширина" value={opening.width} suffix="м" min={0.5} step={0.1} onChange={(value) => update("width", value)} />
+        <NumberField label="Длина" value={opening.length} suffix="м" min={0.5} step={0.1} onChange={(value) => update("length", value)} />
+      </div>
+      <div className="readout">
+        <span>Площадь на каждом плане</span>
+        <strong>{formatNumber(opening.width * opening.length)} м²</strong>
+      </div>
+      <button
+        className="button danger-button"
+        onClick={() => {
+          commitFloorOpening({ x: 0, y: 0, width: 0, length: 0 });
+          setSelected(null);
+        }}
+      >
+        <Trash2 /> Удалить проём
+      </button>
     </div>
   );
 }
@@ -3545,6 +3685,7 @@ const MOBILE_TOOLS = [
   ["gap", "Разрыв", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь", DoorOpen],
+  ["stairOpening", "Проём лестницы", Grid3X3],
   ["dimension", "Размер", Ruler],
   ["pile", "Свая", PileIcon],
   ["pileRow", "Ряд свай", PileRowIcon],
@@ -3585,6 +3726,8 @@ function MobileStepper({ label, value, onMinus, onPlus, suffix = "м" }) {
 
 function MobileSelectionAdjuster({
   plan,
+  floorOpening,
+  commitFloorOpening,
   selected,
   commitPlan,
   setSelected,
@@ -3614,6 +3757,7 @@ function MobileSelectionAdjuster({
   const pileRow = selected?.type === "pileRow" ? get("pileRows") : null;
   const pile = selected?.type === "pile" ? get("piles") : null;
   const gap = selected?.type === "gap" ? get("wallGaps") : null;
+  const stairOpening = selected?.type === "floorOpening" ? fitFloorOpening(floorOpening, plan.house) : null;
   const step = 0.1;
 
   const keyForSelection = () =>
@@ -3636,6 +3780,12 @@ function MobileSelectionAdjuster({
                     : "piles";
   const deleteSelected = () => {
     if (!selected) return;
+    if (selected.type === "floorOpening") {
+      commitFloorOpening({ x: 0, y: 0, width: 0, length: 0 });
+      setSelected(null);
+      setSheetMode("peek");
+      return;
+    }
     const key = keyForSelection();
     commitPlan((next) => {
       next[key] = (next[key] || []).filter((item) => item.id !== selected.id);
@@ -3667,10 +3817,19 @@ function MobileSelectionAdjuster({
       line.x2 = roundCoord(line.x1 + (dx / len) * next);
       line.y2 = roundCoord(line.y1 + (dy / len) * next);
     });
-  const nudgeSelected = (dx, dy) =>
+  const nudgeSelected = (dx, dy) => {
+    if (selected?.type === "floorOpening") {
+      commitFloorOpening({
+        ...stairOpening,
+        x: stairOpening.x + dx,
+        y: stairOpening.y + dy,
+      });
+      return;
+    }
     commitPlan((next) => {
       nudgePlanSelection(next, selected, dx, dy);
     });
+  };
 
   let title = "План дома";
   let subtitle = `${formatNumber(metrics?.floorArea || plan.house.w * plan.house.h)} м²`;
@@ -3866,6 +4025,15 @@ function MobileSelectionAdjuster({
   } else if (pile) {
     title = "Свая";
     subtitle = `X ${formatNumber(pile.x)} · Y ${formatNumber(pile.y)} м`;
+  } else if (stairOpening) {
+    title = "Лестничный проём";
+    subtitle = `${formatNumber(stairOpening.width * stairOpening.length)} м² · ${formatNumber(stairOpening.width)} × ${formatNumber(stairOpening.length)} м`;
+    controls = (
+      <>
+        <MobileStepper label="Ширина" value={stairOpening.width} onMinus={() => commitFloorOpening({ ...stairOpening, width: Math.max(0.5, stairOpening.width - step) })} onPlus={() => commitFloorOpening({ ...stairOpening, width: stairOpening.width + step })} />
+        <MobileStepper label="Длина" value={stairOpening.length} onMinus={() => commitFloorOpening({ ...stairOpening, length: Math.max(0.5, stairOpening.length - step) })} onPlus={() => commitFloorOpening({ ...stairOpening, length: stairOpening.length + step })} />
+      </>
+    );
   }
 
   const canNudge = Boolean(
@@ -3878,7 +4046,8 @@ function MobileSelectionAdjuster({
       pileRow ||
       platform ||
       pile ||
-      gap),
+      gap ||
+      stairOpening),
   );
   const beginSwipe = (event) => {
     swipeStartRef.current = event.clientY;
@@ -4028,13 +4197,17 @@ function MobileSelectionAdjuster({
                       Подробные параметры
                     </div>
                     <div className="mobile-selection-inspector">
-                      <Inspector
-                        plan={plan}
-                        selected={selected}
-                        commitPlan={commitPlan}
-                        issues={[]}
-                        setSelected={setSelected}
-                      />
+                      {selected.type === "floorOpening" ? (
+                        <FloorOpeningInspector floorOpening={floorOpening} house={plan.house} commitFloorOpening={commitFloorOpening} setSelected={setSelected} />
+                      ) : (
+                        <Inspector
+                          plan={plan}
+                          selected={selected}
+                          commitPlan={commitPlan}
+                          issues={[]}
+                          setSelected={setSelected}
+                        />
+                      )}
                     </div>
                   </>
                 ) : (
@@ -4156,6 +4329,11 @@ export default function PlanScreen({ onNavigate }) {
     activeFloor === 1
       ? project.plan
       : project.upperFloors?.[activeFloor - 2] || project.plan;
+  const floorOpening =
+    floorCount > 1 ? project.upperFloors?.[0]?.floorOpening || null : null;
+  const floorOpeningArea =
+    Math.max(0, Number(floorOpening?.width) || 0) *
+    Math.max(0, Number(floorOpening?.length) || 0);
   const visibleLayers = {
     piles: plan.showPiles !== false,
     binding: plan.showBinding !== false,
@@ -4173,6 +4351,17 @@ export default function PlanScreen({ onNavigate }) {
         return next;
       }),
     [activeFloor, commit],
+  );
+  const commitFloorOpening = useCallback(
+    (opening) =>
+      commit((next) => {
+        ensureProjectFloorCount(next, 2);
+        const upperPlan = next.upperFloors[0];
+        upperPlan.floorOpening = fitFloorOpening(opening, upperPlan.house);
+        releasePlanLinkedQuantityOverrides(next);
+        return next;
+      }),
+    [commit],
   );
   const changeWallThickness = useCallback(
     (millimeters) =>
@@ -4287,6 +4476,10 @@ export default function PlanScreen({ onNavigate }) {
     [customSketches],
   );
   const selectTool = (id) => {
+    if (id === "stairOpening" && floorCount < 2) {
+      setTransferStatus("Сначала добавьте второй этаж, затем разместите общий лестничный проём");
+      return;
+    }
     if (
       activeFloor !== 1 &&
       ["pile", "pileRow", "bindingLine", "terrace", "porch"].includes(id)
@@ -4571,6 +4764,11 @@ export default function PlanScreen({ onNavigate }) {
         !editing
       ) {
         event.preventDefault();
+        if (selected.type === "floorOpening") {
+          commitFloorOpening({ x: 0, y: 0, width: 0, length: 0 });
+          setSelected(null);
+          return;
+        }
         if (selected.type === "derivedPile") {
           const [x, y] = String(selected.id).split(":").map(Number);
           commitPlan((next) => {
@@ -4624,6 +4822,14 @@ export default function PlanScreen({ onNavigate }) {
             : event.key === "ArrowDown"
               ? step
               : 0;
+        if (selected.type === "floorOpening") {
+          commitFloorOpening({
+            ...floorOpening,
+            x: (Number(floorOpening?.x) || 0) + dx,
+            y: (Number(floorOpening?.y) || 0) + dy,
+          });
+          return;
+        }
         commitPlan((next) => {
           if (selected.type === "outerDimensions") {
             next.outerDimensionOffset = {
@@ -4636,7 +4842,7 @@ export default function PlanScreen({ onNavigate }) {
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [selected, commitPlan]);
+  }, [selected, commitPlan, commitFloorOpening, floorOpening]);
   const toolHint =
     tool === "select"
       ? "Выберите и перетащите объект. Комнаты и размеры можно двигать стрелками."
@@ -4646,6 +4852,8 @@ export default function PlanScreen({ onNavigate }) {
           ? "Нарисуйте замкнутый внешний контур дома: эркер, выступ или дом неправильной формы."
           : tool === "dimension"
             ? "Нажмите первую точку, затем вторую. Размер появится между ними и привяжется к узлам/сетке."
+            : tool === "stairOpening"
+              ? "Протяните общий лестничный проём. Он появится в том же месте на первом и втором этажах."
             : tool === "pileRow"
               ? "Начало и конец прилипают к узлам. Зелёный — точно по горизонтали или вертикали, красный — есть отклонение."
               : tool === "bindingLine"
@@ -4883,6 +5091,8 @@ export default function PlanScreen({ onNavigate }) {
       <div className="mobile-plan-stage">
         <PlanCanvas
           plan={plan}
+          floorOpening={floorOpening}
+          commitFloorOpening={commitFloorOpening}
           roof={project.settings.roof}
           activeLayer={activeLayer}
           visibleLayers={visibleLayers}
@@ -4957,6 +5167,8 @@ export default function PlanScreen({ onNavigate }) {
       ) : null}
       <MobileSelectionAdjuster
         plan={plan}
+        floorOpening={floorOpening}
+        commitFloorOpening={commitFloorOpening}
         selected={selected}
         commitPlan={commitPlan}
         setSelected={setSelected}
@@ -5161,43 +5373,61 @@ export default function PlanScreen({ onNavigate }) {
             onChange={changePartitionThickness}
           />
           {activeFloor === 2 ? (
+            <SelectField
+              label="Пол 2 этажа"
+              value={project.settings.sip.secondFloorPanelWidth || "1.25"}
+              options={[
+                { value: "1.25", label: "Стандарт · 1250 мм" },
+                { value: "0.625", label: "Усиленный · 625 мм" },
+              ]}
+              onChange={(value) =>
+                commit((next) => {
+                  next.settings.sip.secondFloorPanelWidth = value;
+                  return next;
+                })
+              }
+            />
+          ) : null}
+          {floorCount > 1 ? (
             <>
-              <SelectField
-                label="Пол 2 этажа"
-                value={project.settings.sip.secondFloorPanelWidth || "1.25"}
-                options={[
-                  { value: "1.25", label: "Стандарт · 1250 мм" },
-                  { value: "0.625", label: "Усиленный · 625 мм" },
-                ]}
+              <NumberField
+                label="Проём лестницы — X"
+                value={floorOpening?.x || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
                 onChange={(value) =>
-                  commit((next) => {
-                    next.settings.sip.secondFloorPanelWidth = value;
-                    return next;
-                  })
+                  commitFloorOpening({ ...floorOpening, x: value })
+                }
+              />
+              <NumberField
+                label="Проём лестницы — Y"
+                value={floorOpening?.y || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
+                onChange={(value) =>
+                  commitFloorOpening({ ...floorOpening, y: value })
                 }
               />
               <NumberField
                 label="Проём лестницы — ширина"
-                value={plan.floorOpening?.width || 0}
+                value={floorOpening?.width || 0}
                 suffix="м"
                 min={0}
                 step={0.1}
                 onChange={(value) =>
-                  commitPlan((next) => {
-                    next.floorOpening = { ...(next.floorOpening || {}), width: value };
-                  })
+                  commitFloorOpening({ ...floorOpening, width: value })
                 }
               />
               <NumberField
                 label="Проём лестницы — длина"
-                value={plan.floorOpening?.length || 0}
+                value={floorOpening?.length || 0}
                 suffix="м"
                 min={0}
                 step={0.1}
                 onChange={(value) =>
-                  commitPlan((next) => {
-                    next.floorOpening = { ...(next.floorOpening || {}), length: value };
-                  })
+                  commitFloorOpening({ ...floorOpening, length: value })
                 }
               />
             </>
@@ -5358,6 +5588,8 @@ export default function PlanScreen({ onNavigate }) {
           </div>
           <PlanCanvas
             plan={plan}
+            floorOpening={floorOpening}
+            commitFloorOpening={commitFloorOpening}
             roof={project.settings.roof}
             activeLayer={activeLayer}
             visibleLayers={visibleLayers}
@@ -5385,6 +5617,8 @@ export default function PlanScreen({ onNavigate }) {
               <NumberField label="Точная ширина" value={boundsOf(polygonDraft).h} suffix="м" min={0.1} step={0.01} onChange={(value) => resizeDraftContour("h", value)} />
               <button className="button primary" disabled={polygonDraft.length < 3} onClick={finishPolygon}><Save />Замкнуть контур</button>
             </div>
+          ) : selected?.type === "floorOpening" ? (
+            <FloorOpeningInspector floorOpening={floorOpening} house={plan.house} commitFloorOpening={commitFloorOpening} setSelected={setSelected} />
           ) : activeLayer === "roof" && !selected ? (
             <RoofLayerInspector
               roof={project.settings.roof}
@@ -5406,6 +5640,12 @@ export default function PlanScreen({ onNavigate }) {
           label={`Площадь контура ${activeFloor} этажа`}
           value={`${formatNumber(metrics.floorArea)} м²`}
         />
+        {floorCount > 1 ? (
+          <Stat
+            label="Лестничный проём · оба этажа"
+            value={`${formatNumber(floorOpeningArea)} м² · полезная ${formatNumber(Math.max(0, metrics.floorArea - floorOpeningArea))} м²`}
+          />
+        ) : null}
         <Stat
           label="Перегородки без задвоений"
           value={`${formatNumber(metrics.partitionLength)} м`}

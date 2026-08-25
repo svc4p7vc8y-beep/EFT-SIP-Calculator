@@ -10,7 +10,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 93;
+export const REACT_PROJECT_VERSION = 96;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -328,7 +328,7 @@ export function createUpperFloorPlan(basePlan = createEmptyPlan()) {
     pileRows: [],
     bindingLines: [],
     excludedPiles: [],
-    floorOpening: { width: 0, length: 0 },
+    floorOpening: { x: 0, y: 0, width: 0, length: 0 },
   };
 }
 
@@ -594,16 +594,42 @@ export function normalizePlan(plan) {
   const normalizedPileRows = plan.pileRows?.length
     ? plan.pileRows
     : fallback.pileRows;
+  const house = { ...fallback.house, ...plan.house };
+  const floorOpeningWidth = Math.min(
+    Math.max(0, Number(plan.floorOpening?.width) || 0),
+    Math.max(0, Number(house.w) || 0),
+  );
+  const floorOpeningLength = Math.min(
+    Math.max(0, Number(plan.floorOpening?.length) || 0),
+    Math.max(0, Number(house.h) || 0),
+  );
+  const hasFloorOpening = floorOpeningWidth > 0 && floorOpeningLength > 0;
+  const centeredX = hasFloorOpening
+    ? Math.max(0, ((Number(house.w) || 0) - floorOpeningWidth) / 2)
+    : 0;
+  const centeredY = hasFloorOpening
+    ? Math.max(0, ((Number(house.h) || 0) - floorOpeningLength) / 2)
+    : 0;
+  const floorOpeningX = Number.isFinite(Number(plan.floorOpening?.x))
+    ? Number(plan.floorOpening.x)
+    : centeredX;
+  const floorOpeningY = Number.isFinite(Number(plan.floorOpening?.y))
+    ? Number(plan.floorOpening.y)
+    : centeredY;
   return {
     ...fallback,
     ...plan,
-    house: { ...fallback.house, ...plan.house },
+    house,
     rooms: plan.rooms.map((room, index) => ({
       include: true,
       bearing: false,
       ceilingMode: "flat",
       id: room.id || `room-${index + 1}`,
       ...room,
+      ceilingMode:
+        room.ceilingMode === "open"
+          ? "open-rafter"
+          : room.ceilingMode || "flat",
     })),
     platforms: (plan.platforms || []).map(normalizeTerracePlatform),
     openings: (plan.openings || []).map((opening) => ({
@@ -618,8 +644,10 @@ export function normalizePlan(plan) {
       : bindingLinesFromPileRows(normalizedPileRows),
     piles: plan.piles || [],
     floorOpening: {
-      width: Math.max(0, Number(plan.floorOpening?.width) || 0),
-      length: Math.max(0, Number(plan.floorOpening?.length) || 0),
+      x: Math.max(0, Math.min(floorOpeningX, Math.max(0, house.w - floorOpeningWidth))),
+      y: Math.max(0, Math.min(floorOpeningY, Math.max(0, house.h - floorOpeningLength))),
+      width: floorOpeningWidth,
+      length: floorOpeningLength,
     },
   };
 }

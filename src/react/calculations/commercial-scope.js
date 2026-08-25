@@ -39,7 +39,14 @@ function sectionAmount(lines) {
 function scopeDescription(key, project, calculation, lineCount) {
   const { metrics, foundation, roof, terrace } = calculation;
   const platforms = (project.plan.platforms || []).filter((platform) => platform.include !== false);
-  const openings = openingCounts(project.plan.openings);
+  const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
+  const floorPlans = [
+    project.plan,
+    ...(project.upperFloors || []).slice(0, floorCount - 1),
+  ];
+  const openings = openingCounts(
+    floorPlans.flatMap((plan) => plan.openings || []),
+  );
 
   if (key === 'foundation') return {
     summary: `${pluralRu(foundation.totalPiles, 'свая', 'сваи', 'свай')}, обвязка ${formatNumber(foundation.bindingLength)} м`,
@@ -47,14 +54,20 @@ function scopeDescription(key, project, calculation, lineCount) {
   };
   if (key === 'sip') {
     const surfaces = [
-      project.services.sipFloor && `пол ${formatNumber(metrics.floorArea)} м²`,
-      project.services.sipWalls && `стены ${formatNumber(metrics.exteriorWallNetArea)} м²`,
+      project.services.sipFloor && `пол 1 этажа ${formatNumber(metrics.floorArea)} м²`,
+      project.services.sipSecondFloor && floorCount > 1 && `пол 2 этажа ${formatNumber(metrics.secondFloorArea)} м²`,
+      project.services.sipWalls && `стены 1 этажа ${formatNumber(metrics.firstFloorExteriorWallNetArea)} м²`,
+      project.services.sipWalls && floorCount > 1 && `стены 2 этажа ${formatNumber(metrics.secondFloorExteriorWallNetArea)} м²`,
       project.services.sipCeiling && `потолок ${formatNumber(metrics.ceilingArea)} м²`,
-      project.services.partitions && metrics.partitionNetArea > 0 && `перегородки ${formatNumber(metrics.partitionNetArea)} м²`
+      project.services.partitions && metrics.firstFloorPartitionNetArea > 0 && `перегородки 1 этажа ${formatNumber(metrics.firstFloorPartitionNetArea)} м²`,
+      project.services.partitions && floorCount > 1 && metrics.secondFloorPartitionNetArea > 0 && `перегородки 2 этажа ${formatNumber(metrics.secondFloorPartitionNetArea)} м²`
     ];
     return {
       summary: joinParts(surfaces),
-      details: `Панели ${project.settings.sip.floorPanelFamily || 'pps'}/${project.settings.sip.wallPanelFamily || 'pps'}/${project.settings.sip.ceilingPanelFamily || 'pps'}, раскладка пола ${Math.round(Number(project.settings.sip.floorPanelWidth || 1.25) * 1000)} мм и потолка ${Math.round(Number(project.settings.sip.ceilingPanelWidth || 1.25) * 1000)} мм, соединения (${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}), резка, торцевые доски, крепёж и монтаж`
+      details: joinParts([
+        `Панели ${project.settings.sip.floorPanelFamily || 'pps'}/${project.settings.sip.wallPanelFamily || 'pps'}/${project.settings.sip.ceilingPanelFamily || 'pps'}, раскладка пола ${Math.round(Number(project.settings.sip.floorPanelWidth || 1.25) * 1000)} мм и потолка ${Math.round(Number(project.settings.sip.ceilingPanelWidth || 1.25) * 1000)} мм, соединения (${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}), резка, торцевые доски, крепёж и монтаж`,
+        floorCount > 1 && metrics.secondFloorOpeningArea > 0 && `лестничный проём ${formatNumber(metrics.secondFloorOpeningWidth)} × ${formatNumber(metrics.secondFloorOpeningLength)} м расположен на планах обоих этажей и вычтен из межэтажного перекрытия`,
+      ])
     };
   }
   if (key === 'roof') {

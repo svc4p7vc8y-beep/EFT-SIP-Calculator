@@ -124,12 +124,26 @@ export function deriveLinkedInputs(project, metrics) {
 export function calculationFlowRows(project, calculation) {
   const { metrics, inputs } = calculation;
   const f = inputs.formulas;
+  const floorMetricRows = metrics.floorPlans || [];
+  const exteriorWallFormula = floorMetricRows
+    .map(
+      ({ floor, plan, metrics: floorMetrics }) =>
+        `${floor} эт.: ${floorMetrics.perimeter} × ${plan.wallHeight} − ${floorMetrics.exteriorOpeningsArea}`,
+    )
+    .join("; ");
+  const partitionFormula = floorMetricRows
+    .map(
+      ({ floor, plan, metrics: floorMetrics }) =>
+        `${floor} эт.: ${floorMetrics.partitionLength} × ${plan.wallHeight} − ${floorMetrics.interiorOpeningsArea}`,
+    )
+    .join("; ");
   return [
-    { group: 'Геометрия', source: 'Габарит дома', formula: `${project.plan.house.w} × ${project.plan.house.h}`, result: metrics.floorArea, unit: 'м²', target: 'СИП-пол и базовый потолок даже без комнат' },
+    { group: 'Геометрия', source: 'Контуры всех этажей', formula: floorMetricRows.map(({ floor, metrics: floorMetrics }) => `${floor} эт.: ${floorMetrics.floorArea} м²`).join('; '), result: metrics.totalFloorArea, unit: 'м²', target: 'Пол 1 этажа, межэтажное перекрытие и пол 2 этажа' },
+    { group: 'Геометрия', source: 'Лестничный проём между этажами', formula: `${metrics.secondFloorOpeningWidth || 0} × ${metrics.secondFloorOpeningLength || 0}`, result: metrics.secondFloorOpeningArea || 0, unit: 'м²', target: 'Вычет из межэтажного SIP-перекрытия; обозначение и полезная площадь обоих этажей' },
     { group: 'Геометрия', source: 'Комнаты «Второй свет»', formula: `${metrics.floorArea} − ${metrics.openCeilingArea}`, result: metrics.ceilingArea, unit: 'м²', target: 'Горизонтальный СИП-потолок' },
     { group: 'Геометрия', source: 'Комнаты плана', formula: 'Сумма площадей включённых комнат', result: metrics.roomArea, unit: 'м²', target: 'Отделка и инженерия' },
-    { group: 'Геометрия', source: 'Периметр × высота − окна/двери', formula: `${metrics.perimeter} × ${project.plan.wallHeight} − ${metrics.exteriorOpeningsArea}`, result: metrics.exteriorWallNetArea, unit: 'м²', target: 'СИП-стены, фасад' },
-    { group: 'Геометрия', source: 'Уникальные перегородки', formula: `${metrics.partitionLength} × ${project.plan.wallHeight} − ${metrics.interiorOpeningsArea}`, result: metrics.partitionNetArea, unit: 'м²', target: 'Перегородки, внутренняя отделка' },
+    { group: 'Геометрия', source: 'Периметр × высота − окна/двери', formula: exteriorWallFormula, result: metrics.exteriorWallNetArea, unit: 'м²', target: 'СИП-стены обоих этажей, фасад' },
+    { group: 'Геометрия', source: 'Уникальные перегородки каждого этажа', formula: partitionFormula, result: metrics.partitionNetArea, unit: 'м²', target: 'Перегородки обоих этажей, внутренняя отделка' },
     { group: 'Фундамент', source: 'Свайные ряды + пристройки', formula: 'Объединение совпадающих точек', result: calculation.foundation.totalPiles, unit: 'шт', target: 'Сваи, оголовки, крепёж, работы' },
     { group: 'Фундамент', source: 'Нарисованные линии обвязки', formula: `ceil(${calculation.foundation.bindingLength} м × ${calculation.foundation.bindingLayers} слоя ÷ 6 м)`, result: calculation.foundation.boardCount, unit: 'досок по 6 м', target: `Доска обвязки 50×150 · ${calculation.foundation.boardVolume} м³` },
     { group: 'СИП', source: 'Пол + межэтажное перекрытие + наружные стены + потолок', formula: `ceil(площадь ÷ ${f.panelArea} × запас)`, result: calculation.sip.cutting.reduce((sum, row) => sum + row.panels, 0), unit: 'панелей', target: 'Панели, пена, саморезы, раскрой СИП' },

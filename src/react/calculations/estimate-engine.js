@@ -234,6 +234,7 @@ function calculateBuildingMetrics(project) {
   const openingWidth = Math.max(0, Number(secondPlan?.floorOpening?.width) || 0);
   const openingLength = Math.max(0, Number(secondPlan?.floorOpening?.length) || 0);
   const secondFloorOpeningArea = Math.min(
+    Number(base?.floorArea) || 0,
     Number(secondMetrics?.floorArea) || 0,
     openingWidth * openingLength,
   );
@@ -273,7 +274,19 @@ function calculateBuildingMetrics(project) {
     secondFloorOpeningArea: round(secondFloorOpeningArea, 2),
     secondFloorOpeningWidth: openingWidth,
     secondFloorOpeningLength: openingLength,
+    secondFloorOpeningX: Math.max(0, Number(secondPlan?.floorOpening?.x) || 0),
+    secondFloorOpeningY: Math.max(0, Number(secondPlan?.floorOpening?.y) || 0),
+    firstFloorUsableArea: round(
+      Math.max(0, (Number(base.floorArea) || 0) - secondFloorOpeningArea),
+      2,
+    ),
     totalFloorArea: round(base.floorArea + (Number(secondMetrics?.floorArea) || 0), 2),
+    totalUsableFloorArea: round(
+      base.floorArea +
+        (Number(secondMetrics?.floorArea) || 0) -
+        secondFloorOpeningArea * (secondMetrics ? 2 : 0),
+      2,
+    ),
   };
 }
 

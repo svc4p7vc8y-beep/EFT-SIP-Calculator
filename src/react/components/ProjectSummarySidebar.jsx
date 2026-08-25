@@ -187,10 +187,16 @@ export default function ProjectSummarySidebar({
             value={`${formatNumber(metrics.floorArea)} м²`}
           />
           {(project.meta?.floors || 1) > 1 ? (
-            <SummaryValue
-              label="Пол 2 этажа"
-              value={`${formatNumber(metrics.secondFloorArea)} м²`}
-            />
+            <>
+              <SummaryValue
+                label="Пол 2 этажа"
+                value={`${formatNumber(metrics.secondFloorArea)} м²`}
+              />
+              <SummaryValue
+                label="Лестничный проём"
+                value={`${formatNumber(metrics.secondFloorOpeningArea)} м² · на обоих планах`}
+              />
+            </>
           ) : null}
           <SummaryValue
             label="Помещения"
@@ -218,9 +224,21 @@ export default function ProjectSummarySidebar({
             value={`${formatNumber(metrics.exteriorWallNetArea)} м²`}
           />
           <SummaryValue
-            label="Перегородки"
-            value={`${formatNumber(metrics.partitionLength)} м`}
+            label="Перегородки 1 эт."
+            value={`${formatNumber(metrics.firstFloorPartitionLength)} м`}
           />
+          {(project.meta?.floors || 1) > 1 ? (
+            <SummaryValue
+              label="Перегородки 2 эт."
+              value={`${formatNumber(metrics.secondFloorPartitionLength)} м`}
+              tone={
+                metrics.secondFloorPartitionLength > 0 &&
+                !project.services.partitions
+                  ? "attention"
+                  : ""
+              }
+            />
+          ) : null}
           <SummaryValue
             label="Наружная панель"
             value={`${Math.round(plan.wallThickness * 1000)} мм`}

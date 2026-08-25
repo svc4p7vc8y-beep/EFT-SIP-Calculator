@@ -1374,6 +1374,22 @@ select,
 .roof-accessory-grid {
   align-items: stretch;
 }
+.roof-main-section + .roof-main-section {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.roof-main-section > h3 {
+  margin: 0 0 12px;
+  color: var(--green-dark);
+  font-size: 12px;
+}
+.roof-section-note {
+  margin: -4px 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
 .fixed-roof-accessory {
   display: flex;
   flex-direction: column;
@@ -2916,6 +2932,19 @@ select,
   stroke: #182019;
   stroke-width: 4;
 }
+.print-plan-svg .print-floor-opening rect {
+  fill: #fff7da;
+  stroke: #8a5d13;
+  stroke-width: 2.5;
+  stroke-dasharray: 8 5;
+  vector-effect: non-scaling-stroke;
+}
+.print-plan-svg .print-floor-opening text {
+  fill: #55380d;
+  font-size: 11px;
+  font-weight: 800;
+  text-anchor: middle;
+}
 .print-roof-top-layer { pointer-events: none; }
 .print-roof-overhang { fill: rgba(196, 150, 73, .09); stroke: #8d621f; stroke-width: 3; stroke-dasharray: 8 5; }
 .print-roof-ridge { stroke: #9a5f16; stroke-width: 8; }
@@ -4084,6 +4113,41 @@ select,
   stroke-width: 6;
   stroke-linecap: square;
   vector-effect: non-scaling-stroke;
+}
+.stair-opening {
+  cursor: move;
+}
+.stair-opening rect {
+  fill: rgba(255, 247, 218, 0.94);
+  stroke: #9b6b19;
+  stroke-width: 3;
+  stroke-dasharray: 10 6;
+  vector-effect: non-scaling-stroke;
+}
+.stair-opening line {
+  stroke: rgba(155, 107, 25, 0.58);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.stair-opening text {
+  fill: #55380d;
+  font-size: 15px;
+  font-weight: 900;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.stair-opening .stair-opening-area {
+  font-size: 12px;
+  font-weight: 750;
+}
+.stair-opening.selected rect {
+  stroke: #5d8f32;
+  stroke-width: 5;
+}
+.stair-opening-draft {
+  fill: rgba(255, 217, 129, 0.28);
+  stroke: #9b6b19;
+  stroke-dasharray: 10 6;
 }
 .dimension-draft line {
   stroke: #6657dc;

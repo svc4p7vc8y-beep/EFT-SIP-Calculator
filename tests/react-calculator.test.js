@@ -154,6 +154,44 @@ test('second floor has its own plan and a separately priced interstory SIP floor
   assert.equal(panel.price, 10283);
 });
 
+test('one staircase opening is shared by both floor plans and deducted only from the interstory SIP floor', () => {
+  const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  const upper = project.upperFloors[0];
+  upper.rooms = [];
+  upper.floorOpening = { x: 3.2, y: 1.7, width: 1.2, length: 2.5 };
+
+  const result = calculateProject(project);
+  const openingArea = 3;
+  const upperGrossArea = result.metrics.floorPlans[1].metrics.floorArea;
+  const firstGrossArea = result.metrics.floorPlans[0].metrics.floorArea;
+  const cutting = result.sip.cutting.find((row) => row.key === 'secondFloor');
+
+  assert.equal(result.metrics.secondFloorOpeningX, 3.2);
+  assert.equal(result.metrics.secondFloorOpeningY, 1.7);
+  assert.equal(result.metrics.secondFloorOpeningArea, openingArea);
+  assert.equal(result.metrics.secondFloorArea, upperGrossArea - openingArea);
+  assert.equal(result.metrics.firstFloorUsableArea, firstGrossArea - openingArea);
+  assert.equal(
+    result.metrics.totalUsableFloorArea,
+    firstGrossArea + upperGrossArea - openingArea * 2,
+  );
+  assert.equal(cutting.area, upperGrossArea - openingArea);
+  assert.equal(result.sip.cutting.find((row) => row.key === 'floor').area, firstGrossArea);
+});
+
+test('legacy staircase opening without coordinates is centered during migration', () => {
+  const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  project.upperFloors[0].floorOpening = { width: 1.2, length: 2.4 };
+
+  const migrated = migrateProject(project);
+  const opening = migrated.upperFloors[0].floorOpening;
+
+  assert.equal(opening.x, (migrated.upperFloors[0].house.w - 1.2) / 2);
+  assert.equal(opening.y, (migrated.upperFloors[0].house.h - 2.4) / 2);
+});
+
 test('second-floor perimeter, partitions, windows and doors reach their calculators and disappear with the floor', () => {
   const project = createDefaultProject();
   project.settings.sip.partitionType = 'sip';
@@ -205,6 +243,76 @@ test('second-floor perimeter, partitions, windows and doors reach their calculat
   assert.equal(removed.lines.some((line) => line.id === 'sip:panel-wallsSecondFloor'), false);
   assert.equal(removed.lines.some((line) => line.id === 'sip:panel-partitionsSecondFloor'), false);
   assert.equal(removed.totals.total, oneFloor.totals.total);
+});
+
+test('frame partitions on the second floor reach materials, labor, finishing and commercial scope', () => {
+  const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  project.services.internalFinish = true;
+  project.plan.openings = [];
+  const upper = project.upperFloors[0];
+  upper.wallHeight = 3;
+  upper.walls.push({ id: 'upper-frame-wall', x1: 4, y1: 0.174, x2: 4, y2: 6 });
+  upper.openings.push({
+    id: 'upper-frame-door',
+    type: 'door',
+    doorType: 'interior',
+    width: 0.8,
+    height: 2,
+    x: 4,
+    y: 3,
+    orientation: 'v',
+    outer: false,
+    includeInEstimate: true,
+    subtractFromSip: true,
+  });
+
+  const result = calculateProject(project);
+  const upperMetrics = result.metrics.floorPlans[1].metrics;
+  const frameMaterial = result.lines.find(
+    (line) => line.id === 'sip:partition-board-secondFloor',
+  );
+  const frameLabor = result.lines.find(
+    (line) => line.id === 'sip:partition-work-secondFloor',
+  );
+  const scope = buildCommercialScope(project, result);
+  const sipScope = scope.find((section) => section.key === 'sip');
+  const openingScope = scope.find((section) => section.key === 'openings');
+
+  assert.equal(
+    result.metrics.secondFloorPartitionNetArea,
+    Math.round((upperMetrics.partitionGrossArea - 1.6) * 100) / 100,
+  );
+  assert.equal(upperMetrics.interiorOpeningsArea, 1.6);
+  assert.ok(frameMaterial?.qty > 0);
+  assert.equal(frameLabor?.qty, result.metrics.secondFloorPartitionNetArea);
+  assert.ok(
+    result.inputs.internal.wallArea >=
+      result.metrics.secondFloorPartitionNetArea * 2,
+  );
+  assert.match(sipScope.summary, /перегородки 2 этажа/);
+  assert.match(openingScope.summary, /двери: 1/);
+});
+
+test('legacy second-light value from parameters migrates for rooms on every floor', () => {
+  const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  project.upperFloors[0].rooms.push({
+    id: 'upper-open-room',
+    name: 'Гостиная 2 этаж',
+    x: 0.174,
+    y: 0.174,
+    w: 3,
+    h: 4,
+    include: true,
+    ceilingMode: 'open',
+  });
+
+  const migrated = migrateProject(project);
+  const result = calculateProject(migrated);
+
+  assert.equal(migrated.upperFloors[0].rooms.at(-1).ceilingMode, 'open-rafter');
+  assert.ok(result.metrics.openCeilingArea > 0);
 });
 
 test('reinforced second-floor layout adds cutting and joints without doubling panel purchases', () => {

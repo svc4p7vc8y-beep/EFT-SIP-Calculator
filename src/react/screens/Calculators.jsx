@@ -316,9 +316,113 @@ function RoofConstructionPanels({
   return (
     <>
       <Panel
-        title="Конструктив кровли"
-        description="В автоматическом режиме система, шаг и сечение подбираются из геометрии плана. Переключитесь на ручной режим, чтобы изменить конструктив проекта."
+        title="Основная кровля"
+        description="Все параметры основной крыши собраны здесь: форма и размеры, покрытие, стропильная система, фронтоны и доборные элементы. Кровли террас и крыльца настраиваются отдельно ниже."
       >
+        {project.settings.roof.shape === "hip" ? (
+          <div className="roof-cost-warning" role="note">
+            <strong>! Вальмовая кровля — повышенная сложность</strong>
+            <span>
+              Материалы основной крыши увеличены на 25%, стоимость работ — на
+              50%. Прайс-лист и кровли террас не изменяются.
+            </span>
+          </div>
+        ) : null}
+        <section className="roof-main-section">
+          <h3>Форма, покрытие и размеры</h3>
+          <div className="form-grid four">
+            <SelectField
+              label="Форма основной кровли"
+              value={project.settings.roof.shape || "gable"}
+              onChange={(value) => setSetting("roof", "shape", value)}
+              options={[
+                { value: "gable", label: "Двускатная" },
+                { value: "hip", label: "Вальмовая" },
+                { value: "flat", label: "Плоская" },
+              ]}
+            />
+            <SelectField
+              label="Кровельное покрытие"
+              value={project.settings.roof.covering || "profile"}
+              onChange={(value) => setSetting("roof", "covering", value)}
+              options={ROOF_COVERINGS}
+            />
+            <SelectField
+              label="Тип кровли"
+              value={project.settings.roof.type}
+              onChange={(value) => setSetting("roof", "type", value)}
+              options={[
+                { value: "cold", label: "Холодная" },
+                { value: "sip", label: "Тёплая СИП" },
+                { value: "combo", label: "Комбинированная" },
+              ]}
+            />
+            {project.settings.roof.shape !== "flat" ? (
+              <NumberField
+                label="Высота конька"
+                value={project.settings.roof.ridgeHeight}
+                suffix="м"
+                onChange={(value) =>
+                  setSetting("roof", "ridgeHeight", value)
+                }
+              />
+            ) : null}
+            <NumberField
+              label={
+                project.settings.roof.shape === "flat"
+                  ? "Длина кровли"
+                  : "Длина конька"
+              }
+              value={project.settings.roof.ridgeLength}
+              suffix="м"
+              onChange={(value) => setSetting("roof", "ridgeLength", value)}
+            />
+            <NumberField
+              label="Запас покрытия"
+              value={project.settings.roof.wastePercent}
+              suffix="%"
+              step={1}
+              onChange={(value) => setSetting("roof", "wastePercent", value)}
+            />
+            <NumberField
+              label="Карнизный свес · слева и справа"
+              value={project.settings.roof.eaveOverhang ?? 0.5}
+              suffix="м"
+              min={0}
+              max={2}
+              step={0.05}
+              onChange={(value) => setSetting("roof", "eaveOverhang", value)}
+            />
+            <NumberField
+              label="Торцевой свес · спереди и сзади"
+              value={project.settings.roof.gableOverhang ?? 0.3}
+              suffix="м"
+              min={0}
+              max={2}
+              step={0.05}
+              onChange={(value) => setSetting("roof", "gableOverhang", value)}
+            />
+            <div className="readout">
+              <span>Габарит кровли со свесами</span>
+              <strong>
+                {formatNumber(calculation.roof.geometry?.roofLength)} ×{" "}
+                {formatNumber(calculation.roof.geometry?.roofSpan)} м
+              </strong>
+            </div>
+            {project.settings.roof.type === "combo" ? (
+              <NumberField
+                label="Тёплая часть"
+                value={project.settings.roof.warmPercent}
+                suffix="%"
+                max={100}
+                step={5}
+                onChange={(value) => setSetting("roof", "warmPercent", value)}
+              />
+            ) : null}
+          </div>
+        </section>
+        <section className="roof-main-section">
+          <h3>Стропильная система и фронтоны</h3>
         <div className="form-grid four">
           <SelectField
             label="Режим расчёта"
@@ -434,47 +538,58 @@ function RoofConstructionPanels({
           </div>
         </div>
         <RafterSystemPreview calculation={calculation} />
-      </Panel>
-      <Panel
-        title="Доборные элементы"
-        description="Коньковая планка и её монтаж всегда входят в двускатную кровлю. Остальные элементы можно включать и выключать; материалы и работы сразу меняются в ведомости и смете."
-      >
-        <div className="toggle-grid roof-accessory-grid">
-          <Toggle
-            label="Карнизные планки"
-            hint={`${formatNumber(calculation.roof.mainEaveTrimPurchaseLength)} м с запасом`}
-            checked={project.settings.roof.includeEaveTrim !== false}
-            onChange={(value) => setSetting("roof", "includeEaveTrim", value)}
-          />
-          <Toggle
-            label="Торцевые (ветровые) планки"
-            hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`}
-            checked={project.settings.roof.includeVergeTrim !== false}
-            onChange={(value) => setSetting("roof", "includeVergeTrim", value)}
-          />
-          <Toggle
-            label="Уплотнитель под конёк"
-            hint="Коньковая планка при этом остаётся"
-            checked={project.settings.roof.includeRidgeSeal !== false}
-            onChange={(value) => setSetting("roof", "includeRidgeSeal", value)}
-          />
-          <Toggle
-            label="Водосточная система"
-            hint={
-              project.settings.roof.includeGutter === true
-                ? `${formatNumber(calculation.roof.gutterLength)} м жёлоба · ${calculation.roof.gutterOutlets} выпуска`
-                : "Жёлоба, трубы, крепёж и монтаж"
-            }
-            checked={project.settings.roof.includeGutter === true}
-            onChange={(value) => setSetting("roof", "includeGutter", value)}
-          />
-          <div className="fixed-roof-accessory">
-            <span>Коньковая планка</span>
-            <strong>
-              Обязательно · {formatNumber(calculation.roof.ridgeBeamLength)} м
-            </strong>
+        </section>
+        <section className="roof-main-section">
+          <h3>Доборные элементы</h3>
+          <p className="roof-section-note">
+            Коньковая планка и её монтаж всегда входят в двускатную кровлю.
+            Остальные элементы можно включать и выключать.
+          </p>
+          <div className="toggle-grid roof-accessory-grid">
+            <Toggle
+              label="Карнизные планки"
+              hint={`${formatNumber(calculation.roof.mainEaveTrimPurchaseLength)} м с запасом`}
+              checked={project.settings.roof.includeEaveTrim !== false}
+              onChange={(value) =>
+                setSetting("roof", "includeEaveTrim", value)
+              }
+            />
+            <Toggle
+              label="Торцевые (ветровые) планки"
+              hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`}
+              checked={project.settings.roof.includeVergeTrim !== false}
+              onChange={(value) =>
+                setSetting("roof", "includeVergeTrim", value)
+              }
+            />
+            <Toggle
+              label="Уплотнитель под конёк"
+              hint="Коньковая планка при этом остаётся"
+              checked={project.settings.roof.includeRidgeSeal !== false}
+              onChange={(value) =>
+                setSetting("roof", "includeRidgeSeal", value)
+              }
+            />
+            <Toggle
+              label="Водосточная система"
+              hint={
+                project.settings.roof.includeGutter === true
+                  ? `${formatNumber(calculation.roof.gutterLength)} м жёлоба · ${calculation.roof.gutterOutlets} выпуска`
+                  : "Жёлоба, трубы, крепёж и монтаж"
+              }
+              checked={project.settings.roof.includeGutter === true}
+              onChange={(value) =>
+                setSetting("roof", "includeGutter", value)
+              }
+            />
+            <div className="fixed-roof-accessory">
+              <span>Коньковая планка</span>
+              <strong>
+                Обязательно · {formatNumber(calculation.roof.ridgeBeamLength)} м
+              </strong>
+            </div>
           </div>
-        </div>
+        </section>
       </Panel>
       <Panel
         title="Настройка кровель террас и крыльца"
@@ -682,6 +797,26 @@ export default function Calculators({ type }) {
     }),
     [sourceProject, calculation.inputs],
   );
+  const floorPlans = useMemo(() => {
+    const floorCount = Math.max(
+      1,
+      Math.min(2, Number(sourceProject.meta?.floors) || 1),
+    );
+    return [
+      sourceProject.plan,
+      ...(sourceProject.upperFloors || []).slice(0, floorCount - 1),
+    ];
+  }, [sourceProject]);
+  const floorOpenings = useMemo(
+    () =>
+      floorPlans.flatMap((floorPlan, floorIndex) =>
+        (floorPlan.openings || []).map((opening) => ({
+          opening,
+          floor: floorIndex + 1,
+        })),
+      ),
+    [floorPlans],
+  );
   const setSetting = (group, key, value) =>
     commit((next) => {
       const sipLineBySetting = {
@@ -850,15 +985,42 @@ export default function Calculators({ type }) {
               value={`${formatNumber(calculation.sip.joinery.totalEndBoardLength)} м`}
             />
             <Stat
-              label="Перегородки"
-              value={`${formatNumber(calculation.metrics.partitionNetArea)} м²`}
+              label="Перегородки 1 этажа"
+              value={`${formatNumber(calculation.metrics.firstFloorPartitionNetArea)} м²`}
+              tone={
+                calculation.metrics.firstFloorPartitionNetArea > 0 &&
+                !project.services.partitions
+                  ? "danger"
+                  : ""
+              }
             />
+            {(project.meta.floors || 1) > 1 ? (
+              <Stat
+                label="Перегородки 2 этажа"
+                value={`${formatNumber(calculation.metrics.secondFloorPartitionNetArea)} м²`}
+                tone={
+                  calculation.metrics.secondFloorPartitionNetArea > 0 &&
+                  !project.services.partitions
+                    ? "danger"
+                    : "accent"
+                }
+              />
+            ) : null}
             <Stat
               label="SIP-фронтоны"
               value={`${formatNumber(calculation.roof.warmGableArea)} м² · ${calculation.roof.gableSipCutting?.panels || 0} пан.`}
               tone={calculation.roof.warmGableArea ? "accent" : ""}
             />
           </div>
+          {calculation.metrics.partitionNetArea > 0 &&
+          !project.services.partitions ? (
+            <div className="parameter-info-note">
+              На планах есть перегородки площадью{" "}
+              {formatNumber(calculation.metrics.partitionNetArea)} м², но раздел
+              «Перегородки» отключён в составе расчёта. Геометрия сохранена, в
+              ведомость и смету она не добавляется до включения раздела.
+            </div>
+          ) : null}
           <Panel
             title="Панели и силовой каркас"
             description="Для всех трёх вариантов используется одна расчётная длина стыков в погонных метрах. Тип каркаса меняет номенклатуру и цену, а размер автоматически выбирается по толщине SIP-панели."
@@ -1171,12 +1333,6 @@ export default function Calculators({ type }) {
           </Panel>
         </>
       ) : null}
-      {type === "roof" && project.settings.roof.shape === "hip" ? (
-        <div className="roof-cost-warning" role="note">
-          <strong>! Вальмовая кровля — повышенная сложность</strong>
-          <span>Материалы основной крыши увеличены на 25%, стоимость работ — на 50%. Прайс-лист и кровли террас не изменяются.</span>
-        </div>
-      ) : null}
       {type === "roof" ? (
         <RoofConstructionPanels
           project={project}
@@ -1235,99 +1391,6 @@ export default function Calculators({ type }) {
               value={`${formatNumber(calculation.roof.totalArea)} м²`}
             />
           </div>
-          <Panel
-            title="Основная крыша"
-            description="Мауэрлат 100×150 считается отдельно по двум опорным стенам. Коньковый прогон выполняется из доски того же сечения, что и стропила, и включён в общий объём стропильной доски. Карнизные и ветровые планки считаются по краям свесов."
-          >
-            <div className="form-grid four">
-              <SelectField
-                label="Форма основной кровли"
-                value={project.settings.roof.shape || "gable"}
-                onChange={(value) => setSetting("roof", "shape", value)}
-                options={[
-                  { value: "gable", label: "Двускатная" },
-                  { value: "hip", label: "Вальмовая" },
-                  { value: "flat", label: "Плоская" },
-                ]}
-              />
-              <SelectField
-                label="Кровельное покрытие"
-                value={project.settings.roof.covering || "profile"}
-                onChange={(value) => setSetting("roof", "covering", value)}
-                options={ROOF_COVERINGS}
-              />
-              <SelectField
-                label="Тип"
-                value={project.settings.roof.type}
-                onChange={(value) => setSetting("roof", "type", value)}
-                options={[
-                  { value: "cold", label: "Холодная" },
-                  { value: "sip", label: "Тёплая СИП" },
-                  { value: "combo", label: "Комбинированная" },
-                ]}
-              />
-              {project.settings.roof.shape !== "flat" ? (
-                <NumberField
-                  label="Высота конька"
-                  value={project.settings.roof.ridgeHeight}
-                  suffix="м"
-                  onChange={(value) => setSetting("roof", "ridgeHeight", value)}
-                />
-              ) : null}
-              <NumberField
-                label={
-                  project.settings.roof.shape === "flat"
-                    ? "Длина кровли"
-                    : "Длина конька"
-                }
-                value={project.settings.roof.ridgeLength}
-                suffix="м"
-                onChange={(value) => setSetting("roof", "ridgeLength", value)}
-              />
-              <NumberField
-                label="Запас покрытия"
-                value={project.settings.roof.wastePercent}
-                suffix="%"
-                step={1}
-                onChange={(value) => setSetting("roof", "wastePercent", value)}
-              />
-              <NumberField
-                label="Карнизный свес · слева и справа"
-                value={project.settings.roof.eaveOverhang ?? 0.5}
-                suffix="м"
-                min={0}
-                max={2}
-                step={0.05}
-                onChange={(value) => setSetting("roof", "eaveOverhang", value)}
-              />
-              <NumberField
-                label="Торцевой свес · спереди и сзади"
-                value={project.settings.roof.gableOverhang ?? 0.3}
-                suffix="м"
-                min={0}
-                max={2}
-                step={0.05}
-                onChange={(value) => setSetting("roof", "gableOverhang", value)}
-              />
-              <div className="readout">
-                <span>Габарит кровли со свесами</span>
-                <strong>
-                  {formatNumber(calculation.roof.geometry?.roofLength)} ×{" "}
-                  {formatNumber(calculation.roof.geometry?.roofSpan)} м
-                </strong>
-              </div>
-              {project.settings.roof.type === "combo" ? (
-                <NumberField
-                  label="Тёплая часть"
-                  value={project.settings.roof.warmPercent}
-                  suffix="%"
-                  max={100}
-                  step={5}
-                  onChange={(value) => setSetting("roof", "warmPercent", value)}
-                />
-              ) : null}
-            </div>
-          </Panel>
           <Panel title="Кровли пристроек">
             {calculation.roof.terraceRoofs.map(({ platform, result }) => (
               <div className="calculation-row" key={platform.id}>
@@ -1439,15 +1502,15 @@ export default function Calculators({ type }) {
           <div className="stats-row">
             <Stat
               label="Окна"
-              value={`${project.plan.openings.filter((item) => item.type === "window").length} шт`}
+              value={`${floorOpenings.filter(({ opening }) => opening.type === "window").length} шт`}
             />
             <Stat
               label="Двери"
-              value={`${project.plan.openings.filter((item) => item.type === "door" && item.doorType !== "garage").length} шт`}
+              value={`${floorOpenings.filter(({ opening }) => opening.type === "door" && opening.doorType !== "garage").length} шт`}
             />
             <Stat
               label="Гаражные ворота"
-              value={`${project.plan.openings.filter((item) => item.type === "door" && item.doorType === "garage").length} шт`}
+              value={`${floorOpenings.filter(({ opening }) => opening.type === "door" && opening.doorType === "garage").length} шт`}
             />
             <Stat
               label="Общая площадь"
@@ -1456,8 +1519,8 @@ export default function Calculators({ type }) {
           </div>
           <Panel title="Проёмы с плана">
             <div className="calculation-list">
-              {project.plan.openings.map((opening) => (
-                <div className="calculation-row" key={opening.id}>
+              {floorOpenings.map(({ opening, floor }) => (
+                <div className="calculation-row" key={`${floor}-${opening.id}`}>
                   <div>
                     <strong>
                       {opening.type === "window"
@@ -1467,6 +1530,7 @@ export default function Calculators({ type }) {
                           : opening.doorType === "interior"
                             ? "Межкомнатная дверь"
                             : "Входная дверь"}
+                      {(project.meta.floors || 1) > 1 ? ` · ${floor} этаж` : ""}
                     </strong>
                     <span>
                       {Math.round(opening.width * 1000)} ×{" "}

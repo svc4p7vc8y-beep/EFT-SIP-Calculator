@@ -146,6 +146,33 @@ export default function ParametersScreen() {
   const calculation = useMemo(() => calculateProject(project), [project]);
   const { metrics, inputs } = calculation;
   const links = project.settings.links;
+  const floorCount = Math.max(
+    1,
+    Math.min(2, Number(project.meta?.floors) || 1),
+  );
+  const floorPlans = useMemo(
+    () => [
+      project.plan,
+      ...(project.upperFloors || []).slice(0, floorCount - 1),
+    ],
+    [project.plan, project.upperFloors, floorCount],
+  );
+  const totalRoomCount = floorPlans.reduce(
+    (sum, floorPlan) => sum + (floorPlan.rooms || []).length,
+    0,
+  );
+  const floorRooms = floorPlans.flatMap((floorPlan, floorIndex) =>
+    (floorPlan.rooms || []).map((room) => ({
+      room,
+      floor: floorIndex + 1,
+    })),
+  );
+  const floorOpenings = floorPlans.flatMap((floorPlan, floorIndex) =>
+    (floorPlan.openings || []).map((opening) => ({
+      opening,
+      floor: floorIndex + 1,
+    })),
+  );
   const read = (path) =>
     path.split(".").reduce((value, key) => value?.[key], project);
   const write = (path, value, disableLink) =>
@@ -163,15 +190,28 @@ export default function ParametersScreen() {
         );
         return next;
       }
+      if (path === "plan.wallHeight") {
+        next.plan.wallHeight = value;
+        (next.upperFloors || []).forEach((floorPlan) => {
+          floorPlan.wallHeight = value;
+        });
+        return next;
+      }
       if (path === "plan.wallThickness") {
         const millimeters = Number(value) || 174;
         next.plan.wallThickness = millimeters / 1000;
+        (next.upperFloors || []).forEach((floorPlan) => {
+          floorPlan.wallThickness = millimeters / 1000;
+        });
         next.settings.sip.wallThickness = String(millimeters);
         return next;
       }
       if (path === "plan.partitionThickness") {
         const millimeters = Number(value) || 100;
         next.plan.partitionThickness = millimeters / 1000;
+        (next.upperFloors || []).forEach((floorPlan) => {
+          floorPlan.partitionThickness = millimeters / 1000;
+        });
         if ([124, 174, 224].includes(millimeters)) {
           next.settings.sip.partitionThickness = String(millimeters);
         }
@@ -204,9 +244,11 @@ export default function ParametersScreen() {
       if (disableLink) next.settings.links[disableLink] = false;
       return next;
     });
-  const updateEntity = (list, id, path, value) =>
+  const updateEntity = (list, id, path, value, floorIndex = 0) =>
     commit((next) => {
-      const item = next.plan[list].find((candidate) => candidate.id === id);
+      const floorPlan =
+        floorIndex === 0 ? next.plan : next.upperFloors?.[floorIndex - 1];
+      const item = floorPlan?.[list]?.find((candidate) => candidate.id === id);
       if (!item) return next;
       const keys = path.split(".");
       let target = item;
@@ -280,7 +322,7 @@ export default function ParametersScreen() {
         project.plan.house.w > 0 &&
         project.plan.house.h > 0 &&
         project.plan.wallHeight > 0,
-      note: `${formatNumber(project.plan.house.w)} × ${formatNumber(project.plan.house.h)} м · ${project.plan.rooms.length} пом.`,
+      note: `${floorCount} эт. · ${formatNumber(metrics.totalFloorArea)} м² · ${totalRoomCount} пом.`,
     },
     {
       id: "scope",
@@ -329,8 +371,8 @@ export default function ParametersScreen() {
     {
       id: "openings",
       title: "Окна и двери",
-      ready: !project.services.openings || project.plan.openings.length > 0,
-      note: `${project.plan.openings.length} шт · ${formatNumber(metrics.totalOpeningsArea)} м²`,
+      ready: !project.services.openings || floorOpenings.length > 0,
+      note: `${floorOpenings.length} шт на ${floorCount} эт. · ${formatNumber(metrics.totalOpeningsArea)} м²`,
     },
     {
       id: "engineering",
@@ -367,11 +409,11 @@ export default function ParametersScreen() {
           value={`${formatNumber(project.plan.house.w)} × ${formatNumber(project.plan.house.h)} м`}
         />
         <Stat
-          label="Площадь дома"
-          value={`${formatNumber(metrics.floorArea)} м²`}
+          label="Площадь всех этажей"
+          value={`${formatNumber(metrics.totalFloorArea)} м²`}
         />
         <Stat label="Периметр" value={`${formatNumber(metrics.perimeter)} м`} />
-        <Stat label="Проёмы" value={`${project.plan.openings.length} шт`} />
+        <Stat label="Проёмы всех этажей" value={`${floorOpenings.length} шт`} />
       </div>
       <div className="parameters-master-layout">
         <main className="parameters-form-flow">
@@ -479,12 +521,12 @@ export default function ParametersScreen() {
                 <strong>{formatNumber(metrics.openCeilingArea)} м²</strong>
               </div>
             </div>
-            {project.plan.rooms.length ? (
+            {floorRooms.length ? (
               <div className="parameter-entity-list">
-                <h3>Помещения из плана</h3>
-                {project.plan.rooms.map((room) => (
-                  <article key={room.id}>
-                    <Field label="Название">
+                <h3>Помещения всех этажей</h3>
+                {floorRooms.map(({ room, floor }) => (
+                  <article key={`${floor}-${room.id}`}>
+                    <Field label={`Название · ${floor} этаж`}>
                       <input
                         value={room.name}
                         onChange={(event) =>
@@ -493,6 +535,7 @@ export default function ParametersScreen() {
                             room.id,
                             "name",
                             event.target.value,
+                            floor - 1,
                           )
                         }
                       />
@@ -501,25 +544,43 @@ export default function ParametersScreen() {
                       label="Потолок"
                       value={room.ceilingMode || "flat"}
                       onChange={(value) =>
-                        updateEntity("rooms", room.id, "ceilingMode", value)
+                        updateEntity(
+                          "rooms",
+                          room.id,
+                          "ceilingMode",
+                          value,
+                          floor - 1,
+                        )
                       }
                       options={[
                         { value: "flat", label: "Обычный SIP" },
-                        { value: "open", label: "Второй свет" },
+                        { value: "open-rafter", label: "Второй свет" },
                       ]}
                     />
                     <Toggle
                       label="Учитывать"
                       checked={room.include !== false}
                       onChange={(value) =>
-                        updateEntity("rooms", room.id, "include", value)
+                        updateEntity(
+                          "rooms",
+                          room.id,
+                          "include",
+                          value,
+                          floor - 1,
+                        )
                       }
                     />
                     <Toggle
                       label="Несущие стены"
                       checked={room.bearing === true}
                       onChange={(value) =>
-                        updateEntity("rooms", room.id, "bearing", value)
+                        updateEntity(
+                          "rooms",
+                          room.id,
+                          "bearing",
+                          value,
+                          floor - 1,
+                        )
                       }
                     />
                   </article>
@@ -758,6 +819,10 @@ export default function ParametersScreen() {
                 <div className="readout">
                   <span>Пол 2 этажа</span>
                   <strong>{formatNumber(metrics.secondFloorArea)} м²</strong>
+                </div>
+                <div className="readout">
+                  <span>Лестничный проём · оба этажа</span>
+                  <strong>{formatNumber(metrics.secondFloorOpeningArea)} м²</strong>
                 </div>
                 <div className="readout">
                   <span>Панели пола 2 этажа</span>
@@ -1008,13 +1073,14 @@ export default function ParametersScreen() {
             title="Окна, двери и ворота"
             description="Размеры, включение в смету и вычеты SIP."
           >
-            {project.plan.openings.length ? (
+            {floorOpenings.length ? (
               <div className="parameter-opening-list">
-                {project.plan.openings.map((opening, index) => (
+                {floorOpenings.map(({ opening, floor }, index) => (
                   <OpeningEditor
-                    key={opening.id}
+                    key={`${floor}-${opening.id}`}
                     opening={opening}
                     index={index}
+                    floor={floor}
                     commit={commit}
                     update={updateEntity}
                   />
@@ -1389,14 +1455,17 @@ function PlatformEditor({ platform, index, project, update }) {
   );
 }
 
-function OpeningEditor({ opening, index, commit, update }) {
+function OpeningEditor({ opening, index, floor, commit, update }) {
   const kind =
     opening.type === "window" ? "window" : opening.doorType || "entrance";
   const changeKind = (value) =>
     commit((next) => {
-      const item = next.plan.openings.find(
+      const floorPlan =
+        floor === 1 ? next.plan : next.upperFloors?.[floor - 2];
+      const item = floorPlan?.openings?.find(
         (candidate) => candidate.id === opening.id,
       );
+      if (!item) return next;
       item.type = value === "window" ? "window" : "door";
       if (value !== "window") item.doorType = value;
       item.outer = value !== "interior";
@@ -1414,6 +1483,7 @@ function OpeningEditor({ opening, index, commit, update }) {
               : kind === "interior"
                 ? "Межкомнатная дверь"
                 : "Входная дверь"}
+          {` · ${floor} этаж`}
         </strong>
         <span>{formatNumber(opening.width * opening.height, 2)} м²</span>
       </header>
@@ -1435,7 +1505,9 @@ function OpeningEditor({ opening, index, commit, update }) {
           suffix="м"
           min={0.2}
           step={0.05}
-          onChange={(value) => update("openings", opening.id, "width", value)}
+          onChange={(value) =>
+            update("openings", opening.id, "width", value, floor - 1)
+          }
         />
         <NumberField
           label="Высота"
@@ -1443,20 +1515,34 @@ function OpeningEditor({ opening, index, commit, update }) {
           suffix="м"
           min={0.2}
           step={0.05}
-          onChange={(value) => update("openings", opening.id, "height", value)}
+          onChange={(value) =>
+            update("openings", opening.id, "height", value, floor - 1)
+          }
         />
         <Toggle
           label="Изделие в смете"
           checked={opening.includeInEstimate !== false}
           onChange={(value) =>
-            update("openings", opening.id, "includeInEstimate", value)
+            update(
+              "openings",
+              opening.id,
+              "includeInEstimate",
+              value,
+              floor - 1,
+            )
           }
         />
         <Toggle
           label="Вычетать из SIP"
           checked={opening.subtractFromSip !== false}
           onChange={(value) =>
-            update("openings", opening.id, "subtractFromSip", value)
+            update(
+              "openings",
+              opening.id,
+              "subtractFromSip",
+              value,
+              floor - 1,
+            )
           }
         />
       </div>
