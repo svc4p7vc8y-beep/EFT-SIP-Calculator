@@ -62,7 +62,10 @@ function compact(lines) {
 function resolveRafterStructure(project, geometry, frameLength) {
   const roof = project.settings.roof || {};
   const automatic = (roof.structureMode || "auto") === "auto";
-  const hasBearingSupport = (project.plan.rooms || []).some(
+  const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
+  const roofSupportPlan =
+    floorCount > 1 ? project.upperFloors?.[floorCount - 2] || project.plan : project.plan;
+  const hasBearingSupport = (roofSupportPlan.rooms || []).some(
     (room) => room.include !== false && room.bearing,
   );
   const system =
@@ -123,6 +126,11 @@ function applyProjectEstimateEdits(project, sections) {
       const override = overrides.get(line.id);
       if (override?.excluded) return [];
       if (!override) return [line];
+      const catalogMatches =
+        override.catalogId === undefined ||
+        override.catalogId === null ||
+        override.catalogId === line.catalogId;
+      if (!catalogMatches) return [line];
       return [
         {
           ...line,
@@ -208,10 +216,69 @@ function applyMainRoofComplexity(lines, shape) {
   });
 }
 
+function calculateBuildingMetrics(project) {
+  const floorCount = Math.max(
+    1,
+    Math.min(2, Math.round(Number(project.meta?.floors) || 1)),
+  );
+  const plans = [project.plan, ...(project.upperFloors || []).slice(0, floorCount - 1)];
+  const floorPlans = plans.map((plan, index) => ({
+    floor: index + 1,
+    plan,
+    metrics: calculatePlanMetrics(plan),
+  }));
+  const base = floorPlans[0].metrics;
+  const top = floorPlans.at(-1).metrics;
+  const secondPlan = floorPlans[1]?.plan;
+  const secondMetrics = floorPlans[1]?.metrics;
+  const openingWidth = Math.max(0, Number(secondPlan?.floorOpening?.width) || 0);
+  const openingLength = Math.max(0, Number(secondPlan?.floorOpening?.length) || 0);
+  const secondFloorOpeningArea = Math.min(
+    Number(secondMetrics?.floorArea) || 0,
+    openingWidth * openingLength,
+  );
+  const sum = (key) =>
+    round(
+      floorPlans.reduce((total, item) => total + (Number(item.metrics[key]) || 0), 0),
+      2,
+    );
+  return {
+    ...base,
+    floorCount,
+    floorPlans,
+    roomArea: sum("roomArea"),
+    unassignedArea: sum("unassignedArea"),
+    exteriorWallGrossArea: sum("exteriorWallGrossArea"),
+    exteriorWallNetArea: sum("exteriorWallNetArea"),
+    exteriorOpeningsArea: sum("exteriorOpeningsArea"),
+    partitionLength: sum("partitionLength"),
+    partitionGrossArea: sum("partitionGrossArea"),
+    partitionNetArea: sum("partitionNetArea"),
+    interiorOpeningsArea: sum("interiorOpeningsArea"),
+    windowArea: sum("windowArea"),
+    doorArea: sum("doorArea"),
+    totalOpeningsArea: sum("totalOpeningsArea"),
+    ceilingArea: top.ceilingArea,
+    openCeilingArea: top.openCeilingArea,
+    secondFloorArea: round(
+      Math.max(0, (Number(secondMetrics?.floorArea) || 0) - secondFloorOpeningArea),
+      2,
+    ),
+    secondFloorOpeningArea: round(secondFloorOpeningArea, 2),
+    secondFloorOpeningWidth: openingWidth,
+    secondFloorOpeningLength: openingLength,
+    totalFloorArea: round(base.floorArea + (Number(secondMetrics?.floorArea) || 0), 2),
+  };
+}
+
 function sipSection(project, metrics, index, inputs, roofResult) {
   const { sip } = project.settings;
   const surfaces = {
     floor: project.services.sipFloor ? metrics.floorArea : 0,
+    secondFloor:
+      project.services.sipSecondFloor && metrics.floorCount > 1
+        ? metrics.secondFloorArea
+        : 0,
     walls: project.services.sipWalls ? metrics.exteriorWallNetArea : 0,
     ceiling: project.services.sipCeiling ? metrics.ceilingArea : 0,
     partitions:
@@ -227,21 +294,29 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     panelLength: f.panelLength,
     extraWastePercent: sip.wastePercent,
     includePartitions: sip.partitionType === "sip",
+    includeSecondFloor: surfaces.secondFloor > 0,
     includeGables: surfaces.gables > 0,
     layoutWidths: {
       floor: sip.floorPanelWidth,
+      secondFloor: sip.secondFloorPanelWidth,
       ceiling: sip.ceilingPanelWidth,
     },
   });
   const byKey = new Map(cutting.map((row) => [row.key, row]));
   const panelGroups = [
     ["floor", sip.floorThickness, sip.floorPanelFamily],
+    [
+      "secondFloor",
+      sip.secondFloorThickness,
+      sip.secondFloorPanelFamily,
+    ],
     ["walls", sip.wallThickness, sip.wallPanelFamily],
     ["ceiling", sip.ceilingThickness, sip.ceilingPanelFamily],
     ["partitions", sip.partitionThickness, sip.partitionPanelFamily],
   ];
   const groupNames = {
     floor: "Пол",
+    secondFloor: "Межэтажное перекрытие / пол 2 этажа",
     walls: "Наружные стены",
     ceiling: "Потолок",
     partitions: "Перегородки",
@@ -1612,7 +1687,12 @@ function terraceSection(project, index, inputs) {
 function openingSection(project, index) {
   if (!project.services.openings) return { lines: [] };
   const lines = [];
-  project.plan.openings
+  const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
+  const openings = [project.plan, ...(project.upperFloors || []).slice(0, floorCount - 1)]
+    .flatMap((plan, floorIndex) =>
+      (plan.openings || []).map((opening) => ({ ...opening, floor: floorIndex + 1 })),
+    );
+  openings
     .filter((opening) => opening.includeInEstimate !== false)
     .forEach((opening, openingIndex) => {
       const width = Math.round((opening.width || 0.8) * 1000);
@@ -1880,7 +1960,7 @@ function deliverySection(project, index, inputs) {
 }
 
 export function calculateProject(project) {
-  const metrics = calculatePlanMetrics(project.plan);
+  const metrics = calculateBuildingMetrics(project);
   const inputs = deriveLinkedInputs(project, metrics);
   const index = catalogIndex(project);
   const foundation = foundationSection(project, index, inputs);

@@ -1,17 +1,19 @@
-import { normalizePlan, REACT_PROJECT_VERSION } from '../state/project-model.js';
+import { ensureProjectFloorCount, normalizePlan, REACT_PROJECT_VERSION } from '../state/project-model.js';
 
 const PLAN_SERVICES = [
-  'foundation', 'sipFloor', 'sipWalls', 'sipCeiling', 'partitions', 'roof', 'terrace', 'openings'
+  'foundation', 'sipFloor', 'sipSecondFloor', 'sipWalls', 'sipCeiling', 'partitions', 'roof', 'terrace', 'openings'
 ];
 
 export function createPlanTransfer(project) {
   return {
     format: 'eft-house-plan',
-    schemaVersion: 1,
+    schemaVersion: 2,
     appVersion: REACT_PROJECT_VERSION,
     savedAt: new Date().toISOString(),
     sourceProject: project.meta?.projectNum || '',
     plan: structuredClone(project.plan),
+    floors: Math.max(1, Math.min(2, Number(project.meta?.floors) || 1)),
+    upperFloors: structuredClone(project.upperFloors || []),
     settings: {
       piles: structuredClone(project.settings?.piles || {}),
       sip: structuredClone(project.settings?.sip || {}),
@@ -27,6 +29,8 @@ export function validatePlanTransfer(raw) {
   if (!plan?.house || !Number(plan.house.w) || !Number(plan.house.h)) throw new Error('В файле не найден корректный план дома');
   return {
     plan: normalizePlan(plan),
+    floors: Math.max(1, Math.min(2, Number(raw.floors || raw.meta?.floors) || 1)),
+    upperFloors: Array.isArray(raw.upperFloors) ? raw.upperFloors.map(normalizePlan) : [],
     settings: raw.settings || {},
     services: raw.services || {},
     sourceProject: raw.sourceProject || raw.meta?.projectNum || ''
@@ -37,6 +41,9 @@ export function applyPlanTransfer(project, raw) {
   const incoming = validatePlanTransfer(raw);
   const next = structuredClone(project);
   next.plan = incoming.plan;
+  next.meta.floors = incoming.floors;
+  next.upperFloors = incoming.upperFloors;
+  ensureProjectFloorCount(next, incoming.floors);
   next.settings.piles = { ...next.settings.piles, ...(incoming.settings.piles || {}) };
   next.settings.sip = { ...next.settings.sip, ...(incoming.settings.sip || {}) };
   next.settings.roof = { ...next.settings.roof, ...(incoming.settings.roof || {}) };

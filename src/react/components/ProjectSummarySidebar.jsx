@@ -183,9 +183,15 @@ export default function ProjectSummarySidebar({
             value={`${formatNumber(plan.wallHeight)} м`}
           />
           <SummaryValue
-            label="Пол"
+            label="Пол 1 этажа"
             value={`${formatNumber(metrics.floorArea)} м²`}
           />
+          {(project.meta?.floors || 1) > 1 ? (
+            <SummaryValue
+              label="Пол 2 этажа"
+              value={`${formatNumber(metrics.secondFloorArea)} м²`}
+            />
+          ) : null}
           <SummaryValue
             label="Помещения"
             value={`${formatNumber(metrics.roomArea)} м²`}
@@ -229,6 +235,15 @@ export default function ProjectSummarySidebar({
           {PANEL_FAMILIES[project.settings.sip.wallPanelFamily] || "PPS"} {project.settings.sip.wallThickness}, потолок{" "}
           {PANEL_FAMILIES[project.settings.sip.ceilingPanelFamily] || "PPS"} {project.settings.sip.ceilingThickness} мм
         </p>
+        {(project.meta?.floors || 1) > 1 ? (
+          <p className="summary-detail">
+            Пол 2 этажа: {PANEL_FAMILIES[project.settings.sip.secondFloorPanelFamily] || "PPS"}{" "}
+            {project.settings.sip.secondFloorThickness || "224"} мм ·{" "}
+            {Number(project.settings.sip.secondFloorPanelWidth || 1.25) <= 0.625
+              ? "усиленный, модуль 625 мм"
+              : "стандарт, модуль 1250 мм"}
+          </p>
+        ) : null}
         <p className="summary-detail">Перегородки: {project.settings.sip.partitionType === "sip" ? `${PANEL_FAMILIES[project.settings.sip.partitionPanelFamily] || "PPS"} ${project.settings.sip.partitionThickness || "124"} мм` : "каркасные"}</p>
         <p className="summary-detail">
           Шаг раскладки: пол{" "}

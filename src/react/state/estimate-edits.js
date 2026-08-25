@@ -11,13 +11,28 @@ export function changeEstimateLine(project, line, changes) {
   const overrides = Array.isArray(project.estimateOverrides) ? project.estimateOverrides : [];
   let override = overrides.find((item) => item.lineId === line.id);
   if (!override) {
-    override = { lineId: line.id, section: line.section };
+    override = {
+      lineId: line.id,
+      section: line.section,
+      catalogId: line.catalogId || null,
+    };
     overrides.push(override);
   }
+  if (override.catalogId === undefined) override.catalogId = line.catalogId || null;
   Object.entries(changes).forEach(([key, value]) => {
     if (EDITABLE_FIELDS.has(key)) override[key] = value;
   });
   project.estimateOverrides = overrides;
+}
+
+export function scopeEstimateOverrideToCurrentCatalog(project, line) {
+  if (!line?.id) return;
+  const override = (project.estimateOverrides || []).find(
+    (item) => item.lineId === line.id,
+  );
+  if (override && override.catalogId === undefined) {
+    override.catalogId = line.catalogId || null;
+  }
 }
 
 export function removeEstimateLine(project, line) {

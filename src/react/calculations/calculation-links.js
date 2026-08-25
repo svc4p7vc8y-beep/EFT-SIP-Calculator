@@ -78,8 +78,10 @@ export function deriveLinkedInputs(project, metrics) {
   const links = { ...DEFAULT_LINKS, ...(project.settings.links || {}) };
   const f = { ...DEFAULT_FORMULAS, ...(project.settings.formulas || {}) };
   const settings = project.settings;
-  const wetRooms = (project.plan.rooms || []).filter((room) => room.include !== false && WET_ROOM.test(room.name || '')).length;
-  const interiorDoors = (project.plan.openings || []).filter((opening) => opening.type === 'door' && !opening.outer).length;
+  const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
+  const activePlans = [project.plan, ...(project.upperFloors || []).slice(0, floorCount - 1)];
+  const wetRooms = activePlans.flatMap((plan) => plan.rooms || []).filter((room) => room.include !== false && WET_ROOM.test(room.name || '')).length;
+  const interiorDoors = activePlans.flatMap((plan) => plan.openings || []).filter((opening) => opening.type === 'door' && !opening.outer).length;
   const platformArea = metrics.platformArea || 0;
   const value = (auto, computed, manual) => round(auto ? computed : manual, 3);
   return {
@@ -130,7 +132,7 @@ export function calculationFlowRows(project, calculation) {
     { group: 'Геометрия', source: 'Уникальные перегородки', formula: `${metrics.partitionLength} × ${project.plan.wallHeight} − ${metrics.interiorOpeningsArea}`, result: metrics.partitionNetArea, unit: 'м²', target: 'Перегородки, внутренняя отделка' },
     { group: 'Фундамент', source: 'Свайные ряды + пристройки', formula: 'Объединение совпадающих точек', result: calculation.foundation.totalPiles, unit: 'шт', target: 'Сваи, оголовки, крепёж, работы' },
     { group: 'Фундамент', source: 'Нарисованные линии обвязки', formula: `ceil(${calculation.foundation.bindingLength} м × ${calculation.foundation.bindingLayers} слоя ÷ 6 м)`, result: calculation.foundation.boardCount, unit: 'досок по 6 м', target: `Доска обвязки 50×150 · ${calculation.foundation.boardVolume} м³` },
-    { group: 'СИП', source: 'Пол + наружные стены + потолок', formula: `ceil(площадь ÷ ${f.panelArea} × запас)`, result: calculation.sip.cutting.reduce((sum, row) => sum + row.panels, 0), unit: 'панелей', target: 'Панели, пена, саморезы, раскрой СИП' },
+    { group: 'СИП', source: 'Пол + межэтажное перекрытие + наружные стены + потолок', formula: `ceil(площадь ÷ ${f.panelArea} × запас)`, result: calculation.sip.cutting.reduce((sum, row) => sum + row.panels, 0), unit: 'панелей', target: 'Панели, пена, саморезы, раскрой СИП' },
     { group: 'СИП', source: 'Сетка панелей и торцы', formula: `стыки сетки + ${f.sipTimberReservePercent}%`, result: calculation.sip.joinery.totalJointLength, unit: 'м', target: 'Термобрус / пакет досок / цельный брус' },
     { group: 'Кровля', source: 'Габарит дома', formula: `длина дома + ${f.roofRidgeExtra}`, result: inputs.roof.ridgeLength, unit: 'м', target: 'Конёк и площадь скатов', auto: inputs.links.roofRidgeFromPlan },
     { group: 'Кровля', source: 'Две опорные стены двускатной крыши', formula: `2 × длина дома × ${f.mauerlatReserve}`, result: calculation.roof.mauerlatPurchaseLength, unit: 'м.п.', target: 'Мауэрлат 100×150, анкеры и монтаж' },
@@ -143,7 +145,7 @@ export function calculationFlowRows(project, calculation) {
     { group: 'Кровля', source: 'Наружный край кровель террас', formula: `ceil(длина ÷ ${f.terraceRoofPostSpacing}) + 1`, result: calculation.roof.terracePostCount, unit: 'столбов', target: 'Брус 100×100 или 150×100 по толщине стен' },
     { group: 'Кровля', source: 'Зоны второго света', formula: `площадь зоны × коэффициент ската`, result: calculation.roof.insulatedRafterArea, unit: 'м²', target: 'Стропила, минвата и пароизоляция' },
     { group: 'Террасы', source: 'Площадки плана', formula: 'Σ ширина × глубина', result: calculation.terrace.area, unit: 'м²', target: 'Настил, каркас, лестницы, кровля' },
-    { group: 'Проёмы', source: 'Окна и двери плана', formula: 'Количество и индивидуальные размеры', result: project.plan.openings.length, unit: 'шт', target: 'Вычеты стен, изделия, монтаж' },
+    { group: 'Проёмы', source: 'Окна и двери всех этажей', formula: 'Количество и индивидуальные размеры', result: calculation.metrics.floorPlans.reduce((sum, item) => sum + (item.plan.openings || []).length, 0), unit: 'шт', target: 'Вычеты стен, изделия, монтаж' },
     { group: 'Инженерия', source: 'Площадь + названия мокрых комнат', formula: `${metrics.roomArea} м²; мокрых комнат: ${inputs.wetRooms}`, result: inputs.engineering.cableRoute, unit: 'м кабеля', target: 'Электрика, вода, канализация, вентиляция', auto: inputs.links.engineeringFromPlan },
     { group: 'Отделка', source: 'Стены, перегородки, пол и двери плана', formula: `наружные стены + перегородки × ${f.internalPartitionFaces}`, result: inputs.internal.wallArea, unit: 'м²', target: 'Внутренняя и наружная отделка', auto: inputs.links.internalFinishFromPlan && inputs.links.externalFinishFromPlan },
     { group: 'Доставка', source: 'Дом + террасы', formula: `${metrics.roomArea} × ${f.cargoM3PerM2} + ${metrics.platformArea} × ${f.terraceCargoM3PerM2}`, result: inputs.delivery.cargoVolume, unit: 'м³', target: 'Разгрузка и число рейсов', auto: inputs.links.deliveryVolumeFromPlan }

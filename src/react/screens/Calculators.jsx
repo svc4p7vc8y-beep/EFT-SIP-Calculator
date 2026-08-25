@@ -20,6 +20,7 @@ import {
   removeEstimateLine,
   resetEstimateLine,
   resetEstimateSection,
+  scopeEstimateOverrideToCurrentCatalog,
 } from "../state/estimate-edits.js";
 
 const TITLES = {
@@ -683,6 +684,24 @@ export default function Calculators({ type }) {
   );
   const setSetting = (group, key, value) =>
     commit((next) => {
+      const sipLineBySetting = {
+        floorPanelFamily: "sip:panel-floor",
+        floorThickness: "sip:panel-floor",
+        secondFloorPanelFamily: "sip:panel-secondFloor",
+        secondFloorThickness: "sip:panel-secondFloor",
+        wallPanelFamily: "sip:panel-walls",
+        wallThickness: "sip:panel-walls",
+        ceilingPanelFamily: "sip:panel-ceiling",
+        ceilingThickness: "sip:panel-ceiling",
+        partitionPanelFamily: "sip:panel-partitions",
+        partitionThickness: "sip:panel-partitions",
+      };
+      if (group === "sip" && sipLineBySetting[key]) {
+        scopeEstimateOverrideToCurrentCatalog(
+          next,
+          calculation.lines.find((line) => line.id === sipLineBySetting[key]),
+        );
+      }
       next.settings[group][key] = value;
       if (group === "engineering")
         next.settings.links.engineeringFromPlan = false;
@@ -802,6 +821,13 @@ export default function Calculators({ type }) {
               label="Пол всего дома"
               value={`${formatNumber(calculation.metrics.floorArea)} м²`}
             />
+            {(project.meta.floors || 1) > 1 ? (
+              <Stat
+                label="Пол 2 этажа"
+                value={`${formatNumber(calculation.metrics.secondFloorArea)} м²`}
+                tone="accent"
+              />
+            ) : null}
             <Stat
               label="Наружные стены"
               value={`${formatNumber(calculation.metrics.exteriorWallNetArea)} м²`}
@@ -809,6 +835,10 @@ export default function Calculators({ type }) {
             <Stat
               label="СИП-потолок"
               value={`${formatNumber(calculation.metrics.ceilingArea)} м²`}
+            />
+            <Stat
+              label="Цена панели потолка"
+              value={`${formatNumber(calculation.lines.find((line) => line.id === "sip:panel-ceiling")?.price || 0)} ₽/шт`}
             />
             <Stat
               label="Стыки панелей"
@@ -846,6 +876,37 @@ export default function Calculators({ type }) {
                 onChange={(value) => setSetting("sip", "floorThickness", value)}
                 options={PANEL_THICKNESSES}
               />
+              {(project.meta.floors || 1) > 1 ? (
+                <>
+                  <SelectField
+                    label="Тип панели пола 2 этажа"
+                    value={project.settings.sip.secondFloorPanelFamily || "pps"}
+                    onChange={(value) =>
+                      setSetting("sip", "secondFloorPanelFamily", value)
+                    }
+                    options={PANEL_FAMILIES}
+                  />
+                  <SelectField
+                    label="Толщина пола 2 этажа"
+                    value={project.settings.sip.secondFloorThickness || "224"}
+                    onChange={(value) =>
+                      setSetting("sip", "secondFloorThickness", value)
+                    }
+                    options={PANEL_THICKNESSES}
+                  />
+                  <SelectField
+                    label="Конструктив пола 2 этажа"
+                    value={project.settings.sip.secondFloorPanelWidth || "1.25"}
+                    onChange={(value) =>
+                      setSetting("sip", "secondFloorPanelWidth", value)
+                    }
+                    options={[
+                      { value: "1.25", label: "1250 мм · стандарт" },
+                      { value: "0.625", label: "625 мм · усиленный" },
+                    ]}
+                  />
+                </>
+              ) : null}
               <SelectField
                 label="Тип панели стен"
                 value={project.settings.sip.wallPanelFamily || "pps"}
@@ -974,6 +1035,13 @@ export default function Calculators({ type }) {
                 checked={project.services.sipFloor}
                 onChange={(value) => setService("sipFloor", value)}
               />
+              {(project.meta.floors || 1) > 1 ? (
+                <Toggle
+                  label="Пол 2 этажа"
+                  checked={project.services.sipSecondFloor !== false}
+                  onChange={(value) => setService("sipSecondFloor", value)}
+                />
+              ) : null}
               <Toggle
                 label="Наружные стены"
                 checked={project.services.sipWalls}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { buildCommercialScope } from '../src/react/calculations/commercial-scope.js';
 import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
-import { createBlankPlan, createDefaultProject, createProjectWithCurrentPrices, migrateProject } from '../src/react/state/project-model.js';
+import { createBlankPlan, createDefaultProject, createProjectWithCurrentPrices, ensureProjectFloorCount, migrateProject } from '../src/react/state/project-model.js';
 import { verifyPricePasscode } from '../src/react/security/price-access.js';
 import { moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
 
@@ -75,6 +75,56 @@ test('React project produces a priced estimate from one shared model', () => {
   assert.ok(result.totals.materials > 0);
   assert.ok(result.totals.labor > 0);
   assert.equal(result.totals.total, result.totals.materials + result.totals.labor);
+});
+
+test('second floor has its own plan and a separately priced interstory SIP floor', () => {
+  const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  project.upperFloors[0].rooms = [];
+  project.upperFloors[0].floorOpening = { width: 1, length: 2 };
+  project.settings.sip.secondFloorThickness = '174';
+  project.settings.sip.secondFloorPanelFamily = 'mineral-wool';
+  const result = calculateProject(project);
+  const cutting = result.sip.cutting.find((row) => row.key === 'secondFloor');
+  const panel = result.lines.find((line) => line.id === 'sip:panel-secondFloor');
+  assert.equal(result.metrics.floorCount, 2);
+  assert.equal(result.metrics.secondFloorArea, result.metrics.floorPlans[1].metrics.floorArea - 2);
+  assert.ok(cutting.panels > 0);
+  assert.equal(panel.catalogId, 'MAT-194');
+  assert.equal(panel.price, 10283);
+});
+
+test('reinforced second-floor layout adds cutting and joints without doubling panel purchases', () => {
+  const standard = createDefaultProject();
+  ensureProjectFloorCount(standard, 2);
+  standard.settings.sip.secondFloorPanelWidth = '1.25';
+  const standardResult = calculateProject(standard);
+  const reinforced = structuredClone(standard);
+  reinforced.settings.sip.secondFloorPanelWidth = '0.625';
+  const reinforcedResult = calculateProject(reinforced);
+  const standardCut = standardResult.sip.cutting.find((row) => row.key === 'secondFloor');
+  const reinforcedCut = reinforcedResult.sip.cutting.find((row) => row.key === 'secondFloor');
+  const standardJoinery = standardResult.sip.joinery.rows.find((row) => row.key === 'secondFloor');
+  const reinforcedJoinery = reinforcedResult.sip.joinery.rows.find((row) => row.key === 'secondFloor');
+  assert.equal(reinforcedCut.panels, standardCut.panels);
+  assert.ok(reinforcedCut.cutMeters > standardCut.cutMeters);
+  assert.ok(reinforcedJoinery.jointLength > standardJoinery.jointLength);
+});
+
+test('ceiling panel selection changes catalog price and ignores an override from another catalog item', () => {
+  const project = createDefaultProject();
+  project.estimateOverrides = [{
+    lineId: 'sip:panel-ceiling',
+    section: 'sip',
+    catalogId: 'MAT-012',
+    price: 1,
+  }];
+  assert.equal(calculateProject(project).lines.find((line) => line.id === 'sip:panel-ceiling').price, 1);
+  project.settings.sip.ceilingPanelFamily = 'mineral-wool';
+  project.settings.sip.ceilingThickness = '174';
+  const ceiling = calculateProject(project).lines.find((line) => line.id === 'sip:panel-ceiling');
+  assert.equal(ceiling.catalogId, 'MAT-194');
+  assert.equal(ceiling.price, 10283);
 });
 
 test('print plan and roof layers default independently and survive migration', () => {

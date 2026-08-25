@@ -14,6 +14,8 @@ import {
 } from "../components/ui.jsx";
 import { formatNumber } from "../utils/format.js";
 import { resizeProjectHouse } from "../planner/geometry.js";
+import { ensureProjectFloorCount } from "../state/project-model.js";
+import { scopeEstimateOverrideToCurrentCatalog } from "../state/estimate-edits.js";
 
 const thicknesses = ["124", "174", "224"].map((value) => ({
   value,
@@ -40,6 +42,7 @@ const serviceGroups = [
     [
       ["foundation", "Сваи и обвязка"],
       ["sipFloor", "SIP-пол"],
+      ["sipSecondFloor", "Межэтажное перекрытие / пол 2 этажа"],
       ["sipWalls", "SIP-стены"],
       ["sipCeiling", "SIP-потолок"],
       ["partitions", "Перегородки"],
@@ -144,6 +147,10 @@ export default function ParametersScreen() {
     path.split(".").reduce((value, key) => value?.[key], project);
   const write = (path, value, disableLink) =>
     commit((next) => {
+      if (path === "meta.floors") {
+        ensureProjectFloorCount(next, value);
+        return next;
+      }
       if (path === "plan.house.w" || path === "plan.house.h") {
         resizeProjectHouse(
           next,
@@ -165,6 +172,24 @@ export default function ParametersScreen() {
           next.settings.sip.partitionThickness = String(millimeters);
         }
         return next;
+      }
+      const sipLineByPath = {
+        "settings.sip.floorPanelFamily": "sip:panel-floor",
+        "settings.sip.floorThickness": "sip:panel-floor",
+        "settings.sip.secondFloorPanelFamily": "sip:panel-secondFloor",
+        "settings.sip.secondFloorThickness": "sip:panel-secondFloor",
+        "settings.sip.wallPanelFamily": "sip:panel-walls",
+        "settings.sip.wallThickness": "sip:panel-walls",
+        "settings.sip.ceilingPanelFamily": "sip:panel-ceiling",
+        "settings.sip.ceilingThickness": "sip:panel-ceiling",
+        "settings.sip.partitionPanelFamily": "sip:panel-partitions",
+        "settings.sip.partitionThickness": "sip:panel-partitions",
+      };
+      if (sipLineByPath[path]) {
+        scopeEstimateOverrideToCurrentCatalog(
+          next,
+          calculation.lines.find((line) => line.id === sipLineByPath[path]),
+        );
       }
       const keys = path.split(".");
       let target = next;
@@ -395,7 +420,7 @@ export default function ParametersScreen() {
                 value={project.meta.floors || 1}
                 suffix="шт"
                 min={1}
-                max={5}
+                max={2}
                 step={1}
                 onChange={(value) => write("meta.floors", Math.round(value))}
               />
@@ -608,6 +633,27 @@ export default function ParametersScreen() {
                 type: "select",
                 options: thicknesses,
               },
+              (project.meta.floors || 1) > 1 && {
+                path: "settings.sip.secondFloorPanelFamily",
+                label: "Тип панели пола 2 этажа",
+                type: "select",
+                options: panelFamilies,
+              },
+              (project.meta.floors || 1) > 1 && {
+                path: "settings.sip.secondFloorThickness",
+                label: "Толщина пола 2 этажа",
+                type: "select",
+                options: thicknesses,
+              },
+              (project.meta.floors || 1) > 1 && {
+                path: "settings.sip.secondFloorPanelWidth",
+                label: "Конструктив пола 2 этажа",
+                type: "select",
+                options: [
+                  { value: "1.25", label: "Стандарт · модуль 1250 мм" },
+                  { value: "0.625", label: "Усиленный · модуль 625 мм" },
+                ],
+              },
               {
                 path: "settings.sip.wallPanelFamily",
                 label: "Тип панели стен",
@@ -702,6 +748,30 @@ export default function ParametersScreen() {
                 ],
               },
             ])}
+            <div className="parameter-readouts">
+              {(project.meta.floors || 1) > 1 ? (
+                <>
+                <div className="readout">
+                  <span>Пол 2 этажа</span>
+                  <strong>{formatNumber(metrics.secondFloorArea)} м²</strong>
+                </div>
+                <div className="readout">
+                  <span>Панели пола 2 этажа</span>
+                  <strong>
+                    {calculation.sip.cutting.find((row) => row.key === "secondFloor")?.panels || 0} шт
+                  </strong>
+                </div>
+                </>
+              ) : null}
+                <div className="readout">
+                  <span>Цена панели потолка</span>
+                  <strong>
+                    {formatNumber(
+                      calculation.lines.find((line) => line.id === "sip:panel-ceiling")?.price || 0,
+                    )} ₽/шт
+                  </strong>
+                </div>
+            </div>
           </Section>
           <Section
             id="roof"

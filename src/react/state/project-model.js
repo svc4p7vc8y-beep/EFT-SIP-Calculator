@@ -6,7 +6,7 @@ import {
 } from "../calculations/calculation-links.js";
 import { bindingLinesFromPileRows } from "../calculations/foundation-model.js";
 
-export const REACT_PROJECT_VERSION = 90;
+export const REACT_PROJECT_VERSION = 91;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -296,6 +296,52 @@ export function createBlankPlan() {
   return plan;
 }
 
+/**
+ * Creates an editable upper-floor sheet from the current house contour.
+ * The first-floor plan remains the compatibility source for the foundation.
+ */
+export function createUpperFloorPlan(basePlan = createEmptyPlan()) {
+  const source = normalizePlan(basePlan);
+  return {
+    ...createBlankPlan(),
+    house: clone(source.house),
+    wallHeight: source.wallHeight,
+    wallThickness: source.wallThickness,
+    partitionThickness: source.partitionThickness,
+    zoom: source.zoom,
+    showPiles: false,
+    showBinding: false,
+    showPlan: true,
+    showRoof: false,
+    showDimensions: source.showDimensions !== false,
+    rooms: [],
+    walls: [],
+    wallGaps: [],
+    openings: [],
+    dimensions: [],
+    platforms: [],
+    piles: [],
+    pileRows: [],
+    bindingLines: [],
+    excludedPiles: [],
+    floorOpening: { width: 0, length: 0 },
+  };
+}
+
+export function ensureProjectFloorCount(project, requestedCount) {
+  const count = Math.max(1, Math.min(2, Math.round(Number(requestedCount) || 1)));
+  const existing = Array.isArray(project.upperFloors) ? project.upperFloors : [];
+  const upperFloors = existing
+    .slice(0, Math.max(0, count - 1))
+    .map((plan) => normalizePlan(plan));
+  while (upperFloors.length < count - 1) {
+    upperFloors.push(createUpperFloorPlan(project.plan));
+  }
+  project.meta = { ...(project.meta || {}), floors: count };
+  project.upperFloors = upperFloors;
+  return project;
+}
+
 export function createCompactPlan() {
   const e = 0.174;
   const plan = createEmptyPlan();
@@ -386,7 +432,7 @@ export function createDefaultProject() {
   const plan = createDefaultPlan();
   return {
     format: "eft-project",
-    schemaVersion: 3,
+    schemaVersion: 4,
     appVersion: REACT_PROJECT_VERSION,
     savedAt: new Date().toISOString(),
     meta: {
@@ -398,9 +444,11 @@ export function createDefaultProject() {
       floors: 1,
     },
     plan,
+    upperFloors: [],
     services: {
       foundation: true,
       sipFloor: true,
+      sipSecondFloor: true,
       sipWalls: true,
       sipCeiling: true,
       partitions: true,
@@ -435,6 +483,9 @@ export function createDefaultProject() {
         partitionThickness: "124",
         partitionPanelFamily: "pps",
         floorPanelWidth: "1.25",
+        secondFloorThickness: "224",
+        secondFloorPanelFamily: "pps",
+        secondFloorPanelWidth: "1.25",
         ceilingPanelWidth: "1.25",
         connectorType: "thermal",
         wastePercent: 5,
@@ -561,6 +612,10 @@ export function normalizePlan(plan) {
       ? plan.bindingLines
       : bindingLinesFromPileRows(normalizedPileRows),
     piles: plan.piles || [],
+    floorOpening: {
+      width: Math.max(0, Number(plan.floorOpening?.width) || 0),
+      length: Math.max(0, Number(plan.floorOpening?.length) || 0),
+    },
   };
 }
 
@@ -674,14 +729,25 @@ export function migrateProject(raw) {
   };
   const plan = normalizePlan(raw.plan);
   if (params[3]) plan.wallHeight = params[3];
+  const requestedFloorCount = Math.max(
+    1,
+    Math.min(2, Math.round(Number(meta.floors) || 1)),
+  );
+  const upperFloors = (Array.isArray(raw.upperFloors) ? raw.upperFloors : [])
+    .slice(0, requestedFloorCount - 1)
+    .map(normalizePlan);
+  while (upperFloors.length < requestedFloorCount - 1) {
+    upperFloors.push(createUpperFloorPlan(plan));
+  }
   return {
     ...base,
     ...raw,
     format: "eft-project",
-    schemaVersion: 3,
+    schemaVersion: 4,
     appVersion: REACT_PROJECT_VERSION,
-    meta: { ...base.meta, ...meta },
+    meta: { ...base.meta, ...meta, floors: requestedFloorCount },
     plan,
+    upperFloors,
     services: { ...base.services, ...(raw.services || {}) },
     settings: {
       ...base.settings,

@@ -1392,6 +1392,51 @@ select,
   border-radius: 10px;
   background: var(--panel);
 }
+.plan-floor-switcher,
+.mobile-floor-switcher {
+  display: inline-flex;
+  width: max-content;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #cedbc8;
+  border-radius: 10px;
+  background: #f3f7f0;
+}
+.plan-floor-switcher {
+  grid-column: 1 / -1;
+}
+.plan-floor-switcher button,
+.mobile-floor-switcher button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #455044;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.plan-floor-switcher button.active,
+.mobile-floor-switcher button.active {
+  background: #5d8f32;
+  color: #fff;
+}
+.plan-floor-switcher svg {
+  width: 15px;
+  height: 15px;
+}
+.mobile-floor-switcher {
+  position: absolute;
+  top: 12px;
+  left: 64px;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 14px rgba(26, 40, 24, 0.12);
+}
 .plan-transfer-status {
   display: flex;
   align-items: center;
@@ -3556,6 +3601,10 @@ select,
     grid-template-columns: 1fr;
     grid-template-rows: 54px 560px auto;
     overflow: visible;
+  }
+  .planner-shell:has(.planner-inspector .room-summary) {
+    grid-template-columns: 1fr;
+    grid-template-rows: 64px 570px auto;
   }
   .plan-status-bar {
     grid-template-columns: 1fr;

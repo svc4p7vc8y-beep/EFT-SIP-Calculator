@@ -260,6 +260,11 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
 
 const CUTTING_RULES = {
   floor: { label: "Пол", waste: 1, cutNorm: 0.701 },
+  secondFloor: {
+    label: "Межэтажное перекрытие / пол 2 этажа",
+    waste: 1,
+    cutNorm: 0.701,
+  },
   walls: { label: "Стены", waste: 1.05, cutNorm: 0.324 },
   ceiling: { label: "Потолок", waste: 1.03, cutNorm: 0.165 },
   partitions: { label: "Перегородки", waste: 1.05, cutNorm: 0.324 },
@@ -281,7 +286,8 @@ function calculateCuttingRows(keys, surfaces, options = {}) {
     const purchasedArea = panels * panelArea;
     const requestedLayoutWidth = Number(options.layoutWidths?.[key]);
     const layoutWidth =
-      ["floor", "ceiling"].includes(key) && requestedLayoutWidth > 0
+      ["floor", "secondFloor", "ceiling"].includes(key) &&
+      requestedLayoutWidth > 0
         ? Math.min(stockPanelWidth, requestedLayoutWidth)
         : stockPanelWidth;
     const stripsPerPanel = Math.max(
@@ -306,7 +312,9 @@ function calculateCuttingRows(keys, surfaces, options = {}) {
 }
 
 export function calculateSipCutting(surfaces, options = {}) {
-  const keys = ["floor", "walls", "ceiling"];
+  const keys = ["floor"];
+  if (options.includeSecondFloor === true) keys.push("secondFloor");
+  keys.push("walls", "ceiling");
   if (options.includePartitions === true) keys.push("partitions");
   if (options.includeGables === true) keys.push("gables");
   return calculateCuttingRows(keys, surfaces, options);

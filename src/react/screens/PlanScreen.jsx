@@ -65,6 +65,8 @@ import {
   createCompactPlan,
   createDefaultPlan,
   createBlankPlan,
+  createUpperFloorPlan,
+  ensureProjectFloorCount,
 } from "../state/project-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { formatNumber, uid } from "../utils/format.js";
@@ -4124,6 +4126,7 @@ function MobileSelectionAdjuster({
 export default function PlanScreen({ onNavigate }) {
   const { project, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
+  const [activeFloor, setActiveFloor] = useState(1);
   const [activeLayer, setActiveLayer] = useState("plan");
   const [selected, setSelected] = useState(null);
   const [polygonDraft, setPolygonDraft] = useState([]);
@@ -4147,7 +4150,11 @@ export default function PlanScreen({ onNavigate }) {
   const planFileRef = useRef(null);
   const [customSketches, setCustomSketches] = useState(getStoredSketches);
   const [sketchId, setSketchId] = useState("photo-plan");
-  const plan = project.plan;
+  const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
+  const plan =
+    activeFloor === 1
+      ? project.plan
+      : project.upperFloors?.[activeFloor - 2] || project.plan;
   const visibleLayers = {
     piles: plan.showPiles !== false,
     binding: plan.showBinding !== false,
@@ -4157,16 +4164,23 @@ export default function PlanScreen({ onNavigate }) {
   const commitPlan = useCallback(
     (mutate) =>
       commit((next) => {
-        mutate(next.plan);
+        if (activeFloor === 1) mutate(next.plan);
+        else {
+          ensureProjectFloorCount(next, Math.max(2, activeFloor));
+          mutate(next.upperFloors[activeFloor - 2]);
+        }
         return next;
       }),
-    [commit],
+    [activeFloor, commit],
   );
   const changeWallThickness = useCallback(
     (millimeters) =>
       commit((next) => {
         const thickness = Number(millimeters) || 174;
         next.plan.wallThickness = thickness / 1000;
+        (next.upperFloors || []).forEach((floorPlan) => {
+          floorPlan.wallThickness = thickness / 1000;
+        });
         next.settings.sip.wallThickness = String(thickness);
         return next;
       }),
@@ -4176,21 +4190,28 @@ export default function PlanScreen({ onNavigate }) {
     (millimeters) =>
       commit((next) => {
         const thickness = Number(millimeters) || 100;
-        next.plan.partitionThickness = thickness / 1000;
+        const target =
+          activeFloor === 1 ? next.plan : next.upperFloors?.[activeFloor - 2];
+        if (target) target.partitionThickness = thickness / 1000;
         if ([124, 174, 224].includes(thickness)) {
           next.settings.sip.partitionThickness = String(thickness);
         }
         return next;
       }),
-    [commit],
+    [activeFloor, commit],
   );
   const resizeHouse = useCallback(
     (width, height) =>
       commit((next) => {
-        resizeProjectHouse(next, width, height);
+        if (activeFloor === 1) resizeProjectHouse(next, width, height);
+        else {
+          ensureProjectFloorCount(next, activeFloor);
+          const target = next.upperFloors[activeFloor - 2];
+          resizePlanToHouse(target, width, height);
+        }
         return next;
       }),
-    [commit],
+    [activeFloor, commit],
   );
   const commitRoof = useCallback(
     (key, value) =>
@@ -4204,9 +4225,21 @@ export default function PlanScreen({ onNavigate }) {
   );
   const metrics = useMemo(() => calculatePlanMetrics(plan), [plan]);
   const foundation = useMemo(
-    () => calculateFoundation(plan, project.settings.piles),
-    [plan, project.settings.piles],
+    () => calculateFoundation(project.plan, project.settings.piles),
+    [project.plan, project.settings.piles],
   );
+  useEffect(() => {
+    if (activeFloor > floorCount) setActiveFloor(floorCount);
+  }, [activeFloor, floorCount]);
+  const addSecondFloor = () => {
+    commit((next) => {
+      ensureProjectFloorCount(next, 2);
+      return next;
+    });
+    setActiveFloor(2);
+    setSelected(null);
+    setTool("select");
+  };
   const issues = useMemo(() => planIssues(plan), [plan]);
   const sketches = useMemo(
     () => [
@@ -4222,6 +4255,13 @@ export default function PlanScreen({ onNavigate }) {
     [customSketches],
   );
   const selectTool = (id) => {
+    if (
+      activeFloor !== 1 &&
+      ["pile", "pileRow", "bindingLine", "terrace", "porch"].includes(id)
+    ) {
+      setTransferStatus("Сваи, обвязка, терраса и крыльцо редактируются на 1 этаже");
+      return;
+    }
     setTool(id);
     if (!["polygon", "houseContour"].includes(id)) setPolygonDraft([]);
     if (["pile", "pileRow"].includes(id)) {
@@ -4244,6 +4284,10 @@ export default function PlanScreen({ onNavigate }) {
       });
   };
   const setLayerVisible = (id, value) => {
+    if (activeFloor !== 1 && ["piles", "binding"].includes(id)) {
+      setTransferStatus("Свайное поле и обвязка редактируются на 1 этаже");
+      return;
+    }
     const field = {
       piles: "showPiles",
       binding: "showBinding",
@@ -4346,7 +4390,18 @@ export default function PlanScreen({ onNavigate }) {
     )
       return;
     commit((next) => {
-      next.plan = structuredClone(sketch.plan);
+      if (activeFloor === 1) next.plan = structuredClone(sketch.plan);
+      else {
+        ensureProjectFloorCount(next, 2);
+        const upper = structuredClone(sketch.plan);
+        upper.showPiles = false;
+        upper.showBinding = false;
+        upper.piles = [];
+        upper.pileRows = [];
+        upper.bindingLines = [];
+        upper.platforms = [];
+        next.upperFloors[activeFloor - 2] = upper;
+      }
       return next;
     });
     setSelected(null);
@@ -4355,7 +4410,11 @@ export default function PlanScreen({ onNavigate }) {
   };
   const newPlan = () => {
     commit((next) => {
-      next.plan = createBlankPlan();
+      if (activeFloor === 1) next.plan = createBlankPlan();
+      else {
+        ensureProjectFloorCount(next, 2);
+        next.upperFloors[activeFloor - 2] = createUpperFloorPlan(next.plan);
+      }
       return next;
     });
     setSketchId("empty");
@@ -4413,6 +4472,10 @@ export default function PlanScreen({ onNavigate }) {
     }
   };
   const autoPiles = () => {
+    if (activeFloor !== 1) {
+      setTransferStatus("Свайное поле редактируется на 1 этаже");
+      return;
+    }
     commitPlan((next) => {
       next.pileRows = generateAutoPileRows(
         next,
@@ -4425,6 +4488,10 @@ export default function PlanScreen({ onNavigate }) {
     setTool("select");
   };
   const autoBinding = () => {
+    if (activeFloor !== 1) {
+      setTransferStatus("Обвязка редактируется на 1 этаже");
+      return;
+    }
     const vertical = Math.max(
       2,
       Math.min(24, Math.round(Number(bindingVerticalRows) || 4)),
@@ -4564,6 +4631,26 @@ export default function PlanScreen({ onNavigate }) {
         >
           <ChevronLeft />
         </button>
+        <div className="mobile-floor-switcher" aria-label="Выбор этажа">
+          <button
+            type="button"
+            className={activeFloor === 1 ? "active" : ""}
+            onClick={() => setActiveFloor(1)}
+          >
+            1 этаж
+          </button>
+          {floorCount > 1 ? (
+            <button
+              type="button"
+              className={activeFloor === 2 ? "active" : ""}
+              onClick={() => setActiveFloor(2)}
+            >
+              2 этаж
+            </button>
+          ) : (
+            <button type="button" onClick={addSecondFloor}>+ этаж</button>
+          )}
+        </div>
         <details className="mobile-project-menu">
           <summary className="mobile-project-chip">
             <strong>Дом № {project.meta?.projectNum || "0001"}</strong>
@@ -4959,6 +5046,28 @@ export default function PlanScreen({ onNavigate }) {
         </div>
       ) : null}
       <div className="plan-status-bar">
+        <div className="plan-floor-switcher" aria-label="Выбор этажа">
+          <button
+            type="button"
+            className={activeFloor === 1 ? "active" : ""}
+            onClick={() => setActiveFloor(1)}
+          >
+            1 этаж
+          </button>
+          {floorCount > 1 ? (
+            <button
+              type="button"
+              className={activeFloor === 2 ? "active" : ""}
+              onClick={() => setActiveFloor(2)}
+            >
+              2 этаж
+            </button>
+          ) : (
+            <button type="button" className="add-floor" onClick={addSecondFloor}>
+              <Plus /> Второй этаж
+            </button>
+          )}
+        </div>
         <div className="plan-house-fields">
           <NumberField
             label="Длина"
@@ -4997,6 +5106,48 @@ export default function PlanScreen({ onNavigate }) {
             options={PARTITION_THICKNESS_OPTIONS}
             onChange={changePartitionThickness}
           />
+          {activeFloor === 2 ? (
+            <>
+              <SelectField
+                label="Пол 2 этажа"
+                value={project.settings.sip.secondFloorPanelWidth || "1.25"}
+                options={[
+                  { value: "1.25", label: "Стандарт · 1250 мм" },
+                  { value: "0.625", label: "Усиленный · 625 мм" },
+                ]}
+                onChange={(value) =>
+                  commit((next) => {
+                    next.settings.sip.secondFloorPanelWidth = value;
+                    return next;
+                  })
+                }
+              />
+              <NumberField
+                label="Проём лестницы — ширина"
+                value={plan.floorOpening?.width || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
+                onChange={(value) =>
+                  commitPlan((next) => {
+                    next.floorOpening = { ...(next.floorOpening || {}), width: value };
+                  })
+                }
+              />
+              <NumberField
+                label="Проём лестницы — длина"
+                value={plan.floorOpening?.length || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
+                onChange={(value) =>
+                  commitPlan((next) => {
+                    next.floorOpening = { ...(next.floorOpening || {}), length: value };
+                  })
+                }
+              />
+            </>
+          ) : null}
         </div>
         <div className="plan-view-switches">
           <Toggle
@@ -5198,7 +5349,7 @@ export default function PlanScreen({ onNavigate }) {
       </div>
       <div className="stats-row planner-stats">
         <Stat
-          label="Пол всего дома"
+          label={`Площадь контура ${activeFloor} этажа`}
           value={`${formatNumber(metrics.floorArea)} м²`}
         />
         <Stat
@@ -5209,9 +5360,9 @@ export default function PlanScreen({ onNavigate }) {
           label="Наружные стены"
           value={`${formatNumber(metrics.exteriorWallNetArea)} м²`}
         />
-        <Stat label="Сваи" value={`${foundation.totalPiles} шт`} />
+        <Stat label="Сваи · основание дома" value={`${foundation.totalPiles} шт`} />
         <Stat
-          label="Обвязка"
+          label="Обвязка · основание дома"
           value={`${formatNumber(foundation.bindingLength)} м · ${foundation.boardCount} досок × 6 м`}
         />
         <Stat

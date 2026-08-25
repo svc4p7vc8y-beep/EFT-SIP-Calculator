@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDefaultProject } from '../src/react/state/project-model.js';
+import { createDefaultProject, ensureProjectFloorCount } from '../src/react/state/project-model.js';
 import { applyPlanTransfer, createPlanTransfer, validatePlanTransfer } from '../src/react/storage/plan-transfer.js';
 
 test('shared plan file keeps full geometry and construction settings without prices', () => {
@@ -35,4 +35,23 @@ test('plan loader accepts a complete EFT project and rejects files without a pla
   const project = createDefaultProject();
   assert.equal(validatePlanTransfer(project).plan.rooms.length, project.plan.rooms.length);
   assert.throws(() => validatePlanTransfer({ format: 'eft-price-catalog' }), /не найден корректный план/);
+});
+
+test('shared plan keeps the second-floor drawing and interstory-floor settings', () => {
+  const source = createDefaultProject();
+  ensureProjectFloorCount(source, 2);
+  source.upperFloors[0].rooms.push({
+    id: 'upper-room',
+    name: 'Спальня 2 этаж',
+    x: 0.174,
+    y: 0.174,
+    w: 3,
+    h: 4,
+    include: true,
+  });
+  source.settings.sip.secondFloorPanelWidth = '0.625';
+  const opened = applyPlanTransfer(createDefaultProject(), createPlanTransfer(source));
+  assert.equal(opened.meta.floors, 2);
+  assert.equal(opened.upperFloors[0].rooms.at(-1).name, 'Спальня 2 этаж');
+  assert.equal(opened.settings.sip.secondFloorPanelWidth, '0.625');
 });

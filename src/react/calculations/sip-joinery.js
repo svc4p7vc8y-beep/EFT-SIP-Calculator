@@ -165,23 +165,56 @@ export function calculateSipJoinery(
     panelWidth,
     Math.max(0.2, Number(sipSettings.ceilingPanelWidth) || panelWidth),
   );
+  const secondFloorLayoutWidth = Math.min(
+    panelWidth,
+    Math.max(0.2, Number(sipSettings.secondFloorPanelWidth) || panelWidth),
+  );
   const reserve =
     1 + Math.max(0, Number(formulas.sipTimberReservePercent) || 5) / 100;
   const perimeter = 2 * (width + height);
-  const wallSeams = (wallLength) =>
-    Math.max(0, Math.ceil(wallLength / panelWidth) - 1) * wallHeight +
-    Math.max(0, Math.ceil(wallHeight / panelLength) - 1) * wallLength;
-  const wallJointLength = 2 * wallSeams(width) + 2 * wallSeams(height);
-  const openingEdgeLength = (plan.openings || []).reduce(
-    (sum, opening) =>
-      opening.outer === false
-        ? sum
-        : sum +
-          2 *
-            (Math.max(0, Number(opening.width) || 0) +
-              Math.max(0, Number(opening.height) || 0)),
-    0,
+  const floorPlans = metrics.floorPlans?.length
+    ? metrics.floorPlans
+    : [{ plan, metrics }];
+  const wallAssembly = floorPlans.reduce(
+    (total, item) => {
+      const currentPlan = item.plan;
+      const currentWidth = Math.max(0, Number(currentPlan.house?.w) || 0);
+      const currentHeight = Math.max(0, Number(currentPlan.house?.h) || 0);
+      const currentWallHeight = Math.max(0, Number(currentPlan.wallHeight) || 2.5);
+      const currentPerimeter = 2 * (currentWidth + currentHeight);
+      const wallSeams = (wallLength) =>
+        Math.max(0, Math.ceil(wallLength / panelWidth) - 1) * currentWallHeight +
+        Math.max(0, Math.ceil(currentWallHeight / panelLength) - 1) * wallLength;
+      const openingEdges = (currentPlan.openings || []).reduce(
+        (sum, opening) =>
+          opening.outer === false
+            ? sum
+            : sum +
+              2 *
+                (Math.max(0, Number(opening.width) || 0) +
+                  Math.max(0, Number(opening.height) || 0)),
+        0,
+      );
+      return {
+        joints: total.joints + 2 * wallSeams(currentWidth) + 2 * wallSeams(currentHeight),
+        edges:
+          total.edges +
+          2 * currentPerimeter +
+          4 * currentWallHeight +
+          openingEdges,
+      };
+    },
+    { joints: 0, edges: 0 },
   );
+  const topPlan = floorPlans.at(-1)?.plan || plan;
+  const topWidth = Math.max(0, Number(topPlan.house?.w) || width);
+  const topHeight = Math.max(0, Number(topPlan.house?.h) || height);
+  const topPerimeter = 2 * (topWidth + topHeight);
+  const secondPlan = floorPlans[1]?.plan;
+  const secondWidth = Math.max(0, Number(secondPlan?.house?.w) || 0);
+  const secondHeight = Math.max(0, Number(secondPlan?.house?.h) || 0);
+  const openingWidth = Math.max(0, Number(secondPlan?.floorOpening?.width) || 0);
+  const openingLength = Math.max(0, Number(secondPlan?.floorOpening?.length) || 0);
   const rows = [
     services.sipFloor
       ? {
@@ -203,8 +236,27 @@ export function calculateSipJoinery(
           key: "walls",
           label: "Наружные стены",
           thickness: sipSettings.wallThickness,
-          jointLength: wallJointLength,
-          endBoardLength: 2 * perimeter + 4 * wallHeight + openingEdgeLength,
+          jointLength: wallAssembly.joints,
+          endBoardLength: wallAssembly.edges,
+        }
+      : null,
+    services.sipSecondFloor && Number(metrics.secondFloorArea) > 0
+      ? {
+          key: "secondFloor",
+          label: "Межэтажное перекрытие / пол 2 этажа",
+          thickness: sipSettings.secondFloorThickness,
+          layoutWidth: secondFloorLayoutWidth,
+          jointLength: gridJointLength(
+            secondWidth,
+            secondHeight,
+            secondFloorLayoutWidth,
+            panelLength,
+          ),
+          endBoardLength:
+            2 * (secondWidth + secondHeight) +
+            (openingWidth > 0 && openingLength > 0
+              ? 2 * (openingWidth + openingLength)
+              : 0),
         }
       : null,
     services.sipCeiling
@@ -214,12 +266,12 @@ export function calculateSipJoinery(
           thickness: sipSettings.ceilingThickness,
           layoutWidth: ceilingLayoutWidth,
           jointLength: gridJointLength(
-            width,
-            height,
+            topWidth,
+            topHeight,
             ceilingLayoutWidth,
             panelLength,
           ),
-          endBoardLength: perimeter,
+          endBoardLength: topPerimeter,
         }
       : null,
     services.partitions &&
