@@ -17,21 +17,73 @@ test('new blank plan starts without a contour, piles or binding', () => {
   assert.deepEqual(plan.bindingLines, []);
 });
 
+test('empty upper-floor foundation data stays empty after normalization', () => {
+  const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  assert.deepEqual(project.upperFloors[0].pileRows, []);
+  assert.deepEqual(project.upperFloors[0].bindingLines, []);
+
+  ensureProjectFloorCount(project, 2);
+
+  assert.deepEqual(project.upperFloors[0].pileRows, []);
+  assert.deepEqual(project.upperFloors[0].bindingLines, []);
+  const restored = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.deepEqual(restored.upperFloors[0].pileRows, []);
+  assert.deepEqual(restored.upperFloors[0].bindingLines, []);
+});
+
 test('house resize keeps rooms, roof, pile rows and binding on the same scaled axes', () => {
   const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  project.upperFloors[0].rooms.push({
+    id: 'upper-room', name: 'Комната 2 этаж', include: true,
+    points: [{ x: 1, y: 1 }, { x: 4, y: 1 }, { x: 4, y: 3 }, { x: 1, y: 3 }],
+  });
+  project.upperFloors[0].walls.push({ id: 'upper-wall', x1: 4, y1: 1, x2: 4, y2: 6 });
+  project.upperFloors[0].openings.push({
+    id: 'upper-window', type: 'window', width: 1.2, height: 1.4,
+    x: 4, y: 2, orientation: 'v', outer: false,
+  });
+  project.upperFloors[0].floorOpening = { x: 2, y: 1, width: 1, length: 2 };
   project.settings.links.roofRidgeFromPlan = false;
   project.settings.roof.ridgeLength = project.plan.house.w;
   const roomPoint = { ...project.plan.rooms[0].points[1] };
   const pileEnd = project.plan.pileRows[0].x2;
   const bindingEnd = project.plan.bindingLines[0].x2;
+  const upperHouse = { ...project.upperFloors[0].house };
+  const beforeResize = calculateProject(project);
 
   resizeProjectHouse(project, project.plan.house.w * 1.2, project.plan.house.h * 1.5);
+  const afterResize = calculateProject(project);
 
   assert.equal(project.plan.rooms[0].points[1].x, Math.round(roomPoint.x * 1.2 * 1000) / 1000);
   assert.equal(project.plan.rooms[0].points[1].y, Math.round(roomPoint.y * 1.5 * 1000) / 1000);
   assert.equal(project.plan.pileRows[0].x2, Math.round(pileEnd * 1.2 * 1000) / 1000);
   assert.equal(project.plan.bindingLines[0].x2, Math.round(bindingEnd * 1.2 * 1000) / 1000);
   assert.equal(project.settings.roof.ridgeLength, project.plan.house.w);
+  assert.equal(project.upperFloors[0].house.w, Math.round(upperHouse.w * 1.2 * 1000) / 1000);
+  assert.equal(project.upperFloors[0].house.h, Math.round(upperHouse.h * 1.5 * 1000) / 1000);
+  assert.deepEqual(project.upperFloors[0].floorOpening, {
+    x: 2.4, y: 1.5, width: 1.2, length: 3,
+  });
+  assert.deepEqual(project.upperFloors[0].walls[0], {
+    id: 'upper-wall', x1: 4.8, y1: 1.5, x2: 4.8, y2: 9,
+  });
+  assert.equal(project.upperFloors[0].openings[0].x, 4.8);
+  assert.equal(project.upperFloors[0].openings[0].y, 3);
+  assert.ok(
+    Math.abs(
+      afterResize.metrics.floorPlans[0].metrics.floorArea -
+        beforeResize.metrics.floorPlans[0].metrics.floorArea * 1.8,
+    ) < 0.02,
+  );
+  assert.ok(
+    Math.abs(
+      afterResize.metrics.floorPlans[1].metrics.floorArea -
+        beforeResize.metrics.floorPlans[1].metrics.floorArea * 1.8,
+    ) < 0.02,
+  );
+  assert.equal(afterResize.metrics.secondFloorOpeningArea, 3.6);
 });
 
 test('moving a partition keeps adjoining partitions connected', () => {
@@ -84,6 +136,12 @@ test('floor changes release linked quantities but preserve project prices', () =
       qty: 4,
       price: 8888,
     },
+    {
+      lineId: 'roof:covering',
+      section: 'roof',
+      qty: 12,
+      price: 9999,
+    },
   ];
 
   releasePlanLinkedQuantityOverrides(project);
@@ -94,8 +152,10 @@ test('floor changes release linked quantities but preserve project prices', () =
     catalogId: 'MAT-010',
     price: 7777,
   });
-  assert.equal(project.estimateOverrides[1].qty, 4);
+  assert.equal(project.estimateOverrides[1].qty, undefined);
   assert.equal(project.estimateOverrides[1].price, 8888);
+  assert.equal(project.estimateOverrides[2].qty, undefined);
+  assert.equal(project.estimateOverrides[2].price, 9999);
 });
 
 test('React project produces a priced estimate from one shared model', () => {
@@ -647,6 +707,22 @@ test('optional gutter adds a fully priced material and labor set', () => {
   assert.equal(result.roof.gutterLength, result.roof.mainEaveLength);
   assert.ok(result.roof.gutterOutlets >= 2);
   assert.ok(result.roof.downpipeLength > 0);
+});
+
+test('two-storey gutter downpipes use the total facade height of both floors', () => {
+  const project = createDefaultProject();
+  project.settings.roof.includeGutter = true;
+  ensureProjectFloorCount(project, 2);
+  project.plan.wallHeight = 2.5;
+  project.upperFloors[0].wallHeight = 3;
+
+  const result = calculateProject(project);
+
+  assert.equal(result.roof.gutterOutlets, 2);
+  assert.equal(result.roof.downpipeLength, 11);
+  assert.equal(result.roof.downpipeClamps, 10);
+  assert.equal(result.lines.find((line) => line.id === 'roof:downpipes').qty, 11);
+  assert.equal(result.lines.find((line) => line.id === 'roof:downpipe-work').qty, 11);
 });
 
 test('optional roof trims can be removed while ridge remains included', () => {

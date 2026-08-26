@@ -37,7 +37,10 @@ export function scopeEstimateOverrideToCurrentCatalog(project, line) {
 
 export function releasePlanLinkedQuantityOverrides(project) {
   const linkedSections = new Set([
+    "foundation",
     "sip",
+    "roof",
+    "terrace",
     "openings",
     "engineering",
     "internal",

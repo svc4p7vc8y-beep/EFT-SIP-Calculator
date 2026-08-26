@@ -4348,6 +4348,7 @@ export default function PlanScreen({ onNavigate }) {
           ensureProjectFloorCount(next, Math.max(2, activeFloor));
           mutate(next.upperFloors[activeFloor - 2]);
         }
+        releasePlanLinkedQuantityOverrides(next);
         return next;
       }),
     [activeFloor, commit],
@@ -4399,6 +4400,7 @@ export default function PlanScreen({ onNavigate }) {
           const target = next.upperFloors[activeFloor - 2];
           resizePlanToHouse(target, width, height);
         }
+        releasePlanLinkedQuantityOverrides(next);
         return next;
       }),
     [activeFloor, commit],

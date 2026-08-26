@@ -193,12 +193,30 @@ export function resizePlanToHouse(plan, width, height) {
     gap.x = roundCoord((Number(gap.x) || 0) * scaleX);
     gap.y = roundCoord((Number(gap.y) || 0) * scaleY);
   }
+  if (plan.floorOpening) {
+    plan.floorOpening.x = roundCoord((Number(plan.floorOpening.x) || 0) * scaleX);
+    plan.floorOpening.y = roundCoord((Number(plan.floorOpening.y) || 0) * scaleY);
+    plan.floorOpening.width = roundCoord(
+      (Number(plan.floorOpening.width) || 0) * scaleX,
+    );
+    plan.floorOpening.length = roundCoord(
+      (Number(plan.floorOpening.length) || 0) * scaleY,
+    );
+  }
   return { scaleX, scaleY };
 }
 
 export function resizeProjectHouse(project, width, height) {
   const oldWidth = Math.max(0.001, Number(project?.plan?.house?.w) || 0.001);
+  const oldHeight = Math.max(0.001, Number(project?.plan?.house?.h) || 0.001);
   const result = resizePlanToHouse(project.plan, width, height);
+  for (const upperPlan of project.upperFloors || []) {
+    resizePlanToHouse(
+      upperPlan,
+      (Number(upperPlan.house?.w) || oldWidth) * result.scaleX,
+      (Number(upperPlan.house?.h) || oldHeight) * result.scaleY,
+    );
+  }
   if (project.settings?.links?.roofRidgeFromPlan === false && Number.isFinite(Number(project.settings?.roof?.ridgeLength))) {
     project.settings.roof.ridgeLength = roundCoord(Number(project.settings.roof.ridgeLength) * (Number(width) || oldWidth) / oldWidth);
   }

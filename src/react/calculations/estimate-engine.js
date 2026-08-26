@@ -1252,14 +1252,25 @@ function roofSection(project, metrics, index, inputs) {
           Math.ceil(houseLength / inputs.formulas.gutterOutletSpacing),
       )
     : 0;
-  const downpipeLength =
-    gutterOutlets * Math.max(0, Number(project.plan.wallHeight) || 2.5);
+  const activeFloorCount = Math.max(
+    1,
+    Math.min(2, Math.round(Number(project.meta?.floors) || 1)),
+  );
+  const activeFloorPlans = [
+    project.plan,
+    ...(project.upperFloors || []).slice(0, activeFloorCount - 1),
+  ];
+  const facadeHeight = activeFloorPlans.reduce(
+    (sum, floorPlan) =>
+      sum + Math.max(0, Number(floorPlan?.wallHeight) || 2.5),
+    0,
+  );
+  const downpipeLength = gutterOutlets * facadeHeight;
   const gutterElbows = gutterOutlets * 2;
   const downpipeClamps =
     gutterOutlets *
     (Math.ceil(
-      (Number(project.plan.wallHeight) || 2.5) /
-        inputs.formulas.downpipeClampSpacing,
+      facadeHeight / inputs.formulas.downpipeClampSpacing,
     ) +
       1);
   const lines = applyMainRoofComplexity(compact([

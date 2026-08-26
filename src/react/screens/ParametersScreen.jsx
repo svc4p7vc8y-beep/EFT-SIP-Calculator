@@ -188,6 +188,7 @@ export default function ParametersScreen() {
           path === "plan.house.w" ? value : next.plan.house.w,
           path === "plan.house.h" ? value : next.plan.house.h,
         );
+        releasePlanLinkedQuantityOverrides(next);
         return next;
       }
       if (path === "plan.wallHeight") {
@@ -195,6 +196,7 @@ export default function ParametersScreen() {
         (next.upperFloors || []).forEach((floorPlan) => {
           floorPlan.wallHeight = value;
         });
+        releasePlanLinkedQuantityOverrides(next);
         return next;
       }
       if (path === "plan.wallThickness") {
@@ -256,6 +258,7 @@ export default function ParametersScreen() {
         target = target[key];
       });
       target[keys.at(-1)] = value;
+      releasePlanLinkedQuantityOverrides(next);
       return next;
     });
   const fields = (definitions, columns = "four") => (

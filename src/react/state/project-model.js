@@ -10,7 +10,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 96;
+export const REACT_PROJECT_VERSION = 97;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -591,7 +591,7 @@ export function createProjectWithCurrentPrices(currentProject) {
 export function normalizePlan(plan) {
   const fallback = createDefaultPlan();
   if (!plan?.house || !Array.isArray(plan.rooms)) return fallback;
-  const normalizedPileRows = plan.pileRows?.length
+  const normalizedPileRows = Array.isArray(plan.pileRows)
     ? plan.pileRows
     : fallback.pileRows;
   const house = { ...fallback.house, ...plan.house };
