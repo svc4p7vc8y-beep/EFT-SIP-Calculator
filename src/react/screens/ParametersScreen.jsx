@@ -243,6 +243,8 @@ export default function ParametersScreen() {
         target = target[key];
       });
       target[keys.at(-1)] = value;
+      if (path.startsWith("settings.roof.") && !path.includes(".show"))
+        releasePlanLinkedQuantityOverrides(next);
       if (disableLink) next.settings.links[disableLink] = false;
       return next;
     });
@@ -865,6 +867,15 @@ export default function ParametersScreen() {
                 label: "Форма",
                 type: "select",
                 options: roofShapes,
+              },
+              {
+                path: "settings.roof.ridgeAxis",
+                label: "Направление конька",
+                type: "select",
+                options: [
+                  { value: "x", label: "Вдоль длины дома" },
+                  { value: "y", label: "Вдоль ширины дома" },
+                ],
               },
               {
                 path: "settings.roof.covering",

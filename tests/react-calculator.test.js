@@ -8,6 +8,7 @@ import { createBlankPlan, createDefaultProject, createProjectWithCurrentPrices, 
 import { verifyPricePasscode } from '../src/react/security/price-access.js';
 import { fitFloorOpening, moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
 import { releasePlanLinkedQuantityOverrides } from '../src/react/state/estimate-edits.js';
+import { resolveRoofAxes } from '../src/calculations/roof-orientation.js';
 
 test('new blank plan starts without a contour, piles or binding', () => {
   const plan = createBlankPlan();
@@ -570,6 +571,41 @@ test('main roof overhangs increase covering, rafters, ridge, trims and gutter le
   assert.equal(withOverhangs.roof.mainEaveLength, withoutOverhangs.roof.mainEaveLength + 1.2);
   assert.ok(withOverhangs.roof.mainVergeLength > withoutOverhangs.roof.mainVergeLength);
   assert.equal(withOverhangs.roof.gutterLength, withOverhangs.roof.mainEaveLength);
+});
+
+test('roof direction rotates the ridge and swaps the calculation axes', () => {
+  const project = createDefaultProject();
+  project.settings.roof.shape = 'gable';
+  project.settings.roof.ridgeAxis = 'x';
+  const alongLength = calculateProject(project);
+  const lengthAxes = resolveRoofAxes(project.plan, project.settings.roof);
+
+  project.settings.roof.ridgeAxis = 'y';
+  const alongWidth = calculateProject(project);
+  const widthAxes = resolveRoofAxes(project.plan, project.settings.roof);
+
+  assert.equal(lengthAxes.ridgeBaseLength, project.plan.house.w);
+  assert.equal(lengthAxes.span, project.plan.house.h);
+  assert.equal(widthAxes.ridgeBaseLength, project.plan.house.h);
+  assert.equal(widthAxes.span, project.plan.house.w);
+  assert.equal(alongLength.inputs.roof.ridgeLength, project.plan.house.w + alongLength.inputs.formulas.roofRidgeExtra);
+  assert.equal(alongWidth.inputs.roof.ridgeLength, project.plan.house.h + alongWidth.inputs.formulas.roofRidgeExtra);
+  assert.equal(alongLength.roof.rafterStructure.frameLength, project.plan.house.w);
+  assert.equal(alongWidth.roof.rafterStructure.frameLength, project.plan.house.h);
+  assert.notEqual(alongLength.roof.geometry.totalSlopeArea, alongWidth.roof.geometry.totalSlopeArea);
+  assert.notEqual(alongLength.roof.gableArea, alongWidth.roof.gableArea);
+});
+
+test('manual ridge length is preserved when the roof direction changes', () => {
+  const project = createDefaultProject();
+  project.settings.links.roofRidgeFromPlan = false;
+  project.settings.roof.ridgeLength = 7.25;
+  project.settings.roof.ridgeAxis = 'y';
+  const calculation = calculateProject(project);
+
+  assert.equal(calculation.inputs.roof.ridgeLength, 7.25);
+  assert.equal(calculation.inputs.roof.span, project.plan.house.w);
+  assert.equal(calculation.inputs.roof.ridgeBaseLength, project.plan.house.h);
 });
 
 test('main roof switches to one flat plane without ridge and gables', () => {

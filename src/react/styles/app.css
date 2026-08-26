@@ -1504,6 +1504,28 @@ select,
   border: 0;
   gap: 7px;
 }
+.roof-rotate-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #b9cfad;
+  border-radius: 8px;
+  background: #eef6e9;
+  color: #315d27;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.roof-rotate-button:hover {
+  background: #dfeeda;
+}
+.roof-rotate-button svg {
+  width: 15px;
+  height: 15px;
+}
 .zoom-controls {
   display: flex;
   align-items: center;

@@ -18,6 +18,7 @@ import {
   addEstimateLine,
   changeEstimateLine,
   removeEstimateLine,
+  releasePlanLinkedQuantityOverrides,
   resetEstimateLine,
   resetEstimateSection,
   scopeEstimateOverrideToCurrentCatalog,
@@ -339,6 +340,15 @@ function RoofConstructionPanels({
                 { value: "gable", label: "Двускатная" },
                 { value: "hip", label: "Вальмовая" },
                 { value: "flat", label: "Плоская" },
+              ]}
+            />
+            <SelectField
+              label="Направление конька"
+              value={project.settings.roof.ridgeAxis === "y" ? "y" : "x"}
+              onChange={(value) => setSetting("roof", "ridgeAxis", value)}
+              options={[
+                { value: "x", label: "Вдоль длины дома" },
+                { value: "y", label: "Вдоль ширины дома" },
               ]}
             />
             <SelectField
@@ -838,6 +848,8 @@ export default function Calculators({ type }) {
         );
       }
       next.settings[group][key] = value;
+      if (group === "roof" && !key.startsWith("show"))
+        releasePlanLinkedQuantityOverrides(next);
       if (group === "engineering")
         next.settings.links.engineeringFromPlan = false;
       if (group === "internal")

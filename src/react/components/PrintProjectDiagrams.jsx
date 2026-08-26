@@ -1,4 +1,5 @@
 import { polygonArea } from '../../calculations/plan-metrics.js';
+import { resolveRoofAxes } from '../../calculations/roof-orientation.js';
 import { calculateFoundation } from '../calculations/foundation-model.js';
 import { boundsOf, houseContourPoints, lineEndpoints, roomPoints, unifiedWallSegments } from '../planner/geometry.js';
 import { formatNumber } from '../utils/format.js';
@@ -58,7 +59,7 @@ function PrintRoofTopLayer({ plan, roof = {}, p }) {
   const contour = houseContourPoints(plan);
   const bounds = boundsOf(contour);
   const shape = ['flat', 'hip'].includes(roof.shape) ? roof.shape : 'gable';
-  const vertical = bounds.h >= bounds.w;
+  const { vertical } = resolveRoofAxes(plan, roof);
   const eave = Math.max(0, Number(roof.eaveOverhang) || 0);
   const gable = Math.max(0, Number(roof.gableOverhang) || 0);
   const overhangX = shape === 'gable' ? (vertical ? eave : gable) : eave;
@@ -72,7 +73,9 @@ function PrintRoofTopLayer({ plan, roof = {}, p }) {
   const rafterCount = Math.max(2, Math.ceil((longEnd - longStart) / step) + 1);
   const rafters = Array.from({ length: rafterCount }, (_, index) => longStart + ((longEnd - longStart) * index) / Math.max(1, rafterCount - 1));
   const a = p(x1, y1); const b = p(x2, y2);
-  const ridgeInset = shape === 'hip' ? Math.min((x2 - x1), (y2 - y1)) / 2 : 0;
+  const axisLength = vertical ? y2 - y1 : x2 - x1;
+  const spanLength = vertical ? x2 - x1 : y2 - y1;
+  const ridgeInset = shape === 'hip' ? Math.min(axisLength, spanLength) / 2 : 0;
   const ridgeA = vertical ? p(centerX, y1 + ridgeInset) : p(x1 + ridgeInset, centerY);
   const ridgeB = vertical ? p(centerX, y2 - ridgeInset) : p(x2 - ridgeInset, centerY);
   return <g className={`print-roof-top-layer ${shape}`} aria-label="Крыша из текущего плана">

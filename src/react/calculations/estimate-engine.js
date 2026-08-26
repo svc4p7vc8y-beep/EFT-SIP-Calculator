@@ -4,6 +4,7 @@ import {
   calculateSipRoofCutting,
   roofGeometry,
 } from "../../calculations/plan-metrics.js";
+import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
@@ -691,9 +692,10 @@ function roofSection(project, metrics, index, inputs) {
       mainVergeTrimPurchaseLength: 0,
     };
   const { roof } = project.settings;
+  const roofAxes = resolveRoofAxes(project.plan, roof);
   const covering = roofCoveringSpec(roof.covering);
   const osbSheetArea = 1.25 * 2.5;
-  const span = Number(project.plan.house.h) || 0;
+  const span = roofAxes.span;
   const mainRoofShape = ["flat", "hip"].includes(roof.shape)
     ? roof.shape
     : "gable";
@@ -780,7 +782,7 @@ function roofSection(project, metrics, index, inputs) {
     panelArea: inputs.formulas.panelArea,
     extraWastePercent: project.settings.sip.wastePercent,
   });
-  const houseLength = Math.max(0, Number(project.plan.house.w) || 0);
+  const houseLength = roofAxes.ridgeBaseLength;
   const rafterStructure = resolveRafterStructure(
     project,
     geometry,
@@ -1629,6 +1631,7 @@ function roofSection(project, metrics, index, inputs) {
     extensionLines,
     geometry,
     mainRoofShape,
+    ridgeAxis: roofAxes.ridgeAxis,
     terraceRoofs,
     sipCutting,
     gableSipCutting,

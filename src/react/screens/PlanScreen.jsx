@@ -15,6 +15,7 @@ import {
   Pentagon,
   Plus,
   Redo2,
+  RotateCw,
   Ruler,
   Save,
   Scissors,
@@ -43,6 +44,7 @@ import {
   chooseDimensionSides,
   polygonArea,
 } from "../../calculations/plan-metrics.js";
+import { resolveRoofAxes, roofAxisLabel } from "../../calculations/roof-orientation.js";
 import {
   calculateTerraceRoof,
   normalizeTerracePlatform,
@@ -595,7 +597,7 @@ function RoofPlanOverlay({ plan, roof, p }) {
   const bounds = boundsOf(contour);
   const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const shape = ["flat", "hip"].includes(roof.shape) ? roof.shape : "gable";
-  const vertical = bounds.h >= bounds.w;
+  const { vertical } = resolveRoofAxes(plan, roof);
   const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
   const xOverhang =
     shape === "gable" ? (vertical ? overhang : gableOverhang) : overhang;
@@ -607,13 +609,15 @@ function RoofPlanOverlay({ plan, roof, p }) {
   const y2 = bounds.y2 + yOverhang;
   const centerX = (x1 + x2) / 2;
   const centerY = (y1 + y2) / 2;
-  const short = vertical ? x2 - x1 : y2 - y1;
+  const spanLength = vertical ? x2 - x1 : y2 - y1;
+  const axisLength = vertical ? y2 - y1 : x2 - x1;
+  const ridgeInset = Math.min(spanLength / 2, axisLength / 2);
   const ridgeA = vertical
-    ? { x: centerX, y: shape === "hip" ? y1 + short / 2 : y1 }
-    : { x: shape === "hip" ? x1 + short / 2 : x1, y: centerY };
+    ? { x: centerX, y: shape === "hip" ? y1 + ridgeInset : y1 }
+    : { x: shape === "hip" ? x1 + ridgeInset : x1, y: centerY };
   const ridgeB = vertical
-    ? { x: centerX, y: shape === "hip" ? y2 - short / 2 : y2 }
-    : { x: shape === "hip" ? x2 - short / 2 : x2, y: centerY };
+    ? { x: centerX, y: shape === "hip" ? y2 - ridgeInset : y2 }
+    : { x: shape === "hip" ? x2 - ridgeInset : x2, y: centerY };
   const roofRect = [p(x1, y1), p(x2, y1), p(x2, y2), p(x1, y2)];
   const ridge = [p(ridgeA.x, ridgeA.y), p(ridgeB.x, ridgeB.y)];
   const step = Math.max(0.3, Number(roof.rafterStep) || 0.6);
@@ -2658,6 +2662,15 @@ function RoofLayerInspector({ roof, commitRoof }) {
         ]}
       />
       <SelectField
+        label="Направление конька"
+        value={roof.ridgeAxis === "y" ? "y" : "x"}
+        onChange={(value) => commitRoof("ridgeAxis", value)}
+        options={[
+          { value: "x", label: "Вдоль длины дома" },
+          { value: "y", label: "Вдоль ширины дома" },
+        ]}
+      />
+      <SelectField
         label="Тип стропильной системы"
         value={roof.rafterSystem || "hanging"}
         onChange={(value) => commitRoof("rafterSystem", value)}
@@ -4395,6 +4408,8 @@ export default function PlanScreen({ onNavigate }) {
         next.settings.roof[key] = value;
         if (["rafterSystem", "rafterStep", "rafterSection"].includes(key))
           next.settings.roof.structureMode = "manual";
+        if (!key.startsWith("show"))
+          releasePlanLinkedQuantityOverrides(next);
         return next;
       }),
     [commit],
@@ -5447,6 +5462,20 @@ export default function PlanScreen({ onNavigate }) {
               })
             }
           />
+          <button
+            type="button"
+            className="roof-rotate-button"
+            onClick={() =>
+              commitRoof(
+                "ridgeAxis",
+                project.settings.roof.ridgeAxis === "y" ? "x" : "y",
+              )
+            }
+            title="Повернуть направление крыши на 90 градусов"
+          >
+            <RotateCw />
+            Крыша: {roofAxisLabel(project.settings.roof.ridgeAxis)}
+          </button>
         </div>
         <div className="zoom-controls">
           <button

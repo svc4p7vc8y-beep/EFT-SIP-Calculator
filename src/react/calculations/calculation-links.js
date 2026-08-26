@@ -1,3 +1,5 @@
+import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
+
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
   return Math.round((Number(value) || 0) * factor) / factor;
@@ -78,6 +80,7 @@ export function deriveLinkedInputs(project, metrics) {
   const links = { ...DEFAULT_LINKS, ...(project.settings.links || {}) };
   const f = { ...DEFAULT_FORMULAS, ...(project.settings.formulas || {}) };
   const settings = project.settings;
+  const roofAxes = resolveRoofAxes(project.plan, settings.roof);
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
   const activePlans = [project.plan, ...(project.upperFloors || []).slice(0, floorCount - 1)];
   const wetRooms = activePlans.flatMap((plan) => plan.rooms || []).filter((room) => room.include !== false && WET_ROOM.test(room.name || '')).length;
@@ -89,7 +92,10 @@ export function deriveLinkedInputs(project, metrics) {
     formulas: f,
     wetRooms,
     roof: {
-      ridgeLength: value(links.roofRidgeFromPlan, project.plan.house.w + f.roofRidgeExtra, settings.roof.ridgeLength)
+      ridgeAxis: roofAxes.ridgeAxis,
+      span: roofAxes.span,
+      ridgeBaseLength: roofAxes.ridgeBaseLength,
+      ridgeLength: value(links.roofRidgeFromPlan, roofAxes.ridgeBaseLength + f.roofRidgeExtra, settings.roof.ridgeLength)
     },
     engineering: {
       cableRoute: value(links.engineeringFromPlan, metrics.roomArea * f.cableMetersPerM2, settings.engineering.cableRoute),
@@ -148,7 +154,7 @@ export function calculationFlowRows(project, calculation) {
     { group: 'Фундамент', source: 'Нарисованные линии обвязки', formula: `ceil(${calculation.foundation.bindingLength} м × ${calculation.foundation.bindingLayers} слоя ÷ 6 м)`, result: calculation.foundation.boardCount, unit: 'досок по 6 м', target: `Доска обвязки 50×150 · ${calculation.foundation.boardVolume} м³` },
     { group: 'СИП', source: 'Пол + межэтажное перекрытие + наружные стены + потолок', formula: `ceil(площадь ÷ ${f.panelArea} × запас)`, result: calculation.sip.cutting.reduce((sum, row) => sum + row.panels, 0), unit: 'панелей', target: 'Панели, пена, саморезы, раскрой СИП' },
     { group: 'СИП', source: 'Сетка панелей и торцы', formula: `стыки сетки + ${f.sipTimberReservePercent}%`, result: calculation.sip.joinery.totalJointLength, unit: 'м', target: 'Термобрус / пакет досок / цельный брус' },
-    { group: 'Кровля', source: 'Габарит дома', formula: `длина дома + ${f.roofRidgeExtra}`, result: inputs.roof.ridgeLength, unit: 'м', target: 'Конёк и площадь скатов', auto: inputs.links.roofRidgeFromPlan },
+    { group: 'Кровля', source: 'Габарит дома и направление конька', formula: `${inputs.roof.ridgeAxis === 'y' ? 'ширина' : 'длина'} дома + ${f.roofRidgeExtra}`, result: inputs.roof.ridgeLength, unit: 'м', target: 'Конёк и площадь скатов', auto: inputs.links.roofRidgeFromPlan },
     { group: 'Кровля', source: 'Две опорные стены двускатной крыши', formula: `2 × длина дома × ${f.mauerlatReserve}`, result: calculation.roof.mauerlatPurchaseLength, unit: 'м.п.', target: 'Мауэрлат 100×150, анкеры и монтаж' },
     { group: 'Кровля', source: 'Стропильная схема', formula: `ceil(${calculation.roof.rafterStructure?.frameLength || 0} ÷ (${calculation.roof.rafterStructure?.step || 0} + 0,05)) + 1 = ${calculation.roof.rafterStructure?.pairCount || 0} пар; пиломатериал ceil(Σ ÷ 6)`, result: calculation.roof.rafterBoardCount, unit: 'досок по 6 м', target: `Стропила ${(calculation.roof.rafterStructure?.section || '50x150').replace('x', '×')}` },
     { group: 'Кровля', source: 'Линия конька', formula: `длина конька × ${f.ridgeBeamReserve}`, result: calculation.roof.ridgeBeamPurchaseLength, unit: 'м.п.', target: 'Коньковая доска и обязательная коньковая планка' },

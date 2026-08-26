@@ -255,7 +255,13 @@ export function resizeProjectHouse(project, width, height) {
     );
   }
   if (project.settings?.links?.roofRidgeFromPlan === false && Number.isFinite(Number(project.settings?.roof?.ridgeLength))) {
-    project.settings.roof.ridgeLength = roundCoord(Number(project.settings.roof.ridgeLength) * (Number(width) || oldWidth) / oldWidth);
+    const ridgeAlongWidth = project.settings?.roof?.ridgeAxis !== "y";
+    const scale = ridgeAlongWidth
+      ? (Number(width) || oldWidth) / oldWidth
+      : (Number(height) || oldHeight) / oldHeight;
+    project.settings.roof.ridgeLength = roundCoord(
+      Number(project.settings.roof.ridgeLength) * scale,
+    );
   }
   return result;
 }

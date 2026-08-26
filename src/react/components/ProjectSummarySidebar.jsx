@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { planIssues } from "../planner/geometry.js";
 import { formatNumber } from "../utils/format.js";
+import { roofAxisLabel } from "../../calculations/roof-orientation.js";
 
 const ROOF_TYPES = {
   cold: "Холодная",
@@ -362,6 +363,10 @@ export default function ProjectSummarySidebar({
             value={ROOF_TYPES[project.settings.roof.type] || "—"}
           />
           <SummaryValue
+            label="Направление"
+            value={`Конёк ${roofAxisLabel(project.settings.roof.ridgeAxis)}`}
+          />
+          <SummaryValue
             label="Покрытие"
             value={project.settings.roof.covering === "metal-tile" ? "Металлочерепица" : project.settings.roof.covering === "soft" ? "Мягкая + OSB" : "Профлист С-21"}
           />
@@ -421,7 +426,7 @@ export default function ProjectSummarySidebar({
         <p className="summary-detail">
           {project.settings.roof.shape === "flat"
             ? `Плоская кровля: длина ${formatNumber(project.settings.roof.ridgeLength)} м`
-            : `Конёк: высота ${formatNumber(project.settings.roof.ridgeHeight)} м · длина ${formatNumber(project.settings.roof.ridgeLength)} м · ${roof.rafterStructure?.system === "layered" ? "наслонная система" : roof.rafterStructure?.system === "truss" ? "стропильные фермы" : "висячая система"}`}
+            : `Конёк ${roofAxisLabel(project.settings.roof.ridgeAxis)}: высота ${formatNumber(project.settings.roof.ridgeHeight)} м · длина ${formatNumber(project.settings.roof.ridgeLength)} м · ${roof.rafterStructure?.system === "layered" ? "наслонная система" : roof.rafterStructure?.system === "truss" ? "стропильные фермы" : "висячая система"}`}
         </p>
         <SectionMaterials calculation={calculation} sectionKey="roof" />
       </SummarySection>
