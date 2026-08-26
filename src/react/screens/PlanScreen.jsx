@@ -81,6 +81,7 @@ import {
   boundsOf,
   collectSnapAxes,
   dimensionOutsideHouse,
+  fitFloorOpening,
   lineEndpoints,
   movePoints,
   nearestSegment,
@@ -150,23 +151,6 @@ const getStoredSketches = () => {
     return [];
   }
 };
-
-function fitFloorOpening(opening = {}, house = {}) {
-  const houseWidth = Math.max(0, Number(house.w) || 0);
-  const houseLength = Math.max(0, Number(house.h) || 0);
-  const width = Math.min(Math.max(0, Number(opening.width) || 0), houseWidth);
-  const length = Math.min(Math.max(0, Number(opening.length) || 0), houseLength);
-  return {
-    x: roundCoord(
-      Math.max(0, Math.min(Number(opening.x) || 0, Math.max(0, houseWidth - width))),
-    ),
-    y: roundCoord(
-      Math.max(0, Math.min(Number(opening.y) || 0, Math.max(0, houseLength - length))),
-    ),
-    width: roundCoord(width),
-    length: roundCoord(length),
-  };
-}
 
 function layoutFor(plan) {
   const sides = chooseDimensionSides(plan);

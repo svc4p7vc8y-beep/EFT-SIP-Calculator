@@ -5,6 +5,43 @@ export const roundCoord = (value, digits = 3) => {
   return Math.round((Number(value) || 0) * factor) / factor;
 };
 
+export function fitFloorOpening(opening, house) {
+  const safeOpening = opening || {};
+  const safeHouse = house || {};
+  const houseWidth = Math.max(0, Number(safeHouse.w) || 0);
+  const houseLength = Math.max(0, Number(safeHouse.h) || 0);
+  const width = Math.min(
+    Math.max(0, Number(safeOpening.width) || 0),
+    houseWidth,
+  );
+  const length = Math.min(
+    Math.max(0, Number(safeOpening.length) || 0),
+    houseLength,
+  );
+  return {
+    x: roundCoord(
+      Math.max(
+        0,
+        Math.min(
+          Number(safeOpening.x) || 0,
+          Math.max(0, houseWidth - width),
+        ),
+      ),
+    ),
+    y: roundCoord(
+      Math.max(
+        0,
+        Math.min(
+          Number(safeOpening.y) || 0,
+          Math.max(0, houseLength - length),
+        ),
+      ),
+    ),
+    width: roundCoord(width),
+    length: roundCoord(length),
+  };
+}
+
 export function roomPoints(room) {
   if (Array.isArray(room?.points) && room.points.length >= 3) return room.points;
   return [

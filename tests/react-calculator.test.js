@@ -6,7 +6,7 @@ import { buildCommercialScope } from '../src/react/calculations/commercial-scope
 import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
 import { createBlankPlan, createDefaultProject, createProjectWithCurrentPrices, ensureProjectFloorCount, migrateProject } from '../src/react/state/project-model.js';
 import { verifyPricePasscode } from '../src/react/security/price-access.js';
-import { moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
+import { fitFloorOpening, moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
 import { releasePlanLinkedQuantityOverrides } from '../src/react/state/estimate-edits.js';
 
 test('new blank plan starts without a contour, piles or binding', () => {
@@ -30,6 +30,21 @@ test('empty upper-floor foundation data stays empty after normalization', () => 
   const restored = migrateProject(JSON.parse(JSON.stringify(project)));
   assert.deepEqual(restored.upperFloors[0].pileRows, []);
   assert.deepEqual(restored.upperFloors[0].bindingLines, []);
+});
+
+test('removing the second floor leaves a safe empty staircase opening for the plan canvas', () => {
+  const project = createDefaultProject();
+  ensureProjectFloorCount(project, 2);
+  project.upperFloors[0].floorOpening = { x: 2, y: 1, width: 1.2, length: 2.5 };
+  ensureProjectFloorCount(project, 1);
+
+  assert.equal(project.upperFloors.length, 0);
+  assert.deepEqual(fitFloorOpening(null, project.plan.house), {
+    x: 0,
+    y: 0,
+    width: 0,
+    length: 0,
+  });
 });
 
 test('house resize keeps rooms, roof, pile rows and binding on the same scaled axes', () => {
