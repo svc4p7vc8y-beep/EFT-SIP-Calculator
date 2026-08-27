@@ -10,7 +10,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 99;
+export const REACT_PROJECT_VERSION = 100;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -512,6 +512,9 @@ export function createDefaultProject() {
         rafterStep: 0.6,
         rafterSection: "50x150",
         lathStep: 0.35,
+        mauerlatLayout: "perimeter",
+        mauerlatFastener: "sip-screws",
+        rafterSupportConnection: "nails",
         showRoofCover: true,
         showMauerlat: true,
         showRafters: true,
@@ -568,6 +571,9 @@ export function createDefaultProject() {
         showPiles: true,
         showBinding: true,
         showDimensions: true,
+        compactAccessories: true,
+        includeLabor: true,
+        includeAccessories: true,
       },
       links: clone(DEFAULT_LINKS),
       formulas: clone(DEFAULT_FORMULAS),

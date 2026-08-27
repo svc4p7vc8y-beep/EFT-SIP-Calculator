@@ -3,8 +3,9 @@ import { FileSpreadsheet, Printer } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
+import { buildClientEstimate } from '../calculations/client-estimate.js';
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
-import { EditableEstimateTable, ScreenHeader, Stat } from '../components/ui.jsx';
+import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../components/ui.jsx';
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { addEstimateLine, changeEstimateLine, removeEstimateLine, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
@@ -30,13 +31,17 @@ export default function EstimateScreen() {
   const commercialScope = useMemo(() => buildCommercialScope(project, calculation), [project, calculation]);
   const setPrintOption = (key, value) => commit((next) => { next.settings.print = { ...(next.settings.print || {}), [key]: value }; return next; });
   const printOptions = project.settings.print || {};
+  const clientEstimate = useMemo(
+    () => buildClientEstimate(calculation, printOptions),
+    [calculation, printOptions],
+  );
   const planLayers = [
     ['showContour', 'Контур дома'], ['showRooms', 'Комнаты и перегородки'],
     ['showOpenings', 'Окна и двери'], ['showPlatforms', 'Терраса и крыльцо'],
     ['showPiles', 'Сваи'], ['showBinding', 'Обвязка'], ['showDimensions', 'Размеры'],
   ];
   return <div className="screen estimate-screen"><ScreenHeader title="Смета проекта" actions={<><button className="button secondary no-print" onClick={() => downloadEstimateWorkbook(project, calculation)}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={() => window.print()}><Printer />Печать / PDF</button></>} />
-    <section className="print-diagram-options no-print" aria-label="Слои схем в печати"><div><strong>Схемы в предложении</strong></div><div className="print-option-group"><label><input type="checkbox" checked={printOptions.includePlan !== false} onChange={(event) => setPrintOption('includePlan', event.target.checked)} />План комнат</label><label><input type="checkbox" checked={printOptions.includeRoof === true} onChange={(event) => setPrintOption('includeRoof', event.target.checked)} />Крыша на контуре дома</label></div>{printOptions.includePlan !== false ? <div className="print-option-group plan-layers"><span>Слои плана:</span>{planLayers.map(([key, label]) => <label key={key}><input type="checkbox" checked={printOptions[key] !== false} onChange={(event) => setPrintOption(key, event.target.checked)} />{label}</label>)}</div> : null}</section>
+    <section className="print-diagram-options no-print" aria-label="Настройки предложения"><div><strong>Смета для клиента</strong></div><div className="print-option-group"><label><input type="checkbox" checked={printOptions.includeLabor !== false} onChange={(event) => setPrintOption('includeLabor', event.target.checked)} />Включить работы</label><label><input type="checkbox" checked={printOptions.includeAccessories !== false} onChange={(event) => setPrintOption('includeAccessories', event.target.checked)} />Включить крепёж и сопутствующие товары</label><label><input type="checkbox" checked={printOptions.compactAccessories !== false} onChange={(event) => setPrintOption('compactAccessories', event.target.checked)} />Сгруппировать их в монтажные комплекты</label></div><div><strong>Схемы в предложении</strong></div><div className="print-option-group"><label><input type="checkbox" checked={printOptions.includePlan !== false} onChange={(event) => setPrintOption('includePlan', event.target.checked)} />План комнат</label><label><input type="checkbox" checked={printOptions.includeRoof === true} onChange={(event) => setPrintOption('includeRoof', event.target.checked)} />Крыша на контуре дома</label></div>{printOptions.includePlan !== false ? <div className="print-option-group plan-layers"><span>Слои плана:</span>{planLayers.map(([key, label]) => <label key={key}><input type="checkbox" checked={printOptions[key] !== false} onChange={(event) => setPrintOption(key, event.target.checked)} />{label}</label>)}</div> : null}</section>
     <section className="print-sheet"><header className="print-title"><div className="print-brand"><img src="./icons/eft-logo.png" alt="ЭФТ" /><div><strong>ЭнергоЭффективные Технологии</strong><span>Расчёт комплектации дома</span></div></div><div><h1>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1><strong>Проект № {project.meta.projectNum || '—'}</strong></div></header>
       <div className="project-summary">
         <dl>
@@ -56,15 +61,16 @@ export default function EstimateScreen() {
           <div><dt>Наружные / внутренние стены</dt><dd>{project.plan.wallThickness * 1000} / {project.plan.partitionThickness * 1000} мм</dd></div>
         </dl>
       </div>
-      <div className="estimate-totals"><Stat label="Материалы" value={formatMoney(calculation.totals.materials)} /><Stat label="Работы" value={formatMoney(calculation.totals.labor)} /><Stat label="Итого по смете" value={formatMoney(calculation.totals.total)} tone="accent" /></div>
+      <div className="estimate-totals"><Stat label="Материалы" value={formatMoney(clientEstimate.totals.materials)} /><Stat label="Работы" value={formatMoney(clientEstimate.totals.labor)} /><Stat label="Итого по предложению" value={formatMoney(clientEstimate.totals.total)} tone="accent" /></div>
       <PrintProjectDiagrams project={project} calculation={calculation} />
       <section className="commercial-scope" aria-labelledby="commercial-scope-title">
         <header><div><span>Комплектация проекта</span><h2 id="commercial-scope-title">Что посчитано и входит в предложение</h2></div><p>Перечень сформирован из активных разделов текущей сметы</p></header>
         <div className="commercial-scope-grid">{commercialScope.map((item) => <article key={item.key} className="commercial-scope-item"><div className="commercial-scope-heading"><h3>{item.title}</h3><strong>{item.total}</strong></div><p>{item.summary}</p><small>{item.details}</small><div className="commercial-scope-tags">{item.coverage.map((label) => <span key={label}>{label}</span>)}</div></article>)}</div>
         <footer>В стоимость входят только перечисленные выше разделы. Подробные количества, цены материалов и работ приведены далее в смете.</footer>
       </section>
-      {calculation.sections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}
-      <footer className="estimate-footer"><p>Расчёт сформирован в калькуляторе ЭФТ. Итоговая стоимость уточняется после проверки проекта специалистом.</p><strong>Итого: {formatMoney(calculation.totals.total)}</strong></footer>
+      <div className="no-print">{calculation.sections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}</div>
+      <div className="print-only">{clientEstimate.sections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><PreviewTable lines={section.lines} /></section>)}</div>
+      <footer className="estimate-footer"><p>Расчёт сформирован в калькуляторе ЭФТ. Итоговая стоимость уточняется после проверки проекта специалистом.</p><strong>Итого: {formatMoney(clientEstimate.totals.total)}</strong></footer>
     </section>
   </div>;
 }

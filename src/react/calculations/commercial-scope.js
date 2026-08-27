@@ -76,6 +76,10 @@ function scopeDescription(key, project, calculation, lineCount) {
       summary: `${ROOF_SHAPES[project.settings.roof.shape] || 'двускатная'} ${ROOF_TYPES[project.settings.roof.type] || 'холодная'} кровля, ${ROOF_COVERINGS[project.settings.roof.covering] || 'профлист С-21'}, ${formatNumber(roof.totalArea)} м²`,
       details: joinParts([
         `основная кровля, ${roof.rafterStructure?.system === 'layered' ? 'наслонная система' : roof.rafterStructure?.system === 'truss' ? 'стропильные фермы' : 'висячая система'} с чистым шагом ${formatNumber(roof.rafterStructure?.step || .6)} м`,
+        roof.mauerlatLength > 0 && `мауэрлат 100×150 мм: ${formatNumber(roof.mauerlatLength)} м, ${roof.mauerlatBoardCount || 0} брусьев по 6 м`,
+        roof.mauerlatFastener === 'sip-screws' && `крепление мауэрлата: ${roof.mauerlatScrewCount || 0} конструкционных саморезов ${roof.mauerlatScrewSize || ''}`,
+        roof.mauerlatFastener === 'anchors' && `крепление мауэрлата: ${roof.mauerlatAnchors || 0} анкер-шпилек`,
+        `крепёж стропильных узлов ${roof.framingNailCount || 0} шт, обрешётки ${roof.lathNailCount || 0} шт`,
         `обрешётка с шагом ${formatNumber(roof.lathStep || .35, 2)} м`,
         project.settings.roof.shape === 'hip' && `коэффициент вальмовой кровли: материалы +25%, работы +50%`,
         `конёк включён`,

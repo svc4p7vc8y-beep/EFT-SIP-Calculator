@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculatePlanMetrics, calculateSipCutting, calculateSipRoofCutting, chooseDimensionSides, roofGeometry } from '../src/calculations/plan-metrics.js';
+import { calculateGridContourCutLength, calculatePlanMetrics, calculateSipCutting, calculateSipRoofCutting, calculateWallCutLength, chooseDimensionSides, roofGeometry } from '../src/calculations/plan-metrics.js';
 
 test('attached room extension adds floor and outside perimeter without becoming a partition', () => {
   const metrics = calculatePlanMetrics({
@@ -87,7 +87,8 @@ test('SIP cutting covers only floor, outer walls and horizontal ceiling', () => 
   const rows = calculateSipCutting({ floor: 50, walls: 80, ceiling: 50, partitions: 30, roof: 70 });
   assert.deepEqual(rows.map((row) => row.key), ['floor', 'walls', 'ceiling']);
   assert.ok(rows.every((row) => row.panels > 0));
-  assert.ok(rows.every((row) => row.cutMeters > 0));
+  assert.ok(rows.every((row) => row.cutMeters >= 0));
+  assert.ok(rows.some((row) => row.cutMeters > 0));
   assert.equal(calculateSipRoofCutting(70).key, 'roof');
 });
 
@@ -109,10 +110,33 @@ test('625 mm floor and ceiling layouts keep full-panel purchases but add longitu
     assert.equal(half.purchasedArea, base.purchasedArea);
     assert.equal(half.layoutWidth, .625);
     assert.equal(half.stripsPerPanel, 2);
-    assert.equal(half.splitCutMeters, half.panels * 2.5);
-    assert.equal(half.cutMeters, Math.round((base.cutMeters + half.splitCutMeters) * 10) / 10);
+    assert.equal(half.splitCutMeters, half.productionPanels * 2.5);
+    assert.equal(half.cutMeters, Math.round((half.trimCutMeters + half.splitCutMeters) * 10) / 10);
   }
   assert.equal(reinforced.find((row) => row.key === 'walls').splitCutMeters, 0);
+});
+
+test('SIP cutting uses real contour and opening cuts instead of an area coefficient', () => {
+  const rectangle = [
+    { x: 0, y: 0 }, { x: 8.66, y: 0 },
+    { x: 8.66, y: 12.975 }, { x: 0, y: 12.975 },
+  ];
+  assert.equal(calculateGridContourCutLength(rectangle, 1.25, 2.5), 21.635);
+  assert.equal(calculateGridContourCutLength([
+    { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 7.5 }, { x: 0, y: 7.5 },
+  ], 1.25, 2.5), 0);
+  assert.equal(calculateWallCutLength([8, 6, 8, 6], 2.5, 1.25, 2.5, 6), 16);
+});
+
+test('reserve panels are purchased but are not charged as already cut', () => {
+  const [row] = calculateSipCutting({ floor: 50 }, {
+    extraWastePercent: 10,
+    layoutWidths: { floor: .625 },
+    cutLengths: { floor: 4 },
+  });
+  assert.ok(row.panels > row.productionPanels);
+  assert.equal(row.splitCutMeters, row.productionPanels * 2.5);
+  assert.equal(row.cutMeters, row.splitCutMeters + 4);
 });
 
 test('empty plan keeps the full house floor and ceiling areas', () => {

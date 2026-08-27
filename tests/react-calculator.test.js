@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateAdjustedPrice } from '../src/react/calculations/price-adjustments.js';
 import { buildCommercialScope } from '../src/react/calculations/commercial-scope.js';
+import { buildClientEstimate } from '../src/react/calculations/client-estimate.js';
 import { bindingLinesFromPileRows, calculateFoundation, generateAutoPileRows } from '../src/react/calculations/foundation-model.js';
 import { createBlankPlan, createDefaultProject, createProjectWithCurrentPrices, ensureProjectFloorCount, migrateProject } from '../src/react/state/project-model.js';
 import { verifyPricePasscode } from '../src/react/security/price-access.js';
@@ -428,7 +429,8 @@ test('print plan and roof layers default independently and survive migration', (
   const project = createDefaultProject();
   assert.deepEqual(project.settings.print, {
     includePlan: true, includeRoof: false, showContour: true, showRooms: true,
-    showOpenings: true, showPlatforms: true, showPiles: true, showBinding: true, showDimensions: true
+    showOpenings: true, showPlatforms: true, showPiles: true, showBinding: true, showDimensions: true,
+    compactAccessories: true, includeLabor: true, includeAccessories: true
   });
   project.settings.print.showPiles = false;
   project.settings.print.showDimensions = false;
@@ -471,7 +473,7 @@ test('625 mm SIP layout increases floor and ceiling joints and cutting without d
     assert.ok(reinforcedCut.cutMeters > baseCut.cutMeters);
     assert.ok(reinforcedJoint.jointLength > baseJoint.jointLength);
     assert.equal(reinforced.lines.find((line) => line.id === `sip:cut-${key}`).qty, reinforcedCut.cutMeters);
-    assert.equal(reinforced.lines.find((line) => line.id === `sip:${key}-connector`).qty, Math.round(reinforcedJoint.jointLength * 100) / 100);
+    assert.equal(reinforced.lines.find((line) => line.id === `sip:${key}-connector`).qty, reinforcedJoint.jointPurchaseLength);
   }
 });
 
@@ -489,6 +491,38 @@ test('commercial proposal lists only priced sections and explains their scope', 
   assert.match(foundation.total, /₽/);
   assert.match(engineering.summary, /электрика/);
   assert.equal(scope.some((item) => item.key === 'internal'), false);
+});
+
+test('client estimate keeps SIP panels and timber visible but groups consumables', () => {
+  const calculation = calculateProject(createDefaultProject());
+  const client = buildClientEstimate(calculation, {
+    includeLabor: true,
+    includeAccessories: true,
+    compactAccessories: true,
+  });
+  const floor = client.sections
+    .find((section) => section.key === 'sip')
+    .lines.filter((line) => line.estimateGroup === 'Пол');
+  assert.ok(floor.some((line) => line.id === 'sip:panel-floor'));
+  assert.ok(floor.some((line) => line.id === 'sip:floor-connector'));
+  assert.ok(floor.some((line) => line.id === 'sip:floor-edge-board'));
+  const kit = floor.find((line) => line.name === 'Комплект для монтажа пола');
+  assert.ok(kit);
+  assert.ok(kit.includedLineIds.includes('sip:foam-floor'));
+  assert.equal(client.totals.total, calculation.totals.total);
+});
+
+test('client estimate can exclude labor or accessories without changing manager calculation', () => {
+  const calculation = calculateProject(createDefaultProject());
+  const noLabor = buildClientEstimate(calculation, { includeLabor: false });
+  const noAccessories = buildClientEstimate(calculation, { includeAccessories: false });
+  assert.equal(noLabor.totals.labor, 0);
+  assert.ok(noLabor.totals.total < calculation.totals.total);
+  assert.ok(noAccessories.sections.every((section) =>
+    section.lines.every((line) => !line.id.startsWith('client-kit:')),
+  ));
+  assert.ok(noAccessories.totals.materials < calculation.totals.materials);
+  assert.equal(calculateProject(createDefaultProject()).totals.total, calculation.totals.total);
 });
 
 test('commercial proposal follows project estimate edits instead of promising removed sections', () => {
@@ -527,21 +561,26 @@ test('cold roof defaults to 50x150 rafters and includes cold gables', () => {
   assert.ok(coverWork.qty > 0);
 });
 
-test('gable roof includes mauerlat and adds the ridge board to matching rafter material', () => {
+test('gable roof uses a full-perimeter SIP mauerlat and adds the ridge board to matching rafter material', () => {
   const project = createDefaultProject();
   const result = calculateProject(project);
   const houseLength = project.plan.house.w;
+  const perimeter = 2 * (project.plan.house.w + project.plan.house.h);
   const mauerlat = result.lines.find((line) => line.id === 'roof:mauerlat-timber');
   const mauerlatWork = result.lines.find((line) => line.id === 'roof:mauerlat-work');
-  const anchors = result.lines.find((line) => line.id === 'roof:mauerlat-anchors');
+  const screws = result.lines.find((line) => line.id === 'roof:mauerlat-screws');
   const rafters = result.lines.find((line) => line.id === 'roof:rafters');
   assert.equal(mauerlat.catalogId, 'MAT-018');
   assert.equal(mauerlat.qty, Math.round(result.roof.mauerlatBoardCount * 6 * 0.1 * 0.15 * 1000) / 1000);
   assert.match(mauerlat.name, /шт × 6 м/);
   assert.equal(mauerlatWork.catalogId, 'LAB-033');
-  assert.equal(mauerlatWork.qty, houseLength * 2);
-  assert.equal(anchors.catalogId, 'MAT-067');
-  assert.equal(anchors.qty, 2 * (Math.ceil(houseLength / result.inputs.formulas.mauerlatAnchorSpacing) + 1));
+  assert.equal(mauerlatWork.qty, Math.round(perimeter * 100) / 100);
+  assert.equal(result.roof.mauerlatLength, Math.round(perimeter * 1000) / 1000);
+  assert.equal(result.roof.mauerlatBoardCount, Math.ceil(perimeter * result.inputs.formulas.mauerlatReserve / 6));
+  assert.equal(result.lines.some((line) => line.id === 'roof:mauerlat-anchors'), false);
+  assert.equal(screws.catalogId, 'MAT-081');
+  assert.equal(result.roof.mauerlatScrewCount, result.roof.mauerlatFastenerPoints * result.inputs.formulas.mauerlatScrewRows);
+  assert.match(screws.name, new RegExp(`${result.roof.mauerlatScrewCount} шт`));
   assert.equal(rafters.catalogId, 'MAT-023');
   assert.equal(rafters.qty, result.roof.rafterBoardCount * 6 * 0.05 * 0.15);
   assert.equal(result.roof.rafterStructure.step, 0.6);
@@ -554,6 +593,24 @@ test('gable roof includes mauerlat and adds the ridge board to matching rafter m
   assert.ok(result.lines.some((line) => line.id === 'roof:verge-trim' && line.catalogId === 'MAT-040'));
   assert.ok(result.lines.some((line) => line.id === 'roof:verge-trim-work' && line.catalogId === 'LAB-039'));
   assert.ok(result.lines.some((line) => line.id === 'roof:ridge-work' && line.catalogId === 'LAB-029'));
+});
+
+test('mauerlat can use only bearing walls, anchors or be disabled', () => {
+  const project = createDefaultProject();
+  project.settings.roof.mauerlatLayout = 'supports';
+  project.settings.roof.mauerlatFastener = 'anchors';
+  const supports = calculateProject(project);
+  const expectedLength = project.plan.house.w * 2;
+  const expectedAnchors = 2 * (Math.ceil(project.plan.house.w / supports.inputs.formulas.mauerlatAnchorSpacing) + 1);
+  assert.equal(supports.roof.mauerlatLength, expectedLength);
+  assert.equal(supports.roof.mauerlatAnchors, expectedAnchors);
+  assert.equal(supports.lines.find((line) => line.id === 'roof:mauerlat-anchors').qty, expectedAnchors);
+  assert.equal(supports.lines.some((line) => line.id === 'roof:mauerlat-screws'), false);
+
+  project.settings.roof.mauerlatLayout = 'none';
+  const disabled = calculateProject(project);
+  assert.equal(disabled.roof.mauerlatLength, 0);
+  assert.equal(disabled.lines.some((line) => line.id.startsWith('roof:mauerlat-')), false);
 });
 
 test('main roof overhangs increase covering, rafters, ridge, trims and gutter length', () => {
@@ -689,6 +746,8 @@ test('terrace roof adds its slopes, posts and optional gable to the roof estimat
   assert.equal(terraceRafters.catalogId, 'MAT-023');
   assert.match(terraceRafters.name, /коньковый прогон/);
   assert.equal(result.roof.extensionLines.some((line) => line.id.includes('ridge-beam')), false);
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.id.endsWith('framing-nails') && /шт/.test(line.name)));
+  assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.id.endsWith('lath-fasteners') && /шт/.test(line.name)));
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('карнизная') && line.catalogId === 'MAT-038'));
   assert.ok(result.roof.extensionLines.some((line) => line.source === 'platform-terrace-main-roof' && line.name.includes('торцевая') && line.catalogId === 'MAT-040'));
 });
@@ -814,6 +873,16 @@ test('SIP joinery switches between thermobeam, board pack and solid beam', () =>
   assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-edges' && line.name.includes('145×45')));
   assert.ok(thermal.lines.some((line) => line.id === 'sip:fasteners-floor' && line.qty > 0));
   assert.ok(thermal.lines.some((line) => line.id === 'sip:seam-screws-walls' && line.qty > 0));
+  for (const row of thermal.sip.joinery.rows) {
+    assert.equal(row.jointPurchaseLength % 6, 0);
+    assert.equal(row.endBoardPurchaseLength % 6, 0);
+    assert.ok(row.jointPurchaseLength >= row.jointLength);
+    assert.ok(row.endBoardPurchaseLength >= row.endBoardLength);
+    assert.equal(
+      thermal.lines.find((line) => line.id === `sip:${row.key}-connector`).qty,
+      row.jointPurchaseLength,
+    );
+  }
   project.settings.sip.connectorType = 'board-pack';
   const boardPack = calculateProject(project);
   const packageLine = boardPack.lines.find((line) => line.source === 'sip-walls-joints');
@@ -851,15 +920,30 @@ test('SIP adhesive uses the 650 ml catalog item at 550 rubles', () => {
   assert.ok(adhesives.every((line) => line.price === 550 && line.name.includes('Пеноклей')));
 });
 
-test('roof has one general fastener line in addition to roofing screws', () => {
+test('roof fasteners are calculated from rafter nodes and lath crossings', () => {
   const project = createDefaultProject();
   project.plan.platforms[0].roof.mode = 'cold';
   const result = calculateProject(project);
   const general = result.lines.filter((line) => line.id === 'roof:general-fasteners');
   assert.equal(general.length, 1);
   assert.equal(general[0].catalogId, 'MAT-068');
-  assert.equal(general[0].qty, Math.round(result.roof.totalArea * result.inputs.formulas.roofGeneralFastenerKgPerM2 * 100) / 100);
+  assert.equal(result.roof.lathNailCount, result.roof.lathCrossingCount * result.inputs.formulas.roofLathNailsPerCrossing);
+  assert.equal(general[0].qty, Math.round(result.roof.lathNailCount * result.inputs.formulas.roofLathNailKgEach * 1000) / 1000);
+  const framing = result.lines.find((line) => line.id === 'roof:framing-nails');
+  assert.equal(framing.catalogId, 'MAT-068');
+  assert.equal(framing.qty, Math.round(result.roof.framingNailCount * result.inputs.formulas.roofFramingNailKgEach * 1000) / 1000);
+  assert.equal(result.roof.framingNailCount, result.roof.rafterStructure.pairCount * 18);
   assert.ok(result.lines.some((line) => line.id === 'roof:roof-screws' && line.catalogId === 'MAT-082'));
+});
+
+test('reinforced rafter supports add one angle at every support node', () => {
+  const project = createDefaultProject();
+  project.settings.roof.rafterSupportConnection = 'angles';
+  const result = calculateProject(project);
+  const brackets = result.lines.find((line) => line.id === 'roof:rafter-support-brackets');
+  assert.equal(brackets.catalogId, 'MAT-086');
+  assert.equal(brackets.qty, result.roof.rafterSupportNodeCount);
+  assert.equal(result.roof.rafterSupportBracketCount, result.roof.rafterSupportNodeCount);
 });
 
 test('all three SIP frame families use matching profiles and linear-meter prices', () => {

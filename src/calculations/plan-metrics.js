@@ -259,28 +259,85 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
 }
 
 const CUTTING_RULES = {
-  floor: { label: "Пол", waste: 1, cutNorm: 0.701 },
+  floor: { label: "Пол", waste: 1 },
   secondFloor: {
     label: "Межэтажное перекрытие / пол 2 этажа",
     waste: 1,
-    cutNorm: 0.701,
   },
-  walls: { label: "Стены", waste: 1.05, cutNorm: 0.324 },
+  walls: { label: "Стены", waste: 1.05 },
   wallsSecondFloor: {
     label: "Наружные стены 2 этажа",
     waste: 1.05,
-    cutNorm: 0.324,
   },
-  ceiling: { label: "Потолок", waste: 1.03, cutNorm: 0.165 },
-  partitions: { label: "Перегородки", waste: 1.05, cutNorm: 0.324 },
+  ceiling: { label: "Потолок", waste: 1.03 },
+  partitions: { label: "Перегородки", waste: 1.05 },
   partitionsSecondFloor: {
     label: "Перегородки 2 этажа",
     waste: 1.05,
-    cutNorm: 0.324,
   },
-  gables: { label: "Фронтоны SIP", waste: 1.1, cutNorm: 0.324 },
-  roof: { label: "Крыша", waste: 1.1, cutNorm: 0.324 },
+  gables: { label: "Фронтоны SIP", waste: 1.1 },
+  roof: { label: "Крыша", waste: 1.1 },
 };
+
+const isGridLine = (value, module) => {
+  if (!(module > 0)) return false;
+  const ratio = value / module;
+  return Math.abs(ratio - Math.round(ratio)) < 1e-6;
+};
+
+function contourCutLength(points, widthModule, lengthModule, swap = false) {
+  if (!Array.isArray(points) || points.length < 3) return Infinity;
+  const xs = points.map((point) => Number(point.x) || 0);
+  const ys = points.map((point) => Number(point.y) || 0);
+  const originX = Math.min(...xs);
+  const originY = Math.min(...ys);
+  const xModule = swap ? lengthModule : widthModule;
+  const yModule = swap ? widthModule : lengthModule;
+  return points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    const dx = (Number(next.x) || 0) - (Number(point.x) || 0);
+    const dy = (Number(next.y) || 0) - (Number(point.y) || 0);
+    const length = Math.hypot(dx, dy);
+    if (Math.abs(dx) < 1e-8)
+      return sum + (isGridLine((Number(point.x) || 0) - originX, xModule) ? 0 : length);
+    if (Math.abs(dy) < 1e-8)
+      return sum + (isGridLine((Number(point.y) || 0) - originY, yModule) ? 0 : length);
+    return sum + length;
+  }, 0);
+}
+
+export function calculateGridContourCutLength(
+  points,
+  panelWidth = 1.25,
+  panelLength = 2.5,
+) {
+  return round(
+    Math.min(
+      contourCutLength(points, panelWidth, panelLength, false),
+      contourCutLength(points, panelWidth, panelLength, true),
+    ),
+    3,
+  );
+}
+
+export function calculateWallCutLength(
+  wallRuns,
+  wallHeight,
+  panelWidth = 1.25,
+  panelLength = 2.5,
+  openingCutLength = 0,
+) {
+  const height = Math.max(0, Number(wallHeight) || 0);
+  const runs = (wallRuns || []).map((run) => Math.max(0, Number(run) || 0));
+  const endTrims = runs.reduce(
+    (sum, run) => sum + (isGridLine(run, panelWidth) ? 0 : height),
+    0,
+  );
+  const topTrims = isGridLine(height, panelLength)
+    ? 0
+    : runs.reduce((sum, run) => sum + run, 0);
+  return round(endTrims + topTrims + Math.max(0, Number(openingCutLength) || 0), 3);
+}
 
 function calculateCuttingRows(keys, surfaces, options = {}) {
   const panelArea = Math.max(0.1, Number(options.panelArea) || 3.125);
@@ -291,6 +348,7 @@ function calculateCuttingRows(keys, surfaces, options = {}) {
   return keys.map((key) => {
     const rule = CUTTING_RULES[key];
     const area = Math.max(0, Number(surfaces?.[key]) || 0);
+    const productionPanels = area > 0 ? Math.ceil(area / panelArea) : 0;
     const panels =
       area > 0 ? Math.ceil((area / panelArea) * rule.waste * extraWaste) : 0;
     const purchasedArea = panels * panelArea;
@@ -305,18 +363,26 @@ function calculateCuttingRows(keys, surfaces, options = {}) {
       Math.ceil(stockPanelWidth / layoutWidth - 1e-9),
     );
     const splitCutMeters =
-      panels * Math.max(0, stripsPerPanel - 1) * panelLength;
+      productionPanels * Math.max(0, stripsPerPanel - 1) * panelLength;
+    const configuredCutLength = Number(options.cutLengths?.[key]);
+    const trimCutMeters = Number.isFinite(configuredCutLength)
+      ? Math.max(0, configuredCutLength)
+      : area > 0 && !isGridLine(area, panelArea)
+        ? stockPanelWidth
+        : 0;
     return {
       key,
       label: rule.label,
       area: round(area, 2),
       panels,
+      productionPanels,
       purchasedArea: round(purchasedArea, 2),
       offcutArea: round(Math.max(0, purchasedArea - area), 2),
       layoutWidth: round(layoutWidth, 3),
       stripsPerPanel,
       splitCutMeters: round(splitCutMeters, 1),
-      cutMeters: round(area * rule.cutNorm + splitCutMeters, 1),
+      trimCutMeters: round(trimCutMeters, 1),
+      cutMeters: round(trimCutMeters + splitCutMeters, 1),
     };
   });
 }

@@ -30,12 +30,61 @@ export function gridJointLength(width, height, panelWidth, panelLength) {
   );
 }
 
+const lineInsidePolygonLength = (points, coordinate, vertical) => {
+  const crossings = [];
+  points.forEach((point, index) => {
+    const next = points[(index + 1) % points.length];
+    const startAxis = vertical ? point.x : point.y;
+    const endAxis = vertical ? next.x : next.y;
+    if (
+      !(
+        (startAxis <= coordinate && endAxis > coordinate) ||
+        (endAxis <= coordinate && startAxis > coordinate)
+      )
+    )
+      return;
+    const ratio = (coordinate - startAxis) / (endAxis - startAxis);
+    crossings.push(
+      (vertical ? point.y : point.x) +
+        ratio * ((vertical ? next.y : next.x) - (vertical ? point.y : point.x)),
+    );
+  });
+  crossings.sort((a, b) => a - b);
+  let length = 0;
+  for (let index = 0; index + 1 < crossings.length; index += 2)
+    length += Math.max(0, crossings[index + 1] - crossings[index]);
+  return length;
+};
+
+const polygonSeamLength = (points, xModule, yModule) => {
+  const xs = points.map((point) => Number(point.x) || 0);
+  const ys = points.map((point) => Number(point.y) || 0);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  let length = 0;
+  for (let x = minX + xModule; x < maxX - 1e-8; x += xModule)
+    length += lineInsidePolygonLength(points, x, true);
+  for (let y = minY + yModule; y < maxY - 1e-8; y += yModule)
+    length += lineInsidePolygonLength(points, y, false);
+  return length;
+};
+
+export function gridPolygonJointLength(points, panelWidth, panelLength) {
+  if (!Array.isArray(points) || points.length < 3) return 0;
+  return Math.min(
+    polygonSeamLength(points, panelWidth, panelLength),
+    polygonSeamLength(points, panelLength, panelWidth),
+  );
+}
+
 const positive = (value, fallback) =>
   Math.max(0.0001, Number(value) || fallback);
 const nonnegative = (value, fallback) =>
   Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
 
-function structuralScrew(panelThickness, formulas) {
+export function resolveSipStructuralScrew(panelThickness, formulas = {}) {
   const thickness = Number(panelThickness) || 174;
   if (thickness <= 124)
     return {
@@ -105,7 +154,7 @@ export function calculateSipConsumables(
     const structuralCount = Math.ceil(
       joineryRow.endBoardLength / structuralSpacing,
     );
-    const structural = structuralScrew(joineryRow.panelThickness, formulas);
+    const structural = resolveSipStructuralScrew(joineryRow.panelThickness, formulas);
     return {
       key: joineryRow.key,
       label: joineryRow.label,
@@ -171,7 +220,29 @@ export function calculateSipJoinery(
   );
   const reserve =
     1 + Math.max(0, Number(formulas.sipTimberReservePercent) || 5) / 100;
-  const perimeter = 2 * (width + height);
+  const stockLength = positive(formulas.sipTimberStockLength, 6);
+  const contourPointsFor = (currentPlan) => {
+    const points = Array.isArray(currentPlan?.house?.points)
+      ? currentPlan.house.points
+      : [];
+    if (points.length >= 3) return points;
+    const currentWidth = Math.max(0, Number(currentPlan?.house?.w) || 0);
+    const currentHeight = Math.max(0, Number(currentPlan?.house?.h) || 0);
+    return [
+      { x: 0, y: 0 },
+      { x: currentWidth, y: 0 },
+      { x: currentWidth, y: currentHeight },
+      { x: 0, y: currentHeight },
+    ];
+  };
+  const perimeterFor = (currentPlan) => {
+    const points = contourPointsFor(currentPlan);
+    return points.reduce((sum, point, index) => {
+      const next = points[(index + 1) % points.length];
+      return sum + Math.hypot(next.x - point.x, next.y - point.y);
+    }, 0);
+  };
+  const perimeter = perimeterFor(plan);
   const floorPlans = metrics.floorPlans?.length
     ? metrics.floorPlans
     : [{ plan, metrics }];
@@ -180,13 +251,13 @@ export function calculateSipJoinery(
       const currentWidth = Math.max(0, Number(currentPlan.house?.w) || 0);
       const currentHeight = Math.max(0, Number(currentPlan.house?.h) || 0);
       const currentWallHeight = Math.max(0, Number(currentPlan.wallHeight) || 2.5);
-      const currentPerimeter = 2 * (currentWidth + currentHeight);
+      const currentPerimeter = perimeterFor(currentPlan);
       const wallSeams = (wallLength) =>
         Math.max(0, Math.ceil(wallLength / panelWidth) - 1) * currentWallHeight +
         Math.max(0, Math.ceil(currentWallHeight / panelLength) - 1) * wallLength;
       const openingEdges = (currentPlan.openings || []).reduce(
         (sum, opening) =>
-          opening.outer === false
+          opening.outer === false || opening.subtractFromSip === false
             ? sum
             : sum +
               2 *
@@ -195,7 +266,12 @@ export function calculateSipJoinery(
         0,
       );
       return {
-        joints: 2 * wallSeams(currentWidth) + 2 * wallSeams(currentHeight),
+        joints: contourPointsFor(currentPlan).reduce((sum, point, index) => {
+          const next = contourPointsFor(currentPlan)[
+            (index + 1) % contourPointsFor(currentPlan).length
+          ];
+          return sum + wallSeams(Math.hypot(next.x - point.x, next.y - point.y));
+        }, 0),
         edges: 2 * currentPerimeter + 4 * currentWallHeight + openingEdges,
       };
     };
@@ -206,7 +282,7 @@ export function calculateSipJoinery(
   const topPlan = floorPlans.at(-1)?.plan || plan;
   const topWidth = Math.max(0, Number(topPlan.house?.w) || width);
   const topHeight = Math.max(0, Number(topPlan.house?.h) || height);
-  const topPerimeter = 2 * (topWidth + topHeight);
+  const topPerimeter = perimeterFor(topPlan);
   const secondPlan = floorPlans[1]?.plan;
   const secondWidth = Math.max(0, Number(secondPlan?.house?.w) || 0);
   const secondHeight = Math.max(0, Number(secondPlan?.house?.h) || 0);
@@ -219,9 +295,8 @@ export function calculateSipJoinery(
           label: "Пол",
           thickness: sipSettings.floorThickness,
           layoutWidth: floorLayoutWidth,
-          jointLength: gridJointLength(
-            width,
-            height,
+          jointLength: gridPolygonJointLength(
+            contourPointsFor(plan),
             floorLayoutWidth,
             panelLength,
           ),
@@ -252,9 +327,8 @@ export function calculateSipJoinery(
           label: "Межэтажное перекрытие / пол 2 этажа",
           thickness: sipSettings.secondFloorThickness,
           layoutWidth: secondFloorLayoutWidth,
-          jointLength: gridJointLength(
-            secondWidth,
-            secondHeight,
+          jointLength: gridPolygonJointLength(
+            contourPointsFor(secondPlan),
             secondFloorLayoutWidth,
             panelLength,
           ),
@@ -271,9 +345,8 @@ export function calculateSipJoinery(
           label: "Потолок",
           thickness: sipSettings.ceilingThickness,
           layoutWidth: ceilingLayoutWidth,
-          jointLength: gridJointLength(
-            topWidth,
-            topHeight,
+          jointLength: gridPolygonJointLength(
+            contourPointsFor(topPlan),
             ceilingLayoutWidth,
             panelLength,
           ),
@@ -327,7 +400,19 @@ export function calculateSipJoinery(
       ...sipTimberProfile(row.thickness),
       jointLength: round(row.jointLength * reserve),
       endBoardLength: round(row.endBoardLength * reserve),
-    }));
+    }))
+    .map((row) => {
+      const jointStockPieces = Math.ceil(row.jointLength / stockLength);
+      const endBoardStockPieces = Math.ceil(row.endBoardLength / stockLength);
+      return {
+        ...row,
+        stockLength,
+        jointStockPieces,
+        jointPurchaseLength: round(jointStockPieces * stockLength),
+        endBoardStockPieces,
+        endBoardPurchaseLength: round(endBoardStockPieces * stockLength),
+      };
+    });
   return {
     type: sipSettings.connectorType || "thermal",
     rows,
@@ -336,6 +421,12 @@ export function calculateSipJoinery(
     ),
     totalEndBoardLength: round(
       rows.reduce((sum, row) => sum + row.endBoardLength, 0),
+    ),
+    totalJointPurchaseLength: round(
+      rows.reduce((sum, row) => sum + row.jointPurchaseLength, 0),
+    ),
+    totalEndBoardPurchaseLength: round(
+      rows.reduce((sum, row) => sum + row.endBoardPurchaseLength, 0),
     ),
   };
 }

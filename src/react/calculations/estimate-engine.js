@@ -1,19 +1,27 @@
 import {
+  calculateGridContourCutLength,
   calculatePlanMetrics,
   calculateSipCutting,
   calculateSipRoofCutting,
+  calculateWallCutLength,
   roofGeometry,
 } from "../../calculations/plan-metrics.js";
 import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
-import { calculateSipConsumables, calculateSipJoinery } from "./sip-joinery.js";
+import {
+  calculateSipConsumables,
+  calculateSipJoinery,
+  resolveSipStructuralScrew,
+} from "./sip-joinery.js";
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
   return Math.round((Number(value) || 0) * factor) / factor;
 };
+
+const formatNumberForName = (value) => String(round(value, 2)).replace(".", ",");
 
 function catalogIndex(project) {
   const entries = [...project.priceMat, ...project.priceLab];
@@ -53,11 +61,75 @@ function makeLine(index, section, query, qty, options = {}) {
     kind: item?.kind || options.kind || "material",
     source: options.source || section,
     estimateGroup: options.estimateGroup,
+    ...(options.exactQuantity === true ? { exactQuantity: true } : {}),
   };
 }
 
 function compact(lines) {
   return lines.filter(Boolean);
+}
+
+function housePerimeterRuns(plan = {}) {
+  const points = Array.isArray(plan.house?.points) ? plan.house.points : [];
+  if (points.length >= 3) {
+    return points.map((point, index) => {
+      const next = points[(index + 1) % points.length];
+      return Math.hypot(
+        (Number(next?.x) || 0) - (Number(point?.x) || 0),
+        (Number(next?.y) || 0) - (Number(point?.y) || 0),
+      );
+    }).filter((length) => length > 0.001);
+  }
+  const width = Math.max(0, Number(plan.house?.w) || 0);
+  const height = Math.max(0, Number(plan.house?.h) || 0);
+  return [width, height, width, height].filter(Boolean);
+}
+
+function houseContourPoints(plan = {}) {
+  const points = Array.isArray(plan.house?.points) ? plan.house.points : [];
+  if (points.length >= 3) return points;
+  const width = Math.max(0, Number(plan.house?.w) || 0);
+  const height = Math.max(0, Number(plan.house?.h) || 0);
+  return [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ];
+}
+
+function openingCutLength(plan = {}, outer) {
+  return (plan.openings || []).reduce((sum, opening) => {
+    if ((opening.outer !== false) !== outer || opening.subtractFromSip === false)
+      return sum;
+    return (
+      sum +
+      2 *
+        (Math.max(0, Number(opening.width) || 0) +
+          Math.max(0, Number(opening.height) || 0))
+    );
+  }, 0);
+}
+
+function roomPerimeter(room = {}) {
+  const points = Array.isArray(room.points) && room.points.length >= 3
+    ? room.points
+    : [
+        { x: room.x, y: room.y },
+        { x: (Number(room.x) || 0) + (Number(room.w) || 0), y: room.y },
+        {
+          x: (Number(room.x) || 0) + (Number(room.w) || 0),
+          y: (Number(room.y) || 0) + (Number(room.h) || 0),
+        },
+        { x: room.x, y: (Number(room.y) || 0) + (Number(room.h) || 0) },
+      ];
+  return points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return sum + Math.hypot(
+      (Number(next.x) || 0) - (Number(point.x) || 0),
+      (Number(next.y) || 0) - (Number(point.y) || 0),
+    );
+  }, 0);
 }
 
 function resolveRafterStructure(project, geometry, frameLength) {
@@ -204,6 +276,7 @@ function applyMainRoofComplexity(lines, shape) {
         costReason: "Вальмовая кровля: сложность работ +50%",
       };
     }
+    if (line.exactQuantity) return line;
     const adjustedQty = discreteUnits.has(line.unit)
       ? Math.ceil(line.qty * 1.25)
       : round(line.qty * 1.25, line.unit === "м³" ? 3 : 2);
@@ -318,6 +391,41 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     gables: Math.max(0, Number(roofResult?.warmGableArea) || 0),
   };
   const f = inputs.formulas;
+  const firstPlan = metrics.floorPlans?.[0]?.plan || project.plan;
+  const secondPlan = metrics.floorPlans?.[1]?.plan;
+  const topPlan = metrics.floorPlans?.at(-1)?.plan || project.plan;
+  const floorCutLength = calculateGridContourCutLength(
+    houseContourPoints(firstPlan),
+    Number(sip.floorPanelWidth) || f.panelWidth,
+    f.panelLength,
+  );
+  const stairOpeningCutLength =
+    metrics.secondFloorOpeningWidth > 0 && metrics.secondFloorOpeningLength > 0
+      ? 2 * (metrics.secondFloorOpeningWidth + metrics.secondFloorOpeningLength)
+      : 0;
+  const ceilingOpeningCutLength = (topPlan.rooms || [])
+    .filter((room) => room.include !== false && room.ceilingMode === "open")
+    .reduce((sum, room) => sum + roomPerimeter(room), 0);
+  const wallCutLengthFor = (plan) =>
+    plan
+      ? calculateWallCutLength(
+          housePerimeterRuns(plan),
+          plan.wallHeight,
+          f.panelWidth,
+          f.panelLength,
+          openingCutLength(plan, true),
+        )
+      : 0;
+  const partitionCutLengthFor = (plan, length) =>
+    plan
+      ? calculateWallCutLength(
+          [length],
+          plan.wallHeight,
+          f.panelWidth,
+          f.panelLength,
+          openingCutLength(plan, false),
+        )
+      : 0;
   const cutting = calculateSipCutting(surfaces, {
     panelArea: f.panelArea,
     panelWidth: f.panelWidth,
@@ -332,6 +440,36 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       floor: sip.floorPanelWidth,
       secondFloor: sip.secondFloorPanelWidth,
       ceiling: sip.ceilingPanelWidth,
+    },
+    cutLengths: {
+      floor: floorCutLength,
+      secondFloor: secondPlan
+        ? calculateGridContourCutLength(
+            houseContourPoints(secondPlan),
+            Number(sip.secondFloorPanelWidth) || f.panelWidth,
+            f.panelLength,
+          ) + stairOpeningCutLength
+        : 0,
+      walls: wallCutLengthFor(firstPlan),
+      wallsSecondFloor: wallCutLengthFor(secondPlan),
+      ceiling:
+        calculateGridContourCutLength(
+          houseContourPoints(topPlan),
+          Number(sip.ceilingPanelWidth) || f.panelWidth,
+          f.panelLength,
+        ) + ceilingOpeningCutLength,
+      partitions: partitionCutLengthFor(
+        firstPlan,
+        metrics.firstFloorPartitionLength,
+      ),
+      partitionsSecondFloor: partitionCutLengthFor(
+        secondPlan,
+        metrics.secondFloorPartitionLength,
+      ),
+      gables:
+        roofResult?.mainRoofShape === "gable"
+          ? 4 * Math.max(0, Number(roofResult.geometry?.wallSlopeLength) || 0)
+          : 0,
     },
   });
   const byKey = new Map(cutting.map((row) => [row.key, row]));
@@ -523,30 +661,34 @@ function sipSection(project, metrics, index, inputs, roofResult) {
   joinery.rows.forEach((row) => {
     const key = `${row.key}-connector`;
     if (joinery.type === "thermal") {
+      const query = `Термобрус 95×${row.thermalDepth} мм`;
       lines.push(
         makeLine(
           index,
           "sip",
-          `Термобрус 95×${row.thermalDepth} мм`,
-          row.jointLength,
+          query,
+          row.jointPurchaseLength,
           {
             key,
             unit: "м.п.",
+            name: `${query} · ${row.jointStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
             source: `sip-${row.key}-joints`,
             estimateGroup: groupNames[row.key],
           },
         ),
       );
     } else if (joinery.type === "board-pack") {
+      const query = `Пакет клеёных досок 95×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`;
       lines.push(
         makeLine(
           index,
           "sip",
-          `Пакет клеёных досок 95×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`,
-          row.jointLength,
+          query,
+          row.jointPurchaseLength,
           {
             key,
             unit: "м.п.",
+            name: `${query} · ${row.jointStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
             source: `sip-${row.key}-joints`,
             estimateGroup: groupNames[row.key],
           },
@@ -555,23 +697,26 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     } else {
       const query = `Брус соединительный ест. влажности 100×${row.core} мм`;
       lines.push(
-        makeLine(index, "sip", query, row.jointLength, {
+        makeLine(index, "sip", query, row.jointPurchaseLength, {
           key,
           unit: "м.п.",
+          name: `${query} · ${row.jointStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
           source: `sip-${row.key}-joints`,
           estimateGroup: groupNames[row.key],
         }),
       );
     }
+    const edgeQuery = `Доска сухая строганая ${row.endBoardDepth}×45 мм`;
     lines.push(
       makeLine(
         index,
         "sip",
-        `Доска сухая строганая ${row.endBoardDepth}×45 мм`,
-        row.endBoardLength,
+        edgeQuery,
+        row.endBoardPurchaseLength,
         {
           key: `${row.key}-edge-board`,
           unit: "м.п.",
+          name: `${edgeQuery} · ${row.endBoardStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
           source: `sip-${row.key}-edges`,
           estimateGroup: groupNames[row.key],
         },
@@ -794,24 +939,58 @@ function roofSection(project, metrics, index, inputs) {
     (sum, item) => sum + item.result.postCount,
     0,
   );
-  const mauerlatLength =
-    mainRoofShape === "flat"
-      ? 0
-      : mainRoofShape === "hip"
-        ? metrics.perimeter
-        : houseLength * 2;
+  const perimeterRuns = housePerimeterRuns(project.plan);
+  const mauerlatLayout = ["perimeter", "supports", "none"].includes(
+    roof.mauerlatLayout,
+  )
+    ? roof.mauerlatLayout
+    : "perimeter";
+  const mauerlatRuns =
+    mainRoofShape === "flat" || mauerlatLayout === "none"
+      ? []
+      : mainRoofShape === "hip" || mauerlatLayout === "perimeter"
+        ? perimeterRuns
+        : [houseLength, houseLength];
+  const mauerlatLength = mauerlatRuns.reduce((sum, length) => sum + length, 0);
   const mauerlatPurchaseLength =
     mauerlatLength * inputs.formulas.mauerlatReserve;
   const mauerlatBoardCount = mauerlatPurchaseLength
     ? Math.ceil(mauerlatPurchaseLength / 6)
     : 0;
   const mauerlatVolume = mauerlatBoardCount * 6 * 0.1 * 0.15;
-  const anchorSpacing = Math.max(0.1, inputs.formulas.mauerlatAnchorSpacing);
-  const mauerlatAnchors = !mauerlatLength
-    ? 0
-    : mainRoofShape === "hip"
-      ? Math.ceil(mauerlatLength / anchorSpacing) + 1
-      : 2 * (Math.ceil(houseLength / anchorSpacing) + 1);
+  const mauerlatFastener = ["sip-screws", "anchors", "none"].includes(
+    roof.mauerlatFastener,
+  )
+    ? roof.mauerlatFastener
+    : "sip-screws";
+  const mauerlatFastenerSpacing = Math.max(
+    0.1,
+    mauerlatFastener === "anchors"
+      ? inputs.formulas.mauerlatAnchorSpacing
+      : inputs.formulas.mauerlatScrewSpacing,
+  );
+  const mauerlatFastenerPoints =
+    mauerlatFastener === "none"
+      ? 0
+      : mauerlatRuns.reduce(
+          (sum, length) => sum + Math.ceil(length / mauerlatFastenerSpacing) + 1,
+          0,
+        );
+  const mauerlatAnchors =
+    mauerlatFastener === "anchors" ? mauerlatFastenerPoints : 0;
+  const mauerlatScrewRows = Math.max(
+    1,
+    Math.round(Number(inputs.formulas.mauerlatScrewRows) || 2),
+  );
+  const mauerlatScrewCount =
+    mauerlatFastener === "sip-screws"
+      ? mauerlatFastenerPoints * mauerlatScrewRows
+      : 0;
+  const mauerlatScrew = resolveSipStructuralScrew(
+    project.settings.sip.wallThickness,
+    inputs.formulas,
+  );
+  const mauerlatScrewKg = mauerlatScrewCount * mauerlatScrew.kgEach;
   const ridgeBeamLength =
     mainRoofShape === "flat"
       ? 0
@@ -866,6 +1045,72 @@ function roofSection(project, metrics, index, inputs) {
     ? Math.ceil(mainLathRequiredLength / 6)
     : 0;
   const mainLathVolume = mainLathBoardCount * 6 * 0.025 * 0.1;
+  const hasTimberRafters = mainColdSlopeArea > 0 && mainRoofShape !== "flat";
+  const rafterSupportNodeCount = !hasTimberRafters
+    ? 0
+    : mainRoofShape === "hip"
+      ? perimeterRuns.reduce(
+          (sum, length) => sum + Math.ceil(length / rafterStructure.module),
+          0,
+        )
+      : rafterStructure.legCount;
+  const rafterSupportConnection =
+    roof.rafterSupportConnection === "angles" ? "angles" : "nails";
+  const rafterSupportBracketCount =
+    rafterSupportConnection === "angles" ? rafterSupportNodeCount : 0;
+  const rafterSupportNailCount =
+    rafterSupportNodeCount *
+    Math.max(
+      0,
+      Math.round(
+        Number(
+          rafterSupportConnection === "angles"
+            ? inputs.formulas.roofAngleNailsPerBracket
+            : inputs.formulas.roofRafterSupportNails,
+        ) || 0,
+      ),
+    );
+  const rafterRidgeNailCount =
+    rafterSupportNodeCount *
+    Math.max(
+      0,
+      Math.round(Number(inputs.formulas.roofRafterRidgeNails) || 0),
+    );
+  const rafterTieJointCount =
+    rafterStructure.system === "hanging" && hasTimberRafters
+      ? rafterStructure.pairCount * 2
+      : 0;
+  const rafterTieNailCount =
+    rafterTieJointCount *
+    Math.max(
+      0,
+      Math.round(Number(inputs.formulas.roofRafterTieNails) || 0),
+    );
+  const framingNailCount =
+    rafterSupportNailCount + rafterRidgeNailCount + rafterTieNailCount;
+  const framingNailKg =
+    framingNailCount *
+    Math.max(0, Number(inputs.formulas.roofFramingNailKgEach) || 0);
+  const lathCrossingCount = hasTimberRafters
+    ? Math.ceil(mainLathRequiredLength / Math.max(0.1, rafterStructure.module))
+    : 0;
+  const lathNailCount =
+    lathCrossingCount *
+    Math.max(
+      0,
+      Math.round(Number(inputs.formulas.roofLathNailsPerCrossing) || 0),
+    );
+  const lathNailKg =
+    lathNailCount *
+    Math.max(0, Number(inputs.formulas.roofLathNailKgEach) || 0);
+  const trussPlateCount =
+    rafterStructure.system === "truss" && hasTimberRafters
+      ? rafterStructure.pairCount *
+        Math.max(
+          0,
+          Math.round(Number(inputs.formulas.roofTrussPlatesPerFrame) || 0),
+        )
+      : 0;
   const extensionLines = compact(
     terraceRoofs.flatMap(({ platform, result }) => {
       if (platform.roof?.mode === "none" || !result.netArea) return [];
@@ -912,6 +1157,49 @@ function roofSection(project, metrics, index, inputs) {
         ? Math.ceil(lathRequiredLength / 6)
         : 0;
       const lathVolume = lathBoardCount * 6 * 0.025 * 0.1;
+      const terraceFrameCount = coldSlope
+        ? Math.ceil(
+            (result.shape === "gable" ? result.roofRun : result.roofWidth) /
+              rafterStructure.module,
+          ) + 1
+        : 0;
+      const terraceSupportNodeCount = terraceFrameCount * 2;
+      const terraceRidgeNodeCount =
+        result.shape === "gable" ? terraceFrameCount * 2 : 0;
+      const terraceBracketCount =
+        rafterSupportConnection === "angles" ? terraceSupportNodeCount : 0;
+      const terraceFramingNailCount =
+        terraceSupportNodeCount *
+          Math.max(
+            0,
+            Math.round(
+              Number(
+                rafterSupportConnection === "angles"
+                  ? inputs.formulas.roofAngleNailsPerBracket
+                  : inputs.formulas.roofRafterSupportNails,
+              ) || 0,
+            ),
+          ) +
+        terraceRidgeNodeCount *
+          Math.max(
+            0,
+            Math.round(Number(inputs.formulas.roofRafterRidgeNails) || 0),
+          );
+      const terraceFramingNailKg =
+        terraceFramingNailCount *
+        Math.max(0, Number(inputs.formulas.roofFramingNailKgEach) || 0);
+      const terraceLathCrossingCount = coldSlope
+        ? Math.ceil(lathRequiredLength / Math.max(0.1, rafterStructure.module))
+        : 0;
+      const terraceLathNailCount =
+        terraceLathCrossingCount *
+        Math.max(
+          0,
+          Math.round(Number(inputs.formulas.roofLathNailsPerCrossing) || 0),
+        );
+      const terraceLathNailKg =
+        terraceLathNailCount *
+        Math.max(0, Number(inputs.formulas.roofLathNailKgEach) || 0);
       const eaveTrimPurchaseLength =
         result.eaveLength * inputs.formulas.roofTrimReserve;
       const vergeTrimPurchaseLength =
@@ -940,6 +1228,33 @@ function roofSection(project, metrics, index, inputs) {
             digits: 3,
             name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${terraceRafterBoardCount} шт × 6 м, включая коньковый прогон · кровля ${title}`,
             source,
+          },
+        ),
+        makeLine(
+          index,
+          "roof",
+          "Уголок усиленный 90×70×55×2.5",
+          terraceBracketCount,
+          {
+            key: `${key}-rafter-support-brackets`,
+            unit: "шт",
+            name: `Уголки опор стропил · кровля ${title} · ${terraceBracketCount} шт`,
+            source,
+            exactQuantity: true,
+          },
+        ),
+        makeLine(
+          index,
+          "roof",
+          "Гвозди/саморезы для обрешётки",
+          terraceFramingNailKg,
+          {
+            key: `${key}-framing-nails`,
+            unit: "кг",
+            digits: 3,
+            name: `Гвозди от 80 мм для стропильных узлов · кровля ${title} · ${terraceFramingNailCount} шт`,
+            source,
+            exactQuantity: true,
           },
         ),
         makeLine(
@@ -980,6 +1295,20 @@ function roofSection(project, metrics, index, inputs) {
           name: `Обрешётка кровли ${title} · шаг ${Math.round(lathStep * 1000)} мм · доска 25×100 мм · ${lathBoardCount} шт × 6 м`,
           source,
         }),
+        makeLine(
+          index,
+          "roof",
+          "Гвозди/саморезы для обрешётки",
+          terraceLathNailKg,
+          {
+            key: `${key}-lath-fasteners`,
+            unit: "кг",
+            digits: 3,
+            name: `Крепёж обрешётки · кровля ${title} · ${terraceLathNailCount} шт`,
+            source,
+            exactQuantity: true,
+          },
+        ),
         makeLine(
           index,
           "roof",
@@ -1286,6 +1615,7 @@ function roofSection(project, metrics, index, inputs) {
         unit: "м³",
         digits: 3,
         name: `Мауэрлат 100×150 мм · ${mauerlatBoardCount} шт × 6 м`,
+        exactQuantity: true,
       },
     ),
     makeLine(index, "roof", "Монтаж мауэрлата", mauerlatLength, {
@@ -1298,7 +1628,50 @@ function roofSection(project, metrics, index, inputs) {
       "roof",
       "Анкер-шпилька для крепления мауэрлата",
       mauerlatAnchors,
-      { key: "mauerlat-anchors", unit: "шт" },
+      {
+        key: "mauerlat-anchors",
+        unit: "шт",
+        name: `Анкер-шпилька М12×150 · шаг до ${formatNumberForName(mauerlatFastenerSpacing)} м`,
+        exactQuantity: true,
+      },
+    ),
+    makeLine(index, "roof", "Саморезы конст.", mauerlatScrewKg, {
+      key: "mauerlat-screws",
+      unit: "кг",
+      digits: 3,
+      name: `Конструкционные саморезы ${mauerlatScrew.size} для мауэрлата · ${mauerlatScrewCount} шт, ${mauerlatScrewRows} ряда с шагом до ${formatNumberForName(mauerlatFastenerSpacing)} м`,
+      exactQuantity: true,
+    }),
+    makeLine(
+      index,
+      "roof",
+      "Уголок усиленный 90×70×55×2.5",
+      rafterSupportBracketCount,
+      {
+        key: "rafter-support-brackets",
+        unit: "шт",
+        name: `Уголок усиленный для опоры стропил · ${rafterSupportNodeCount} узлов`,
+        exactQuantity: true,
+      },
+    ),
+    makeLine(index, "roof", "Гвозди/саморезы для обрешётки", framingNailKg, {
+      key: "framing-nails",
+      unit: "кг",
+      digits: 3,
+      name: `Гвозди от 80 мм для стропильных узлов · ${framingNailCount} шт`,
+      exactQuantity: true,
+    }),
+    makeLine(
+      index,
+      "roof",
+      "Пластина соединительная 100×240×2",
+      trussPlateCount,
+      {
+        key: "truss-plates",
+        unit: "шт",
+        name: `Соединительные пластины стропильных ферм · ${trussPlateCount} шт`,
+        exactQuantity: true,
+      },
     ),
     makeLine(index, "roof", "Монтаж стропильной системы", mainColdSlopeArea, {
       key: "rafters-work",
@@ -1396,11 +1769,13 @@ function roofSection(project, metrics, index, inputs) {
       index,
       "roof",
       "Гвозди/саморезы для обрешётки",
-      totalArea * inputs.formulas.roofGeneralFastenerKgPerM2,
+      lathNailKg,
       {
         key: "general-fasteners",
         unit: "кг",
-        name: "Сопутствующий крепёж кровли и фронтонов",
+        digits: 3,
+        name: `Гвозди/саморезы обрешётки · ${lathCrossingCount} пересечений, ${lathNailCount} шт`,
+        exactQuantity: true,
       },
     ),
     makeLine(
@@ -1653,6 +2028,22 @@ function roofSection(project, metrics, index, inputs) {
     mauerlatPurchaseLength: round(mauerlatPurchaseLength, 3),
     mauerlatBoardCount,
     mauerlatAnchors,
+    mauerlatLayout,
+    mauerlatFastener,
+    mauerlatFastenerSpacing: round(mauerlatFastenerSpacing, 3),
+    mauerlatFastenerPoints,
+    mauerlatScrewRows,
+    mauerlatScrewCount,
+    mauerlatScrewSize: mauerlatScrew.size,
+    rafterSupportConnection,
+    rafterSupportNodeCount,
+    rafterSupportBracketCount,
+    framingNailCount,
+    framingNailKg: round(framingNailKg, 3),
+    lathCrossingCount,
+    lathNailCount,
+    lathNailKg: round(lathNailKg, 3),
+    trussPlateCount,
     ridgeBeamLength: round(ridgeBeamLength, 3),
     ridgeBeamPurchaseLength: round(ridgeBeamPurchaseLength, 3),
     rafterLegLength: round(mainRafterLegLength, 3),

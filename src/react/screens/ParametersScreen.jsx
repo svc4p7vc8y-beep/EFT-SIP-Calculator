@@ -993,6 +993,35 @@ export default function ParametersScreen() {
                 max: 1.2,
                 step: 0.05,
               },
+              {
+                path: "settings.roof.mauerlatLayout",
+                label: "Схема мауэрлата",
+                type: "select",
+                options: [
+                  { value: "perimeter", label: "Весь наружный периметр" },
+                  { value: "supports", label: "Только опорные стены" },
+                  { value: "none", label: "Не учитывать" },
+                ],
+              },
+              {
+                path: "settings.roof.mauerlatFastener",
+                label: "Крепление мауэрлата",
+                type: "select",
+                options: [
+                  { value: "sip-screws", label: "Саморезы · SIP" },
+                  { value: "anchors", label: "Анкеры · армопояс" },
+                  { value: "none", label: "Не учитывать" },
+                ],
+              },
+              {
+                path: "settings.roof.rafterSupportConnection",
+                label: "Опора стропил",
+                type: "select",
+                options: [
+                  { value: "nails", label: "Гвоздевой узел по СП" },
+                  { value: "angles", label: "Усиленные уголки" },
+                ],
+              },
               project.settings.roof.shape === "gable" && {
                 path: "settings.roof.gableType",
                 label: "Фронтоны",

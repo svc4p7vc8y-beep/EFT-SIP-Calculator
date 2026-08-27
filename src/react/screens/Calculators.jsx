@@ -550,6 +550,84 @@ function RoofConstructionPanels({
         <RafterSystemPreview calculation={calculation} />
         </section>
         <section className="roof-main-section">
+          <h3>Мауэрлат и крепёж стропильной системы</h3>
+          <p className="roof-section-note">
+            Мауэрлат считается шестиметровыми брусьями. Крепёж формируется по
+            точкам опирания, узлам конька, затяжкам и пересечениям обрешётки.
+          </p>
+          <div className="form-grid four">
+            <SelectField
+              label="Схема мауэрлата"
+              value={project.settings.roof.mauerlatLayout || "perimeter"}
+              onChange={(value) => setSetting("roof", "mauerlatLayout", value)}
+              options={[
+                { value: "perimeter", label: "По всему наружному периметру" },
+                { value: "supports", label: "Только под опорными стенами" },
+                { value: "none", label: "Не учитывать" },
+              ]}
+            />
+            <SelectField
+              label="Крепление мауэрлата"
+              value={project.settings.roof.mauerlatFastener || "sip-screws"}
+              onChange={(value) => setSetting("roof", "mauerlatFastener", value)}
+              options={[
+                { value: "sip-screws", label: "Конструкционные саморезы · SIP" },
+                { value: "anchors", label: "Анкер-шпильки · армопояс" },
+                { value: "none", label: "Не учитывать" },
+              ]}
+            />
+            <SelectField
+              label="Опора стропил"
+              value={project.settings.roof.rafterSupportConnection || "nails"}
+              onChange={(value) => setSetting("roof", "rafterSupportConnection", value)}
+              options={[
+                { value: "nails", label: "Гвоздевой узел по СП" },
+                { value: "angles", label: "Усиленные уголки" },
+              ]}
+            />
+            <div className="readout">
+              <span>Мауэрлат 100×150</span>
+              <strong>
+                {formatNumber(calculation.roof.mauerlatLength)} м · {calculation.roof.mauerlatBoardCount || 0} шт × 6 м
+              </strong>
+            </div>
+            <div className="readout">
+              <span>Крепление мауэрлата</span>
+              <strong>
+                {calculation.roof.mauerlatFastener === "anchors"
+                  ? `${calculation.roof.mauerlatAnchors || 0} анкеров`
+                  : calculation.roof.mauerlatFastener === "sip-screws"
+                    ? `${calculation.roof.mauerlatScrewCount || 0} саморезов ${calculation.roof.mauerlatScrewSize || ""}`
+                    : "не учитывается"}
+              </strong>
+            </div>
+            <div className="readout">
+              <span>Опорные узлы стропил</span>
+              <strong>
+                {calculation.roof.rafterSupportNodeCount || 0} узлов
+                {calculation.roof.rafterSupportBracketCount
+                  ? ` · ${calculation.roof.rafterSupportBracketCount} уголков`
+                  : ""}
+              </strong>
+            </div>
+            <div className="readout">
+              <span>Гвозди стропильных узлов</span>
+              <strong>{calculation.roof.framingNailCount || 0} шт</strong>
+            </div>
+            <div className="readout">
+              <span>Крепёж обрешётки</span>
+              <strong>
+                {calculation.roof.lathNailCount || 0} шт · {calculation.roof.lathCrossingCount || 0} пересечений
+              </strong>
+            </div>
+          </div>
+          <p className="roof-section-note">
+            Минимальные гвоздевые соединения взяты из таблиц 8.1–8.3 СП
+            31-105-2002. Несущую способность уголков, саморезов и анкеров нужно
+            подтвердить конструктивным проектом конкретного дома.
+          </p>
+        </section>
+        <section className="roof-main-section">
           <h3>Доборные элементы</h3>
           <p className="roof-section-note">
             Коньковая планка и её монтаж всегда входят в двускатную кровлю.
@@ -988,13 +1066,13 @@ export default function Calculators({ type }) {
               value={`${formatNumber(calculation.lines.find((line) => line.id === "sip:panel-ceiling")?.price || 0)} ₽/шт`}
             />
             <Stat
-              label="Стыки панелей"
-              value={`${formatNumber(calculation.sip.joinery.totalJointLength)} м`}
+              label="Соединительный брус · закупка"
+              value={`${formatNumber(calculation.sip.joinery.totalJointPurchaseLength)} м`}
               tone="accent"
             />
             <Stat
-              label="Торцевая доска"
-              value={`${formatNumber(calculation.sip.joinery.totalEndBoardLength)} м`}
+              label="Торцевая доска · закупка"
+              value={`${formatNumber(calculation.sip.joinery.totalEndBoardPurchaseLength)} м`}
             />
             <Stat
               label="Перегородки 1 этажа"
@@ -1388,7 +1466,15 @@ export default function Calculators({ type }) {
             />
             <Stat
               label="Мауэрлат 100×150"
-              value={`${formatNumber(calculation.roof.mauerlatLength)} м.п.`}
+              value={`${formatNumber(calculation.roof.mauerlatLength)} м.п. · ${calculation.roof.mauerlatBoardCount || 0} шт × 6 м`}
+            />
+            <Stat
+              label="Крепёж мауэрлата"
+              value={calculation.roof.mauerlatFastener === "anchors" ? `${calculation.roof.mauerlatAnchors || 0} анкеров` : calculation.roof.mauerlatFastener === "sip-screws" ? `${calculation.roof.mauerlatScrewCount || 0} саморезов` : "не учитывается"}
+            />
+            <Stat
+              label="Крепёж стропил / обрешётки"
+              value={`${calculation.roof.framingNailCount || 0} / ${calculation.roof.lathNailCount || 0} шт`}
             />
             <Stat
               label="Коньковая доска в стропилах"

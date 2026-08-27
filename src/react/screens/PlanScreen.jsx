@@ -2743,6 +2743,35 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "50x200", label: "50 × 200 мм" },
         ]}
       />
+      <SelectField
+        label="Схема мауэрлата"
+        value={roof.mauerlatLayout || "perimeter"}
+        onChange={(value) => commitRoof("mauerlatLayout", value)}
+        options={[
+          { value: "perimeter", label: "Весь наружный периметр" },
+          { value: "supports", label: "Только опорные стены" },
+          { value: "none", label: "Не учитывать" },
+        ]}
+      />
+      <SelectField
+        label="Крепление мауэрлата"
+        value={roof.mauerlatFastener || "sip-screws"}
+        onChange={(value) => commitRoof("mauerlatFastener", value)}
+        options={[
+          { value: "sip-screws", label: "Конструкционные саморезы · SIP" },
+          { value: "anchors", label: "Анкер-шпильки · армопояс" },
+          { value: "none", label: "Не учитывать" },
+        ]}
+      />
+      <SelectField
+        label="Опора стропил"
+        value={roof.rafterSupportConnection || "nails"}
+        onChange={(value) => commitRoof("rafterSupportConnection", value)}
+        options={[
+          { value: "nails", label: "Гвоздевой узел по СП" },
+          { value: "angles", label: "Усиленные уголки" },
+        ]}
+      />
       <div className="roof-layer-toggles">
         <Toggle
           label="Покрытие"

@@ -395,6 +395,18 @@ export default function ProjectSummarySidebar({
             value={`${roof.rafterBoardCount || 0} шт`}
           />
           <SummaryValue
+            label="Мауэрлат"
+            value={`${formatNumber(roof.mauerlatLength)} м · ${roof.mauerlatBoardCount || 0} брус.`}
+          />
+          <SummaryValue
+            label="Крепёж каркаса"
+            value={`${roof.framingNailCount || 0} шт`}
+          />
+          <SummaryValue
+            label="Крепёж обрешётки"
+            value={`${roof.lathNailCount || 0} шт`}
+          />
+          <SummaryValue
             label="Водосток"
             value={
               project.settings.roof.includeGutter === true
