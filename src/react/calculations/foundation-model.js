@@ -1,5 +1,5 @@
 import { terraceAttachmentSide } from '../../calculations/terrace-model.js';
-import { houseContourPoints, lineEndpoints, unifiedWallSegments } from '../planner/geometry.js';
+import { boundsOf, houseContourPoints, lineEndpoints, pointInPolygon, unifiedWallSegments } from '../planner/geometry.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -81,8 +81,104 @@ export function generateAutoBindingLines(plan, verticalRows = 4, horizontalRows 
   return lines;
 }
 
-export function generateAutoPileRows(plan, spacing = 2.5) {
+function pointOnSegment(point, a, b, tolerance = 0.015) {
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  if (length <= tolerance) return false;
+  const distance = Math.abs((b.x - a.x) * (a.y - point.y) - (a.x - point.x) * (b.y - a.y)) / length;
+  if (distance > tolerance) return false;
+  return point.x >= Math.min(a.x, b.x) - tolerance && point.x <= Math.max(a.x, b.x) + tolerance
+    && point.y >= Math.min(a.y, b.y) - tolerance && point.y <= Math.max(a.y, b.y) + tolerance;
+}
+
+function segmentIntersection(first, second, tolerance = 0.015) {
+  const p = first.a; const r = { x: first.b.x - first.a.x, y: first.b.y - first.a.y };
+  const q = second.a; const s = { x: second.b.x - second.a.x, y: second.b.y - second.a.y };
+  const cross = (a, b) => a.x * b.y - a.y * b.x;
+  const denominator = cross(r, s);
+  if (Math.abs(denominator) <= tolerance) return null;
+  const qp = { x: q.x - p.x, y: q.y - p.y };
+  const t = cross(qp, s) / denominator;
+  const u = cross(qp, r) / denominator;
+  if (t < -tolerance || t > 1 + tolerance || u < -tolerance || u > 1 + tolerance) return null;
+  return { x: p.x + t * r.x, y: p.y + t * r.y };
+}
+
+function splitAtFoundationNodes(candidates = []) {
+  return candidates.flatMap((candidate, candidateIndex) => {
+    const dx = candidate.b.x - candidate.a.x;
+    const dy = candidate.b.y - candidate.a.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared <= 0.0001) return [];
+    const nodes = [candidate.a, candidate.b];
+    candidates.forEach((other, otherIndex) => {
+      if (candidateIndex === otherIndex) return;
+      const crossing = segmentIntersection(candidate, other);
+      if (crossing) nodes.push(crossing);
+      [other.a, other.b].forEach((point) => {
+        if (pointOnSegment(point, candidate.a, candidate.b)) nodes.push(point);
+      });
+    });
+    const unique = [];
+    nodes
+      .map((point) => ({
+        x: round(point.x, 3), y: round(point.y, 3),
+        t: ((point.x - candidate.a.x) * dx + (point.y - candidate.a.y) * dy) / lengthSquared
+      }))
+      .sort((a, b) => a.t - b.t)
+      .forEach((point) => {
+        if (!unique.some((item) => Math.hypot(item.x - point.x, item.y - point.y) <= 0.015)) unique.push(point);
+      });
+    return unique.slice(0, -1).map((point, index) => ({
+      ...candidate,
+      id: `${candidate.id}-${index + 1}`,
+      name: `${candidate.name} · участок ${index + 1}`,
+      a: { x: point.x, y: point.y },
+      b: { x: unique[index + 1].x, y: unique[index + 1].y }
+    })).filter((item) => Math.hypot(item.b.x - item.a.x, item.b.y - item.a.y) >= 0.05);
+  });
+}
+
+function gridSegmentsInsideContour(contour, rowSpacing) {
+  const bounds = boundsOf(contour);
+  const segments = [];
+  const addAxis = (axis, fixed, index) => {
+    const intersections = [];
+    contour.forEach((point, edgeIndex) => {
+      const next = contour[(edgeIndex + 1) % contour.length];
+      if (axis === 'h') {
+        if ((point.y <= fixed && next.y > fixed) || (next.y <= fixed && point.y > fixed)) {
+          const ratio = (fixed - point.y) / (next.y - point.y);
+          intersections.push(point.x + (next.x - point.x) * ratio);
+        }
+      } else if ((point.x <= fixed && next.x > fixed) || (next.x <= fixed && point.x > fixed)) {
+        const ratio = (fixed - point.x) / (next.x - point.x);
+        intersections.push(point.y + (next.y - point.y) * ratio);
+      }
+    });
+    intersections.sort((a, b) => a - b);
+    for (let pair = 0; pair + 1 < intersections.length; pair += 2) {
+      const start = intersections[pair]; const end = intersections[pair + 1];
+      const midpoint = axis === 'h' ? { x: (start + end) / 2, y: fixed } : { x: fixed, y: (start + end) / 2 };
+      if (!pointInPolygon(midpoint, contour) || end - start < 0.05) continue;
+      segments.push({
+        id: `auto-grid-${axis}-${index}-${pair / 2 + 1}`,
+        name: `Авто · сетка ${axis === 'h' ? 'горизонталь' : 'вертикаль'} ${index}`,
+        a: axis === 'h' ? { x: start, y: fixed } : { x: fixed, y: start },
+        b: axis === 'h' ? { x: end, y: fixed } : { x: fixed, y: end }
+      });
+    }
+  };
+  const verticalIntervals = Math.max(1, Math.ceil(bounds.w / rowSpacing));
+  const horizontalIntervals = Math.max(1, Math.ceil(bounds.h / rowSpacing));
+  for (let index = 1; index < verticalIntervals; index += 1) addAxis('v', bounds.x + bounds.w * index / verticalIntervals, index);
+  for (let index = 1; index < horizontalIntervals; index += 1) addAxis('h', bounds.y + bounds.h * index / horizontalIntervals, index);
+  return segments;
+}
+
+export function generateAutoPileRows(plan, spacing = 2.5, options = {}) {
   const safeSpacing = Math.max(0.5, Number(spacing) || 2.5);
+  const mode = ['nodes', 'uniform', 'contour'].includes(options.mode) ? options.mode : 'nodes';
+  const rowSpacing = Math.max(0.5, Number(options.rowSpacing) || safeSpacing);
   const createRow = (id, name, a, b, group = 'house') => {
     const length = Math.hypot(b.x - a.x, b.y - a.y);
     return {
@@ -94,32 +190,33 @@ export function generateAutoPileRows(plan, spacing = 2.5) {
   const rectangleIds = ['auto-top', 'auto-right', 'auto-bottom', 'auto-left'];
   const rectangleNames = ['Авто · верх', 'Авто · справа', 'Авто · низ', 'Авто · слева'];
   const customContour = Array.isArray(plan?.house?.points) && plan.house.points.length >= 3;
-  const rows = contour.map((point, index) => createRow(
-    customContour ? `auto-contour-${index + 1}` : rectangleIds[index],
-    customContour ? `Авто · контур ${index + 1}` : rectangleNames[index],
-    point,
-    contour[(index + 1) % contour.length]
-  ));
-  unifiedWallSegments(plan).forEach((segment, index) => {
+  const candidates = contour.map((point, index) => ({
+    id: customContour ? `auto-contour-${index + 1}` : rectangleIds[index],
+    name: customContour ? `Авто · контур ${index + 1}` : rectangleNames[index],
+    a: point,
+    b: contour[(index + 1) % contour.length]
+  }));
+  if (mode === 'uniform') candidates.push(...gridSegmentsInsideContour(contour, rowSpacing));
+  if (mode === 'nodes' && options.includeInteriorWalls !== false) unifiedWallSegments(plan).forEach((segment, index) => {
     const [a, b] = lineEndpoints(segment);
     const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     const inside = midpoint.x >= 0 && midpoint.x <= plan.house.w && midpoint.y >= 0 && midpoint.y <= plan.house.h;
     const first = { x: Math.max(0, Math.min(plan.house.w, a.x)), y: Math.max(0, Math.min(plan.house.h, a.y)) };
     const second = { x: Math.max(0, Math.min(plan.house.w, b.x)), y: Math.max(0, Math.min(plan.house.h, b.y)) };
-    if (inside && Math.hypot(second.x - first.x, second.y - first.y) >= 0.5) rows.push(createRow(`auto-inner-${index + 1}`, `Авто · под стеной ${index + 1}`, first, second));
+    if (inside && Math.hypot(second.x - first.x, second.y - first.y) >= 0.5) candidates.push({ id: `auto-inner-${index + 1}`, name: `Авто · под стеной ${index + 1}`, a: first, b: second });
   });
-  (plan.walls || []).forEach((wall, index) => {
+  if (mode === 'nodes' && options.includeInteriorWalls !== false) (plan.walls || []).forEach((wall, index) => {
     const a = { x: wall.x1, y: wall.y1 }; const b = { x: wall.x2, y: wall.y2 };
-    if (Math.hypot(b.x - a.x, b.y - a.y) >= 0.5) rows.push(createRow(`auto-wall-${index + 1}`, `Авто · отдельная стена ${index + 1}`, a, b));
+    if (Math.hypot(b.x - a.x, b.y - a.y) >= 0.5) candidates.push({ id: `auto-wall-${index + 1}`, name: `Авто · отдельная стена ${index + 1}`, a, b });
   });
-  return rows;
+  return splitAtFoundationNodes(candidates).map((candidate) => createRow(candidate.id, candidate.name, candidate.a, candidate.b));
 }
 
 export function calculateFoundation(plan, settings = {}) {
   const spacing = Math.max(0.5, Number(settings.spacing) || 2.5);
   const houseRows = (plan.pileRows || []).filter((row) => row.group !== 'platform');
   const housePoints = uniquePoints([houseRows.flatMap(rowPoints).concat((plan.piles || []).map((pile) => ({ ...pile, source: 'house' })))], 0.05);
-  const platforms = (plan.platforms || []).filter((platform) => platform.include !== false && platform.foundation?.mode !== 'none');
+  const platforms = settings.includePlatforms === false ? [] : (plan.platforms || []).filter((platform) => platform.include !== false && platform.foundation?.mode !== 'none');
   const platformPoints = platforms.flatMap((platform) => perimeterRows(platform, spacing, plan.house).flatMap(rowPoints));
   // Опора террасы/крыльца рядом с домовой опорой считается общей, даже если геометрически точки не совпали идеально.
   // Это убирает бессмысленные дубли свай вдоль примыкания площадки к дому.

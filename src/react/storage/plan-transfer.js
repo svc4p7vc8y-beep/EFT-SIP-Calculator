@@ -1,9 +1,5 @@
 import { ensureProjectFloorCount, normalizePlan, REACT_PROJECT_VERSION } from '../state/project-model.js';
 
-const PLAN_SERVICES = [
-  'foundation', 'sipFloor', 'sipSecondFloor', 'sipWalls', 'sipCeiling', 'partitions', 'roof', 'terrace', 'openings'
-];
-
 export function createPlanTransfer(project) {
   return {
     format: 'eft-house-plan',
@@ -14,12 +10,8 @@ export function createPlanTransfer(project) {
     plan: structuredClone(project.plan),
     floors: Math.max(1, Math.min(2, Number(project.meta?.floors) || 1)),
     upperFloors: structuredClone(project.upperFloors || []),
-    settings: {
-      piles: structuredClone(project.settings?.piles || {}),
-      sip: structuredClone(project.settings?.sip || {}),
-      roof: structuredClone(project.settings?.roof || {})
-    },
-    services: Object.fromEntries(PLAN_SERVICES.map((key) => [key, project.services?.[key] !== false]))
+    settings: structuredClone(project.settings || {}),
+    services: structuredClone(project.services || {})
   };
 }
 
@@ -44,12 +36,12 @@ export function applyPlanTransfer(project, raw) {
   next.meta.floors = incoming.floors;
   next.upperFloors = incoming.upperFloors;
   ensureProjectFloorCount(next, incoming.floors);
-  next.settings.piles = { ...next.settings.piles, ...(incoming.settings.piles || {}) };
-  next.settings.sip = { ...next.settings.sip, ...(incoming.settings.sip || {}) };
-  next.settings.roof = { ...next.settings.roof, ...(incoming.settings.roof || {}) };
-  for (const key of PLAN_SERVICES) {
-    if (typeof incoming.services[key] === 'boolean') next.services[key] = incoming.services[key];
-  }
+  Object.entries(incoming.settings).forEach(([key, value]) => {
+    next.settings[key] = value && typeof value === 'object' && !Array.isArray(value)
+      ? { ...(next.settings[key] || {}), ...value }
+      : value;
+  });
+  next.services = { ...next.services, ...incoming.services };
   return next;
 }
 

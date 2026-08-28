@@ -10,7 +10,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 101;
+export const REACT_PROJECT_VERSION = 104;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -470,6 +470,11 @@ export function createDefaultProject() {
     settings: {
       piles: {
         spacing: 2.5,
+        autoLayoutMode: "nodes",
+        autoRowSpacing: 2.5,
+        autoIncludeInteriorWalls: true,
+        includePlatforms: true,
+        autoSyncBinding: true,
         boardVolumePerMeter: 0.0225,
         bindingLayers: 3,
         bindingBoardWidthMm: 50,
@@ -484,6 +489,7 @@ export function createDefaultProject() {
         wallPanelFamily: "pps",
         ceilingPanelFamily: "pps",
         partitionType: "frame",
+        partitionFrameSection: "50x100",
         partitionThickness: "124",
         partitionPanelFamily: "pps",
         floorPanelWidth: "1.25",
@@ -572,6 +578,7 @@ export function createDefaultProject() {
         showBinding: true,
         showDimensions: true,
         compactAccessories: true,
+        maximumCompact: false,
         includeLabor: true,
         includeAccessories: true,
       },

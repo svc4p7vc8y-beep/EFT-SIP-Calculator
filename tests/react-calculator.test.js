@@ -430,7 +430,7 @@ test('print plan and roof layers default independently and survive migration', (
   assert.deepEqual(project.settings.print, {
     includePlan: true, includeRoof: false, showContour: true, showRooms: true,
     showOpenings: true, showPlatforms: true, showPiles: true, showBinding: true, showDimensions: true,
-    compactAccessories: true, includeLabor: true, includeAccessories: true
+    compactAccessories: true, maximumCompact: false, includeLabor: true, includeAccessories: true
   });
   project.settings.print.showPiles = false;
   project.settings.print.showDimensions = false;
@@ -506,7 +506,7 @@ test('client estimate keeps SIP panels and timber visible but groups consumables
   assert.ok(floor.some((line) => line.id === 'sip:panel-floor'));
   assert.ok(floor.some((line) => line.id === 'sip:floor-connector'));
   assert.ok(floor.some((line) => line.id === 'sip:floor-edge-board'));
-  const kit = floor.find((line) => line.name === 'Комплект для монтажа пола');
+  const kit = floor.find((line) => line.name === 'Комплект для сборки пола');
   assert.ok(kit);
   assert.ok(kit.includedLineIds.includes('sip:foam-floor'));
   assert.equal(Math.round(client.totals.total * 100), Math.round(calculation.totals.total * 100));
@@ -523,6 +523,36 @@ test('client estimate can exclude labor or accessories without changing manager 
   ));
   assert.ok(noAccessories.totals.materials < calculation.totals.materials);
   assert.equal(calculateProject(createDefaultProject()).totals.total, calculation.totals.total);
+});
+
+test('maximum compact client estimate groups roof lumber, fasteners, trims and labor without changing total', () => {
+  const calculation = calculateProject(createDefaultProject());
+  const client = buildClientEstimate(calculation, {
+    includeLabor: true,
+    includeAccessories: true,
+    compactAccessories: true,
+    maximumCompact: true,
+  });
+  const roof = client.sections.find((section) => section.key === 'roof').lines;
+  const sourceRoof = calculation.sections.find((section) => section.key === 'roof').lines;
+  const lumber = roof.find((line) => line.name === 'Пиломатериал для сборки крыши');
+  const fasteners = roof.find((line) => line.name === 'Крепёж для сборки крыши');
+  const trim = roof.find((line) => line.name === 'Доборные элементы кровли');
+  const labor = roof.find((line) => line.name === 'Сборка крыши');
+
+  assert.ok(lumber);
+  assert.equal(lumber.unit, 'м³');
+  assert.ok(lumber.includedLineIds.includes('roof:rafters'));
+  assert.ok(lumber.includedLineIds.includes('roof:lath'));
+  assert.ok(fasteners.includedLineIds.includes('roof:roof-screws'));
+  assert.ok(trim.includedLineIds.includes('roof:ridge'));
+  assert.ok(trim.includedLineIds.includes('roof:eave-trim'));
+  assert.ok(labor.includedLineIds.includes('roof:rafters-work'));
+  assert.ok(labor.includedLineIds.includes('roof:ridge-work'));
+  const foundation = client.sections.find((section) => section.key === 'foundation').lines;
+  assert.ok(foundation.some((line) => line.id === 'foundation:concrete'));
+  assert.ok(roof.length < sourceRoof.length);
+  assert.equal(Math.round(client.totals.total * 100), Math.round(calculation.totals.total * 100));
 });
 
 test('commercial proposal follows project estimate edits instead of promising removed sections', () => {
@@ -1197,7 +1227,45 @@ test('automatic pile rows cover the house perimeter and internal walls at the co
   assert.ok(rows.length > 4);
   assert.ok(rows.every((row) => row.auto && row.count >= 2));
   assert.ok(rows.every((row) => Math.hypot(row.x2 - row.x1, row.y2 - row.y1) / (row.count - 1) <= 2.001));
-  assert.deepEqual(rows.slice(0, 4).map((row) => row.id), ['auto-top', 'auto-right', 'auto-bottom', 'auto-left']);
+  assert.deepEqual(rows.slice(0, 4).map((row) => row.id), ['auto-top-1', 'auto-right-1', 'auto-bottom-1', 'auto-left-1']);
+});
+
+test('node pile layout creates exact shared supports at wall intersections', () => {
+  const project = createDefaultProject();
+  project.plan.platforms = [];
+  project.plan.rooms = [];
+  project.plan.walls = [
+    { id: 'wall-h', x1: 0, y1: 3, x2: 8, y2: 3 },
+    { id: 'wall-v', x1: 4, y1: 0, x2: 4, y2: 6 },
+  ];
+  const rows = generateAutoPileRows(project.plan, 2.5, { mode: 'nodes', includeInteriorWalls: true });
+  project.plan.pileRows = rows;
+  project.plan.bindingLines = bindingLinesFromPileRows(rows);
+  const foundation = calculateFoundation(project.plan, project.settings.piles);
+  assert.equal(foundation.points.filter((point) => Math.abs(point.x - 4) < 0.001 && Math.abs(point.y - 3) < 0.001).length, 1);
+  assert.ok(rows.some((row) => Math.hypot(row.x2 - 4, row.y2 - 3) < 0.001));
+  assert.ok(rows.some((row) => Math.hypot(row.x1 - 4, row.y1 - 3) < 0.001));
+});
+
+test('uniform and contour foundation modes stay inside the house and binding follows rows', () => {
+  const project = createDefaultProject();
+  project.plan.platforms = [];
+  const contourRows = generateAutoPileRows(project.plan, 2, { mode: 'contour' });
+  const uniformRows = generateAutoPileRows(project.plan, 2, { mode: 'uniform', rowSpacing: 2 });
+  assert.ok(uniformRows.length > contourRows.length);
+  assert.ok(uniformRows.every((row) => [row.x1, row.x2].every((x) => x >= 0 && x <= project.plan.house.w) && [row.y1, row.y2].every((y) => y >= 0 && y <= project.plan.house.h)));
+  const bindings = bindingLinesFromPileRows(uniformRows);
+  assert.equal(bindings.length, uniformRows.length);
+  assert.deepEqual(bindings.map((line) => [line.x1, line.y1, line.x2, line.y2]), uniformRows.map((row) => [row.x1, row.y1, row.x2, row.y2]));
+});
+
+test('foundation platforms can be excluded without changing the house pile layout', () => {
+  const project = createDefaultProject();
+  const included = calculateFoundation(project.plan, { ...project.settings.piles, includePlatforms: true });
+  const excluded = calculateFoundation(project.plan, { ...project.settings.piles, includePlatforms: false });
+  assert.equal(excluded.platformPiles, 0);
+  assert.equal(excluded.housePiles, included.housePiles);
+  assert.ok(excluded.totalPiles <= included.totalPiles);
 });
 
 test('pile rows share one pile at corners and crossing nodes', () => {
@@ -1315,6 +1383,24 @@ test('SIP partitions use their selected panel family and thickness', () => {
   assert.equal(partitionPanel.price, 10283);
   assert.ok(result.sip.cutting.some((row) => row.key === 'partitions' && row.panels > 0));
   assert.equal(result.lines.some((line) => line.id === 'sip:partition-board'), false);
+});
+
+test('frame partitions can use 50x150 boards with proportional volume and the existing labor rate', () => {
+  const project = createDefaultProject();
+  project.settings.sip.partitionType = 'frame';
+  project.settings.sip.partitionFrameSection = '50x100';
+  const standard = calculateProject(project);
+  const standardBoard = standard.lines.find((line) => line.id === 'sip:partition-board');
+  const standardLabor = standard.lines.find((line) => line.id === 'sip:partition-work');
+  project.settings.sip.partitionFrameSection = '50x150';
+  const deep = calculateProject(project);
+  const deepBoard = deep.lines.find((line) => line.id === 'sip:partition-board');
+  const deepLabor = deep.lines.find((line) => line.id === 'sip:partition-work');
+  assert.equal(standardBoard.catalogId, 'MAT-027');
+  assert.equal(deepBoard.catalogId, 'MAT-023');
+  assert.equal(Math.round(deepBoard.quantity * 1000), Math.round(standardBoard.quantity * 1500));
+  assert.equal(deepLabor.price, standardLabor.price);
+  assert.match(deepBoard.name, /50×150/);
 });
 
 test('roof covering selection switches metal tile and soft roof OSB', () => {

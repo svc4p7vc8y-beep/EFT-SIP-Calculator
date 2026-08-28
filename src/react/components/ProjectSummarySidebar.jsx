@@ -263,7 +263,7 @@ export default function ProjectSummarySidebar({
               : "стандарт, модуль 1250 мм"}
           </p>
         ) : null}
-        <p className="summary-detail">Перегородки: {project.settings.sip.partitionType === "sip" ? `${PANEL_FAMILIES[project.settings.sip.partitionPanelFamily] || "PPS"} ${project.settings.sip.partitionThickness || "124"} мм` : "каркасные"}</p>
+        <p className="summary-detail">Перегородки: {project.settings.sip.partitionType === "sip" ? `${PANEL_FAMILIES[project.settings.sip.partitionPanelFamily] || "PPS"} ${project.settings.sip.partitionThickness || "124"} мм` : `каркасные · доска ${(project.settings.sip.partitionFrameSection || "50x100").replace("x", "×")} мм`}</p>
         <p className="summary-detail">
           Шаг раскладки: пол{" "}
           {Math.round(

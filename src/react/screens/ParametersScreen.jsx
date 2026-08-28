@@ -217,6 +217,10 @@ export default function ParametersScreen() {
         if ([124, 174, 224].includes(millimeters)) {
           next.settings.sip.partitionThickness = String(millimeters);
         }
+        if ([100, 150].includes(millimeters)) {
+          next.settings.sip.partitionType = "frame";
+          next.settings.sip.partitionFrameSection = millimeters === 150 ? "50x150" : "50x100";
+        }
         return next;
       }
       const sipLineByPath = {
@@ -243,6 +247,11 @@ export default function ParametersScreen() {
         target = target[key];
       });
       target[keys.at(-1)] = value;
+      if (path === "settings.sip.partitionFrameSection") {
+        const thickness = value === "50x150" ? 0.15 : 0.1;
+        next.plan.partitionThickness = thickness;
+        (next.upperFloors || []).forEach((floorPlan) => { floorPlan.partitionThickness = thickness; });
+      }
       if (path.startsWith("settings.roof.") && !path.includes(".show"))
         releasePlanLinkedQuantityOverrides(next);
       if (disableLink) next.settings.links[disableLink] = false;
@@ -508,6 +517,7 @@ export default function ParametersScreen() {
                 ),
                 options: [
                   { value: "100", label: "100 мм · каркасная" },
+                  { value: "150", label: "150 мм · каркасная 50×150" },
                   ...thicknesses,
                 ],
               },
@@ -768,6 +778,15 @@ export default function ParametersScreen() {
                 label: "Толщина перегородок",
                 type: "select",
                 options: thicknesses,
+              },
+              project.settings.sip.partitionType !== "sip" && {
+                path: "settings.sip.partitionFrameSection",
+                label: "Доска каркаса перегородок",
+                type: "select",
+                options: [
+                  { value: "50x100", label: "50×100 мм" },
+                  { value: "50x150", label: "50×150 мм" },
+                ],
               },
               {
                 path: "settings.sip.connectorType",

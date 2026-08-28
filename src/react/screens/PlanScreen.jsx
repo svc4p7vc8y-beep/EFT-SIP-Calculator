@@ -52,9 +52,9 @@ import {
 import {
   bindingLinesFromPileRows,
   calculateFoundation,
-  generateAutoBindingLines,
   generateAutoPileRows,
 } from "../calculations/foundation-model.js";
+import { calculateProject } from "../calculations/estimate-engine.js";
 import {
   Field,
   NumberField,
@@ -72,12 +72,18 @@ import {
 } from "../state/project-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
-import { formatNumber, uid } from "../utils/format.js";
+import { formatMoney, formatNumber, uid } from "../utils/format.js";
 import {
   applyPlanTransfer,
   downloadPlanTransfer,
   sharePlanTransfer,
 } from "../storage/plan-transfer.js";
+import {
+  createPlanLibraryEntry,
+  readPlanLibrary,
+  restorePlanLibraryEntry,
+  writePlanLibrary,
+} from "../storage/plan-library.js";
 import {
   allOpeningSegments,
   boundsOf,
@@ -110,11 +116,10 @@ const WALL_THICKNESS_OPTIONS = [124, 174, 224].map((millimeters) => ({
   value: String(millimeters),
   label: `${millimeters} мм`,
 }));
-const PARTITION_THICKNESS_OPTIONS = [100, 124, 174, 224].map((millimeters) => ({
+const PARTITION_THICKNESS_OPTIONS = [100, 124, 150, 174, 224].map((millimeters) => ({
   value: String(millimeters),
   label: `${millimeters} мм`,
 }));
-const SKETCHES_KEY = "eft-react-plan-sketches-v47";
 const DRAW_TOOLS = new Set([
   "room",
   "extension",
@@ -145,14 +150,6 @@ const TOOLS = [
   ["porch", "Крыльцо", HousePlus],
   ["delete", "Удалить", Trash2],
 ];
-
-const getStoredSketches = () => {
-  try {
-    return JSON.parse(localStorage.getItem(SKETCHES_KEY) || "[]");
-  } catch {
-    return [];
-  }
-};
 
 function layoutFor(plan) {
   const sides = chooseDimensionSides(plan);
@@ -4323,6 +4320,127 @@ function MobileSelectionAdjuster({
     </>
   );
 }
+
+function PlanLibraryThumbnail({ plan }) {
+  const contour = houseContourPoints(plan);
+  const bounds = boundsOf(contour);
+  const padding = Math.max(bounds.w, bounds.h) * 0.08 || 0.5;
+  const points = (items) => items.map((point) => `${point.x},${point.y}`).join(" ");
+  return (
+    <svg className="plan-library-thumbnail" viewBox={`${bounds.x - padding} ${bounds.y - padding} ${bounds.w + padding * 2} ${bounds.h + padding * 2}`} role="img" aria-label="Миниатюра плана">
+      <defs><pattern id="library-grid" width="0.5" height="0.5" patternUnits="userSpaceOnUse"><path d="M .5 0 L 0 0 0 .5" fill="none" stroke="#dce7d8" strokeWidth="0.018" /></pattern></defs>
+      <rect x={bounds.x - padding} y={bounds.y - padding} width={bounds.w + padding * 2} height={bounds.h + padding * 2} fill="url(#library-grid)" />
+      {(plan.rooms || []).map((room) => <polygon key={room.id} points={points(roomPoints(room))} fill="#f6f3dd" stroke="#75826f" strokeWidth="0.045" />)}
+      <polygon points={points(contour)} fill="none" stroke="#172018" strokeWidth="0.16" strokeLinejoin="round" />
+      {(plan.walls || []).map((wall) => <line key={wall.id} x1={wall.x1} y1={wall.y1} x2={wall.x2} y2={wall.y2} stroke="#344238" strokeWidth="0.09" />)}
+      {(plan.openings || []).map((opening) => <circle key={opening.id} cx={opening.x} cy={opening.y} r="0.11" fill={opening.type === "window" ? "#36a9c4" : "#d47a22"} />)}
+    </svg>
+  );
+}
+
+function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare, onDelete }) {
+  return (
+    <div className="plan-library-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="plan-library-modal" role="dialog" aria-modal="true" aria-label="Библиотека планов">
+        <header>
+          <div><h2>Библиотека планов</h2><p>Каждая сохранённая карточка содержит план, конструктивные параметры, комплектацию и цену на момент сохранения.</p></div>
+          <button type="button" aria-label="Закрыть библиотеку планов" onClick={onClose}><X /></button>
+        </header>
+        <div className="plan-library-grid">
+          {entries.map((entry) => {
+            const snapshot = entry.project || {};
+            const savedPlan = snapshot.plan || entry.plan;
+            const settings = snapshot.settings || {};
+            const floors = Math.max(1, Number(snapshot.meta?.floors) || 1);
+            const area = Math.abs(polygonArea(houseContourPoints(savedPlan)));
+            const roofNames = { gable: "двухскатная", hip: "вальмовая", shed: "односкатная", flat: "плоская" };
+            const partition = settings.sip?.partitionType === "sip"
+              ? `SIP ${settings.sip.partitionThickness || 124} мм`
+              : `каркас ${(settings.sip?.partitionFrameSection || "50x100").replace("x", "×")}`;
+            return (
+              <article className="plan-library-card" key={entry.id}>
+                <PlanLibraryThumbnail plan={savedPlan} />
+                <div className="plan-library-card-body">
+                  <div className="plan-library-card-title"><div><strong>{entry.name}</strong><small>{entry.preset ? "Готовый шаблон" : entry.savedAt ? new Date(entry.savedAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }) : "Старый эскиз"}</small></div>{entry.legacy ? <em>старый формат</em> : null}</div>
+                  <div className="plan-library-parameters">
+                    <span><small>Габариты</small><b>{formatNumber(savedPlan.house.w)} × {formatNumber(savedPlan.house.h)} м</b></span>
+                    <span><small>Площадь</small><b>{formatNumber(area)} м²</b></span>
+                    <span><small>Этажи</small><b>{floors}</b></span>
+                    <span><small>Стены</small><b>{Math.round((savedPlan.wallThickness || 0.174) * 1000)} мм</b></span>
+                    <span><small>Перегородки</small><b>{partition}</b></span>
+                    <span><small>Кровля</small><b>{roofNames[settings.roof?.form] || "по проекту"}</b></span>
+                  </div>
+                  <div className="plan-library-price"><span>Цена при сохранении</span><strong>{entry.priceSnapshot?.total ? formatMoney(entry.priceSnapshot.total) : "пересчитается при открытии"}</strong></div>
+                  <div className="plan-library-actions">
+                    <button className="button primary" type="button" onClick={() => onOpen(entry)}>Открыть</button>
+                    {!entry.preset ? <button className="button secondary" type="button" onClick={() => onEdit(entry)}>Изменить</button> : null}
+                    {!entry.preset ? <button className="button secondary" type="button" onClick={() => onRename(entry)}>Переименовать</button> : null}
+                    <button className="button secondary" type="button" onClick={() => onShare(entry)}><Share2 />Поделиться</button>
+                    {!entry.preset ? <button className="button danger" type="button" onClick={() => onDelete(entry)}><Trash2 />Удалить</button> : null}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+const DEFAULT_FOUNDATION_DRAFT = {
+  autoLayoutMode: "nodes",
+  spacing: 2.5,
+  autoRowSpacing: 2.5,
+  autoIncludeInteriorWalls: true,
+  includePlatforms: true,
+  autoSyncBinding: true,
+};
+
+function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, compact = false }) {
+  const modes = [
+    ["nodes", "По узлам и стенам", "Опоры в углах, пересечениях и под перегородками"],
+    ["uniform", "Равномерная сетка", "Одинаковый шаг рядов по всей площади дома"],
+    ["contour", "Только по контуру", "Для лёгких построек без внутренних опор"],
+  ];
+  const update = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
+  return (
+    <div className={`foundation-setup ${compact ? "compact" : ""}`}>
+      <div className="foundation-setup-heading">
+        <div><h3>Сваи и обвязка</h3><p>Настройте схему, проверьте результат и примените её к плану.</p></div>
+        <CircleDot />
+      </div>
+      <div className="foundation-mode-list" role="radiogroup" aria-label="Схема автоматических свай">
+        {modes.map(([id, title, description]) => (
+          <button type="button" role="radio" aria-checked={draft.autoLayoutMode === id} className={draft.autoLayoutMode === id ? "active" : ""} key={id} onClick={() => update("autoLayoutMode", id)}>
+            <span className="foundation-mode-mark" />
+            <span><strong>{title}</strong><small>{description}</small></span>
+          </button>
+        ))}
+      </div>
+      <div className="foundation-setting-grid">
+        <NumberField label="Макс. шаг свай" value={draft.spacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("spacing", Math.max(0.5, value))} />
+        {draft.autoLayoutMode === "uniform" ? <NumberField label="Шаг между рядами" value={draft.autoRowSpacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("autoRowSpacing", Math.max(0.5, value))} /> : null}
+      </div>
+      {draft.autoLayoutMode === "nodes" ? <Toggle label="Опоры под внутренними стенами" checked={draft.autoIncludeInteriorWalls} onChange={(value) => update("autoIncludeInteriorWalls", value)} /> : null}
+      <Toggle label="Учитывать террасы и крыльца" checked={draft.includePlatforms} onChange={(value) => update("includePlatforms", value)} />
+      <Toggle label="Обвязка следует за свайными рядами" checked={draft.autoSyncBinding} onChange={(value) => update("autoSyncBinding", value)} />
+      <div className="foundation-preview" aria-live="polite">
+        <span><small>Предпросмотр</small><strong>{preview.totalPiles} свай</strong></span>
+        <span><small>Рядов</small><strong>{preview.rowCount}</strong></span>
+        <span><small>Обвязка</small><strong>{formatNumber(preview.bindingLength)} м</strong></span>
+        <span><small>Доска 6 м</small><strong>{preview.boardCount} шт</strong></span>
+      </div>
+      <p className="foundation-setup-note">Ручные ряды сохраняются. Автоматические ряды перестраиваются; общие угловые и пересекающиеся сваи считаются один раз.</p>
+      <div className="foundation-setup-actions">
+        <button className="button primary" type="button" onClick={onApply}><Sparkles />Перестроить</button>
+        <button className="button secondary" type="button" onClick={onReset}><RotateCw />Сбросить</button>
+        <button className="button danger" type="button" onClick={onClear}><Trash2 />Очистить всё</button>
+      </div>
+    </div>
+  );
+}
+
 export default function PlanScreen({ onNavigate }) {
   const { project, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
@@ -4335,21 +4453,17 @@ export default function PlanScreen({ onNavigate }) {
   );
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
-  const [bindingVerticalRows, setBindingVerticalRows] = useState(() =>
-    Math.max(2, Number(project?.settings?.piles?.autoBindingVerticalRows) || 4),
-  );
-  const [bindingHorizontalRows, setBindingHorizontalRows] = useState(() =>
-    Math.max(
-      2,
-      Number(project?.settings?.piles?.autoBindingHorizontalRows) || 5,
-    ),
-  );
+  const [foundationDraft, setFoundationDraft] = useState(() => ({
+    ...DEFAULT_FOUNDATION_DRAFT,
+    ...(project?.settings?.piles || {}),
+  }));
   const [gridVisible, setGridVisible] = useState(true);
   const [sheetMode, setSheetMode] = useState("peek");
   const [transferStatus, setTransferStatus] = useState("");
   const planFileRef = useRef(null);
-  const [customSketches, setCustomSketches] = useState(getStoredSketches);
-  const [sketchId, setSketchId] = useState("photo-plan");
+  const [libraryPlans, setLibraryPlans] = useState(readPlanLibrary);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [editingLibraryId, setEditingLibraryId] = useState(null);
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
   const plan =
     activeFloor === 1
@@ -4413,6 +4527,10 @@ export default function PlanScreen({ onNavigate }) {
         if ([124, 174, 224].includes(thickness)) {
           next.settings.sip.partitionThickness = String(thickness);
         }
+        if ([100, 150].includes(thickness)) {
+          next.settings.sip.partitionType = "frame";
+          next.settings.sip.partitionFrameSection = thickness === 150 ? "50x150" : "50x100";
+        }
         return next;
       }),
     [activeFloor, commit],
@@ -4448,6 +4566,25 @@ export default function PlanScreen({ onNavigate }) {
     () => calculateFoundation(project.plan, project.settings.piles),
     [project.plan, project.settings.piles],
   );
+  const projectCalculation = useMemo(() => calculateProject(project), [project]);
+  const foundationPreview = useMemo(() => {
+    const manualRows = (project.plan.pileRows || []).filter((row) => !row.auto);
+    const autoRows = generateAutoPileRows(project.plan, foundationDraft.spacing, {
+      mode: foundationDraft.autoLayoutMode,
+      rowSpacing: foundationDraft.autoRowSpacing,
+      includeInteriorWalls: foundationDraft.autoIncludeInteriorWalls,
+    });
+    const pileRows = [...manualRows, ...autoRows];
+    const previewPlan = {
+      ...project.plan,
+      pileRows,
+      bindingLines: foundationDraft.autoSyncBinding
+        ? bindingLinesFromPileRows(pileRows)
+        : project.plan.bindingLines,
+    };
+    const result = calculateFoundation(previewPlan, { ...project.settings.piles, ...foundationDraft });
+    return { ...result, rowCount: pileRows.length };
+  }, [project.plan, project.settings.piles, foundationDraft]);
   useEffect(() => {
     if (activeFloor > floorCount) setActiveFloor(floorCount);
   }, [activeFloor, floorCount]);
@@ -4492,18 +4629,19 @@ export default function PlanScreen({ onNavigate }) {
     setTransferStatus("План второго этажа очищен; внешний контур сохранён");
   };
   const issues = useMemo(() => planIssues(plan), [plan]);
-  const sketches = useMemo(
+  const planLibraryEntries = useMemo(
     () => [
-      { id: "photo-plan", name: "План с фото", plan: createDefaultPlan() },
+      { id: "photo-plan", name: "План с фото", plan: createDefaultPlan(), preset: true },
       {
         id: "compact",
         name: "Компактный · 10 × 7 м",
         plan: createCompactPlan(),
+        preset: true,
       },
-      { id: "empty", name: "Новый чистый план", plan: createBlankPlan() },
-      ...customSketches,
+      { id: "empty", name: "Новый чистый план", plan: createBlankPlan(), preset: true },
+      ...libraryPlans,
     ],
-    [customSketches],
+    [libraryPlans],
   );
   const selectTool = (id) => {
     if (id === "stairOpening" && floorCount < 2) {
@@ -4635,33 +4773,30 @@ export default function PlanScreen({ onNavigate }) {
       }));
     });
   };
-  const loadSketch = () => {
-    const sketch = sketches.find((item) => item.id === sketchId);
-    if (!sketch) return;
+  const openLibraryPlan = (entry, editAfterOpen = false) => {
+    if (!entry) return;
     if (
       !window.confirm(
-        `Загрузить «${sketch.name}»? Текущий план можно вернуть кнопкой «Отменить».`,
+        `Открыть «${entry.name}»? Текущий проект можно вернуть кнопкой «Отменить».`,
       )
     )
       return;
     commit((next) => {
-      if (activeFloor === 1) next.plan = structuredClone(sketch.plan);
-      else {
-        ensureProjectFloorCount(next, 2);
-        const upper = structuredClone(sketch.plan);
-        upper.showPiles = false;
-        upper.showBinding = false;
-        upper.piles = [];
-        upper.pileRows = [];
-        upper.bindingLines = [];
-        upper.platforms = [];
-        next.upperFloors[activeFloor - 2] = upper;
+      if (entry.preset) {
+        next.plan = structuredClone(entry.plan);
+        ensureProjectFloorCount(next, 1);
+        releasePlanLinkedQuantityOverrides(next);
+        return next;
       }
-      return next;
+      return restorePlanLibraryEntry(next, entry);
     });
+    setEditingLibraryId(editAfterOpen && !entry.preset ? entry.id : null);
+    setActiveFloor(1);
+    setLibraryOpen(false);
     setSelected(null);
     setTool("select");
     setPolygonDraft([]);
+    setTransferStatus(editAfterOpen ? `Открыт для изменения: ${entry.name}. После правок нажмите «Обновить в библиотеке».` : `Открыт сохранённый проект: ${entry.name}`);
   };
   const newPlan = () => {
     if (!window.confirm("Создать новый чистый план? Текущую геометрию можно вернуть кнопкой «Отменить»."))
@@ -4673,7 +4808,7 @@ export default function PlanScreen({ onNavigate }) {
       return next;
     });
     setActiveFloor(1);
-    setSketchId("empty");
+    setEditingLibraryId(null);
     setSelected(null);
     setTool("houseContour");
     setActiveLayer("plan");
@@ -4683,16 +4818,42 @@ export default function PlanScreen({ onNavigate }) {
     setPolygonDraft([]);
   };
   const saveSketch = () => {
-    const name = window
-      .prompt("Название эскиза:", `Эскиз ${customSketches.length + 1}`)
+    const existing = libraryPlans.find((item) => item.id === editingLibraryId);
+    const name = existing?.name || window
+      .prompt("Название плана:", `План ${libraryPlans.length + 1}`)
       ?.trim();
     if (!name) return;
-    const updated = [
-      { id: uid("sketch"), name, plan: structuredClone(plan) },
-      ...customSketches,
-    ].slice(0, 20);
-    localStorage.setItem(SKETCHES_KEY, JSON.stringify(updated));
-    setCustomSketches(updated);
+    const entry = createPlanLibraryEntry(project, name, projectCalculation, existing);
+    const updated = existing
+      ? libraryPlans.map((item) => item.id === existing.id ? entry : item)
+      : [entry, ...libraryPlans];
+    const stored = writePlanLibrary(updated);
+    setLibraryPlans(stored);
+    setEditingLibraryId(entry.id);
+    setTransferStatus(existing ? `План «${name}» обновлён в библиотеке` : `План «${name}» сохранён вместе с параметрами и ценой`);
+  };
+  const renameLibraryPlan = (entry) => {
+    const name = window.prompt("Новое название плана:", entry.name)?.trim();
+    if (!name || name === entry.name) return;
+    const updated = libraryPlans.map((item) => item.id === entry.id ? { ...item, name } : item);
+    setLibraryPlans(writePlanLibrary(updated));
+  };
+  const deleteLibraryPlan = (entry) => {
+    if (!window.confirm(`Удалить план «${entry.name}» из библиотеки?`)) return;
+    const updated = libraryPlans.filter((item) => item.id !== entry.id);
+    setLibraryPlans(writePlanLibrary(updated));
+    if (editingLibraryId === entry.id) setEditingLibraryId(null);
+  };
+  const shareLibraryPlan = async (entry) => {
+    try {
+      const shareProject = entry.preset
+        ? { ...structuredClone(project), plan: structuredClone(entry.plan), meta: { ...project.meta, floors: 1 } }
+        : restorePlanLibraryEntry(project, entry);
+      const result = await sharePlanTransfer(shareProject);
+      setTransferStatus(result === "shared" ? `План «${entry.name}» передан` : `Файл плана «${entry.name}» скачан`);
+    } catch (error) {
+      if (error?.name !== "AbortError") setTransferStatus(`Не удалось поделиться планом: ${error.message}`);
+    }
   };
   const savePlanFile = () => {
     downloadPlanTransfer(project);
@@ -4729,49 +4890,61 @@ export default function PlanScreen({ onNavigate }) {
         setTransferStatus(`Не удалось поделиться планом: ${error.message}`);
     }
   };
-  const autoPiles = () => {
+  const applyFoundationLayout = (draft = foundationDraft) => {
     if (activeFloor !== 1) {
       setTransferStatus("Свайное поле редактируется на 1 этаже");
       return;
     }
-    commitPlan((next) => {
-      next.pileRows = generateAutoPileRows(
-        next,
-        project.settings.piles.spacing,
-      );
-      next.showPiles = true;
-      next.showBinding = true;
+    commit((next) => {
+      next.settings.piles = { ...next.settings.piles, ...draft };
+      const manualRows = (next.plan.pileRows || []).filter((row) => !row.auto);
+      const autoRows = generateAutoPileRows(next.plan, draft.spacing, {
+        mode: draft.autoLayoutMode,
+        rowSpacing: draft.autoRowSpacing,
+        includeInteriorWalls: draft.autoIncludeInteriorWalls,
+      });
+      next.plan.pileRows = [...manualRows, ...autoRows];
+      if (draft.autoSyncBinding) next.plan.bindingLines = bindingLinesFromPileRows(next.plan.pileRows);
+      next.plan.showPiles = true;
+      next.plan.showBinding = true;
+      releasePlanLinkedQuantityOverrides(next);
+      return next;
     });
+    setFoundationDraft({ ...draft });
+    setBindingSetupOpen(false);
     setSelected(null);
     setTool("select");
+    setTransferStatus("Свайное поле и обвязка перестроены по выбранной схеме");
   };
-  const autoBinding = () => {
-    if (activeFloor !== 1) {
-      setTransferStatus("Обвязка редактируется на 1 этаже");
-      return;
-    }
-    const vertical = Math.max(
-      2,
-      Math.min(24, Math.round(Number(bindingVerticalRows) || 4)),
-    );
-    const horizontal = Math.max(
-      2,
-      Math.min(24, Math.round(Number(bindingHorizontalRows) || 5)),
-    );
+  const resetFoundationLayout = () => {
+    const defaults = { ...DEFAULT_FOUNDATION_DRAFT };
+    setFoundationDraft(defaults);
+    applyFoundationLayout(defaults);
+  };
+  const clearFoundationLayout = () => {
+    if (!window.confirm("Удалить все сваи, свайные ряды, исключения и линии обвязки?")) return;
     commit((next) => {
-      next.settings.piles.autoBindingVerticalRows = vertical;
-      next.settings.piles.autoBindingHorizontalRows = horizontal;
-      next.plan.bindingLines = generateAutoBindingLines(
-        next.plan,
-        vertical,
-        horizontal,
-      );
-      next.plan.showBinding = true;
+      next.plan.pileRows = [];
+      next.plan.piles = [];
+      next.plan.excludedPiles = [];
+      next.plan.bindingLines = [];
+      releasePlanLinkedQuantityOverrides(next);
       return next;
     });
     setBindingSetupOpen(false);
     setSelected(null);
     setTool("select");
+    setTransferStatus("Сваи и обвязка очищены");
+  };
+  const openFoundationSetup = () => {
+    if (activeFloor !== 1) {
+      setTransferStatus("Сваи и обвязка редактируются на 1 этаже");
+      return;
+    }
+    setFoundationDraft({ ...DEFAULT_FOUNDATION_DRAFT, ...project.settings.piles });
+    setActiveLayer("piles");
+    setSelected(null);
+    setBindingSetupOpen(true);
   };
   const openVisualMode = (mode) => {
     sessionStorage.setItem("eft-visual-mode", mode);
@@ -4937,22 +5110,9 @@ export default function PlanScreen({ onNavigate }) {
             <ChevronDown />
           </summary>
           <div className="mobile-project-actions">
-            <label className="mobile-template-picker">
-              <span>Шаблон</span>
-              <select
-                value={sketchId}
-                onChange={(event) => setSketchId(event.target.value)}
-              >
-                {sketches.map((sketch) => (
-                  <option key={sketch.id} value={sketch.id}>
-                    {sketch.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" onClick={loadSketch}>
+            <button type="button" onClick={() => setLibraryOpen(true)}>
               <PanelsTopLeft />
-              Загрузить шаблон
+              Библиотека планов
             </button>
             <button type="button" onClick={newPlan}>
               <Plus />
@@ -4970,16 +5130,12 @@ export default function PlanScreen({ onNavigate }) {
               <Share2 />
               Поделиться
             </button>
-            <button type="button" onClick={autoPiles}>
-              <Sparkles />
-              Автосваи
-            </button>
-            <button type="button" onClick={() => setBindingSetupOpen(true)}>
+            <button type="button" onClick={openFoundationSetup}>
               <Layers3 />
-              Автообвязка
+              Сваи и обвязка
             </button>
             <button type="button" onClick={saveSketch}>
-              <Save />В эскизы
+              <Save />{editingLibraryId ? "Обновить план" : "В библиотеку"}
             </button>
           </div>
         </details>
@@ -5150,49 +5306,14 @@ export default function PlanScreen({ onNavigate }) {
           <div className="mobile-sheet-grabber" />
           <header>
             <div>
-              <strong>Автообвязка</strong>
-              <small>2 ряда = только крайние линии</small>
+              <strong>Сваи и обвязка</strong>
+              <small>Единая настройка основания</small>
             </div>
             <button type="button" onClick={() => setBindingSetupOpen(false)}>
               <X />
             </button>
           </header>
-          <div className="binding-count-grid">
-            <MobileStepper
-              label="Вертикальных рядов"
-              value={bindingVerticalRows}
-              suffix="шт"
-              onMinus={() =>
-                setBindingVerticalRows((v) => Math.max(2, Math.round(v) - 1))
-              }
-              onPlus={() =>
-                setBindingVerticalRows((v) => Math.min(24, Math.round(v) + 1))
-              }
-            />
-            <MobileStepper
-              label="Горизонтальных рядов"
-              value={bindingHorizontalRows}
-              suffix="шт"
-              onMinus={() =>
-                setBindingHorizontalRows((v) => Math.max(2, Math.round(v) - 1))
-              }
-              onPlus={() =>
-                setBindingHorizontalRows((v) => Math.min(24, Math.round(v) + 1))
-              }
-            />
-          </div>
-          <button
-            className="button primary mobile-binding-apply"
-            type="button"
-            onClick={autoBinding}
-          >
-            <Sparkles />
-            Построить обвязку
-          </button>
-          <p>
-            Ряды распределяются равномерно. После построения любую линию можно
-            поправить вручную.
-          </p>
+          <FoundationSetup draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
         </section>
       ) : null}
       <MobileSelectionAdjuster
@@ -5241,37 +5362,39 @@ export default function PlanScreen({ onNavigate }) {
               accept=".eft-plan.json,.eft.json,.json"
               onChange={openPlanFile}
             />
-            <button
-              className="button secondary auto-piles-button"
-              onClick={autoPiles}
-            >
-              <Sparkles />
-              Автосваи
-            </button>
-            <button className="button secondary" onClick={autoBinding}>
+            <button className="button secondary auto-piles-button" onClick={openFoundationSetup}>
               <Layers3 />
-              Автообвязка
+              Сваи и обвязка
             </button>
-            <select
-              className="sketch-select"
-              value={sketchId}
-              onChange={(event) => setSketchId(event.target.value)}
-            >
-              {sketches.map((sketch) => (
-                <option key={sketch.id} value={sketch.id}>
-                  {sketch.name}
-                </option>
-              ))}
-            </select>
-            <button className="button secondary" onClick={loadSketch}>
-              Загрузить
+            <button className="button secondary plan-library-button" onClick={() => setLibraryOpen(true)}>
+              <PanelsTopLeft />Библиотека планов
             </button>
             <button className="button secondary" onClick={saveSketch}>
-              <Save />В эскизы
+              <Save />{editingLibraryId ? "Обновить в библиотеке" : "Сохранить в библиотеку"}
             </button>
           </>
         }
       />
+      {libraryOpen ? (
+        <PlanLibraryModal
+          entries={planLibraryEntries}
+          onClose={() => setLibraryOpen(false)}
+          onOpen={(entry) => openLibraryPlan(entry, false)}
+          onEdit={(entry) => openLibraryPlan(entry, true)}
+          onRename={renameLibraryPlan}
+          onShare={shareLibraryPlan}
+          onDelete={deleteLibraryPlan}
+        />
+      ) : null}
+      {bindingSetupOpen ? (
+        <section className="foundation-setup-dialog" role="dialog" aria-modal="true" aria-label="Сваи и обвязка">
+          <header>
+            <div><strong>Сваи и обвязка</strong><small>Единая настройка основания</small></div>
+            <button type="button" aria-label="Закрыть настройку основания" onClick={() => setBindingSetupOpen(false)}><X /></button>
+          </header>
+          <FoundationSetup draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
+        </section>
+      ) : null}
       <div className="mobile-plan-commandbar">
         <button type="button" onClick={undo} disabled={!canUndo}>
           <Undo2 />
@@ -5281,9 +5404,9 @@ export default function PlanScreen({ onNavigate }) {
           <Redo2 />
           <span>Вперёд</span>
         </button>
-        <button type="button" onClick={autoPiles}>
-          <Sparkles />
-          <span>Автосваи</span>
+        <button type="button" onClick={openFoundationSetup}>
+          <Layers3 />
+          <span>Основание</span>
         </button>
         <details>
           <summary>
@@ -5307,12 +5430,12 @@ export default function PlanScreen({ onNavigate }) {
               <Share2 />
               Поделиться
             </button>
-            <button type="button" onClick={autoBinding}>
+            <button type="button" onClick={openFoundationSetup}>
               <Layers3 />
-              Автообвязка
+              Сваи и обвязка
             </button>
             <button type="button" onClick={saveSketch}>
-              <Save />В эскизы
+              <Save />{editingLibraryId ? "Обновить план" : "В библиотеку"}
             </button>
           </div>
         </details>
@@ -5667,6 +5790,15 @@ export default function PlanScreen({ onNavigate }) {
             <RoofLayerInspector
               roof={project.settings.roof}
               commitRoof={commitRoof}
+            />
+          ) : ["piles", "binding"].includes(activeLayer) && !selected ? (
+            <FoundationSetup
+              draft={foundationDraft}
+              setDraft={setFoundationDraft}
+              preview={foundationPreview}
+              onApply={() => applyFoundationLayout()}
+              onReset={resetFoundationLayout}
+              onClear={clearFoundationLayout}
             />
           ) : (
             <Inspector

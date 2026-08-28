@@ -667,6 +667,11 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     }
   });
   if (project.services.partitions && sip.partitionType !== "sip") {
+    const partitionFrameSection = sip.partitionFrameSection === "50x150" ? "50x150" : "50x100";
+    const partitionBoardQuery = partitionFrameSection === "50x150"
+      ? "Доска ест. влажн. сосна 50х150мм"
+      : "Доска ест.влажн. сосна 50*100мм";
+    const partitionVolumeFactor = partitionFrameSection === "50x150" ? 1.5 : 1;
     [
       {
         key: "partitions",
@@ -684,13 +689,14 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         makeLine(
           index,
           "sip",
-          "Доска ест.влажн. сосна 50*100мм",
-          area * f.partitionBoardM3PerM2,
+          partitionBoardQuery,
+          area * f.partitionBoardM3PerM2 * partitionVolumeFactor,
           {
             key: `partition-board${suffix}`,
             unit: "м³",
             source: key,
             estimateGroup: groupNames[key],
+            name: `Каркас перегородок · доска ${partitionFrameSection.replace("x", "×")} мм`,
           },
         ),
       );
@@ -705,6 +711,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
             kind: "labor",
             source: key,
             estimateGroup: groupNames[key],
+            name: `Монтаж каркасных перегородок · доска ${partitionFrameSection.replace("x", "×")} мм`,
           },
         ),
       );

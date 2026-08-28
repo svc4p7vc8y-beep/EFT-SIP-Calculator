@@ -926,6 +926,11 @@ export default function Calculators({ type }) {
         );
       }
       next.settings[group][key] = value;
+      if (group === "sip" && key === "partitionFrameSection") {
+        const thickness = value === "50x150" ? 0.15 : 0.1;
+        next.plan.partitionThickness = thickness;
+        (next.upperFloors || []).forEach((floorPlan) => { floorPlan.partitionThickness = thickness; });
+      }
       if (group === "roof" && !key.startsWith("show"))
         releasePlanLinkedQuantityOverrides(next);
       if (group === "engineering")
@@ -1194,7 +1199,7 @@ export default function Calculators({ type }) {
               {project.settings.sip.partitionType === "sip" ? <>
                 <SelectField label="Тип панели перегородок" value={project.settings.sip.partitionPanelFamily || "pps"} onChange={(value) => setSetting("sip", "partitionPanelFamily", value)} options={PANEL_FAMILIES} />
                 <SelectField label="Толщина перегородок" value={project.settings.sip.partitionThickness || "124"} onChange={(value) => setSetting("sip", "partitionThickness", value)} options={PANEL_THICKNESSES} />
-              </> : null}
+              </> : <SelectField label="Доска каркаса перегородок" value={project.settings.sip.partitionFrameSection || "50x100"} onChange={(value) => setSetting("sip", "partitionFrameSection", value)} options={[{ value: "50x100", label: "50×100 мм" }, { value: "50x150", label: "50×150 мм" }]} />}
               <SelectField
                 label="Тип силового каркаса"
                 value={project.settings.sip.connectorType || "thermal"}

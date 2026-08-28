@@ -12,7 +12,8 @@ export default defineConfig({
       input: {
         app: resolve(import.meta.dirname, 'index.html'),
         react: resolve(import.meta.dirname, 'react.html'),
-        legacy: resolve(import.meta.dirname, 'legacy-v45.html')
+        legacy: resolve(import.meta.dirname, 'legacy-v45.html'),
+        questionnaire: resolve(import.meta.dirname, 'EFT_client_questionnaire.html')
       }
     }
   }

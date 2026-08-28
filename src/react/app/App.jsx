@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import {
-  Calculator, ChevronLeft, ChevronRight, FilePlus2, FileUp, HardHat, History, Home, Layers3,
+  Calculator, ChevronLeft, ChevronRight, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
   Menu, Moon, PaintRoller, PanelTop, Ruler, Save, Settings2, Sun, Tags, Trees,
   Truck, Wrench, X
 } from 'lucide-react';
@@ -10,6 +10,11 @@ import { calculateAdjustedPrice } from '../calculations/price-adjustments.js';
 import { createProjectWithCurrentPrices, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney } from '../utils/format.js';
 import ProjectSummarySidebar from '../components/ProjectSummarySidebar.jsx';
+import {
+  clientBriefSummary,
+  createProjectFromClientBrief,
+  validateClientBrief,
+} from '../storage/client-brief.js';
 
 const PlanScreen = lazy(() => import('../screens/PlanScreen.jsx'));
 const ParametersScreen = lazy(() => import('../screens/ParametersScreen.jsx'));
@@ -58,8 +63,10 @@ export function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('eft-react-theme') || 'light');
   const [menuOpen, setMenuOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
+  const [briefPreview, setBriefPreview] = useState(null);
   const [notice, setNotice] = useState('Готово');
   const fileRef = useRef(null);
+  const briefFileRef = useRef(null);
   const calculation = useMemo(() => calculateProject(project), [project]);
   const adjustedPrice = useMemo(
     () => calculateAdjustedPrice(project, calculation),
@@ -83,6 +90,28 @@ export function App() {
     } finally {
       event.target.value = '';
     }
+  };
+
+  const importClientBrief = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const brief = validateClientBrief(JSON.parse(await file.text()));
+      setBriefPreview({ fileName: file.name, brief, summary: clientBriefSummary(brief) });
+    } catch (error) {
+      setNotice(`Не удалось открыть заявку: ${error.message}`);
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const applyClientBrief = () => {
+    if (!briefPreview) return;
+    checkpoint();
+    replace(createProjectFromClientBrief(project, briefPreview.brief));
+    setActive('parameters');
+    setNotice(`Создан черновик по заявке: ${briefPreview.fileName}`);
+    setBriefPreview(null);
   };
 
   const newProject = () => {
@@ -127,8 +156,10 @@ export function App() {
           <button className="icon-button" onClick={newProject} aria-label="Новый проект"><FilePlus2 /></button>
           <button className="icon-button" onClick={saveProject} aria-label="Сохранить проект"><Save /></button>
           <button className="icon-button" onClick={() => fileRef.current?.click()} aria-label="Открыть проект"><FileUp /></button>
+          <button className="icon-button brief-import-button" onClick={() => briefFileRef.current?.click()} aria-label="Импортировать заявку клиента" title="Заявка клиента"><ClipboardPaste /></button>
           <button className="icon-button" onClick={() => setBackupOpen(true)} aria-label="Резервные копии"><History /></button>
           <input ref={fileRef} className="visually-hidden" type="file" accept=".json,.eft.json" onChange={importProject} />
+          <input ref={briefFileRef} className="visually-hidden" type="file" accept=".eft-brief.json,application/json" onChange={importClientBrief} />
         </div>
       </header>
       <div className="app-layout">
@@ -153,6 +184,7 @@ export function App() {
         </main>
         <ProjectSummarySidebar project={project} calculation={calculation} onNavigate={setActive} />
       </div>
+      {briefPreview ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setBriefPreview(null)}><section className="modal client-brief-modal" role="dialog" aria-modal="true" aria-labelledby="brief-title" onMouseDown={(event) => event.stopPropagation()}><header><div><h2 id="brief-title">Заявка клиента</h2><p>{briefPreview.fileName}</p></div><button className="icon-button" onClick={() => setBriefPreview(null)} aria-label="Закрыть"><X /></button></header><dl className="brief-summary"><div><dt>Клиент</dt><dd>{briefPreview.summary.customer}</dd></div><div><dt>Связь</dt><dd>{briefPreview.summary.contact}</dd></div><div><dt>Адрес</dt><dd>{briefPreview.summary.address}</dd></div><div><dt>Размер дома</dt><dd>{briefPreview.summary.dimensions}</dd></div><div><dt>Этажей</dt><dd>{briefPreview.summary.floors}</dd></div><div><dt>Площадь</dt><dd>{briefPreview.summary.area}</dd></div><div className="wide"><dt>Что посчитать</dt><dd>{briefPreview.summary.scope}</dd></div></dl><div className="brief-warning"><strong>Будет создан новый черновик.</strong><span>Текущий проект сохранится в резервной копии. Цены и расчётные правила останутся прежними. Размеры создадут пустой прямоугольный план; помещения, окна, двери и террасу нужно проверить и нанести вручную.</span></div><footer><button className="button secondary" onClick={() => setBriefPreview(null)}>Отмена</button><button className="button" onClick={applyClientBrief}>Создать черновик</button></footer></section></div> : null}
       {backupOpen ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setBackupOpen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="backup-title" onMouseDown={(event) => event.stopPropagation()}><header><div><h2 id="backup-title">Резервные копии</h2><p>Создаются при нажатии на дискету и перед новым проектом. Хранятся в этом браузере.</p></div><button className="icon-button" onClick={() => setBackupOpen(false)} aria-label="Закрыть"><X /></button></header>{backups.length ? <div className="backup-list">{backups.map((backup) => <button key={backup.backupId || backup.savedAt} onClick={() => { replace(backup); setBackupOpen(false); setNotice('Восстановлена резервная копия'); }}><span><strong>Проект № {backup.meta?.projectNum || 'без номера'}</strong><small>{backup.meta?.customer || 'Заказчик не указан'}</small></span><time>{new Date(backup.savedAt).toLocaleString('ru-RU')}</time></button>)}</div> : <div className="empty-state">Резервных копий пока нет. Нажмите дискету после важного изменения.</div>}<footer><button className="button secondary" onClick={() => setBackupOpen(false)}>Закрыть</button></footer></section></div> : null}
     </div>
   );
