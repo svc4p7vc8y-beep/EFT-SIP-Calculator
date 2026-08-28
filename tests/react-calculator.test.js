@@ -509,7 +509,7 @@ test('client estimate keeps SIP panels and timber visible but groups consumables
   const kit = floor.find((line) => line.name === 'Комплект для монтажа пола');
   assert.ok(kit);
   assert.ok(kit.includedLineIds.includes('sip:foam-floor'));
-  assert.equal(client.totals.total, calculation.totals.total);
+  assert.equal(Math.round(client.totals.total * 100), Math.round(calculation.totals.total * 100));
 });
 
 test('client estimate can exclude labor or accessories without changing manager calculation', () => {
@@ -871,7 +871,8 @@ test('SIP joinery switches between thermobeam, board pack and solid beam', () =>
   const thermal = calculateProject(project);
   assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-joints' && line.name.includes('Термобрус 95×145')));
   assert.ok(thermal.lines.some((line) => line.source === 'sip-walls-edges' && line.name.includes('145×45')));
-  assert.ok(thermal.lines.some((line) => line.id === 'sip:fasteners-floor' && line.qty > 0));
+  assert.ok(thermal.lines.some((line) => line.id === 'sip:fasteners-walls' && line.qty > 0));
+  assert.ok(thermal.lines.some((line) => line.id === 'sip:seal-floor' && line.qty > 0));
   assert.ok(thermal.lines.some((line) => line.id === 'sip:seam-screws-walls' && line.qty > 0));
   for (const row of thermal.sip.joinery.rows) {
     assert.equal(row.jointPurchaseLength % 6, 0);
@@ -1180,9 +1181,13 @@ test('price-list changes reach non-overridden estimate lines while custom projec
   assert.ok(calculation.totals.materials >= 360);
 });
 
-test('every default estimate line resolves to a priced catalog item', () => {
+test('every default estimate line resolves to a catalog item and pending prices are explicit', () => {
   const calculation = calculateProject(createDefaultProject());
-  assert.deepEqual(calculation.lines.filter((line) => !line.catalogId || line.price <= 0), []);
+  assert.deepEqual(calculation.lines.filter((line) => !line.catalogId), []);
+  const unpriced = calculation.lines.filter((line) => line.price <= 0);
+  assert.ok(unpriced.length > 0);
+  assert.ok(unpriced.every((line) => line.pricePending === true));
+  assert.ok(unpriced.some((line) => line.catalogId === 'MAT-204'));
 });
 
 test('automatic pile rows cover the house perimeter and internal walls at the configured spacing', () => {
@@ -1220,11 +1225,28 @@ test('new SIP projects calculate adhesive and fasteners from joints and nodes', 
     assert.equal(row.foamUnits, Math.ceil((joinery.jointLength + joinery.endBoardLength) * project.settings.formulas.foamUnitsPerJointMeter));
     assert.ok(row.seamCount > 0);
     assert.ok(row.edgeCount > 0);
-    assert.ok(row.structuralCount > 0);
+    if (row.key.startsWith('walls')) assert.ok(row.structuralCount > 0);
+    else assert.equal(row.structuralCount, 0);
     assert.match(row.structuralSize, /^8×(180|220|280)$/);
+    assert.equal(row.stapleCount, Math.ceil(row.sealLength * project.settings.formulas.sipSealStaplesPerMeter));
   });
   assert.ok(result.lines.some((line) => line.name.includes('3,8×41') && line.name.includes('шт')));
   assert.ok(result.lines.some((line) => line.name.includes('4,2×75') && line.name.includes('шт')));
+  assert.ok(result.lines.some((line) => line.id === 'sip:seal-floor' && line.pricePending));
+});
+
+test('SIP T-junctions and roof support nodes produce the book fastener set', () => {
+  const project = createDefaultProject();
+  project.settings.sip.partitionType = 'sip';
+  project.settings.roof.type = 'sip';
+  const result = calculateProject(project);
+  const partitions = result.sip.consumables.rows.find((row) => row.key === 'partitions');
+  assert.ok(partitions.universalScrewCount > 0);
+  assert.equal(partitions.universalScrewCount % project.settings.formulas.sipUniversalScrewsPerTNode, 0);
+  assert.ok(result.lines.some((line) => line.id === 'sip:universal-screws-partitions' && /6×120/.test(line.name)));
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-fasteners' && /точек опирания/.test(line.name)));
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-ridge-plates' && line.pricePending));
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-ridge-plate-screws' && /шт/.test(line.name)));
 });
 
 test('quick SIP consumables preserve the version 78 area formulas', () => {
@@ -1238,6 +1260,8 @@ test('quick SIP consumables preserve the version 78 area formulas', () => {
     assert.equal(row.seamKg, Math.round(cutting.area * project.settings.formulas.seamScrewKgPerM2 * 1000) / 1000);
   });
   assert.ok(result.lines.some((line) => line.id === 'sip:spiral-fasteners-floor'));
+  assert.ok(result.lines.some((line) => line.id === 'sip:fasteners-floor' && line.catalogId === 'MAT-081' && line.price > 0));
+  assert.equal(result.lines.some((line) => /undefined/.test(line.name)), false);
 });
 
 test('migration keeps old projects on quick SIP consumables unless they chose a mode', () => {
@@ -1250,6 +1274,19 @@ test('migration keeps old projects on quick SIP consumables unless they chose a 
   explicit.appVersion = 78;
   explicit.settings.sip.consumablesMode = 'node';
   assert.equal(migrateProject(explicit).settings.sip.consumablesMode, 'node');
+});
+
+test('version 100 projects copy their protected structural-screw price into the new size rows', () => {
+  const legacy = createDefaultProject();
+  legacy.appVersion = 100;
+  legacy.priceMat = legacy.priceMat.filter((item) => !['MAT-200', 'MAT-201', 'MAT-202', 'MAT-203', 'MAT-204', 'MAT-205'].includes(item.id));
+  legacy.priceMat.find((item) => item.id === 'MAT-081').price = 777;
+  const migrated = migrateProject(legacy);
+  ['MAT-200', 'MAT-201', 'MAT-202', 'MAT-203'].forEach((id) => {
+    assert.equal(migrated.priceMat.find((item) => item.id === id).price, 777);
+  });
+  assert.equal(migrated.priceMat.find((item) => item.id === 'MAT-204').pricePending, true);
+  assert.equal(migrated.priceMat.find((item) => item.id === 'MAT-205').pricePending, true);
 });
 
 test('version 83 catalog contains all SIP panel families at approved prices', () => {

@@ -13,6 +13,7 @@ import { deriveLinkedInputs } from "./calculation-links.js";
 import {
   calculateSipConsumables,
   calculateSipJoinery,
+  resolveSipSupportScrew,
   resolveSipStructuralScrew,
 } from "./sip-joinery.js";
 
@@ -61,6 +62,7 @@ function makeLine(index, section, query, qty, options = {}) {
     kind: item?.kind || options.kind || "material",
     source: options.source || section,
     estimateGroup: options.estimateGroup,
+    ...(item?.pricePending === true ? { pricePending: true } : {}),
     ...(options.exactQuantity === true ? { exactQuantity: true } : {}),
   };
 }
@@ -569,8 +571,12 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         },
       ),
     );
+    const structuralQuery =
+      consumables.mode === "node"
+        ? `Саморез конструкционный ${usage.structuralSize} мм`
+        : "Саморезы конст.";
     lines.push(
-      makeLine(index, "sip", "Саморезы конст.", usage.structuralKg, {
+      makeLine(index, "sip", structuralQuery, usage.structuralKg, {
         key: `fasteners-${key}`,
         unit: "кг",
         name:
@@ -581,6 +587,52 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       }),
     );
     if (consumables.mode === "node") {
+      lines.push(
+        makeLine(
+          index,
+          "sip",
+          "Лента уплотнительная из вспененного полиэтилена 5 мм",
+          usage.sealLength,
+          {
+            key: `seal-${key}`,
+            unit: "м.п.",
+            name: `Лента уплотнительная 5 мм · ${round(usage.sealLength, 1)} м`,
+            ...lineOptions,
+          },
+        ),
+      );
+      lines.push(
+        makeLine(
+          index,
+          "sip",
+          "Скобы",
+          Math.ceil(
+            usage.stapleCount /
+              Math.max(1, Number(f.sipSealStaplesPerPack) || 1000),
+          ),
+          {
+            key: `seal-staples-${key}`,
+            unit: "уп",
+            name: `Скобы T53 10 мм · ${usage.stapleCount} шт`,
+            ...lineOptions,
+          },
+        ),
+      );
+      lines.push(
+        makeLine(
+          index,
+          "sip",
+          "Саморезы 6х120",
+          usage.universalScrewCount *
+            Math.max(0, Number(f.sipUniversalScrewKgEach) || 0.02),
+          {
+            key: `universal-screws-${key}`,
+            unit: "кг",
+            name: `Саморезы 6×120 · ${usage.universalScrewCount} шт для Т-узлов`,
+            ...lineOptions,
+          },
+        ),
+      );
       lines.push(
         makeLine(index, "sip", "Саморезы 3.5 x 41", usage.seamKg, {
           key: `seam-screws-${key}`,
@@ -927,6 +979,43 @@ function roofSection(project, metrics, index, inputs) {
     panelArea: inputs.formulas.panelArea,
     extraWastePercent: project.settings.sip.wastePercent,
   });
+  const sipRoofSupportPointsPerPanel = Math.max(
+    1,
+    Math.round(Number(inputs.formulas.sipRoofSupportPointsPerPanel) || 2),
+  );
+  const mainSipSupportScrew = resolveSipSupportScrew(
+    project.settings.sip.ceilingThickness,
+    inputs.formulas,
+  );
+  const mainSipSupportScrewCount =
+    mainSipCutting.panels * sipRoofSupportPointsPerPanel;
+  const mainSipSupportScrewKg =
+    mainSipSupportScrewCount * mainSipSupportScrew.kgEach;
+  const mainSipRidgeRun =
+    mainRoofShape === "flat"
+      ? 0
+      : mainRoofShape === "hip"
+        ? geometry.ridgeLength
+        : geometry.roofLength;
+  const mainSipRidgePlateCount = mainSipCutting.panels
+    ? Math.max(
+        0,
+        Math.ceil(mainSipRidgeRun / Math.max(0.2, inputs.formulas.panelWidth)) -
+          1,
+      )
+    : 0;
+  const mainSipRidgePlateScrewCount =
+    mainSipRidgePlateCount *
+    Math.max(0, Math.round(Number(inputs.formulas.sipRidgePlateScrews) || 8));
+  const mainSipRidgePlateScrewKg =
+    mainSipRidgePlateScrewCount *
+    Math.max(0, Number(inputs.formulas.sipEdgeScrewKgEach) || 0.006);
+  const mainGableSupportScrew = resolveSipStructuralScrew(
+    project.settings.sip.wallThickness,
+    inputs.formulas,
+  );
+  const mainGableSupportScrewCount =
+    mainGableSipCutting.panels * sipRoofSupportPointsPerPanel;
   const houseLength = roofAxes.ridgeBaseLength;
   const rafterStructure = resolveRafterStructure(
     project,
@@ -1130,6 +1219,33 @@ function roofSection(project, metrics, index, inputs) {
         panelArea: inputs.formulas.panelArea,
         extraWastePercent: project.settings.sip.wastePercent,
       });
+      const slopeSupportScrew = resolveSipSupportScrew(
+        project.settings.sip.ceilingThickness,
+        inputs.formulas,
+      );
+      const slopeSupportScrewCount =
+        slopeSip.panels * sipRoofSupportPointsPerPanel;
+      const slopeRidgePlateCount = slopeSip.panels
+        ? Math.max(
+            0,
+            Math.ceil(
+              result.ridgeLength /
+                Math.max(0.2, Number(inputs.formulas.panelWidth) || 1.25),
+            ) - 1,
+          )
+        : 0;
+      const slopeRidgePlateScrewCount =
+        slopeRidgePlateCount *
+        Math.max(
+          0,
+          Math.round(Number(inputs.formulas.sipRidgePlateScrews) || 8),
+        );
+      const gableSupportScrew = resolveSipStructuralScrew(
+        project.settings.sip.wallThickness,
+        inputs.formulas,
+      );
+      const gableSupportScrewCount =
+        gableSip.panels * sipRoofSupportPointsPerPanel;
       const postQuery =
         result.postSection === "100x100"
           ? "Брус ест.влажн. сосна 100×100 мм"
@@ -1489,12 +1605,37 @@ function roofSection(project, metrics, index, inputs) {
         makeLine(
           index,
           "roof",
-          "Саморезы конст.",
-          slopeSip.area * inputs.formulas.structuralFastenerKgPerM2,
+          `Саморез конструкционный ${slopeSupportScrew.size} мм`,
+          slopeSupportScrewCount * slopeSupportScrew.kgEach,
           {
             key: `${key}-sip-fasteners`,
             unit: "кг",
-            name: `Саморезы конструкционные · СИП-кровля ${title}`,
+            name: `Саморезы конструкционные ${slopeSupportScrew.size} · СИП-кровля ${title} · ${slopeSupportScrewCount} точек опирания`,
+            source,
+          },
+        ),
+        makeLine(
+          index,
+          "roof",
+          "Пластина коньковая перфорированная 180×65×2 мм",
+          slopeRidgePlateCount,
+          {
+            key: `${key}-sip-ridge-plates`,
+            unit: "шт",
+            name: `Коньковые пластины SIP-кровли ${title} · ${slopeRidgePlateCount} узлов`,
+            source,
+          },
+        ),
+        makeLine(
+          index,
+          "roof",
+          "Саморезы 4.2 x 75",
+          slopeRidgePlateScrewCount *
+            Math.max(0, Number(inputs.formulas.sipEdgeScrewKgEach) || 0.006),
+          {
+            key: `${key}-sip-ridge-plate-screws`,
+            unit: "кг",
+            name: `Саморезы 4,2×75 для коньковых пластин · ${slopeRidgePlateScrewCount} шт · кровля ${title}`,
             source,
           },
         ),
@@ -1538,12 +1679,12 @@ function roofSection(project, metrics, index, inputs) {
         makeLine(
           index,
           "roof",
-          "Саморезы конст.",
-          gableSip.area * inputs.formulas.structuralFastenerKgPerM2,
+          `Саморез конструкционный ${gableSupportScrew.size} мм`,
+          gableSupportScrewCount * gableSupportScrew.kgEach,
           {
             key: `${key}-gable-sip-fasteners`,
             unit: "кг",
-            name: `Саморезы конструкционные · СИП-фронтон ${title}`,
+            name: `Саморезы конструкционные ${gableSupportScrew.size} · СИП-фронтон ${title} · ${gableSupportScrewCount} точек`,
             source,
           },
         ),
@@ -1952,9 +2093,38 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(
       index,
       "roof",
-      "Саморезы конст.",
-      mainSipCutting.area * inputs.formulas.structuralFastenerKgPerM2,
-      { key: "sip-fasteners", unit: "кг", source: "sip-roof" },
+      `Саморез конструкционный ${mainSipSupportScrew.size} мм`,
+      mainSipSupportScrewKg,
+      {
+        key: "sip-fasteners",
+        unit: "кг",
+        name: `Саморезы конструкционные ${mainSipSupportScrew.size} · SIP-кровля · ${mainSipSupportScrewCount} точек опирания`,
+        source: "sip-roof",
+      },
+    ),
+    makeLine(
+      index,
+      "roof",
+      "Пластина коньковая перфорированная 180×65×2 мм",
+      mainSipRidgePlateCount,
+      {
+        key: "sip-ridge-plates",
+        unit: "шт",
+        name: `Коньковые пластины SIP-кровли · ${mainSipRidgePlateCount} узлов`,
+        source: "sip-roof",
+      },
+    ),
+    makeLine(
+      index,
+      "roof",
+      "Саморезы 4.2 x 75",
+      mainSipRidgePlateScrewKg,
+      {
+        key: "sip-ridge-plate-screws",
+        unit: "кг",
+        name: `Саморезы 4,2×75 для коньковых пластин · ${mainSipRidgePlateScrewCount} шт`,
+        source: "sip-roof",
+      },
     ),
     makeLine(
       index,
@@ -1995,8 +2165,8 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(
       index,
       "roof",
-      "Саморезы конст.",
-      mainGableSipCutting.area * inputs.formulas.structuralFastenerKgPerM2,
+      `Саморез конструкционный ${mainGableSupportScrew.size} мм`,
+      mainGableSupportScrewCount * mainGableSupportScrew.kgEach,
       { key: "gable-sip-fasteners", unit: "кг", source: "gables" },
     ),
     ...extensionLines,
@@ -2010,6 +2180,10 @@ function roofSection(project, metrics, index, inputs) {
     terraceRoofs,
     sipCutting,
     gableSipCutting,
+    sipSupportScrewCount: mainSipSupportScrewCount,
+    sipSupportScrewSize: mainSipSupportScrew.size,
+    sipRidgePlateCount: mainSipRidgePlateCount,
+    sipRidgePlateScrewCount: mainSipRidgePlateScrewCount,
     mainGableType,
     rafterStructure,
     coldSlopeArea: round(coldSlopeArea),

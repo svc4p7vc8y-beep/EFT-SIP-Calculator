@@ -1329,6 +1329,8 @@ export default function Calculators({ type }) {
                       <th>Пеноклей</th>
                       <th>3,8×41</th>
                       <th>4,2×75</th>
+                      <th>Уплотнитель / T53</th>
+                      <th>6×120</th>
                       <th>Конструкционные</th>
                     </tr>
                   ) : (
@@ -1350,6 +1352,10 @@ export default function Calculators({ type }) {
                         <td>{row.foamUnits} бал.</td>
                         <td>{row.seamCount} шт</td>
                         <td>{row.edgeCount} шт</td>
+                        <td>
+                          {formatNumber(row.sealLength)} м / {row.stapleCount} шт
+                        </td>
+                        <td>{row.universalScrewCount} шт</td>
                         <td>
                           {row.structuralSize} · {row.structuralCount} шт
                         </td>

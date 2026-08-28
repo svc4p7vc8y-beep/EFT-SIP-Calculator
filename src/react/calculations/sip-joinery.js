@@ -102,6 +102,173 @@ export function resolveSipStructuralScrew(panelThickness, formulas = {}) {
   };
 }
 
+export function resolveSipSupportScrew(panelThickness, formulas = {}) {
+  const thickness = Number(panelThickness) || 174;
+  if (thickness <= 124)
+    return {
+      size: "8×220",
+      kgEach: positive(formulas.sipStructuralScrewKg174, 0.068),
+    };
+  if (thickness <= 174)
+    return {
+      size: "8×280",
+      kgEach: positive(formulas.sipStructuralScrewKg224, 0.086),
+    };
+  return {
+    size: "8×320",
+    kgEach: positive(formulas.sipStructuralScrewKg320, 0.1),
+  };
+}
+
+const pointDistance = (left, right) =>
+  Math.hypot(
+    (Number(left?.x) || 0) - (Number(right?.x) || 0),
+    (Number(left?.y) || 0) - (Number(right?.y) || 0),
+  );
+
+const pointSegmentDistance = (point, start, end) => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const ratio = lengthSquared
+    ? Math.max(
+        0,
+        Math.min(
+          1,
+          ((point.x - start.x) * dx + (point.y - start.y) * dy) /
+            lengthSquared,
+        ),
+      )
+    : 0;
+  return pointDistance(point, {
+    x: start.x + ratio * dx,
+    y: start.y + ratio * dy,
+  });
+};
+
+const contourRuns = (plan) => {
+  const points = Array.isArray(plan?.house?.points)
+    ? plan.house.points
+    : [];
+  const contour =
+    points.length >= 3
+      ? points
+      : [
+          { x: 0, y: 0 },
+          { x: Number(plan?.house?.w) || 0, y: 0 },
+          {
+            x: Number(plan?.house?.w) || 0,
+            y: Number(plan?.house?.h) || 0,
+          },
+          { x: 0, y: Number(plan?.house?.h) || 0 },
+        ];
+  return contour.map((point, index) => ({
+    start: point,
+    end: contour[(index + 1) % contour.length],
+    length: pointDistance(point, contour[(index + 1) % contour.length]),
+  }));
+};
+
+const closedRunFastenerCount = (plan, spacing) =>
+  contourRuns(plan).reduce(
+    (sum, run) => sum + Math.max(1, Math.ceil(run.length / spacing)),
+    0,
+  );
+
+const roomPoints = (room = {}) =>
+  Array.isArray(room.points) && room.points.length >= 3
+    ? room.points
+    : [
+        { x: room.x, y: room.y },
+        { x: (room.x || 0) + (room.w || 0), y: room.y },
+        {
+          x: (room.x || 0) + (room.w || 0),
+          y: (room.y || 0) + (room.h || 0),
+        },
+        { x: room.x, y: (room.y || 0) + (room.h || 0) },
+      ];
+
+const partitionJunctionCount = (plan, tolerance = 0.05) => {
+  const outerRuns = contourRuns(plan);
+  const wallThickness = Math.max(0.05, Number(plan?.wallThickness) || 0.174);
+  const rawSegments = [];
+  const addSegment = (start, end) => {
+    if (pointDistance(start, end) <= tolerance) return;
+    const onOuter = outerRuns.some(
+      (run) =>
+        pointSegmentDistance(start, run.start, run.end) <=
+          wallThickness + tolerance &&
+        pointSegmentDistance(end, run.start, run.end) <=
+          wallThickness + tolerance,
+    );
+    if (!onOuter) rawSegments.push({ start, end });
+  };
+  (plan?.rooms || []).forEach((room) => {
+    const points = roomPoints(room);
+    points.forEach((point, index) =>
+      addSegment(point, points[(index + 1) % points.length]),
+    );
+  });
+  (plan?.walls || []).forEach((wall) =>
+    addSegment(
+      { x: Number(wall.x1) || 0, y: Number(wall.y1) || 0 },
+      { x: Number(wall.x2) || 0, y: Number(wall.y2) || 0 },
+    ),
+  );
+  const uniqueSegments = [];
+  rawSegments.forEach((candidate) => {
+    const duplicate = uniqueSegments.some(
+      (segment) =>
+        (pointDistance(candidate.start, segment.start) <= tolerance &&
+          pointDistance(candidate.end, segment.end) <= tolerance) ||
+        (pointDistance(candidate.start, segment.end) <= tolerance &&
+          pointDistance(candidate.end, segment.start) <= tolerance),
+    );
+    if (!duplicate) uniqueSegments.push(candidate);
+  });
+  const candidates = [];
+  uniqueSegments.forEach((segment) => {
+    [segment.start, segment.end].forEach((point) => {
+      if (!candidates.some((item) => pointDistance(item, point) <= tolerance))
+        candidates.push(point);
+    });
+  });
+  return candidates.filter((point) => {
+    const touchesOuter = outerRuns.some(
+      (run) =>
+        pointSegmentDistance(point, run.start, run.end) <=
+        wallThickness + tolerance,
+    );
+    const incidentDirections = new Set();
+    uniqueSegments.forEach((segment) => {
+      const atStart = pointDistance(point, segment.start) <= tolerance;
+      const atEnd = pointDistance(point, segment.end) <= tolerance;
+      const onMiddle =
+        !atStart &&
+        !atEnd &&
+        pointSegmentDistance(point, segment.start, segment.end) <= tolerance;
+      if (!atStart && !atEnd && !onMiddle) return;
+      const addDirection = (dx, dy) => {
+        const angle = Math.atan2(dy, dx);
+        incidentDirections.add(
+          Math.round((((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) * 100),
+        );
+      };
+      if (atStart || onMiddle)
+        addDirection(
+          segment.end.x - segment.start.x,
+          segment.end.y - segment.start.y,
+        );
+      if (atEnd || onMiddle)
+        addDirection(
+          segment.start.x - segment.end.x,
+          segment.start.y - segment.end.y,
+        );
+    });
+    return touchesOuter || incidentDirections.size >= 3;
+  }).length;
+};
+
 export function calculateSipConsumables(
   cuttingRows,
   joinery,
@@ -115,7 +282,14 @@ export function calculateSipConsumables(
   const includeEdges = sipSettings.foamScope !== "joints";
   const seamSpacing = positive(formulas.sipSeamScrewSpacingM, 0.15);
   const edgeSpacing = positive(formulas.sipEdgeScrewSpacingM, 0.4);
-  const structuralSpacing = positive(formulas.sipStructuralScrewSpacingM, 0.6);
+  const universalPerTNode = Math.max(
+    0,
+    Math.round(nonnegative(formulas.sipUniversalScrewsPerTNode, 2)),
+  );
+  const staplesPerSealMeter = nonnegative(
+    formulas.sipSealStaplesPerMeter,
+    16,
+  );
   const foamPerMeter = nonnegative(formulas.foamUnitsPerJointMeter, 0.035);
   const supportPerPanel = Math.round(
     nonnegative(formulas.sipPanelSupportScrews, 8),
@@ -151,9 +325,16 @@ export function calculateSipConsumables(
       Math.ceil((joineryRow.jointLength * 2) / seamSpacing) +
       cutting.panels * supportPerPanel;
     const edgeCount = Math.ceil(joineryRow.endBoardLength / edgeSpacing);
-    const structuralCount = Math.ceil(
-      joineryRow.endBoardLength / structuralSpacing,
+    const structuralCount = Math.max(
+      0,
+      Math.round(joineryRow.structuralCount || 0),
     );
+    const universalScrewCount = Math.max(
+      0,
+      Math.round((joineryRow.tNodeCount || 0) * universalPerTNode),
+    );
+    const sealLength = round(joineryRow.sealLength || 0);
+    const stapleCount = Math.ceil(sealLength * staplesPerSealMeter);
     const structural = resolveSipStructuralScrew(joineryRow.panelThickness, formulas);
     return {
       key: joineryRow.key,
@@ -168,6 +349,9 @@ export function calculateSipConsumables(
       structuralCount,
       structuralSize: structural.size,
       structuralKg: round(structuralCount * structural.kgEach),
+      universalScrewCount,
+      sealLength,
+      stapleCount,
       spiralPacks: 0,
     };
   });
@@ -182,6 +366,10 @@ export function calculateSipConsumables(
         seamCount: total.seamCount + (row.seamCount || 0),
         edgeCount: total.edgeCount + (row.edgeCount || 0),
         structuralCount: total.structuralCount + (row.structuralCount || 0),
+        universalScrewCount:
+          total.universalScrewCount + (row.universalScrewCount || 0),
+        sealLength: round(total.sealLength + (row.sealLength || 0)),
+        stapleCount: total.stapleCount + (row.stapleCount || 0),
       }),
       {
         foamLength: 0,
@@ -189,6 +377,9 @@ export function calculateSipConsumables(
         seamCount: 0,
         edgeCount: 0,
         structuralCount: 0,
+        universalScrewCount: 0,
+        sealLength: 0,
+        stapleCount: 0,
       },
     ),
   };
@@ -221,6 +412,8 @@ export function calculateSipJoinery(
   const reserve =
     1 + Math.max(0, Number(formulas.sipTimberReservePercent) || 5) / 100;
   const stockLength = positive(formulas.sipTimberStockLength, 6);
+  const bindingSpacing = positive(formulas.sipBindingScrewSpacingM, 1.5);
+  const cornerSpacing = positive(formulas.sipCornerScrewSpacingM, 1.5);
   const contourPointsFor = (currentPlan) => {
     const points = Array.isArray(currentPlan?.house?.points)
       ? currentPlan.house.points
@@ -273,6 +466,12 @@ export function calculateSipJoinery(
           return sum + wallSeams(Math.hypot(next.x - point.x, next.y - point.y));
         }, 0),
         edges: 2 * currentPerimeter + 4 * currentWallHeight + openingEdges,
+        sealLength: 2 * currentPerimeter,
+        structuralCount:
+          2 * closedRunFastenerCount(currentPlan, bindingSpacing) +
+          contourPointsFor(currentPlan).length *
+            (Math.ceil(currentWallHeight / cornerSpacing) + 1),
+        tNodeCount: partitionJunctionCount(currentPlan),
       };
     };
   const firstWallAssembly = wallAssemblyFor(floorPlans[0]);
@@ -301,6 +500,7 @@ export function calculateSipJoinery(
             panelLength,
           ),
           endBoardLength: perimeter,
+          sealLength: perimeter,
         }
       : null,
     services.sipWalls
@@ -310,6 +510,8 @@ export function calculateSipJoinery(
           thickness: sipSettings.wallThickness,
           jointLength: firstWallAssembly.joints,
           endBoardLength: firstWallAssembly.edges,
+          sealLength: firstWallAssembly.sealLength,
+          structuralCount: firstWallAssembly.structuralCount,
         }
       : null,
     services.sipWalls && floorPlans.length > 1
@@ -319,6 +521,8 @@ export function calculateSipJoinery(
           thickness: sipSettings.wallThickness,
           jointLength: secondWallAssembly.joints,
           endBoardLength: secondWallAssembly.edges,
+          sealLength: secondWallAssembly.sealLength,
+          structuralCount: secondWallAssembly.structuralCount,
         }
       : null,
     services.sipSecondFloor && Number(metrics.secondFloorArea) > 0
@@ -336,6 +540,11 @@ export function calculateSipJoinery(
             2 * (secondWidth + secondHeight) +
             (openingWidth > 0 && openingLength > 0
               ? 2 * (openingWidth + openingLength)
+                : 0),
+          sealLength:
+            perimeterFor(secondPlan) +
+            (openingWidth > 0 && openingLength > 0
+              ? 2 * (openingWidth + openingLength)
               : 0),
         }
       : null,
@@ -351,6 +560,7 @@ export function calculateSipJoinery(
             panelLength,
           ),
           endBoardLength: topPerimeter,
+          sealLength: topPerimeter,
         }
       : null,
     services.partitions &&
@@ -372,6 +582,7 @@ export function calculateSipJoinery(
           endBoardLength:
             (Number(metrics.firstFloorPartitionLength ?? metrics.partitionLength) || 0) * 2 +
             wallHeight * 2,
+          tNodeCount: firstWallAssembly.tNodeCount,
         }
       : null,
     services.partitions &&
@@ -391,6 +602,7 @@ export function calculateSipJoinery(
           endBoardLength:
             (Number(metrics.secondFloorPartitionLength) || 0) * 2 +
             Math.max(0, Number(secondPlan?.wallHeight) || wallHeight) * 2,
+          tNodeCount: secondWallAssembly.tNodeCount,
         }
       : null,
   ]

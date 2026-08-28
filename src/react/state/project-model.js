@@ -10,7 +10,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 100;
+export const REACT_PROJECT_VERSION = 101;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -779,6 +779,28 @@ export function migrateProject(raw) {
   while (upperFloors.length < requestedFloorCount - 1) {
     upperFloors.push(createUpperFloorPlan(plan));
   }
+  const normalizedPriceMat = normalizeCatalog(
+    raw.priceMat,
+    base.priceMat,
+    materialUpgradeIds,
+  );
+  const savedMaterialIds = new Set(
+    (Array.isArray(raw.priceMat) ? raw.priceMat : []).map((item) => item.id),
+  );
+  const legacyStructuralPrice = Number(
+    (Array.isArray(raw.priceMat) ? raw.priceMat : []).find(
+      (item) => item.id === "MAT-081",
+    )?.price,
+  );
+  if (legacyStructuralPrice > 0) {
+    normalizedPriceMat.forEach((item) => {
+      if (
+        ["MAT-200", "MAT-201", "MAT-202", "MAT-203"].includes(item.id) &&
+        !savedMaterialIds.has(item.id)
+      )
+        item.price = legacyStructuralPrice;
+    });
+  }
   return {
     ...base,
     ...raw,
@@ -825,7 +847,7 @@ export function migrateProject(raw) {
         raw.settings?.priceAdjustments,
       ),
     },
-    priceMat: normalizeCatalog(raw.priceMat, base.priceMat, materialUpgradeIds),
+    priceMat: normalizedPriceMat,
     priceLab: normalizeCatalog(raw.priceLab, base.priceLab, laborUpgradeIds),
     estimateOverrides: Array.isArray(raw.estimateOverrides)
       ? raw.estimateOverrides

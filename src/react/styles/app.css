@@ -2848,6 +2848,31 @@ select,
   border-radius: 10px;
   background: var(--panel);
 }
+
+.estimate-price-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #e0b55e;
+  border-radius: 12px;
+  background: #fff8e7;
+  color: #76510d;
+}
+
+.estimate-price-warning svg {
+  width: 20px;
+  flex: 0 0 20px;
+}
+
+.estimate-price-warning div {
+  display: grid;
+  gap: 3px;
+}
+
+.estimate-price-warning span {
+  font-size: 13px;
+}
 .print-diagram-options > div {
   display: flex;
   flex: 1;
