@@ -134,7 +134,11 @@ export function App() {
   }, [backupOpen]);
 
   return (
-    <div className="app" data-theme={theme}>
+    <div
+      className="app"
+      data-theme={theme}
+      style={{ "--eft-watermark": 'url("./icons/eft-logo.png")' }}
+    >
       <header className="app-header">
         <div className="brand">
           <img src="./icons/eft-logo.png" alt="Логотип ЭФТ" />

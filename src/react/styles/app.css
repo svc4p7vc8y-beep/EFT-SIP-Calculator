@@ -50,9 +50,13 @@ button:disabled {
   min-height: 100vh;
   color: var(--ink);
   background-color: #e9eee8;
-  background-image: var(--osb-texture);
+  background-image:
+    linear-gradient(rgba(233, 238, 232, 0.93), rgba(233, 238, 232, 0.93)),
+    var(--eft-watermark);
   background-attachment: fixed;
-  background-size: 280px 210px;
+  background-position: 0 0, 34px 28px;
+  background-repeat: no-repeat, repeat;
+  background-size: auto, 290px auto;
 }
 .app[data-theme="dark"] {
   --ink: #eaf0e8;
@@ -4695,15 +4699,21 @@ select,
   line-height: 1.45;
 }
 
-/* v109 — единая читаемая типографика для экранов и iPad */
+/* v110 — водяной знак ЭФТ и более крупная контрастная типографика */
 @media screen {
   :root {
-    --muted: #465248;
+    --ink: #000;
+    --muted: #000;
     --line: #b8c4b9;
   }
 
   .app {
+    font-size: 14px;
     font-weight: 500;
+  }
+
+  .app:not([data-theme="dark"]) {
+    color: #000;
   }
 
   .app[data-theme="dark"] {
@@ -4715,7 +4725,7 @@ select,
   .sidebar-status,
   .screen-header p,
   .panel header p {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .header-totals span,
@@ -4749,7 +4759,7 @@ select,
   .plan-ok,
   .pile-alignment-status,
   .room-summary header p {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .project-summary-header span,
@@ -4780,7 +4790,7 @@ select,
   .room-summary-list button em,
   .readout,
   .inspector-empty ul {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .field input,
@@ -4788,53 +4798,57 @@ select,
   select,
   .search-box input,
   .editable-table input {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
   }
 
+  .app:not([data-theme="dark"]) :where(.field input, .field select, select, .search-box input, .editable-table input) {
+    color: #000;
+  }
+
   .panel h2 {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .panel h3 {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .data-table {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .data-table th {
-    color: #39463c;
-    font-size: 10px;
+    color: #000;
+    font-size: 11px;
     font-weight: 800;
   }
 
   .summary-value strong,
   .plan-library-card-title strong {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .plan-library-total strong {
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 800;
   }
 
   .plan-library-card-title small,
   .plan-library-total span,
   .plan-library-parameters small {
-    color: #465248;
+    color: #000;
     font-weight: 600;
   }
 
   .tool-rail button {
-    color: #465248;
-    font-size: 9px;
+    color: #000;
+    font-size: 10px;
     font-weight: 700;
   }
 
   .room-name {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .room-area,
@@ -4842,14 +4856,39 @@ select,
   .room-ceiling-mode,
   .pile-spacing-text,
   .binding-length-text {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
   }
 
   .blank-plan-prompt-subtitle,
   .plan-inspector,
   .planner-inspector {
-    color: #3f4b41;
+    color: #000;
+  }
+
+  .app:not([data-theme="dark"]) :where(
+      .screen-header p,
+      .panel header p,
+      .sidebar-status,
+      .project-summary-header small,
+      .summary-detail,
+      .summary-value span,
+      .summary-breakdown h3,
+      .summary-estimate-materials h3,
+      .stat span,
+      .field small,
+      .parameter-section > header p,
+      .parameter-navigator > p,
+      .plan-library-card-title small,
+      .plan-library-total span,
+      .plan-library-parameters small,
+      .canvas-hint,
+      .inspector-note,
+      .plan-warning,
+      .plan-ok,
+      .room-summary header p
+    ) {
+    color: #000;
   }
 }
 
