@@ -4694,3 +4694,167 @@ select,
 .roof-cost-warning span {
   line-height: 1.45;
 }
+
+/* v109 — единая читаемая типографика для экранов и iPad */
+@media screen {
+  :root {
+    --muted: #465248;
+    --line: #b8c4b9;
+  }
+
+  .app {
+    font-weight: 500;
+  }
+
+  .app[data-theme="dark"] {
+    --muted: #bcc7be;
+    --line: #465448;
+  }
+
+  .brand span,
+  .sidebar-status,
+  .screen-header p,
+  .panel header p {
+    font-size: 12px;
+  }
+
+  .header-totals span,
+  .brand > .version-badge,
+  .sidebar-status small,
+  .project-summary-header > small,
+  .summary-health small,
+  .summary-customer small,
+  .summary-value span,
+  .summary-breakdown h3,
+  .summary-estimate-materials h3,
+  .stat span,
+  .field small,
+  .numeric-input-value em,
+  .parameter-section > header p,
+  .parameter-progress span,
+  .parameter-progress small,
+  .parameter-navigator nav a > span,
+  .parameter-navigator nav a small,
+  .parameter-navigator > p,
+  .parameter-entity-list > h3,
+  .parameter-platform-list > article > header span,
+  .parameter-opening-list > article > header span,
+  .estimate-editor-toolbar span,
+  .plan-library-card-title small,
+  .plan-library-total span,
+  .plan-library-parameters small,
+  .canvas-hint,
+  .inspector-note,
+  .plan-warning,
+  .plan-ok,
+  .pile-alignment-status,
+  .room-summary header p {
+    font-size: 10px;
+  }
+
+  .project-summary-header span,
+  .summary-health strong,
+  .summary-customer strong,
+  .summary-detail,
+  .summary-open-calculator,
+  .summary-material-card header,
+  .summary-material-card dl div,
+  .summary-material-line,
+  .summary-material-line strong,
+  .summary-estimate-materials > div,
+  .summary-openings div,
+  .summary-openings strong,
+  .summary-openings p,
+  .button,
+  .field,
+  .toggle-row > span,
+  .parameter-layer-box > strong,
+  .parameter-platform-list > article > header strong,
+  .parameter-opening-list > article > header strong,
+  .estimate-editor-toolbar strong,
+  .compact-button,
+  .plan-library-parameters b,
+  .plan-library-actions .button,
+  .sketch-select,
+  .room-summary-list button strong,
+  .room-summary-list button em,
+  .readout,
+  .inspector-empty ul {
+    font-size: 11px;
+  }
+
+  .field input,
+  .field select,
+  select,
+  .search-box input,
+  .editable-table input {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .panel h2 {
+    font-size: 15px;
+  }
+
+  .panel h3 {
+    font-size: 12px;
+  }
+
+  .data-table {
+    font-size: 11px;
+  }
+
+  .data-table th {
+    color: #39463c;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .summary-value strong,
+  .plan-library-card-title strong {
+    font-size: 14px;
+  }
+
+  .plan-library-total strong {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  .plan-library-card-title small,
+  .plan-library-total span,
+  .plan-library-parameters small {
+    color: #465248;
+    font-weight: 600;
+  }
+
+  .tool-rail button {
+    color: #465248;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .room-name {
+    font-size: 14px;
+  }
+
+  .room-area,
+  .room-dimensions,
+  .room-ceiling-mode,
+  .pile-spacing-text,
+  .binding-length-text {
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .blank-plan-prompt-subtitle,
+  .plan-inspector,
+  .planner-inspector {
+    color: #3f4b41;
+  }
+}
+
+@media screen and (max-width: 900px) {
+  .plan-library-grid {
+    grid-template-columns: 1fr;
+  }
+}
