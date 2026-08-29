@@ -704,19 +704,64 @@ select,
   font-weight: 400;
   line-height: 1.4;
 }
-.input-with-suffix {
+.numeric-input {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: stretch;
+  min-width: 0;
+}
+.numeric-input-value {
   position: relative;
+  min-width: 0;
 }
-.input-with-suffix input {
-  padding-right: 42px;
+.numeric-input-value input {
+  border-radius: 0;
+  text-align: center;
 }
-.input-with-suffix em {
+.numeric-input-value em {
   position: absolute;
-  right: 10px;
-  top: 11px;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--muted);
   font-size: 10px;
   font-style: normal;
+  pointer-events: none;
+}
+.numeric-input-value.has-suffix input {
+  padding-right: 34px;
+}
+.numeric-step-button {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  min-height: 37px;
+  padding: 0;
+  color: var(--green-deep);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  touch-action: manipulation;
+}
+.numeric-step-button:first-child {
+  border-radius: 7px 0 0 7px;
+  border-right: 0;
+}
+.numeric-step-button:last-child {
+  border-radius: 0 7px 7px 0;
+  border-left: 0;
+}
+.numeric-step-button:hover:not(:disabled),
+.numeric-step-button:active:not(:disabled) {
+  color: #fff;
+  background: var(--green);
+}
+.numeric-step-button:disabled {
+  color: var(--muted);
+  opacity: 0.45;
+}
+.numeric-step-button svg {
+  width: 16px;
+  height: 16px;
 }
 .toggle-row {
   min-height: 44px;
@@ -1143,6 +1188,32 @@ select,
   min-width: 80px;
   max-width: 105px;
   text-align: right;
+}
+.estimate-number-input {
+  grid-template-columns: 28px minmax(58px, 82px) 28px;
+  justify-content: end;
+  min-width: 114px;
+}
+.estimate-number-input .numeric-step-button {
+  min-width: 28px;
+  min-height: 31px;
+}
+.estimate-number-input .numeric-input-value input {
+  height: 31px;
+  padding: 4px;
+  border-color: transparent;
+  background: transparent;
+}
+.estimate-number-input .numeric-input-value input:focus {
+  border-color: var(--green);
+  background: var(--panel);
+}
+.price-input.numeric-input {
+  grid-template-columns: 30px minmax(76px, 1fr) 30px;
+  min-width: 136px;
+}
+.price-input .numeric-step-button {
+  min-width: 30px;
 }
 .overridden-estimate-line {
   background: rgba(255, 244, 209, 0.45);

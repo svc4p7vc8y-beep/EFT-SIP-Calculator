@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { memo, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { isPriceEditorUnlocked } from '../security/price-access.js';
 
@@ -7,13 +7,104 @@ export function Field({ label, hint, children, className = '' }) {
   return <label className={`field ${className}`}><span>{label}</span>{children}{hint ? <small>{hint}</small> : null}</label>;
 }
 
+function numericText(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  return Number.isFinite(Number(value)) ? String(value) : '';
+}
+
+function parseNumericText(value) {
+  const normalized = String(value).trim().replace(',', '.');
+  if (!normalized || normalized === '-' || normalized === '.' || normalized === '-.') return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function clampNumericValue(value, min, max) {
+  let result = value;
+  if (Number.isFinite(Number(min))) result = Math.max(Number(min), result);
+  if (Number.isFinite(Number(max))) result = Math.min(Number(max), result);
+  return result;
+}
+
+function stepPrecision(step) {
+  const text = String(step);
+  if (text.includes('e-')) return Number(text.split('e-')[1]) || 0;
+  return text.includes('.') ? text.split('.')[1].length : 0;
+}
+
+export function NumericInput({ value, onChange, min, max, step = 1, disabled = false, suffix, className = '', ariaLabel, title }) {
+  const [draft, setDraft] = useState(() => numericText(value));
+  const focusedRef = useRef(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(numericText(value));
+  }, [value]);
+
+  const commitValue = (nextValue) => {
+    const precision = stepPrecision(step);
+    const rounded = Number(clampNumericValue(nextValue, min, max).toFixed(precision));
+    setDraft(String(rounded));
+    onChange(rounded);
+  };
+
+  const changeDraft = (event) => {
+    const nextDraft = event.target.value;
+    if (!/^-?\d*(?:[.,]\d*)?$/.test(nextDraft)) return;
+    setDraft(nextDraft);
+    const parsed = parseNumericText(nextDraft);
+    if (parsed !== null) onChange(parsed);
+  };
+
+  const blur = () => {
+    focusedRef.current = false;
+    const parsed = parseNumericText(draft);
+    if (parsed === null) {
+      setDraft(numericText(value));
+      return;
+    }
+    commitValue(parsed);
+  };
+
+  const changeByStep = (direction) => {
+    const current = parseNumericText(draft) ?? parseNumericText(value) ?? (Number.isFinite(Number(min)) ? Number(min) : 0);
+    commitValue(current + direction * Number(step || 1));
+    inputRef.current?.focus({ preventScroll: true });
+  };
+
+  return <div className={`numeric-input ${className}`}>
+    <button type="button" className="numeric-step-button" disabled={disabled || (Number.isFinite(Number(min)) && Number(value) <= Number(min))} onClick={() => changeByStep(-1)} aria-label={`Уменьшить${ariaLabel ? `: ${ariaLabel}` : ''}`}><ChevronDown /></button>
+    <div className={`numeric-input-value${suffix ? ' has-suffix' : ''}`}>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="decimal"
+        value={draft}
+        disabled={disabled}
+        title={title}
+        aria-label={ariaLabel}
+        onFocus={(event) => {
+          focusedRef.current = true;
+          if (draft === '0') event.currentTarget.select();
+        }}
+        onChange={changeDraft}
+        onBlur={blur}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+          event.preventDefault();
+          changeByStep(event.key === 'ArrowUp' ? 1 : -1);
+        }}
+      />
+      {suffix ? <em>{suffix}</em> : null}
+    </div>
+    <button type="button" className="numeric-step-button" disabled={disabled || (Number.isFinite(Number(max)) && Number(value) >= Number(max))} onClick={() => changeByStep(1)} aria-label={`Увеличить${ariaLabel ? `: ${ariaLabel}` : ''}`}><ChevronUp /></button>
+  </div>;
+}
+
 export function NumberField({ label, value, onChange, min = 0, max, step = 0.1, suffix, hint, disabled }) {
   return (
     <Field label={label} hint={hint}>
-      <div className="input-with-suffix">
-        <input type="number" value={Number.isFinite(Number(value)) ? value : 0} min={min} max={max} step={step} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} />
-        {suffix ? <em>{suffix}</em> : null}
-      </div>
+      <NumericInput value={value} onChange={onChange} min={min} max={max} step={step} suffix={suffix} disabled={disabled} ariaLabel={label} />
     </Field>
   );
 }
@@ -73,8 +164,8 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
           <td><input className="estimate-cell-input no-print" aria-label={`Наименование: ${line.name}`} value={line.name} onChange={(event) => onChangeLine(line, { name: event.target.value })} /><span className="print-only">{line.name}</span></td>
           <td><select className="estimate-cell-input no-print" aria-label={`Вид: ${line.name}`} value={line.kind} onChange={(event) => onChangeLine(line, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select><span className={`kind ${line.kind} print-only`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td>
           <td><input className="estimate-cell-input unit-input no-print" aria-label={`Единица: ${line.name}`} value={line.unit} onChange={(event) => onChangeLine(line, { unit: event.target.value })} /><span className="print-only">{line.unit}</span></td>
-          <td><input className="estimate-cell-input number-input no-print" type="number" min="0" step="0.01" aria-label={`Количество: ${line.name}`} value={line.qty} onChange={(event) => onChangeLine(line, { qty: Number(event.target.value) })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
-          <td><input className="estimate-cell-input number-input no-print" type="number" min="0" step="1" aria-label={`Цена: ${line.name}`} title={priceUnlocked ? 'Цена только для текущего проекта' : 'Разблокируйте цены в разделе «Прайс-лист»'} disabled={!priceUnlocked} value={line.price} onChange={(event) => onChangeLine(line, { price: Number(event.target.value) })} /><span className="print-only">{formatMoney(line.price)}</span></td>
+          <td><NumericInput className="estimate-number-input no-print" min={0} step={0.01} ariaLabel={`Количество: ${line.name}`} value={line.qty} onChange={(qty) => onChangeLine(line, { qty })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
+          <td><NumericInput className="estimate-number-input no-print" min={0} step={1} ariaLabel={`Цена: ${line.name}`} title={priceUnlocked ? 'Цена только для текущего проекта' : 'Разблокируйте цены в разделе «Прайс-лист»'} disabled={!priceUnlocked} value={line.price} onChange={(price) => onChangeLine(line, { price })} /><span className="print-only">{formatMoney(line.price)}</span></td>
           <td>{formatMoney(line.qty * line.price)}</td>
           <td className="estimate-row-actions no-print">{line.projectOverride ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>
         </tr>];
