@@ -42,4 +42,7 @@ test('old sketches appear in the new library and remain loadable', () => {
   assert.equal(entries.length, 1);
   assert.equal(entries[0].legacy, true);
   assert.equal(entries[0].plan.house.w, project.plan.house.w);
+  const restored = restorePlanLibraryEntry(project, entries[0]);
+  assert.doesNotThrow(() => calculateProject(restored));
+  assert.equal(restored.plan.house.w, project.plan.house.w);
 });

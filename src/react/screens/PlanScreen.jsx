@@ -4361,7 +4361,7 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
               <article className="plan-library-card" key={entry.id}>
                 <PlanLibraryThumbnail plan={savedPlan} />
                 <div className="plan-library-card-body">
-                  <div className="plan-library-card-title"><div><strong>{entry.name}</strong><small>{entry.preset ? "Готовый шаблон" : entry.savedAt ? new Date(entry.savedAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }) : "Старый эскиз"}</small></div>{entry.legacy ? <em>старый формат</em> : null}</div>
+                  <div className="plan-library-card-title"><div><strong>{entry.name}</strong><small>{entry.preset ? "Готовый шаблон" : entry.savedAt ? new Date(entry.savedAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }) : "Старый эскиз"}</small></div><div className={`plan-library-total${entry.priceMode === "current" ? " current" : ""}`}><span>{entry.priceMode === "current" ? "По текущему прайсу" : "Итого"}</span><strong>{entry.priceSnapshot?.total ? formatMoney(entry.priceSnapshot.total) : "После пересчёта"}</strong></div></div>
                   <div className="plan-library-parameters">
                     <span><small>Габариты</small><b>{formatNumber(savedPlan.house.w)} × {formatNumber(savedPlan.house.h)} м</b></span>
                     <span><small>Площадь</small><b>{formatNumber(area)} м²</b></span>
@@ -4370,7 +4370,6 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
                     <span><small>Перегородки</small><b>{partition}</b></span>
                     <span><small>Кровля</small><b>{roofNames[settings.roof?.form] || "по проекту"}</b></span>
                   </div>
-                  <div className="plan-library-price"><span>Цена при сохранении</span><strong>{entry.priceSnapshot?.total ? formatMoney(entry.priceSnapshot.total) : "пересчитается при открытии"}</strong></div>
                   <div className="plan-library-actions">
                     <button className="button primary" type="button" onClick={() => onOpen(entry)}>Открыть</button>
                     {!entry.preset ? <button className="button secondary" type="button" onClick={() => onEdit(entry)}>Изменить</button> : null}
@@ -4629,8 +4628,8 @@ export default function PlanScreen({ onNavigate }) {
     setTransferStatus("План второго этажа очищен; внешний контур сохранён");
   };
   const issues = useMemo(() => planIssues(plan), [plan]);
-  const planLibraryEntries = useMemo(
-    () => [
+  const planLibraryEntries = useMemo(() => {
+    const entries = [
       { id: "photo-plan", name: "План с фото", plan: createDefaultPlan(), preset: true },
       {
         id: "compact",
@@ -4640,9 +4639,27 @@ export default function PlanScreen({ onNavigate }) {
       },
       { id: "empty", name: "Новый чистый план", plan: createBlankPlan(), preset: true },
       ...libraryPlans,
-    ],
-    [libraryPlans],
-  );
+    ];
+    if (!libraryOpen) return entries;
+    return entries.map((entry) => {
+      if (Number(entry.priceSnapshot?.total) > 0) return entry;
+      try {
+        const previewProject = restorePlanLibraryEntry(project, entry);
+        const totals = calculateProject(previewProject).totals;
+        return {
+          ...entry,
+          priceMode: "current",
+          priceSnapshot: {
+            materials: Number(totals.materials) || 0,
+            labor: Number(totals.labor) || 0,
+            total: Number(totals.total) || 0,
+          },
+        };
+      } catch {
+        return { ...entry, priceMode: "current", priceSnapshot: { materials: 0, labor: 0, total: 0 } };
+      }
+    });
+  }, [libraryPlans, libraryOpen, project]);
   const selectTool = (id) => {
     if (id === "stairOpening" && floorCount < 2) {
       setTransferStatus("Сначала добавьте второй этаж, затем разместите общий лестничный проём");

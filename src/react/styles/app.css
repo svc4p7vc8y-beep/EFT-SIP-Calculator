@@ -1988,18 +1988,27 @@ select,
 .plan-library-card-title small { display: block; }
 .plan-library-card-title strong { color: #172018; font-size: 14px; }
 .plan-library-card-title small { margin-top: 4px; color: #768078; font-size: 9px; }
-.plan-library-card-title em { padding: 3px 6px; border-radius: 5px; color: #855d1f; background: #fff3d8; font-size: 8px; font-style: normal; }
+.plan-library-total {
+  flex: 0 0 auto;
+  min-width: 126px;
+  padding: 8px 10px;
+  border: 1px solid #cfe1c6;
+  border-radius: 9px;
+  text-align: right;
+  background: #eaf5e5;
+}
+.plan-library-total span,
+.plan-library-total strong { display: block; white-space: nowrap; }
+.plan-library-total span { color: #60705f; font-size: 7px; text-transform: uppercase; }
+.plan-library-total strong { margin-top: 3px; color: #315f21; font-size: 15px; line-height: 1.1; }
+.plan-library-total.current { border-color: #d8dfcf; background: #f1f4ec; }
+.plan-library-total.current strong { color: #4b5d42; }
 .plan-library-parameters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .plan-library-parameters span { min-width: 0; padding: 7px 8px; border-radius: 7px; background: #f2f6ef; }
 .plan-library-parameters small,
 .plan-library-parameters b { display: block; overflow-wrap: anywhere; }
 .plan-library-parameters small { color: #7a847b; font-size: 7px; text-transform: uppercase; }
 .plan-library-parameters b { margin-top: 2px; color: #263328; font-size: 10px; }
-.plan-library-price { padding: 9px 10px; border-left: 3px solid #609438; border-radius: 7px; background: #edf6e8; }
-.plan-library-price span,
-.plan-library-price strong { display: block; }
-.plan-library-price span { color: #6b766c; font-size: 8px; }
-.plan-library-price strong { margin-top: 3px; color: #315e20; font-size: 13px; }
 .plan-library-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .plan-library-actions .button { min-height: 32px; padding: 0 9px; font-size: 9px; }
 .plan-library-actions .button svg { width: 13px; height: 13px; }

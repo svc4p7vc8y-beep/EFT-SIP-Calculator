@@ -61,9 +61,14 @@ export function writePlanLibrary(entries, storage = localStorage) {
 
 export function restorePlanLibraryEntry(currentProject, entry) {
   if (!entry?.project) {
-    const next = clone(currentProject);
-    next.plan = clone(entry.plan);
-    return next;
+    return migrateProject({
+      ...clone(currentProject),
+      plan: clone(entry.plan),
+      format: 'eft-project',
+      appVersion: REACT_PROJECT_VERSION,
+      priceMat: clone(currentProject.priceMat),
+      priceLab: clone(currentProject.priceLab),
+    });
   }
   return migrateProject({
     ...clone(currentProject),
