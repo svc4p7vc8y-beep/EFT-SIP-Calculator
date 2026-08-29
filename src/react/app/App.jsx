@@ -137,7 +137,9 @@ export function App() {
     <div
       className="app"
       data-theme={theme}
-      style={{ "--eft-watermark": 'url("./icons/eft-logo.png")' }}
+      style={{
+        "--eft-watermark": `url("${new URL("./icons/eft-logo.png", document.baseURI).href}")`,
+      }}
     >
       <header className="app-header">
         <div className="brand">
