@@ -3,18 +3,25 @@
 :root {
   font-family: Manrope, system-ui, sans-serif;
   color: #172018;
-  background: #f4f7f3;
+  background: #e9eee8;
   font-synthesis: none;
   --green: #5d8f32;
   --green-dark: #37661f;
   --green-soft: #edf5e8;
   --ink: #172018;
   --muted: #667069;
-  --line: #dce4dc;
+  --line: #c8d2c8;
   --panel: #fff;
   --surface: #f5f8f4;
   --danger: #b63c36;
-  --shadow: 0 12px 32px rgba(30, 50, 30, 0.08);
+  --shadow: 0 14px 34px rgba(34, 52, 34, 0.12);
+  --glass-panel: rgba(255, 255, 255, 0.82);
+  --glass-panel-strong: rgba(255, 255, 255, 0.91);
+  --glass-line: rgba(113, 137, 111, 0.5);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 1px 2px rgba(27, 46, 28, 0.08),
+    0 12px 30px rgba(34, 52, 34, 0.11);
+  --osb-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='210' viewBox='0 0 280 210'%3E%3Cg fill='%236e8069' fill-opacity='.055'%3E%3Cpath d='M18 24l38-12 22 13-31 10z'/%3E%3Cpath d='M112 8l45 9-19 17-42-11z'/%3E%3Cpath d='M210 17l52-5-11 19-47 5z'/%3E%3Cpath d='M62 72l47-17 14 20-50 12z'/%3E%3Cpath d='M163 54l52 13-22 18-47-15z'/%3E%3Cpath d='M238 86l35-15-4 27-39 11z'/%3E%3Cpath d='M13 128l43-20 18 17-38 24z'/%3E%3Cpath d='M100 117l54-12-12 24-47 9z'/%3E%3Cpath d='M184 116l42-16 17 21-48 12z'/%3E%3Cpath d='M47 178l55-20 9 22-49 15z'/%3E%3Cpath d='M144 168l48-18 17 15-45 22z'/%3E%3Cpath d='M230 166l43-10-13 27-38 4z'/%3E%3C/g%3E%3Cg fill='none' stroke='%235d8f32' stroke-opacity='.035' stroke-width='1'%3E%3Cpath d='M3 48l61 13M126 42l72 16M204 143l70-24M5 199l76-24M121 202l79-28'/%3E%3C/g%3E%3C/svg%3E");
 }
 * {
   box-sizing: border-box;
@@ -42,7 +49,10 @@ button:disabled {
 .app {
   min-height: 100vh;
   color: var(--ink);
-  background: var(--surface);
+  background-color: #e9eee8;
+  background-image: var(--osb-texture);
+  background-attachment: fixed;
+  background-size: 280px 210px;
 }
 .app[data-theme="dark"] {
   --ink: #eaf0e8;
@@ -52,6 +62,14 @@ button:disabled {
   --surface: #121914;
   --green-soft: #263922;
   --shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
+  --glass-panel: rgba(27, 36, 29, 0.9);
+  --glass-panel-strong: rgba(27, 36, 29, 0.96);
+  --glass-line: rgba(102, 126, 104, 0.48);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 34px rgba(0, 0, 0, 0.24);
+  --osb-texture: none;
+  background-color: var(--surface);
+  background-image: none;
 }
 .app-header {
   height: 76px;
@@ -4244,6 +4262,94 @@ select,
   }
 }
 
+/* Светлая OSB-текстура остаётся на фоне, а рабочие плитки получают спокойный
+   liquid-glass слой с более читаемой границей. Чертёжные холсты остаются белыми. */
+.app-header,
+.sidebar,
+.project-summary-sidebar {
+  border-color: var(--glass-line);
+  background-color: var(--glass-panel-strong);
+  backdrop-filter: blur(20px) saturate(118%);
+  -webkit-backdrop-filter: blur(20px) saturate(118%);
+}
+
+.panel,
+.stat:not(.accent),
+.header-totals,
+.icon-button,
+.button.secondary,
+.plan-status-bar,
+.plan-top-controls,
+.print-diagram-options,
+.compact-estimate-preview,
+.summary-customer,
+.summary-value,
+.summary-material-card,
+.price-access-card,
+.price-save-guide,
+.parameter-section,
+.calculation-flow article {
+  border-color: var(--glass-line);
+  background-color: var(--glass-panel);
+  background-image: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.34),
+    rgba(255, 255, 255, 0.08) 52%,
+    rgba(103, 137, 96, 0.035)
+  );
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(16px) saturate(115%);
+  -webkit-backdrop-filter: blur(16px) saturate(115%);
+}
+
+.panel:hover,
+.summary-material-card:hover,
+.summary-customer:hover {
+  border-color: rgba(91, 132, 79, 0.68);
+}
+
+.planner-shell,
+.plan-workbench {
+  border-color: rgba(99, 126, 98, 0.62);
+  background: #fff;
+  box-shadow: inset 0 1px 0 #fff, 0 16px 38px rgba(31, 49, 31, 0.16);
+}
+
+.canvas-panel,
+.plan-svg,
+.print-sheet,
+.print-plan-svg,
+.print-roof-svg {
+  background-color: #fff;
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.app[data-theme="dark"] .panel,
+.app[data-theme="dark"] .stat:not(.accent),
+.app[data-theme="dark"] .header-totals,
+.app[data-theme="dark"] .icon-button,
+.app[data-theme="dark"] .button.secondary,
+.app[data-theme="dark"] .plan-status-bar,
+.app[data-theme="dark"] .plan-top-controls,
+.app[data-theme="dark"] .print-diagram-options,
+.app[data-theme="dark"] .compact-estimate-preview,
+.app[data-theme="dark"] .summary-customer,
+.app[data-theme="dark"] .summary-value,
+.app[data-theme="dark"] .summary-material-card,
+.app[data-theme="dark"] .price-access-card,
+.app[data-theme="dark"] .price-save-guide,
+.app[data-theme="dark"] .parameter-section,
+.app[data-theme="dark"] .calculation-flow article {
+  background-image: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.035),
+    rgba(255, 255, 255, 0.01) 55%,
+    rgba(93, 143, 50, 0.025)
+  );
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -4260,6 +4366,10 @@ select,
   }
   body {
     background: #fff !important;
+  }
+  .app {
+    background: #fff !important;
+    background-image: none !important;
   }
   .app-header,
   .sidebar,
