@@ -1202,6 +1202,14 @@ select,
   min-width: 28px;
   min-height: 31px;
 }
+.numeric-input.without-steppers {
+  grid-template-columns: minmax(80px, 1fr);
+  min-width: 80px;
+}
+.numeric-input.without-steppers input {
+  border-radius: 7px;
+  text-align: right;
+}
 .estimate-number-input .numeric-input-value input {
   height: 31px;
   padding: 4px;

@@ -10,7 +10,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 111;
+export const REACT_PROJECT_VERSION = 112;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -723,9 +723,11 @@ function normalizeCatalog(items, defaults, upgradeIds = new Set()) {
   const normalized = items.map((item) => {
     const fallback = defaultById.get(item.id);
     if (fallback && upgradeIds.has(item.id)) return clone(fallback);
-    return Number(item.price) === 0 && Number(fallback?.price) > 0
-      ? { ...item, price: fallback.price }
-      : item;
+    const normalizedItem = Number(item.price) === 0 && Number(fallback?.price) > 0
+      ? { ...item, price: fallback.price, ...(fallback.priceEstimated ? { priceEstimated: true, priceNote: fallback.priceNote } : {}) }
+      : { ...item };
+    if (Number(normalizedItem.price) > 0) delete normalizedItem.pricePending;
+    return normalizedItem;
   });
   const existingIds = new Set(normalized.map((item) => item.id));
   return normalized.concat(

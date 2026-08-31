@@ -32,7 +32,7 @@ function stepPrecision(step) {
   return text.includes('.') ? text.split('.')[1].length : 0;
 }
 
-export function NumericInput({ value, onChange, min, max, step = 1, disabled = false, suffix, className = '', ariaLabel, title }) {
+export function NumericInput({ value, onChange, min, max, step = 1, disabled = false, suffix, className = '', ariaLabel, title, showSteppers = true }) {
   const [draft, setDraft] = useState(() => numericText(value));
   const focusedRef = useRef(false);
   const inputRef = useRef(null);
@@ -72,8 +72,8 @@ export function NumericInput({ value, onChange, min, max, step = 1, disabled = f
     inputRef.current?.focus({ preventScroll: true });
   };
 
-  return <div className={`numeric-input ${className}`}>
-    <button type="button" className="numeric-step-button" disabled={disabled || (Number.isFinite(Number(min)) && Number(value) <= Number(min))} onClick={() => changeByStep(-1)} aria-label={`Уменьшить${ariaLabel ? `: ${ariaLabel}` : ''}`}><ChevronDown /></button>
+  return <div className={`numeric-input ${className}${showSteppers ? '' : ' without-steppers'}`}>
+    {showSteppers ? <button type="button" className="numeric-step-button" disabled={disabled || (Number.isFinite(Number(min)) && Number(value) <= Number(min))} onClick={() => changeByStep(-1)} aria-label={`Уменьшить${ariaLabel ? `: ${ariaLabel}` : ''}`}><ChevronDown /></button> : null}
     <div className={`numeric-input-value${suffix ? ' has-suffix' : ''}`}>
       <input
         ref={inputRef}
@@ -90,14 +90,14 @@ export function NumericInput({ value, onChange, min, max, step = 1, disabled = f
         onChange={changeDraft}
         onBlur={blur}
         onKeyDown={(event) => {
-          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+          if (!showSteppers || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
           event.preventDefault();
           changeByStep(event.key === 'ArrowUp' ? 1 : -1);
         }}
       />
       {suffix ? <em>{suffix}</em> : null}
     </div>
-    <button type="button" className="numeric-step-button" disabled={disabled || (Number.isFinite(Number(max)) && Number(value) >= Number(max))} onClick={() => changeByStep(1)} aria-label={`Увеличить${ariaLabel ? `: ${ariaLabel}` : ''}`}><ChevronUp /></button>
+    {showSteppers ? <button type="button" className="numeric-step-button" disabled={disabled || (Number.isFinite(Number(max)) && Number(value) >= Number(max))} onClick={() => changeByStep(1)} aria-label={`Увеличить${ariaLabel ? `: ${ariaLabel}` : ''}`}><ChevronUp /></button> : null}
   </div>;
 }
 
@@ -165,7 +165,7 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
           <td><select className="estimate-cell-input no-print" aria-label={`Вид: ${line.name}`} value={line.kind} onChange={(event) => onChangeLine(line, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select><span className={`kind ${line.kind} print-only`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td>
           <td><input className="estimate-cell-input unit-input no-print" aria-label={`Единица: ${line.name}`} value={line.unit} onChange={(event) => onChangeLine(line, { unit: event.target.value })} /><span className="print-only">{line.unit}</span></td>
           <td><NumericInput className="estimate-number-input no-print" min={0} step={0.01} ariaLabel={`Количество: ${line.name}`} value={line.qty} onChange={(qty) => onChangeLine(line, { qty })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
-          <td><NumericInput className="estimate-number-input no-print" min={0} step={1} ariaLabel={`Цена: ${line.name}`} title={priceUnlocked ? 'Цена только для текущего проекта' : 'Разблокируйте цены в разделе «Прайс-лист»'} disabled={!priceUnlocked} value={line.price} onChange={(price) => onChangeLine(line, { price })} /><span className="print-only">{formatMoney(line.price)}</span></td>
+          <td><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Цена: ${line.name}`} title={priceUnlocked ? 'Цена только для текущего проекта' : 'Разблокируйте цены в разделе «Прайс-лист»'} disabled={!priceUnlocked} value={line.price} onChange={(price) => onChangeLine(line, { price })} /><span className="print-only">{formatMoney(line.price)}</span></td>
           <td>{formatMoney(line.qty * line.price)}</td>
           <td className="estimate-row-actions no-print">{line.projectOverride ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>
         </tr>];

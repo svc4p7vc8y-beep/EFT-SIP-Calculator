@@ -1,5 +1,5 @@
 {
-  "appVersion": 111,
+  "appVersion": 112,
   "format": "eft-price-catalog",
   "priceLab": [
     {
@@ -799,7 +799,9 @@
       "id": "LAB-110",
       "kind": "labor",
       "name": "Монтаж гаражных ворот",
-      "price": 0,
+      "price": 8000,
+      "priceEstimated": true,
+      "priceNote": "Ориентир на 31.08.2026 для стандартных гаражных ворот; нестандартный монтаж уточнить. https://jrm.ru/vorota/",
       "unit": "компл"
     },
     {
@@ -823,7 +825,9 @@
       "id": "LAB-113",
       "kind": "labor",
       "name": "Монтаж мягкой кровли",
-      "price": 0,
+      "price": 700,
+      "priceEstimated": true,
+      "priceNote": "Ориентир на 31.08.2026 за укладку покрытия, без стропил и основания. https://stroydoka.ru/krovlya/montazh-krovli/montazh-gibkoy-cherepicy/",
       "unit": "м2"
     }
   ],
@@ -1233,7 +1237,9 @@
       "id": "MAT-199",
       "kind": "material",
       "name": "Гибкая черепица (мягкая кровля)",
-      "price": 0,
+      "price": 700,
+      "priceEstimated": true,
+      "priceNote": "Предварительный бюджетный ориентир ЭФТ на 31.08.2026; коллекция и производитель не заданы, уточнить перед заказом. Только покрытие, без основания.",
       "unit": "м2"
     },
     {
@@ -1569,8 +1575,9 @@
       "id": "MAT-204",
       "kind": "material",
       "name": "Лента уплотнительная из вспененного полиэтилена 5 мм",
-      "price": 0,
-      "pricePending": true,
+      "price": 25,
+      "priceEstimated": true,
+      "priceNote": "Ориентировочная цена ЭФТ на 31.08.2026; ширина ленты не задана, уточнить у поставщика.",
       "unit": "м.п."
     },
     {
@@ -1578,8 +1585,9 @@
       "id": "MAT-205",
       "kind": "material",
       "name": "Пластина коньковая перфорированная 180×65×2 мм",
-      "price": 0,
-      "pricePending": true,
+      "price": 80,
+      "priceEstimated": true,
+      "priceNote": "Ориентир на 31.08.2026: 77 ₽/шт, округлено до 80 ₽. https://moscow.petrovich.ru/product/105889/",
       "unit": "шт"
     },
     {
@@ -2363,7 +2371,9 @@
       "id": "MAT-189",
       "kind": "material",
       "name": "Гаражные ворота по индивидуальному размеру",
-      "price": 0,
+      "price": 45000,
+      "priceEstimated": true,
+      "priceNote": "Ориентир на 31.08.2026 по стандартным воротам 2500×2200 мм; индивидуальные размеры и комплектацию уточнить. Без монтажа. https://jrm.ru/vorota/",
       "unit": "компл"
     }
   ],

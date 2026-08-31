@@ -62,7 +62,7 @@ function makeLine(index, section, query, qty, options = {}) {
     kind: item?.kind || options.kind || "material",
     source: options.source || section,
     estimateGroup: options.estimateGroup,
-    ...(item?.pricePending === true ? { pricePending: true } : {}),
+    ...(item?.pricePending === true && !(Number(item?.price) > 0 || Number(options.price) > 0) ? { pricePending: true } : {}),
     ...(options.exactQuantity === true ? { exactQuantity: true } : {}),
   };
 }
@@ -215,6 +215,7 @@ function applyProjectEstimateEdits(project, sections) {
               .map((key) => [key, override[key]]),
           ),
           projectOverride: true,
+          pricePending: !(Number(override.price ?? line.price) > 0),
         },
       ];
     });

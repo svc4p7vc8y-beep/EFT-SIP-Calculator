@@ -29,6 +29,16 @@ export function isEstimateAccessory(line = {}) {
   );
 }
 
+// Validate final project prices before grouping, and only for rows sent to the client.
+export function unpricedClientLines(calculation, options = {}) {
+  return (calculation.lines || []).filter((line) =>
+    Number(line.qty) > 0 &&
+    (options.includeLabor !== false || line.kind !== 'labor') &&
+    (options.includeAccessories !== false || !isEstimateAccessory(line)) &&
+    (!Number.isFinite(Number(line.price)) || Number(line.price) <= 0)
+  );
+}
+
 const kitName = (section, group) =>
   KIT_NAMES[group] ||
   `Комплект крепежа и сопутствующих материалов · ${group || section.title}`;

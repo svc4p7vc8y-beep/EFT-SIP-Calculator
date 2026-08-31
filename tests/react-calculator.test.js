@@ -1116,9 +1116,9 @@ test('new catalog rows are added to an older saved project', () => {
   project.priceMat = project.priceMat.filter((item) => !['MAT-187', 'MAT-189'].includes(item.id));
   const restored = migrateProject(project);
   assert.equal(restored.priceLab.find((item) => item.id === 'LAB-108').price, 1500);
-  assert.equal(restored.priceLab.find((item) => item.id === 'LAB-110').price, 0);
+  assert.equal(restored.priceLab.find((item) => item.id === 'LAB-110').price, 8000);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-187').price, 841);
-  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-189').price, 0);
+  assert.equal(restored.priceMat.find((item) => item.id === 'MAT-189').price, 45000);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-190').price, 264);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-191').price, 396);
   assert.equal(restored.priceMat.find((item) => item.id === 'MAT-192').price, 528);
@@ -1211,13 +1211,11 @@ test('price-list changes reach non-overridden estimate lines while custom projec
   assert.ok(calculation.totals.materials >= 360);
 });
 
-test('every default estimate line resolves to a catalog item and pending prices are explicit', () => {
+test('every default estimate line resolves to a catalog item with a positive price', () => {
   const calculation = calculateProject(createDefaultProject());
   assert.deepEqual(calculation.lines.filter((line) => !line.catalogId), []);
   const unpriced = calculation.lines.filter((line) => line.price <= 0);
-  assert.ok(unpriced.length > 0);
-  assert.ok(unpriced.every((line) => line.pricePending === true));
-  assert.ok(unpriced.some((line) => line.catalogId === 'MAT-204'));
+  assert.deepEqual(unpriced, []);
 });
 
 test('automatic pile rows cover the house perimeter and internal walls at the configured spacing', () => {
@@ -1300,7 +1298,7 @@ test('new SIP projects calculate adhesive and fasteners from joints and nodes', 
   });
   assert.ok(result.lines.some((line) => line.name.includes('3,8×41') && line.name.includes('шт')));
   assert.ok(result.lines.some((line) => line.name.includes('4,2×75') && line.name.includes('шт')));
-  assert.ok(result.lines.some((line) => line.id === 'sip:seal-floor' && line.pricePending));
+  assert.ok(result.lines.some((line) => line.id === 'sip:seal-floor' && line.price === 25 && !line.pricePending));
 });
 
 test('SIP T-junctions and roof support nodes produce the book fastener set', () => {
@@ -1313,7 +1311,7 @@ test('SIP T-junctions and roof support nodes produce the book fastener set', () 
   assert.equal(partitions.universalScrewCount % project.settings.formulas.sipUniversalScrewsPerTNode, 0);
   assert.ok(result.lines.some((line) => line.id === 'sip:universal-screws-partitions' && /6×120/.test(line.name)));
   assert.ok(result.lines.some((line) => line.id === 'roof:sip-fasteners' && /точек опирания/.test(line.name)));
-  assert.ok(result.lines.some((line) => line.id === 'roof:sip-ridge-plates' && line.pricePending));
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-ridge-plates' && line.price === 80 && !line.pricePending));
   assert.ok(result.lines.some((line) => line.id === 'roof:sip-ridge-plate-screws' && /шт/.test(line.name)));
 });
 
@@ -1353,8 +1351,8 @@ test('version 100 projects copy their protected structural-screw price into the 
   ['MAT-200', 'MAT-201', 'MAT-202', 'MAT-203'].forEach((id) => {
     assert.equal(migrated.priceMat.find((item) => item.id === id).price, 777);
   });
-  assert.equal(migrated.priceMat.find((item) => item.id === 'MAT-204').pricePending, true);
-  assert.equal(migrated.priceMat.find((item) => item.id === 'MAT-205').pricePending, true);
+  assert.equal(migrated.priceMat.find((item) => item.id === 'MAT-204').price, 25);
+  assert.equal(migrated.priceMat.find((item) => item.id === 'MAT-205').price, 80);
 });
 
 test('version 83 catalog contains all SIP panel families at approved prices', () => {
