@@ -1,5 +1,6 @@
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { EXTERIOR_TYPES } from './exterior-model.js';
+import { isInteriorDoor } from './opening-types.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
 const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
@@ -46,7 +47,7 @@ function scopeDescription(key, project, calculation, lineCount) {
     ...(project.upperFloors || []).slice(0, floorCount - 1),
   ];
   const openings = openingCounts(
-    floorPlans.flatMap((plan) => plan.openings || []),
+    floorPlans.flatMap((plan) => plan.openings || []).filter(o => !isInteriorDoor(o) && o.includeInEstimate !== false),
   );
 
   if (key === 'foundation') return {
@@ -114,7 +115,7 @@ function scopeDescription(key, project, calculation, lineCount) {
   }
   if (key === 'internal') return {
     summary: `внутренняя отделка ${formatNumber(calculation.inputs.internal.wallArea)} м² стен`,
-    details: 'Выбранные отделочные материалы и монтажные работы'
+    details: joinParts(['Выбранные отделочные материалы и монтажные работы', calculation.inputs.internal.doors > 0 && `межкомнатные двери с монтажом: ${calculation.inputs.internal.doors} шт`])
   };
   if (key === 'external' && project.settings.external.assemblyVersion !== 0 && calculation.exterior) {
     const e = calculation.exterior, s = e.settings;
@@ -127,13 +128,14 @@ function scopeDescription(key, project, calculation, lineCount) {
         s.trimsEnabled && e.area > 0 && 'углы и обрамления проёмов',
         s.painting && e.areas.wood > 0 && `покраска дерева ${s.paintCoats} слоя`,
         e.soffitArea > 0 && `подшивка ${formatNumber(e.soffitArea)} м²`,
+        e.plinthArea > 0 && `цоколь ${formatNumber(e.plinthArea)} м², высота ${formatNumber(s.plinthHeight)} м, ${s.plinthMaterial === 'brick' ? 'панели под кирпич' : 'профлист'}, труба 50×25×2`,
         s.outdoorEnabled && (s.lights || s.sockets || s.lightingLine || s.socketLine) && `наружная электрика: светильники ${s.lights}, розетки ${s.sockets}, линии ${formatNumber(Number(s.lightingLine) + Number(s.socketLine))} м`,
       ]),
     };
   }
   if (key === 'external') return {
     summary: `наружная отделка ${formatNumber(calculation.inputs.external.facadeArea)} м² фасада`,
-    details: 'Фасадные материалы, крепёж и монтажные работы'
+    details: joinParts(['Фасадные материалы, крепёж и монтажные работы', calculation.exterior?.plinthArea > 0 && `цоколь ${formatNumber(calculation.exterior.plinthArea)} м²`])
   };
   if (key === 'delivery') return {
     summary: `${formatNumber(project.settings.delivery.distance)} км, ${pluralRu(project.settings.delivery.trips, 'рейс', 'рейса', 'рейсов')}`,

@@ -32,7 +32,8 @@ const NAV_ITEMS = [
   { id: 'terrace', label: 'Терраса', icon: Trees, group: 'calculate' },
   { id: 'openings', label: 'Окна / двери', icon: PanelTop, group: 'calculate' },
   { id: 'engineering', label: 'Инженерия', icon: Wrench, group: 'calculate' },
-  { id: 'finishing', label: 'Отделка', icon: PaintRoller, group: 'calculate' },
+  { id: 'external', label: 'Внешняя отделка', icon: Home, group: 'calculate' },
+  { id: 'internal', label: 'Внутренняя отделка', icon: PaintRoller, group: 'calculate' },
   { id: 'delivery', label: 'Доставка', icon: Truck, group: 'calculate' },
   { id: 'price', label: 'Прайс-лист', icon: Tags, group: 'data' },
   { id: 'estimate', label: 'Смета', icon: Calculator, group: 'data' }

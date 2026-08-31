@@ -31,7 +31,7 @@ export function ExteriorEditor({ project, calculation, commit }) {
         {number('reserve','Запас материалов','%',1)}
       </div>
       <Toggle label="Площадь стен из плана (оба этажа, за вычетом проёмов)" checked={calculation.inputs.links.externalFinishFromPlan} onChange={value=>commit(next=>{if(!value)next.settings.external.facadeArea=result.area;next.settings.links.externalFinishFromPlan=value;return next;})}/>
-      <p className="exterior-note">Фронтоны и их покрытие остаются в «Кровле». Здесь считаются стены дома; пристройки, цоколь и дополнительные участки можно учесть ручной площадью.</p>
+      <p className="exterior-note">Фронтоны и их покрытие остаются в «Кровле». Цоколь считается отдельно ниже и не добавляется к площади фасада.</p>
       {s.cladding === 'combined' ? <div className="form-grid">{EXTERIOR_TYPES.map(type=><NumberField key={type.value} label={type.label} value={s.shares[type.value]} suffix="%" min={0} max={100} step={1} onChange={value=>set('shares',{...s.shares,[type.value]:value})}/>)}</div> : null}
       <div className="exterior-area-summary">{EXTERIOR_TYPES.filter(type=>result.areas[type.value]>0).map(type=><Stat key={type.value} label={type.label} value={`${formatNumber(result.areas[type.value])} м²`}/>)}</div>
       {project.services.externalFinish && result.warnings.length ? <div className="exterior-warnings" role="status">{result.warnings.map(warning=><p key={warning}>{warning}</p>)}</div> : null}
@@ -71,5 +71,25 @@ export function ExteriorEditor({ project, calculation, commit }) {
         {toggle('accessEnabled','Включить предварительную стоимость лесов/вышки')}
       </details>
     </>}
+    <section className="exterior-block"><h3>Отделка цоколя</h3>
+      {toggle('plinthEnabled','Включить отделку цоколя')}
+      {s.plinthEnabled ? <>
+        <Toggle label="Периметр цоколя из контура первого этажа" checked={s.plinthAuto} onChange={value=>commit(next=>{if(!value)next.settings.external.plinthPerimeter=result.plinthPerimeter;next.settings.external.plinthAuto=value;return next;})}/>
+        <div className="form-grid">
+          <NumberField label="Периметр цоколя" value={result.plinthPerimeter} suffix="м" min={0} onChange={value=>commit(next=>{Object.assign(next.settings.external,{plinthAuto:false,plinthPerimeter:value});return next;})}/>
+          {number('plinthHeight','Высота облицовки цоколя','м',.05)}
+          <SelectField label="Материал цоколя" value={s.plinthMaterial} options={[{value:'metal',label:'Профлист С-21'},{value:'brick',label:'Пластиковые панели под кирпич'}]} onChange={value=>set('plinthMaterial',value)}/>
+          {number('plinthRows','Горизонтальных рядов трубы 50×25×2','ряда',1)}
+          {number('plinthVerticalLength','Дополнительные вертикальные стойки из трубы','м',.1)}
+          {number('plinthExtraPiles','Дополнительные сваи сверх свайного поля','шт',1)}
+        </div>
+        <div className="exterior-area-summary"><Stat label="Площадь цоколя" value={`${formatNumber(result.plinthArea)} м²`}/><Stat label="Труба к закупке" value={`${formatNumber(result.plinthTubePurchase)} м · ${result.plinthTubePurchase/6} шт × 6 м`}/><Stat label="Сваи существующего поля" value={`${calculation.foundation.totalPiles} шт · без повторной закупки`}/></div>
+        {toggle('plinthTrims','Углы, стартовый профиль и верхний отлив цоколя')}
+        {toggle('plinthCoating','Антикоррозионная защита трубы и соединений')}
+        <p className="exterior-note">Площадь = периметр × высота. Труба = периметр × число рядов + стойки; с общим запасом материалов и округлением до 6 м. Базовые 2 ряда — предварительная настройка, не проектный узел. Для выбранных панелей уточните расположение опор и дополнительные стойки. Сваи из поля повторно не считаются; ручные дополнительные сваи 108×2500 входят только в эту ведомость и не дорисовываются на плане.</p>
+        <p className="exterior-note">Цоколь — навесной экран, не подпорная стенка. Предусмотрите вентиляцию подполья и зазор до грунта с учётом пучения. Высота здесь — высота облицовки, без этого зазора. Обработку соединений и способ крепления трубы подтвердите проектом.</p>
+        <details><summary>Цены и источник комплектации цоколя</summary><p>Новые ориентиры: труба 115 ₽/м; монтаж 300 ₽/м; антикоррозионные материалы 25 ₽/м и обработка 75 ₽/м. Цены меняются в прайсе или только в ведомости проекта. Для другой толщины трубы замените позицию в ведомости.</p><a href="https://gostmetal.ru/truba-profilnaya/pryamougolnaya/50-25-2/" target="_blank" rel="noreferrer">Труба 50×25×2 · источник цены</a> · <a href="https://www.docke.ru/info/pdf/instructions/face_panel/" target="_blank" rel="noreferrer">Требования производителя панелей к основанию</a></details>
+      </> : null}
+    </section>
   </div>;
 }

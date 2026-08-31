@@ -354,7 +354,7 @@ test('frame partitions on the second floor reach materials, labor, finishing and
   );
   const scope = buildCommercialScope(project, result);
   const sipScope = scope.find((section) => section.key === 'sip');
-  const openingScope = scope.find((section) => section.key === 'openings');
+  const internalScope = scope.find((section) => section.key === 'internal');
 
   assert.equal(
     result.metrics.secondFloorPartitionNetArea,
@@ -368,7 +368,8 @@ test('frame partitions on the second floor reach materials, labor, finishing and
       result.metrics.secondFloorPartitionNetArea * 2,
   );
   assert.match(sipScope.summary, /перегородки 2 этажа/);
-  assert.match(openingScope.summary, /двери: 1/);
+  assert.match(internalScope.details, /межкомнатные двери с монтажом: 1 шт/);
+  assert.equal(scope.find((section) => section.key === 'openings'), undefined);
 });
 
 test('legacy second-light value from parameters migrates for rooms on every floor', () => {

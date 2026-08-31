@@ -10,6 +10,7 @@ import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
+import { isInteriorDoor } from './opening-types.js';
 import { calculateExterior } from './exterior-model.js';
 import {
   calculateSipConsumables,
@@ -2332,6 +2333,8 @@ function openingSection(project, index) {
   openings
     .filter((opening) => opening.includeInEstimate !== false)
     .forEach((opening, openingIndex) => {
+      // Keep original indexes for saved overrides of the remaining openings.
+      if (isInteriorDoor(opening)) return;
       const width = Math.round((opening.width || 0.8) * 1000);
       const height = Math.round((opening.height || 2) * 1000);
       const garage = opening.type === "door" && opening.doorType === "garage";
@@ -2486,7 +2489,7 @@ function finishSections(project, index, inputs) {
         makeLine(
           index,
           "internal",
-          "Монтаж имитации бруса",
+          "Монтаж имитации бруса внутри",
           internal.wallArea,
           { key: "wall-work", kind: "labor", unit: "м²" },
         ),
@@ -2501,7 +2504,7 @@ function finishSections(project, index, inputs) {
           key: "laminate",
           unit: "м²",
         }),
-        makeLine(index, "internal", "Монтаж ламината", internal.laminateArea, {
+        makeLine(index, "internal", "Укладка ламината", internal.laminateArea, {
           key: "laminate-work",
           kind: "labor",
           unit: "м²",
@@ -2510,7 +2513,7 @@ function finishSections(project, index, inputs) {
           key: "tile",
           unit: "м²",
         }),
-        makeLine(index, "internal", "Укладка плитки", internal.tileArea, {
+        makeLine(index, "internal", "Монтаж керамогранита и плитки", internal.tileArea, {
           key: "tile-work",
           kind: "labor",
           unit: "м²",
@@ -2522,6 +2525,12 @@ function finishSections(project, index, inputs) {
           internal.doors,
           { key: "doors", unit: "шт" },
         ),
+        makeLine(index, "internal", "Установка межкомнатной двери с добором", internal.doors, {
+          key: "doors-work", kind: "labor", unit: "шт",
+        }),
+        makeLine(index, "internal", "Комплект крепежа для монтажа окна / двери", internal.doors, {
+          key: "doors-fasteners", unit: "компл",
+        }),
       ])
     : [];
   const externalLines = project.services.externalFinish
@@ -2618,6 +2627,9 @@ export function calculateProject(project) {
       woodArea: exterior.areas.wood,
       soffitArea: exterior.soffitArea,
     });
+  } else {
+    // A new plinth must not silently switch a saved legacy facade to the new assembly.
+    finishes.externalLines.push(...exterior.lines.filter(line => line.id.startsWith('external:plinth-')));
   }
   const delivery = deliverySection(project, index, inputs);
   const sections = applyProjectEstimateEdits(project, [

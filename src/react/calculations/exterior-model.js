@@ -19,6 +19,9 @@ export const DEFAULT_EXTERIOR = {
   soffitArea: 0, soffitTrimLength: 0,
   outdoorEnabled: false, lights: 0, sockets: 0, lightingLine: 0, socketLine: 0, boxes: 0, circuits: 0,
   accessEnabled: false,
+  plinthEnabled: false, plinthAuto: true, plinthPerimeter: 0, plinthHeight: .6,
+  plinthMaterial: 'metal', plinthRows: 2, plinthVerticalLength: 0,
+  plinthExtraPiles: 0, plinthTrims: true, plinthCoating: true,
 };
 const n = value => Math.max(0, Number(value) || 0);
 const r = (value, digits = 3) => Number(value.toFixed(digits));
@@ -26,6 +29,7 @@ const ceilPack = (qty, pack) => qty > 0 ? Math.ceil((qty - 1e-9) / pack) * pack 
 export function normalizeExterior(raw = {}) {
   const result = { ...DEFAULT_EXTERIOR, ...raw, shares: { ...DEFAULT_EXTERIOR.shares, ...raw.shares } };
   if (![...EXTERIOR_TYPES.map(item => item.value), 'combined'].includes(result.cladding)) result.cladding = 'siding';
+  if (!['metal','brick'].includes(result.plinthMaterial)) result.plinthMaterial = 'metal';
   return result;
 }
 function corners(plan) {
@@ -61,7 +65,7 @@ export function exteriorGeometry(project, metrics, roof = {}) {
   const wallW = n(project.plan.house?.w), wallL = n(project.plan.house?.h);
   const soffitArea = Math.max(0, roofW * roofL - wallW * wallL);
   const soffitTrimLength = soffitArea ? 2 * (roofW + roofL + wallW + wallL) : 0;
-  return { facadeArea: metrics.exteriorWallNetArea, outerCornerLength, innerCornerLength, openingTrimLength, sillLength,
+  return { facadeArea: metrics.exteriorWallNetArea, plinthPerimeter: bottom.perimeter, plinthCorners: corners(floors[0]).outer + corners(floors[0]).inner, outerCornerLength, innerCornerLength, openingTrimLength, sillLength,
     startLength: Math.max(0, bottom.perimeter - groundDoors), finishLength: top.perimeter, soffitArea, soffitTrimLength };
 }
 export function calculateExterior(project, metrics, roof = {}, linked = {}) {
@@ -187,5 +191,37 @@ export function calculateExterior(project, metrics, roof = {}, linked = {}) {
     add('EXT-MAT-RCD','circuit-protection',Math.ceil(n(s.circuits)),group); add('EXT-LAB-RCD','circuit-protection-work',Math.ceil(n(s.circuits)),group);
   }
   if(s.accessEnabled && area) add('EXT-LAB-ACCESS','access',1,'Организация работ');
-  return { settings: s, auto, area, areas, trim, soffitArea, soffitTrimLength, lines, warnings };
+  const plinthPerimeter = n(s.plinthAuto ? auto.plinthPerimeter : s.plinthPerimeter);
+  const plinthArea = s.plinthEnabled ? plinthPerimeter * n(s.plinthHeight) : 0;
+  const plinthTubeLength = plinthArea ? plinthPerimeter * Math.ceil(n(s.plinthRows)) + n(s.plinthVerticalLength) : 0;
+  const plinthTubePurchase = ceilPack(plinthTubeLength * reserve, 6);
+  const extraPiles = plinthArea ? Math.ceil(n(s.plinthExtraPiles)) : 0;
+  if (plinthArea) {
+    const group = 'Отделка цоколя', family = s.plinthMaterial === 'brick' ? 'PVC' : 'METAL';
+    add('EXT-MAT-PLINTH-TUBE','plinth-tube',plinthTubePurchase,group,`Труба профильная 50×25×2 мм · ${plinthTubePurchase / 6} шт × 6 м`);
+    add('EXT-LAB-PLINTH-FRAME','plinth-frame-work',plinthTubeLength,group);
+    if (s.plinthCoating) {
+      add('EXT-MAT-PLINTH-COATING','plinth-coating',plinthTubeLength,group);
+      add('EXT-LAB-PLINTH-COATING','plinth-coating-work',plinthTubeLength,group);
+    }
+    if (s.plinthMaterial === 'brick') {
+      add('EXT-MAT-BRICK','plinth-cover',Math.ceil(plinthArea * reserve / Math.max(.01,n(s.brickPanelArea))),group);
+      add('EXT-LAB-BRICK','plinth-cover-work',plinthArea,group);
+    } else {
+      add('MAT-041','plinth-cover',plinthArea * reserve,group);
+      add('LAB-054','plinth-cover-work',plinthArea,group);
+    }
+    add('EXT-MAT-SCREW','plinth-fasteners',Math.ceil(plinthArea * n(s.fastenersPerM2) * reserve),group,'Крепёж облицовки цоколя к металлическому каркасу');
+    if(s.plinthTrims) {
+      add(`EXT-MAT-${family}-CORNER`,'plinth-corners',ceilPack(auto.plinthCorners * n(s.plinthHeight) * reserve,family === 'PVC' ? 3 : 2),group);
+      add(`EXT-MAT-${family}-TRIM`,'plinth-start',ceilPack(plinthPerimeter * reserve,family === 'PVC' ? 3 : 2),group,'Стартовый профиль цоколя');
+      add('EXT-MAT-SILL','plinth-top',ceilPack(plinthPerimeter * reserve,2),group,'Верхний отлив цоколя');
+      add('LAB-052','plinth-trim-work',2 * plinthPerimeter + auto.plinthCorners * n(s.plinthHeight),group);
+    }
+    // Existing foundation piles remain in foundation. Only explicit extra supports are added here.
+    add('MAT-001','plinth-extra-piles',extraPiles,group,'Дополнительные сваи цоколя 108 мм × 2,5 м (сверх свайного поля)');
+    add('LAB-004','plinth-extra-piles-work',extraPiles,group);
+    if (!project.services.foundation) warnings.push('Цоколь опирается на существующие сваи; фундамент сейчас выключен в смете.');
+  }
+  return { settings: s, auto, area, areas, trim, soffitArea, soffitTrimLength, plinthPerimeter, plinthArea, plinthTubeLength, plinthTubePurchase, extraPiles, lines, warnings };
 }

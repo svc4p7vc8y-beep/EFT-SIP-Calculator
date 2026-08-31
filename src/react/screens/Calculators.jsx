@@ -42,7 +42,7 @@ const TITLES = {
     "Терраса и крыльцо",
     "Настил, каркас, ступени и конструктивные параметры каждой площадки",
   ],
-  openings: ["Окна и двери", "Проёмы берутся непосредственно с плана дома"],
+  openings: ["Окна и входные двери", "Межкомнатные двери учитываются только во внутренней отделке"],
   engineering: [
     "Инженерные системы",
     "Электрика, водоснабжение, канализация и вентиляция",
@@ -51,6 +51,8 @@ const TITLES = {
     "Отделка",
     "Внутренняя и наружная комплектация с точными площадями",
   ],
+  internal: ['Внутренняя отделка', 'Отделка помещений, межкомнатные двери и монтаж'],
+  external: ['Внешняя отделка', 'Фасад, цоколь, подшивка и наружное освещение'],
   delivery: [
     "Доставка и логистика",
     "Рейсы, расстояние, объём и погрузочно-разгрузочные работы",
@@ -926,6 +928,9 @@ export default function Calculators({ type }) {
           calculation.lines.find((line) => line.id === sipLineBySetting[key]),
         );
       }
+      if (group === 'internal' && next.settings.links.internalFinishFromPlan !== false) {
+        Object.assign(next.settings.internal, calculation.inputs.internal);
+      }
       next.settings[group][key] = value;
       if (group === "sip" && key === "partitionFrameSection") {
         const thickness = value === "50x150" ? 0.15 : 0.1;
@@ -1762,7 +1767,7 @@ export default function Calculators({ type }) {
           </Panel>
         </>
       ) : null}
-      {type === "finishing" ? (
+      {type === "internal" || type === "finishing" ? (
         <>
           <div>
             <Panel title="Внутренняя отделка">
@@ -1771,6 +1776,7 @@ export default function Calculators({ type }) {
                 checked={project.services.internalFinish}
                 onChange={(value) => setService("internalFinish", value)}
               />
+              <Toggle label="Количество и площади из плана" checked={calculation.inputs.links.internalFinishFromPlan} onChange={value=>commit(next=>{if(!value)Object.assign(next.settings.internal,calculation.inputs.internal);next.settings.links.internalFinishFromPlan=value;return next;})}/>
               <div className="form-grid">
                 <NumberField
                   label="Стены"
@@ -1805,20 +1811,25 @@ export default function Calculators({ type }) {
                   }
                 />
                 <NumberField
-                  label="Двери"
+                  label="Межкомнатные двери"
                   value={project.settings.internal.doors}
                   suffix="шт"
                   step={1}
                   onChange={(value) => setSetting("internal", "doors", value)}
                 />
               </div>
+              <p className="exterior-note">Межкомнатные двери и их монтаж входят в смету только при включении этого раздела. На плане проёмы остаются и учитываются в раскрое независимо от покупки дверей. Количество берётся с обоих этажей; его можно изменить вручную.</p>
             </Panel>
           </div>
-          <Panel title="Наружная отделка">
-            <ExteriorEditor project={sourceProject} calculation={calculation} commit={commit}/>
-          </Panel>
           <Panel title="Внутренняя ведомость">
             <SectionResult calculation={calculation} sectionKey="internal" />
+          </Panel>
+        </>
+      ) : null}
+      {type === "external" || type === "finishing" ? (
+        <>
+          <Panel title="Внешняя отделка">
+            <ExteriorEditor project={sourceProject} calculation={calculation} commit={commit}/>
           </Panel>
           <Panel title="Наружная ведомость">
             <SectionResult calculation={calculation} sectionKey="external" />

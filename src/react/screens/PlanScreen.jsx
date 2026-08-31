@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isInteriorDoor } from '../calculations/opening-types.js';
 import {
   AlertTriangle,
   BrickWall,
@@ -3406,7 +3407,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
           </>
         ) : null}
         <Toggle
-          label="Учитывать изделие в смете"
+          label={isInteriorDoor(opening) ? "Учитывать дверь при включении внутренней отделки" : "Учитывать изделие в смете"}
           checked={opening.includeInEstimate !== false}
           onChange={(value) =>
             update("openings", (item) => {

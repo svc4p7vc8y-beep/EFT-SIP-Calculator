@@ -12,7 +12,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 114;
+export const REACT_PROJECT_VERSION = 115;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";

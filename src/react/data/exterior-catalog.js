@@ -4,6 +4,8 @@ const allowance = 'Предварительный бюджетный ориен�
 const material = (id, name, unit, price, source = allowance) => ({ id: `EXT-MAT-${id}`, name, unit, price, kind: 'material', cat: 'Наружная отделка и освещение', priceEstimated: true, priceNote: `${date}. ${source}` });
 const labor = (id, name, unit, price) => ({ id: `EXT-LAB-${id}`, name, unit, price, kind: 'labor', cat: 'Наружная отделка и освещение', priceEstimated: true, priceNote: `${date}. Предварительная расценка ЭФТ; уточнить сложность, высоту и доступ.` });
 export const EXTERIOR_MATERIALS = [
+  material('PLINTH-TUBE', 'Труба профильная 50×25×2 мм для цоколя · хлыст 6 м', 'м.п.', 115, 'Предварительно 115 ₽/м, проверить цену закупки. https://gostmetal.ru/truba-profilnaya/pryamougolnaya/50-25-2/'),
+  material('PLINTH-COATING', 'Антикоррозионные материалы для трубы цоколя (на метр)', 'м.п.', 25),
   material('SIDING', 'Виниловый сайдинг · панель, рабочая площадь 0,84 м²', 'шт', 421, 'Ориентир Döcke D4.5D: 421 ₽/панель 0,84 м². https://www.docke.ru/siding/premium/korabelnyy-brus-d45d/karamel/'),
   material('BRICK', 'Полимерная фасадная панель под кирпич · 0,44 м²', 'шт', 799, 'Ориентир Döcke BERG: 799 ₽/панель 0,44 м². https://www.docke.ru/facade/premium/berg/kirpichnyy/'),
   material('BITUMEN', 'Битумная фасадная плитка типа HAUBERK', 'м²', 1000, 'Округлённый ориентир, не цена конкретного цвета/коллекции; предложения от 892 ₽/м². https://spb.favor-group.ru/catalog/fasadnye_materialy/plitka/hauberk/'),
@@ -30,6 +32,8 @@ export const EXTERIOR_MATERIALS = [
   material('RCD', 'Дифавтомат 16 А / 30 мА для наружной группы (уточнить проектом)', 'шт', 1800),
 ];
 export const EXTERIOR_LABOR = [
+  labor('PLINTH-FRAME', 'Монтаж каркаса цоколя из трубы с креплением к сваям', 'м.п.', 300),
+  labor('PLINTH-COATING', 'Антикоррозионная обработка трубы и соединений цоколя', 'м.п.', 75),
   labor('SIDING', 'Монтаж винилового сайдинга', 'м²', 900),
   labor('BRICK', 'Монтаж полимерных фасадных панелей', 'м²', 1100),
   labor('BITUMEN', 'Монтаж битумной фасадной плитки', 'м²', 1000),
