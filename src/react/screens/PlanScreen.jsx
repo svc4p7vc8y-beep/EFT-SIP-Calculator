@@ -55,6 +55,7 @@ import {
   generateAutoPileRows,
 } from "../calculations/foundation-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
+import { RoomNameField } from "../components/RoomNameField.jsx";
 import {
   Field,
   NumberField,
@@ -3020,16 +3021,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
     return (
       <div className="inspector-form">
         <h3>{room.name}</h3>
-        <Field label="Название">
-          <input
-            value={room.name}
-            onChange={(event) =>
-              update("rooms", (item) => {
-                item.name = event.target.value;
-              })
-            }
-          />
-        </Field>
+        <RoomNameField value={room.name} onChange={(name) => update("rooms", (item) => { item.name = name; })} />
         <div className="form-grid">
           <NumberField
             label="Размер X"
@@ -3865,18 +3857,7 @@ function MobileSelectionAdjuster({
     subtitle = `${formatNumber(area)} м² · ${formatNumber(b.w)} × ${formatNumber(b.h)} м`;
     controls = (
       <>
-        <label className="mobile-room-name">
-          <span>Название</span>
-          <input
-            value={room.name || ""}
-            placeholder="Комната"
-            onChange={(event) =>
-              update("rooms", (i) => {
-                i.name = event.target.value || "Комната";
-              })
-            }
-          />
-        </label>
+        <RoomNameField value={room.name} onChange={(name) => update("rooms", (item) => { item.name = name; })} />
         <MobileStepper
           label="Ширина"
           value={b.w}

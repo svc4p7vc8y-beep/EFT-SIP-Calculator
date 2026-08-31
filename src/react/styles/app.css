@@ -680,6 +680,10 @@ button:disabled {
   font-size: 10px;
   font-weight: 600;
 }
+.room-name-field { display: grid; gap: 8px; min-width: 0; width: 100%; }
+.room-name-field .field { min-width: 0; }
+.room-name-field input, .room-name-field select { min-width: 0; width: 100%; min-height: 44px; }
+
 .field input,
 .field select,
 select,
