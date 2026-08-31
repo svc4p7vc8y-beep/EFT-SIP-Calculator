@@ -10,6 +10,7 @@ import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
+import { calculateExterior } from './exterior-model.js';
 import {
   calculateSipConsumables,
   calculateSipJoinery,
@@ -2606,6 +2607,18 @@ export function calculateProject(project) {
   const openings = openingSection(project, index);
   const engineering = engineeringSection(project, index, inputs);
   const finishes = finishSections(project, index, inputs);
+  const exterior = calculateExterior(project, metrics, roof, inputs.external);
+  if (project.settings.external.assemblyVersion !== 0) {
+    finishes.externalLines = exterior.lines;
+    Object.assign(inputs.external, {
+      facadeArea: exterior.area,
+      windArea: exterior.settings.windEnabled ? exterior.area : 0,
+      insulationArea: exterior.settings.insulationEnabled ? exterior.area : 0,
+      metalArea: exterior.areas.metal,
+      woodArea: exterior.areas.wood,
+      soffitArea: exterior.soffitArea,
+    });
+  }
   const delivery = deliverySection(project, index, inputs);
   const sections = applyProjectEstimateEdits(project, [
     {
@@ -2658,6 +2671,7 @@ export function calculateProject(project) {
     sip,
     roof,
     terrace,
+    exterior,
     sections,
     lines,
     totals,

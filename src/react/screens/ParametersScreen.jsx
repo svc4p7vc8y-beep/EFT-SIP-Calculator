@@ -3,6 +3,7 @@ import { CheckCircle2, CircleAlert } from "lucide-react";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
+import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import { useProject } from "../state/ProjectContext.jsx";
 import {
   Field,
@@ -1194,6 +1195,7 @@ export default function ParametersScreen() {
                 ["doors", "Двери", "шт"],
               ]}
             />
+            {project.settings.external.assemblyVersion !== 0 ? <ExteriorEditor project={project} calculation={calculation} commit={commit}/> : <>
             <LinkedGroup
               title="Наружная отделка из плана"
               group="external"
@@ -1225,6 +1227,8 @@ export default function ParametersScreen() {
                 },
               ])}
             </div>
+            <button className="button secondary" onClick={()=>write('settings.external.assemblyVersion',1)}>Перейти на полный расчёт фасада (изменит смету)</button>
+            </>}
           </Section>
           <Section
             id="delivery"

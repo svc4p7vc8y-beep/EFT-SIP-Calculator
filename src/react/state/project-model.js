@@ -1,4 +1,6 @@
 import catalog from "../data/default-catalog.json" with { type: "json" };
+import { EXTERIOR_MATERIALS, EXTERIOR_LABOR } from '../data/exterior-catalog.js';
+import { DEFAULT_EXTERIOR, normalizeExterior } from '../calculations/exterior-model.js';
 import { normalizeTerracePlatform } from "../../calculations/terrace-model.js";
 import {
   DEFAULT_FORMULAS,
@@ -10,7 +12,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 113;
+export const REACT_PROJECT_VERSION = 114;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -566,6 +568,7 @@ export function createDefaultProject() {
         metalArea: 120,
         soffitArea: 63,
         cornerLength: 14,
+        ...clone(DEFAULT_EXTERIOR),
       },
       print: {
         includePlan: true,
@@ -586,8 +589,8 @@ export function createDefaultProject() {
       formulas: clone(DEFAULT_FORMULAS),
       priceAdjustments: createDefaultPriceAdjustments(),
     },
-    priceMat: clone(catalog.priceMat),
-    priceLab: clone(catalog.priceLab),
+    priceMat: clone([...catalog.priceMat, ...EXTERIOR_MATERIALS]),
+    priceLab: clone([...catalog.priceLab, ...EXTERIOR_LABOR]),
     estimateOverrides: [],
     customEstimateLines: [],
   };
@@ -842,10 +845,11 @@ export function migrateProject(raw) {
         ...base.settings.internal,
         ...(raw.settings?.internal || {}),
       },
-      external: {
+      external: normalizeExterior({
         ...base.settings.external,
         ...(raw.settings?.external || {}),
-      },
+        assemblyVersion: raw.settings?.external?.assemblyVersion ?? (raw.services?.externalFinish ? 0 : 1),
+      }),
       print: { ...base.settings.print, ...(raw.settings?.print || {}) },
       links: { ...base.settings.links, ...(raw.settings?.links || {}) },
       formulas: {

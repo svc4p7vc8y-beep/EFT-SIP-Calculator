@@ -681,6 +681,19 @@ button:disabled {
   font-weight: 600;
 }
 .room-name-field { display: grid; gap: 8px; min-width: 0; width: 100%; }
+.exterior-editor { display: grid; gap: 16px; min-width: 0; }
+.exterior-block { border: 1px solid var(--border, #cbd5c5); border-radius: 12px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.exterior-block h3 { margin: 0; }
+.exterior-block summary { cursor: pointer; font-weight: 650; padding: 4px 0; }
+.exterior-block[open] summary { margin-bottom: 14px; }
+.exterior-note { margin: 0; line-height: 1.5; font-size: 14px; }
+.exterior-area-summary { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 10px; }
+.exterior-layers { display: flex; flex-wrap: wrap; gap: 8px; }
+.exterior-layers span { border: 1px solid #7b9d66; background: #edf5e7; color: #182c10; padding: 10px; border-radius: 8px; }
+.exterior-warnings { background: #fff4e5; border: 1px solid #c58d36; border-radius: 10px; padding: 12px; color: #5c3407; }
+.exterior-warnings p { margin: 4px 0; }
+.exterior-editor .form-grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,240px),1fr)); }
+.exterior-editor .form-grid > * { min-width: 0; }
 .room-name-field .field { min-width: 0; }
 .room-name-field input, .room-name-field select { min-width: 0; width: 100%; min-height: 44px; }
 

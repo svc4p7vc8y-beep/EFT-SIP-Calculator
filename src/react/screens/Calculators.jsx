@@ -3,6 +3,7 @@ import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
+import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import {
   NumberField,
   Panel,
@@ -1763,7 +1764,7 @@ export default function Calculators({ type }) {
       ) : null}
       {type === "finishing" ? (
         <>
-          <div className="two-column-layout">
+          <div>
             <Panel title="Внутренняя отделка">
               <Toggle
                 label="Включить раздел"
@@ -1812,56 +1813,10 @@ export default function Calculators({ type }) {
                 />
               </div>
             </Panel>
-            <Panel title="Наружная отделка">
-              <Toggle
-                label="Включить раздел"
-                checked={project.services.externalFinish}
-                onChange={(value) => setService("externalFinish", value)}
-              />
-              <div className="form-grid">
-                <NumberField
-                  label="Фасад"
-                  value={project.settings.external.facadeArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("external", "facadeArea", value)
-                  }
-                />
-                <NumberField
-                  label="Ветрозащита"
-                  value={project.settings.external.windArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("external", "windArea", value)
-                  }
-                />
-                <NumberField
-                  label="Утепление"
-                  value={project.settings.external.insulationArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("external", "insulationArea", value)
-                  }
-                />
-                <NumberField
-                  label="Профлист"
-                  value={project.settings.external.metalArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("external", "metalArea", value)
-                  }
-                />
-                <NumberField
-                  label="Подшива"
-                  value={project.settings.external.soffitArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("external", "soffitArea", value)
-                  }
-                />
-              </div>
-            </Panel>
           </div>
+          <Panel title="Наружная отделка">
+            <ExteriorEditor project={sourceProject} calculation={calculation} commit={commit}/>
+          </Panel>
           <Panel title="Внутренняя ведомость">
             <SectionResult calculation={calculation} sectionKey="internal" />
           </Panel>

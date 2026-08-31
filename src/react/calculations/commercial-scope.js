@@ -1,4 +1,5 @@
 import { formatMoney, formatNumber } from '../utils/format.js';
+import { EXTERIOR_TYPES } from './exterior-model.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
 const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
@@ -115,6 +116,21 @@ function scopeDescription(key, project, calculation, lineCount) {
     summary: `внутренняя отделка ${formatNumber(calculation.inputs.internal.wallArea)} м² стен`,
     details: 'Выбранные отделочные материалы и монтажные работы'
   };
+  if (key === 'external' && project.settings.external.assemblyVersion !== 0 && calculation.exterior) {
+    const e = calculation.exterior, s = e.settings;
+    return {
+      summary: joinParts(EXTERIOR_TYPES.filter(type => e.areas[type.value] > 0).map(type => `${type.label} ${formatNumber(e.areas[type.value])} м²`)) || 'Наружные работы',
+      details: joinParts([
+        s.insulationEnabled && e.area > 0 && 'утепление 50 мм с каркасом',
+        s.windEnabled && e.area > 0 && 'ветровлагозащита',
+        s.counterEnabled && e.area > 0 && 'вентиляционная контробрешётка',
+        s.trimsEnabled && e.area > 0 && 'углы и обрамления проёмов',
+        s.painting && e.areas.wood > 0 && `покраска дерева ${s.paintCoats} слоя`,
+        e.soffitArea > 0 && `подшивка ${formatNumber(e.soffitArea)} м²`,
+        s.outdoorEnabled && (s.lights || s.sockets || s.lightingLine || s.socketLine) && `наружная электрика: светильники ${s.lights}, розетки ${s.sockets}, линии ${formatNumber(Number(s.lightingLine) + Number(s.socketLine))} м`,
+      ]),
+    };
+  }
   if (key === 'external') return {
     summary: `наружная отделка ${formatNumber(calculation.inputs.external.facadeArea)} м² фасада`,
     details: 'Фасадные материалы, крепёж и монтажные работы'
