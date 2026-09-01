@@ -694,6 +694,40 @@ button:disabled {
 .exterior-warnings p { margin: 4px 0; }
 .exterior-editor .form-grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,240px),1fr)); }
 .exterior-editor .form-grid > * { min-width: 0; }
+.internal-editor { display:grid; gap:16px; margin-top:16px; min-width:0; }
+.internal-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.internal-global { border:1px solid var(--line); border-radius:14px; background:rgba(247,250,244,.72); padding:12px 14px; }
+.internal-global summary { cursor:pointer; font-weight:800; color:var(--text); }
+.internal-global[open] summary { margin-bottom:14px; }
+.internal-global > p,.internal-source-note { margin:10px 0 0; color:var(--muted); font-size:.88rem; line-height:1.5; }
+.internal-toggle-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px; }
+.internal-workspace { display:grid; grid-template-columns:minmax(190px,230px) minmax(0,1fr); gap:14px; align-items:start; }
+.internal-room-list { display:grid; gap:7px; max-height:720px; overflow:auto; scrollbar-width:none; }
+.internal-room-list::-webkit-scrollbar { display:none; }
+.internal-room-list button { display:grid; gap:4px; text-align:left; border:1px solid var(--line); border-radius:13px; background:rgba(255,255,255,.8); color:var(--text); padding:11px 12px; cursor:pointer; }
+.internal-room-list button:hover,.internal-room-list button.active { border-color:#4f8a39; background:#edf6e8; box-shadow:0 5px 18px rgba(47,91,35,.09); }
+.internal-room-list span { display:flex; align-items:center; gap:5px; color:var(--muted); font-size:.74rem; }
+.internal-room-list span svg { width:14px; height:14px; }
+.internal-room-list strong { font-size:.92rem; }
+.internal-room-list small { color:var(--muted); }
+.internal-room-card { min-width:0; display:grid; gap:12px; }
+.internal-room-card > header { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; border-bottom:1px solid var(--line); padding-bottom:11px; }
+.internal-room-card > header span { color:#4f8a39; font-weight:800; font-size:.75rem; text-transform:uppercase; }
+.internal-room-card h3 { margin:3px 0; font-size:1.25rem; }
+.internal-room-card header p { margin:0; color:var(--muted); }
+.internal-assembly-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.internal-assembly-grid fieldset { min-width:0; display:grid; align-content:start; gap:10px; margin:0; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.72); }
+.internal-assembly-grid legend { display:flex; align-items:center; gap:7px; padding:0 5px; font-weight:850; color:var(--text); }
+.internal-assembly-grid legend svg { width:17px; color:#4f8a39; }
+.assembly-warning,.assembly-info { margin:0; padding:9px 10px; border-radius:9px; font-size:.8rem; line-height:1.4; }
+.assembly-warning { color:#763d00; background:#fff1d8; border:1px solid #efc377; }
+.assembly-info { display:flex; gap:6px; color:#245b75; background:#e9f6fb; border:1px solid #a8d8e9; }
+.assembly-info svg { width:16px; flex:none; }
+.internal-upgrade { display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center; margin-top:14px; padding:16px; border:1px solid #cbdcbd; border-radius:14px; background:#f2f8ee; }
+.internal-upgrade > svg { width:30px; height:30px; color:#4f8a39; }
+.internal-upgrade p { margin:4px 0 0; color:var(--muted); line-height:1.45; }
+@media (max-width:1100px) { .internal-assembly-grid { grid-template-columns:1fr; } }
+@media (max-width:760px) { .internal-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }.internal-workspace { grid-template-columns:1fr; }.internal-room-list { display:flex; overflow:auto; max-height:none; padding-bottom:4px; }.internal-room-list button { min-width:180px; }.internal-toggle-grid { grid-template-columns:1fr; }.internal-upgrade { grid-template-columns:auto 1fr; }.internal-upgrade .button { grid-column:1/-1; width:100%; } }
 .room-name-field .field { min-width: 0; }
 .room-name-field input, .room-name-field select { min-width: 0; width: 100%; min-height: 44px; }
 

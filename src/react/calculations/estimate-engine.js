@@ -12,6 +12,7 @@ import { calculateFoundation } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
 import { isInteriorDoor } from './opening-types.js';
 import { calculateExterior } from './exterior-model.js';
+import { calculateInternal } from './internal-model.js';
 import {
   calculateSipConsumables,
   calculateSipJoinery,
@@ -30,6 +31,7 @@ function catalogIndex(project) {
   const entries = [...project.priceMat, ...project.priceLab];
   return {
     entries,
+    byId: new Map(entries.map((item) => [item.id, item])),
     exact: new Map(
       entries.map((item) => [item.name.toLocaleLowerCase("ru"), item]),
     ),
@@ -50,7 +52,7 @@ function findCatalog(index, query, kind) {
 function makeLine(index, section, query, qty, options = {}) {
   const amount = Math.max(0, Number(qty) || 0);
   if (!amount) return null;
-  const item = findCatalog(index, query, options.kind);
+  const item = options.catalogId ? index.byId.get(options.catalogId) : findCatalog(index, query, options.kind);
   return {
     id: `${section}:${options.key || query}`,
     section,
@@ -2481,10 +2483,18 @@ function engineeringSection(project, index, inputs) {
   return { lines: compact(lines) };
 }
 
-function finishSections(project, index, inputs) {
+function finishSections(project, index, inputs, metrics) {
   const internal = inputs.internal;
   const external = inputs.external;
-  const internalLines = project.services.internalFinish
+  const internalCalculation = calculateInternal(project, metrics, inputs);
+  const internalLines = project.services.internalFinish && internalCalculation.mode === 'rooms'
+    ? compact(internalCalculation.lines.map(item => makeLine(index, 'internal', item.description, item.qty, {
+        key: item.key,
+        catalogId: item.catalogId,
+        estimateGroup: item.group,
+        source: 'internal-room-assembly',
+      })))
+    : project.services.internalFinish
     ? compact([
         makeLine(
           index,
@@ -2572,7 +2582,7 @@ function finishSections(project, index, inputs) {
         ),
       ])
     : [];
-  return { internalLines, externalLines };
+  return { internalLines, externalLines, internalCalculation };
 }
 
 function deliverySection(project, index, inputs) {
@@ -2615,7 +2625,7 @@ export function calculateProject(project) {
   const terrace = terraceSection(project, index, inputs);
   const openings = openingSection(project, index);
   const engineering = engineeringSection(project, index, inputs);
-  const finishes = finishSections(project, index, inputs);
+  const finishes = finishSections(project, index, inputs, metrics);
   const exterior = calculateExterior(project, metrics, roof, inputs.external);
   if (project.settings.external.assemblyVersion !== 0) {
     finishes.externalLines = exterior.lines;
@@ -2684,6 +2694,7 @@ export function calculateProject(project) {
     roof,
     terrace,
     exterior,
+    internal: finishes.internalCalculation,
     sections,
     lines,
     totals,

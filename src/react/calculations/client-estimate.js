@@ -121,6 +121,33 @@ function compactRoof(lines, section) {
   });
 }
 
+const INTERNAL_PRIMARY_IDS = new Set(['MAT-105','MAT-106','MAT-108','MAT-110','MAT-111','MAT-206','MAT-207','MAT-208','MAT-209','MAT-210','MAT-180']);
+function internalSurface(line) {
+  const group=String(line.estimateGroup||'');
+  if(/потолок/iu.test(group))return 'Потолки';
+  if(/стен/iu.test(group))return 'Стены';
+  if(/двер/iu.test(group))return 'Двери';
+  return 'Полы';
+}
+function compactInternal(lines,section) {
+  const primary=new Map(),buckets=new Map();
+  lines.forEach(line=>{
+    if(line.kind==='material'&&INTERNAL_PRIMARY_IDS.has(line.catalogId)) {
+      const key=`${line.catalogId}:${line.price}:${line.unit}`;
+      const current=primary.get(key)||{...line,id:`client-compact:${section.key}:${line.catalogId}`,qty:0,includedLineIds:[]};
+      current.qty+=Number(line.qty)||0;current.includedLineIds.push(line.id);current.estimateGroup=internalSurface(line);primary.set(key,current);return;
+    }
+    const surface=internalSurface(line),kind=line.kind==='labor'?'labor':'material',key=`${surface}:${kind}`;
+    const current=buckets.get(key)||{items:[],surface,kind};current.items.push(line);buckets.set(key,current);
+  });
+  const aggregated=[...buckets.values()].map(bucket=>aggregateLines(bucket.items,{
+    id:`client-compact:${section.key}:${bucket.surface}:${bucket.kind}`,
+    name:bucket.kind==='labor'?`Монтаж и отделочные работы · ${bucket.surface}`:`Комплект сопутствующих материалов · ${bucket.surface}`,
+    kind:bucket.kind,
+  }));
+  return [...primary.values(),...aggregated].filter(Boolean);
+}
+
 export function buildClientEstimate(calculation, options = {}) {
   const includeLabor = options.includeLabor !== false;
   const includeAccessories = options.includeAccessories !== false;
@@ -135,6 +162,9 @@ export function buildClientEstimate(calculation, options = {}) {
     );
     if (maximumCompact && section.key === "roof") {
       return { ...section, lines: compactRoof(visible, section) };
+    }
+    if (maximumCompact && section.key === 'internal') {
+      return { ...section, lines: compactInternal(visible, section) };
     }
     if ((!compactAccessories && !maximumCompact) || !includeAccessories) {
       return { ...section, lines: visible };

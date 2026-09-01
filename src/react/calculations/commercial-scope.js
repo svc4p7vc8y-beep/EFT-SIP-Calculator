@@ -113,10 +113,15 @@ function scopeDescription(key, project, calculation, lineCount) {
     ].filter(Boolean);
     return { summary: systems.join(', '), details: 'Материалы и монтаж выбранных инженерных систем' };
   }
-  if (key === 'internal') return {
-    summary: `внутренняя отделка ${formatNumber(calculation.inputs.internal.wallArea)} м² стен`,
-    details: joinParts(['Выбранные отделочные материалы и монтажные работы', calculation.inputs.internal.doors > 0 && `межкомнатные двери с монтажом: ${calculation.inputs.internal.doors} шт`])
-  };
+  if (key === 'internal') {
+    const detailed=calculation.internal?.mode==='rooms';
+    return {
+      summary: detailed
+        ? `полы ${formatNumber(calculation.internal.totals.floorArea)} м², стены ${formatNumber(calculation.internal.totals.wallArea)} м², потолки ${formatNumber(calculation.internal.totals.ceilingArea)} м²`
+        : `внутренняя отделка ${formatNumber(calculation.inputs.internal.wallArea)} м² стен`,
+      details: joinParts([detailed?'Отделка назначена отдельно по помещениям и этажам':'Выбранные отделочные материалы и монтажные работы',calculation.inputs.internal.doors>0&&`межкомнатные двери с монтажом: ${calculation.inputs.internal.doors} шт`])
+    };
+  }
   if (key === 'external' && project.settings.external.assemblyVersion !== 0 && calculation.exterior) {
     const e = calculation.exterior, s = e.settings;
     return {

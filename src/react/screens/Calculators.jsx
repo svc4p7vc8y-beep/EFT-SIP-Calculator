@@ -4,6 +4,7 @@ import { useProject } from "../state/ProjectContext.jsx";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
+import { InternalEditor } from '../components/InternalEditor.jsx';
 import {
   NumberField,
   Panel,
@@ -1776,49 +1777,8 @@ export default function Calculators({ type }) {
                 checked={project.services.internalFinish}
                 onChange={(value) => setService("internalFinish", value)}
               />
-              <Toggle label="Количество и площади из плана" checked={calculation.inputs.links.internalFinishFromPlan} onChange={value=>commit(next=>{if(!value)Object.assign(next.settings.internal,calculation.inputs.internal);next.settings.links.internalFinishFromPlan=value;return next;})}/>
-              <div className="form-grid">
-                <NumberField
-                  label="Стены"
-                  value={project.settings.internal.wallArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("internal", "wallArea", value)
-                  }
-                />
-                <NumberField
-                  label="Потолок"
-                  value={project.settings.internal.ceilingArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("internal", "ceilingArea", value)
-                  }
-                />
-                <NumberField
-                  label="Ламинат"
-                  value={project.settings.internal.laminateArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("internal", "laminateArea", value)
-                  }
-                />
-                <NumberField
-                  label="Плитка"
-                  value={project.settings.internal.tileArea}
-                  suffix="м²"
-                  onChange={(value) =>
-                    setSetting("internal", "tileArea", value)
-                  }
-                />
-                <NumberField
-                  label="Межкомнатные двери"
-                  value={project.settings.internal.doors}
-                  suffix="шт"
-                  step={1}
-                  onChange={(value) => setSetting("internal", "doors", value)}
-                />
-              </div>
-              <p className="exterior-note">Межкомнатные двери и их монтаж входят в смету только при включении этого раздела. На плане проёмы остаются и учитываются в раскрое независимо от покупки дверей. Количество берётся с обоих этажей; его можно изменить вручную.</p>
+              <Toggle label={project.settings.internal?.assemblyVersion===1?'Межкомнатные двери из плана':'Количество и площади из плана'} checked={calculation.inputs.links.internalFinishFromPlan} onChange={value=>commit(next=>{if(!value)Object.assign(next.settings.internal,calculation.inputs.internal);next.settings.links.internalFinishFromPlan=value;return next;})}/>
+              <InternalEditor project={sourceProject} calculation={calculation} commit={commit}/>
             </Panel>
           </div>
           <Panel title="Внутренняя ведомость">

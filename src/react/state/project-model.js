@@ -1,6 +1,8 @@
 import catalog from "../data/default-catalog.json" with { type: "json" };
 import { EXTERIOR_MATERIALS, EXTERIOR_LABOR } from '../data/exterior-catalog.js';
 import { DEFAULT_EXTERIOR, normalizeExterior } from '../calculations/exterior-model.js';
+import { INTERNAL_MATERIALS, INTERNAL_LABOR } from '../data/internal-catalog.js';
+import { DEFAULT_INTERNAL, normalizeInternal } from '../calculations/internal-model.js';
 import { normalizeTerracePlatform } from "../../calculations/terrace-model.js";
 import {
   DEFAULT_FORMULAS,
@@ -12,7 +14,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 115;
+export const REACT_PROJECT_VERSION = 116;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -553,13 +555,7 @@ export function createDefaultProject() {
         ventDuct: 25,
         ventGrilles: 5,
       },
-      internal: {
-        wallArea: 300,
-        ceilingArea: 72,
-        laminateArea: 75,
-        tileArea: 30,
-        doors: 5,
-      },
+      internal: clone(DEFAULT_INTERNAL),
       external: {
         facadeArea: 130,
         windArea: 100,
@@ -589,8 +585,8 @@ export function createDefaultProject() {
       formulas: clone(DEFAULT_FORMULAS),
       priceAdjustments: createDefaultPriceAdjustments(),
     },
-    priceMat: clone([...catalog.priceMat, ...EXTERIOR_MATERIALS]),
-    priceLab: clone([...catalog.priceLab, ...EXTERIOR_LABOR]),
+    priceMat: clone([...catalog.priceMat, ...EXTERIOR_MATERIALS, ...INTERNAL_MATERIALS]),
+    priceLab: clone([...catalog.priceLab, ...EXTERIOR_LABOR, ...INTERNAL_LABOR]),
     estimateOverrides: [],
     customEstimateLines: [],
   };
@@ -841,10 +837,14 @@ export function migrateProject(raw) {
         ...base.settings.engineering,
         ...(raw.settings?.engineering || {}),
       },
-      internal: {
+      internal: normalizeInternal({
         ...base.settings.internal,
         ...(raw.settings?.internal || {}),
-      },
+        // Existing projects retain the exact former formula until the manager
+        // explicitly switches them to the room-by-room assembly.
+        assemblyVersion: raw.settings?.internal?.assemblyVersion ?? 0,
+        mode: raw.settings?.internal?.mode ?? 'legacy',
+      }),
       external: normalizeExterior({
         ...base.settings.external,
         ...(raw.settings?.external || {}),
