@@ -695,6 +695,33 @@ button:disabled {
 .exterior-editor .form-grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,240px),1fr)); }
 .exterior-editor .form-grid > * { min-width: 0; }
 .internal-editor { display:grid; gap:16px; margin-top:16px; min-width:0; }
+.engineering-editor { display:grid; gap:14px; margin-top:14px; min-width:0; }
+.engineering-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.engineering-block { display:grid; gap:13px; min-width:0; padding:15px; border:1px solid var(--line); border-radius:15px; background:rgba(255,255,255,.72); transition:border-color .2s,box-shadow .2s; }
+.engineering-block.enabled { border-color:#9fbd8c; box-shadow:0 7px 22px rgba(47,91,35,.08); }
+.engineering-block > header { display:flex; justify-content:space-between; align-items:center; gap:14px; padding-bottom:11px; border-bottom:1px solid var(--line); }
+.engineering-block > header > div:first-child { display:flex; align-items:center; gap:10px; min-width:0; }
+.engineering-block > header svg { width:24px; height:24px; color:#4f8a39; flex:none; }
+.engineering-block > header span { display:grid; gap:3px; }
+.engineering-block > header strong { font-size:1.05rem; color:var(--text); }
+.engineering-block > header small { color:var(--muted); line-height:1.35; }
+.engineering-block > header .toggle-row { min-width:135px; border:0; padding:0; flex:none; }
+.engineering-block .form-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr)); }
+.engineering-toggles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.engineering-stage-note { margin:0; padding:10px 12px; border-radius:10px; line-height:1.45; font-size:.87rem; }
+.engineering-stage-note.rough { color:#374151; background:#f1f5f2; border:1px solid #cbd5ce; }
+.engineering-stage-note.prefinish { color:#67400b; background:#fff4df; border:1px solid #ebc579; }
+.engineering-stage-note.complete { color:#174f2d; background:#eaf6ea; border:1px solid #a8d0a9; }
+.well-ring-price { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:11px 13px; border-radius:11px; color:#17330d; background:#edf6e8; border:1px solid #9fbd8c; }
+.well-ring-price span { font-weight:700; }
+.well-ring-price strong { text-align:right; }
+.ventilation-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+.ventilation-options article { display:grid; gap:5px; padding:11px; border:1px solid #b9cbb0; border-radius:11px; background:#f5f9f2; }
+.ventilation-options strong { color:#284d1d; }
+.ventilation-options span { color:var(--muted); font-size:.8rem; line-height:1.4; }
+.engineering-warnings { display:grid; gap:7px; padding:12px 14px; border:1px solid #e5bd69; border-radius:12px; background:#fff6e6; color:#603d08; }
+.engineering-warnings p { margin:0; line-height:1.45; font-size:.86rem; }
+.engineering-upgrade { margin-top:0; }
 .internal-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
 .internal-global { border:1px solid var(--line); border-radius:14px; background:rgba(247,250,244,.72); padding:12px 14px; }
 .internal-global summary { cursor:pointer; font-weight:800; color:var(--text); }
@@ -728,6 +755,8 @@ button:disabled {
 .internal-upgrade p { margin:4px 0 0; color:var(--muted); line-height:1.45; }
 @media (max-width:1100px) { .internal-assembly-grid { grid-template-columns:1fr; } }
 @media (max-width:760px) { .internal-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }.internal-workspace { grid-template-columns:1fr; }.internal-room-list { display:flex; overflow:auto; max-height:none; padding-bottom:4px; }.internal-room-list button { min-width:180px; }.internal-toggle-grid { grid-template-columns:1fr; }.internal-upgrade { grid-template-columns:auto 1fr; }.internal-upgrade .button { grid-column:1/-1; width:100%; } }
+@media (max-width:900px) { .engineering-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }.ventilation-options { grid-template-columns:1fr; } }
+@media (max-width:620px) { .engineering-overview,.engineering-toggles { grid-template-columns:1fr; }.engineering-block > header { align-items:flex-start; }.engineering-block > header .toggle-row { min-width:0; }.well-ring-price { display:grid; }.well-ring-price strong { text-align:left; } }
 .room-name-field .field { min-width: 0; }
 .room-name-field input, .room-name-field select { min-width: 0; width: 100%; min-height: 44px; }
 

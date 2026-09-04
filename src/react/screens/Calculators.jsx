@@ -5,6 +5,7 @@ import { calculateProject } from "../calculations/estimate-engine.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import { InternalEditor } from '../components/InternalEditor.jsx';
+import { EngineeringEditor } from '../components/EngineeringEditor.jsx';
 import {
   NumberField,
   Panel,
@@ -85,6 +86,7 @@ function SectionResult({ calculation, sectionKey }) {
     <EditableEstimateTable
       lines={lines}
       hiddenCount={hiddenCount}
+      grouped={sectionKey === "engineering"}
       onChangeLine={(line, changes) =>
         commit((next) => {
           changeEstimateLine(next, line, changes);
@@ -1667,101 +1669,8 @@ export default function Calculators({ type }) {
       ) : null}
       {type === "engineering" ? (
         <>
-          <Panel title="Выбор инженерных систем">
-            <div className="toggle-grid">
-              <Toggle
-                label="Электрика"
-                checked={project.services.engineeringElectric}
-                onChange={(value) => setService("engineeringElectric", value)}
-              />
-              <Toggle
-                label="Водоснабжение"
-                checked={project.services.engineeringPlumbing}
-                onChange={(value) => setService("engineeringPlumbing", value)}
-              />
-              <Toggle
-                label="Канализация"
-                checked={project.services.engineeringSewerage}
-                onChange={(value) => setService("engineeringSewerage", value)}
-              />
-              <Toggle
-                label="Вентиляция"
-                checked={project.services.engineeringVentilation}
-                onChange={(value) =>
-                  setService("engineeringVentilation", value)
-                }
-              />
-            </div>
-            <div className="form-grid four">
-              <NumberField
-                label="Кабельные трассы"
-                value={project.settings.engineering.cableRoute}
-                suffix="м"
-                onChange={(value) =>
-                  setSetting("engineering", "cableRoute", value)
-                }
-              />
-              <NumberField
-                label="Электроточки"
-                value={project.settings.engineering.electricPoints}
-                suffix="шт"
-                step={1}
-                onChange={(value) =>
-                  setSetting("engineering", "electricPoints", value)
-                }
-              />
-              <NumberField
-                label="Водопровод"
-                value={project.settings.engineering.waterPipe}
-                suffix="м"
-                onChange={(value) =>
-                  setSetting("engineering", "waterPipe", value)
-                }
-              />
-              <NumberField
-                label="Точки воды"
-                value={project.settings.engineering.waterPoints}
-                suffix="шт"
-                step={1}
-                onChange={(value) =>
-                  setSetting("engineering", "waterPoints", value)
-                }
-              />
-              <NumberField
-                label="Канализация"
-                value={project.settings.engineering.sewerLength}
-                suffix="м"
-                onChange={(value) =>
-                  setSetting("engineering", "sewerLength", value)
-                }
-              />
-              <NumberField
-                label="Точки канализации"
-                value={project.settings.engineering.sewerPoints}
-                suffix="шт"
-                step={1}
-                onChange={(value) =>
-                  setSetting("engineering", "sewerPoints", value)
-                }
-              />
-              <NumberField
-                label="Воздуховоды"
-                value={project.settings.engineering.ventDuct}
-                suffix="м"
-                onChange={(value) =>
-                  setSetting("engineering", "ventDuct", value)
-                }
-              />
-              <NumberField
-                label="Решётки"
-                value={project.settings.engineering.ventGrilles}
-                suffix="шт"
-                step={1}
-                onChange={(value) =>
-                  setSetting("engineering", "ventGrilles", value)
-                }
-              />
-            </div>
+          <Panel title="Комплектация инженерных систем" description="Для каждой системы можно отдельно выбрать черновую, предчистовую или полную готовность.">
+            <EngineeringEditor project={sourceProject} calculation={calculation} commit={commit}/>
           </Panel>
           <Panel title="Ведомость инженерии">
             <SectionResult calculation={calculation} sectionKey="engineering" />

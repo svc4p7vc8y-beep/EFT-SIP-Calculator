@@ -105,13 +105,16 @@ function scopeDescription(key, project, calculation, lineCount) {
     details: 'Комплектация и монтаж проёмов по размерам плана'
   };
   if (key === 'engineering') {
+    const s = calculation.engineering?.settings || project.settings.engineering || {};
+    const stage = value => ({ rough: 'черновая', prefinish: 'предчистовая без приборов', complete: 'полная' }[value] || 'базовая');
+    const ventilation = { natural: 'КИВ + вытяжка', decentralized: 'комнатные рекуператоры', supply: 'общий приток с подогревом' }[s.ventilationSolution];
     const systems = [
-      project.services.engineeringElectric && 'электрика',
-      project.services.engineeringPlumbing && 'водоснабжение',
-      project.services.engineeringSewerage && 'канализация',
-      project.services.engineeringVentilation && 'вентиляция'
+      project.services.engineeringElectric && `электрика: ${stage(s.electricStage)}`,
+      project.services.engineeringPlumbing && `водоснабжение: ${stage(s.waterStage)}${s.waterSource === 'well' ? `, колодец ${s.wellRings || 0} колец` : ''}`,
+      project.services.engineeringSewerage && `канализация: ${stage(s.sewerStage)}`,
+      project.services.engineeringVentilation && `вентиляция: ${stage(s.ventilationStage)}${ventilation ? `, ${ventilation}` : ''}`
     ].filter(Boolean);
-    return { summary: systems.join(', '), details: 'Материалы и монтаж выбранных инженерных систем' };
+    return { summary: systems.join(', '), details: 'Каждая система учитывает выбранную стадию; в предчистовой комплектации финальные приборы не входят' };
   }
   if (key === 'internal') {
     const detailed=calculation.internal?.mode==='rooms';

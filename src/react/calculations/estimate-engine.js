@@ -13,6 +13,7 @@ import { deriveLinkedInputs } from "./calculation-links.js";
 import { isInteriorDoor } from './opening-types.js';
 import { calculateExterior } from './exterior-model.js';
 import { calculateInternal } from './internal-model.js';
+import { calculateEngineering } from './engineering-model.js';
 import {
   calculateSipConsumables,
   calculateSipJoinery,
@@ -2394,7 +2395,25 @@ function openingSection(project, index) {
   return { lines: compact(lines) };
 }
 
-function engineeringSection(project, index, inputs) {
+function engineeringSection(project, index, inputs, metrics) {
+  if (project.settings.engineering?.assemblyVersion === 1) {
+    const calculation = calculateEngineering(project, inputs, metrics);
+    return {
+      calculation,
+      lines: compact(calculation.lines.map((item) => makeLine(
+        index,
+        'engineering',
+        item.catalogId,
+        item.qty,
+        {
+          key: item.key,
+          catalogId: item.catalogId,
+          estimateGroup: item.group,
+          source: 'engineering-assembly',
+        },
+      ))),
+    };
+  }
   const s = inputs.engineering;
   const lines = [];
   if (project.services.engineeringElectric) {
@@ -2480,7 +2499,7 @@ function engineeringSection(project, index, inputs) {
       ),
     );
   }
-  return { lines: compact(lines) };
+  return { lines: compact(lines), calculation: { mode: 'legacy', settings: project.settings.engineering, warnings: [] } };
 }
 
 function finishSections(project, index, inputs, metrics) {
@@ -2624,7 +2643,7 @@ export function calculateProject(project) {
   const sip = sipSection(project, metrics, index, inputs, roof);
   const terrace = terraceSection(project, index, inputs);
   const openings = openingSection(project, index);
-  const engineering = engineeringSection(project, index, inputs);
+  const engineering = engineeringSection(project, index, inputs, metrics);
   const finishes = finishSections(project, index, inputs, metrics);
   const exterior = calculateExterior(project, metrics, roof, inputs.external);
   if (project.settings.external.assemblyVersion !== 0) {
@@ -2695,6 +2714,7 @@ export function calculateProject(project) {
     terrace,
     exterior,
     internal: finishes.internalCalculation,
+    engineering: engineering.calculation,
     sections,
     lines,
     totals,

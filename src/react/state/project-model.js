@@ -3,6 +3,8 @@ import { EXTERIOR_MATERIALS, EXTERIOR_LABOR } from '../data/exterior-catalog.js'
 import { DEFAULT_EXTERIOR, normalizeExterior } from '../calculations/exterior-model.js';
 import { INTERNAL_MATERIALS, INTERNAL_LABOR } from '../data/internal-catalog.js';
 import { DEFAULT_INTERNAL, normalizeInternal } from '../calculations/internal-model.js';
+import { ENGINEERING_MATERIALS, ENGINEERING_LABOR } from '../data/engineering-catalog.js';
+import { DEFAULT_ENGINEERING, normalizeEngineering } from '../calculations/engineering-model.js';
 import { normalizeTerracePlatform } from "../../calculations/terrace-model.js";
 import {
   DEFAULT_FORMULAS,
@@ -14,7 +16,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 116;
+export const REACT_PROJECT_VERSION = 117;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -546,14 +548,7 @@ export function createDefaultProject() {
         unloadingPerM3: 500,
       },
       engineering: {
-        cableRoute: 120,
-        electricPoints: 50,
-        waterPipe: 100,
-        waterPoints: 5,
-        sewerLength: 20,
-        sewerPoints: 5,
-        ventDuct: 25,
-        ventGrilles: 5,
+        ...clone(DEFAULT_ENGINEERING),
       },
       internal: clone(DEFAULT_INTERNAL),
       external: {
@@ -585,8 +580,8 @@ export function createDefaultProject() {
       formulas: clone(DEFAULT_FORMULAS),
       priceAdjustments: createDefaultPriceAdjustments(),
     },
-    priceMat: clone([...catalog.priceMat, ...EXTERIOR_MATERIALS, ...INTERNAL_MATERIALS]),
-    priceLab: clone([...catalog.priceLab, ...EXTERIOR_LABOR, ...INTERNAL_LABOR]),
+    priceMat: clone([...catalog.priceMat, ...EXTERIOR_MATERIALS, ...INTERNAL_MATERIALS, ...ENGINEERING_MATERIALS]),
+    priceLab: clone([...catalog.priceLab, ...EXTERIOR_LABOR, ...INTERNAL_LABOR, ...ENGINEERING_LABOR]),
     estimateOverrides: [],
     customEstimateLines: [],
   };
@@ -834,8 +829,14 @@ export function migrateProject(raw) {
         ...(raw.settings?.delivery || {}),
       },
       engineering: {
-        ...base.settings.engineering,
-        ...(raw.settings?.engineering || {}),
+        ...normalizeEngineering({
+          ...base.settings.engineering,
+          ...(raw.settings?.engineering || {}),
+          // Existing active estimates retain their old eight-line calculation
+          // until the manager explicitly upgrades the engineering section.
+          assemblyVersion: raw.settings?.engineering?.assemblyVersion
+            ?? (Object.entries(raw.services || {}).some(([key, value]) => key.startsWith('engineering') && value) ? 0 : 1),
+        }),
       },
       internal: normalizeInternal({
         ...base.settings.internal,
