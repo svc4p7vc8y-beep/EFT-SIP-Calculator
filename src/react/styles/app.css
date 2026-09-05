@@ -5315,6 +5315,59 @@ select,
   font-size: 15px;
   line-height: 1.65;
 }
+.knowledge-sections {
+  display: grid;
+  gap: 34px;
+  margin: 34px 0;
+}
+.knowledge-guide-section {
+  padding-top: 30px;
+  border-top: 1px solid var(--line);
+}
+.knowledge-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.knowledge-section-heading > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--green);
+  font-weight: 900;
+}
+.knowledge-section-heading h2 {
+  margin: 0;
+  font-size: clamp(21px, 2.4vw, 29px);
+  line-height: 1.2;
+}
+.knowledge-section-image {
+  display: block;
+  width: 100%;
+  max-height: 600px;
+  margin: 0 0 20px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+.knowledge-steps {
+  display: grid;
+  gap: 9px;
+  max-width: 900px;
+  margin: 14px 0 0;
+  padding-left: 28px;
+  line-height: 1.55;
+}
+.knowledge-steps li::marker {
+  color: var(--green-dark);
+  font-weight: 900;
+}
 .knowledge-table-wrap {
   margin: 24px 0;
   overflow-x: auto;
@@ -5537,6 +5590,16 @@ select,
   body:has(.knowledge-reader) .knowledge-reader-image {
     max-height: 115mm;
     break-inside: avoid;
+  }
+  body:has(.knowledge-reader) .knowledge-guide-section {
+    break-before: auto;
+  }
+  body:has(.knowledge-reader) .knowledge-section-heading,
+  body:has(.knowledge-reader) .knowledge-section-image {
+    break-inside: avoid;
+  }
+  body:has(.knowledge-reader) .knowledge-section-image {
+    max-height: 118mm;
   }
   body:has(.knowledge-reader) .knowledge-table-wrap {
     overflow: visible;

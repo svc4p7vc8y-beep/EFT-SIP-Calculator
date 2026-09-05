@@ -7,8 +7,27 @@ const STORE = 'articles';
 const FALLBACK_KEY = 'eft-knowledge-library-fallback-v1';
 const HIDDEN_KEY = 'eft-knowledge-hidden-v1';
 
+function cleanText(value, limit = 500) {
+  return String(value ?? '').trim().slice(0, limit);
+}
+
 function cleanCell(value) {
-  return String(value ?? '').trim().slice(0, 500);
+  return cleanText(value, 500);
+}
+
+function cleanImage(value) {
+  return typeof value === 'string' && (value.startsWith('data:image/') || value.startsWith('./knowledge/')) ? value : '';
+}
+
+function normalizeSections(rawSections) {
+  if (!Array.isArray(rawSections)) return [];
+  return rawSections.slice(0, 20).map(section => ({
+    title: cleanText(section?.title, 200),
+    content: Array.isArray(section?.content) ? section.content.map(value => cleanText(value, 2000)).filter(Boolean).slice(0, 12) : [],
+    steps: Array.isArray(section?.steps) ? section.steps.map(value => cleanText(value, 1000)).filter(Boolean).slice(0, 24) : [],
+    image: cleanImage(section?.image),
+    imageAlt: cleanText(section?.imageAlt, 300),
+  })).filter(section => section.title || section.content.length || section.steps.length || section.image);
 }
 
 export function normalizeKnowledgeArticle(raw = {}) {
@@ -29,7 +48,8 @@ export function normalizeKnowledgeArticle(raw = {}) {
     title: cleanCell(raw.title) || 'Новый материал',
     summary: cleanCell(raw.summary),
     content,
-    image: typeof raw.image === 'string' && (raw.image.startsWith('data:image/') || raw.image.startsWith('./knowledge/')) ? raw.image : '',
+    image: cleanImage(raw.image),
+    sections: normalizeSections(raw.sections),
     table: { headers, rows },
     tags: Array.isArray(raw.tags) ? raw.tags.map(cleanCell).filter(Boolean).slice(0, 12) : String(raw.tags || '').split(',').map(cleanCell).filter(Boolean).slice(0, 12),
     createdAt: raw.createdAt || now,

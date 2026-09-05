@@ -21,6 +21,16 @@ function KnowledgeTable({ table }) {
   return <div className="knowledge-table-wrap"><table className="knowledge-table"><thead><tr>{table.headers.map((header, index) => <th key={`${header}-${index}`}>{header}</th>)}</tr></thead><tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{table.headers.map((_, cellIndex) => <td key={cellIndex}>{row[cellIndex] || '—'}</td>)}</tr>)}</tbody></table></div>;
 }
 
+function KnowledgeSections({ sections }) {
+  if (!sections?.length) return null;
+  return <div className="knowledge-sections">{sections.map((section, index) => <section className="knowledge-guide-section" key={`${section.title}-${index}`}>
+    <div className="knowledge-section-heading"><span>{index + 1}</span><h2>{section.title}</h2></div>
+    {section.image ? <img className="knowledge-section-image" src={section.image} alt={section.imageAlt || section.title} loading="lazy"/> : null}
+    {section.content?.length ? <div className="knowledge-copy">{section.content.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}</div> : null}
+    {section.steps?.length ? <ol className="knowledge-steps">{section.steps.map((step, stepIndex) => <li key={stepIndex}>{step}</li>)}</ol> : null}
+  </section>)}</div>;
+}
+
 function KnowledgeReader({ article, onClose, onEdit, onDelete }) {
   if (!article) return null;
   return <div className="knowledge-reader-backdrop" role="presentation" onMouseDown={onClose}>
@@ -33,6 +43,7 @@ function KnowledgeReader({ article, onClose, onEdit, onDelete }) {
         {article.summary ? <p className="knowledge-reader-lead">{article.summary}</p> : null}
         {article.image ? <img className="knowledge-reader-image" src={article.image} alt={article.title}/> : null}
         <div className="knowledge-copy">{article.content.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
+        <KnowledgeSections sections={article.sections}/>
         <KnowledgeTable table={article.table}/>
         {article.tags?.length ? <div className="knowledge-tags">{article.tags.map(tag => <span key={tag}>{tag}</span>)}</div> : null}
         <footer className="knowledge-print-footer">Материал носит справочный характер. Конструктивные решения и инженерные параметры подтверждаются проектом.</footer>
@@ -105,7 +116,8 @@ export default function KnowledgeLibraryScreen() {
     const categoryMatches = category === 'all' || (category === 'custom' ? !article.builtIn : article.category === category);
     if (!categoryMatches) return false;
     if (!deferredQuery) return true;
-    return [article.title, article.summary, ...(article.tags || []), ...(article.content || [])].join(' ').toLocaleLowerCase('ru-RU').includes(deferredQuery);
+    const sectionText = (article.sections || []).flatMap(section => [section.title, ...(section.content || []), ...(section.steps || [])]);
+    return [article.title, article.summary, ...(article.tags || []), ...(article.content || []), ...sectionText].join(' ').toLocaleLowerCase('ru-RU').includes(deferredQuery);
   }), [allArticles, category, deferredQuery]);
   const selected = allArticles.find(article => article.id === selectedId) || null;
 
