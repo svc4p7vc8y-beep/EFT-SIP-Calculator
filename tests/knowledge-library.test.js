@@ -7,7 +7,7 @@ import {
 } from '../src/react/storage/knowledge-library.js';
 
 test('knowledge library contains client-ready engineering, SIP and checklist materials', async () => {
-  assert.ok(BUILTIN_KNOWLEDGE_ARTICLES.length >= 7);
+  assert.ok(BUILTIN_KNOWLEDGE_ARTICLES.length >= 8);
   for (const category of ['ventilation', 'engineering', 'sip', 'checklists']) {
     assert.ok(BUILTIN_KNOWLEDGE_ARTICLES.some(article => article.category === category), category);
   }
@@ -15,6 +15,11 @@ test('knowledge library contains client-ready engineering, SIP and checklist mat
   const ventilation = BUILTIN_KNOWLEDGE_ARTICLES.find(article => article.id === 'builtin-ventilation-solutions');
   assert.equal(ventilation.table.rows.length, 3);
   await access(new URL('../public/knowledge/ventilation-solutions.png', import.meta.url));
+  const wetPoints = BUILTIN_KNOWLEDGE_ARTICLES.find(article => article.id === 'builtin-wet-points-layout');
+  assert.equal(wetPoints.category, 'engineering');
+  assert.ok(wetPoints.table.rows.length >= 10);
+  assert.match(wetPoints.content.join(' '), /СП 30\.13330\.2020/);
+  await access(new URL('../public/knowledge/wet-points-layout.svg', import.meta.url));
 });
 
 test('knowledge transfer preserves descriptions, tables and uploaded images', () => {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v118-knowledge-1';
+const CACHE_NAME = 'eft-calculator-react-v119-wet-points-1';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
