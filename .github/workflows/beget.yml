@@ -1,0 +1,100 @@
+name: Deploy EFT calculator to Beget
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beget-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production files
+        run: npm run build
+
+      - name: Validate deployment secrets
+        env:
+          BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
+          BEGET_SSH_USER: ${{ secrets.BEGET_SSH_USER }}
+          BEGET_SSH_PASSWORD: ${{ secrets.BEGET_SSH_PASSWORD }}
+          BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+          BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
+        run: |
+          : "${BEGET_SSH_HOST:?Missing BEGET_SSH_HOST secret}"
+          : "${BEGET_SSH_USER:?Missing BEGET_SSH_USER secret}"
+          : "${BEGET_SSH_PASSWORD:?Missing BEGET_SSH_PASSWORD secret}"
+          : "${BEGET_SSH_KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS secret}"
+          : "${BEGET_DEPLOY_PATH:?Missing BEGET_DEPLOY_PATH secret}"
+          [[ "$BEGET_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]*$ ]] || {
+            echo "BEGET_DEPLOY_PATH must be an absolute path without shell characters" >&2
+            exit 1
+          }
+
+      - name: Configure SSH
+        env:
+          BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$BEGET_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install SFTP helper
+        run: sudo apt-get update && sudo apt-get install --yes sshpass
+
+      - name: Verify remote deployment path
+        env:
+          BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
+          BEGET_SSH_USER: ${{ secrets.BEGET_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SSH_PASSWORD }}
+          BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
+        run: |
+          remote_path="${BEGET_DEPLOY_PATH%/}"
+          [ -n "$remote_path" ] || remote_path="/"
+          sshpass -e ssh -p 22 \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
+            -o StrictHostKeyChecking=yes \
+            "${BEGET_SSH_USER}@${BEGET_SSH_HOST}" \
+            "test -f '${remote_path%/}/.htaccess' && test -f '${remote_path%/}/.htpasswd'"
+
+      - name: Upload build to Beget
+        env:
+          BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
+          BEGET_SSH_USER: ${{ secrets.BEGET_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SSH_PASSWORD }}
+          BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
+        run: |
+          sshpass -e rsync -az --checksum \
+            --exclude='.htaccess' \
+            --exclude='.htpasswd' \
+            -e "ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes" \
+            dist/ \
+            "${BEGET_SSH_USER}@${BEGET_SSH_HOST}:${BEGET_DEPLOY_PATH%/}/"
+
+      - name: Verify protected website
+        run: |
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 30 https://calc.eftsip.ru/)"
+          test "$status" = "401"
