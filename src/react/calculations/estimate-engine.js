@@ -16,6 +16,7 @@ import { calculateInternal } from './internal-model.js';
 import { calculateEngineering } from './engineering-model.js';
 import {
   calculateSipConsumables,
+  calculateFramePartitionAssembly,
   calculateSipJoinery,
   resolveSipSupportScrew,
   resolveSipStructuralScrew,
@@ -582,9 +583,11 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         ? `Саморез конструкционный ${usage.structuralSize} мм`
         : "Саморезы конст.";
     lines.push(
-      makeLine(index, "sip", structuralQuery, usage.structuralKg, {
+      makeLine(index, "sip", structuralQuery, consumables.mode === "node" ? usage.structuralCount : usage.structuralKg, {
         key: `fasteners-${key}`,
-        unit: "кг",
+        unit: consumables.mode === "node" ? "шт" : "кг",
+        priceMultiplier: consumables.mode === "node" ? usage.structuralKgEach : 1,
+        exactQuantity: consumables.mode === "node",
         name:
           consumables.mode === "node"
             ? `Саморезы конструкционные ${usage.structuralSize} · ${usage.structuralCount} шт`
@@ -689,20 +692,36 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         area: metrics.secondFloorPartitionNetArea,
         suffix: "-secondFloor",
       },
-    ].forEach(({ key, area, suffix }) => {
+    ].forEach(({ key, area, suffix }, floorIndex) => {
       if (!(area > 0)) return;
+      const partitionPlan = metrics.floorPlans?.[floorIndex]?.plan || project.plan;
+      const partitionLength = floorIndex
+        ? metrics.secondFloorPartitionLength
+        : metrics.firstFloorPartitionLength;
+      const assembly = calculateFramePartitionAssembly(
+        partitionPlan,
+        partitionLength,
+        f,
+        partitionFrameSection,
+      );
+      const linearMode = sip.partitionCalculationMode !== "area";
+      const boardVolume = linearMode
+        ? assembly.volume
+        : area * f.partitionBoardM3PerM2 * partitionVolumeFactor;
       lines.push(
         makeLine(
           index,
           "sip",
           partitionBoardQuery,
-          area * f.partitionBoardM3PerM2 * partitionVolumeFactor,
+          boardVolume,
           {
             key: `partition-board${suffix}`,
             unit: "м³",
             source: key,
             estimateGroup: groupNames[key],
-            name: `Каркас перегородок · доска ${partitionFrameSection.replace("x", "×")} мм`,
+            name: linearMode
+              ? `Каркас перегородок · доска ${partitionFrameSection.replace("x", "×")} мм · ${assembly.boardCount} шт × ${assembly.stockLength} м · ${assembly.studCount} стоек`
+              : `Каркас перегородок · доска ${partitionFrameSection.replace("x", "×")} мм`,
           },
         ),
       );
@@ -1002,8 +1021,6 @@ function roofSection(project, metrics, index, inputs) {
   );
   const mainSipSupportScrewCount =
     mainSipCutting.panels * sipRoofSupportPointsPerPanel;
-  const mainSipSupportScrewKg =
-    mainSipSupportScrewCount * mainSipSupportScrew.kgEach;
   const mainSipRidgeRun =
     mainRoofShape === "flat"
       ? 0
@@ -1092,7 +1109,6 @@ function roofSection(project, metrics, index, inputs) {
     project.settings.sip.wallThickness,
     inputs.formulas,
   );
-  const mauerlatScrewKg = mauerlatScrewCount * mauerlatScrew.kgEach;
   const ridgeBeamLength =
     mainRoofShape === "flat"
       ? 0
@@ -1619,10 +1635,12 @@ function roofSection(project, metrics, index, inputs) {
           index,
           "roof",
           `Саморез конструкционный ${slopeSupportScrew.size} мм`,
-          slopeSupportScrewCount * slopeSupportScrew.kgEach,
+          slopeSupportScrewCount,
           {
             key: `${key}-sip-fasteners`,
-            unit: "кг",
+            unit: "шт",
+            priceMultiplier: slopeSupportScrew.kgEach,
+            exactQuantity: true,
             name: `Саморезы конструкционные ${slopeSupportScrew.size} · СИП-кровля ${title} · ${slopeSupportScrewCount} точек опирания`,
             source,
           },
@@ -1693,10 +1711,12 @@ function roofSection(project, metrics, index, inputs) {
           index,
           "roof",
           `Саморез конструкционный ${gableSupportScrew.size} мм`,
-          gableSupportScrewCount * gableSupportScrew.kgEach,
+          gableSupportScrewCount,
           {
             key: `${key}-gable-sip-fasteners`,
-            unit: "кг",
+            unit: "шт",
+            priceMultiplier: gableSupportScrew.kgEach,
+            exactQuantity: true,
             name: `Саморезы конструкционные ${gableSupportScrew.size} · СИП-фронтон ${title} · ${gableSupportScrewCount} точек`,
             source,
           },
@@ -1789,10 +1809,10 @@ function roofSection(project, metrics, index, inputs) {
         exactQuantity: true,
       },
     ),
-    makeLine(index, "roof", "Саморезы конст.", mauerlatScrewKg, {
+    makeLine(index, "roof", `Саморез конструкционный ${mauerlatScrew.size} мм`, mauerlatScrewCount, {
       key: "mauerlat-screws",
-      unit: "кг",
-      digits: 3,
+      unit: "шт",
+      priceMultiplier: mauerlatScrew.kgEach,
       name: `Конструкционные саморезы ${mauerlatScrew.size} для мауэрлата · ${mauerlatScrewCount} шт, ${mauerlatScrewRows} ряда с шагом до ${formatNumberForName(mauerlatFastenerSpacing)} м`,
       exactQuantity: true,
     }),
@@ -2107,10 +2127,12 @@ function roofSection(project, metrics, index, inputs) {
       index,
       "roof",
       `Саморез конструкционный ${mainSipSupportScrew.size} мм`,
-      mainSipSupportScrewKg,
+      mainSipSupportScrewCount,
       {
         key: "sip-fasteners",
-        unit: "кг",
+        unit: "шт",
+        priceMultiplier: mainSipSupportScrew.kgEach,
+        exactQuantity: true,
         name: `Саморезы конструкционные ${mainSipSupportScrew.size} · SIP-кровля · ${mainSipSupportScrewCount} точек опирания`,
         source: "sip-roof",
       },
@@ -2179,8 +2201,8 @@ function roofSection(project, metrics, index, inputs) {
       index,
       "roof",
       `Саморез конструкционный ${mainGableSupportScrew.size} мм`,
-      mainGableSupportScrewCount * mainGableSupportScrew.kgEach,
-      { key: "gable-sip-fasteners", unit: "кг", source: "gables" },
+      mainGableSupportScrewCount,
+      { key: "gable-sip-fasteners", unit: "шт", priceMultiplier: mainGableSupportScrew.kgEach, exactQuantity: true, source: "gables" },
     ),
     ...extensionLines,
   ]), mainRoofShape);

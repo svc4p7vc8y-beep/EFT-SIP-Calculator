@@ -175,6 +175,70 @@ const closedRunFastenerCount = (plan, spacing) =>
     0,
   );
 
+const rectangularRunFastenerCount = (width, height, spacing) =>
+  width > 0 && height > 0
+    ? 2 * Math.max(1, Math.ceil(width / spacing)) +
+      2 * Math.max(1, Math.ceil(height / spacing))
+    : 0;
+
+const openingStructuralFastenerCount = (plan, spacing, formulas = {}) =>
+  (plan?.openings || []).reduce((sum, opening) => {
+    if (opening.outer === false || opening.subtractFromSip === false) return sum;
+    const base = rectangularRunFastenerCount(
+      Math.max(0, Number(opening.width) || 0),
+      Math.max(0, Number(opening.height) || 0),
+      spacing,
+    );
+    const multiplier =
+      opening.type === "door" && opening.doorType === "garage"
+        ? nonnegative(formulas.sipGarageOpeningFastenerMultiplier, 2)
+        : opening.type === "door" && opening.doorType !== "interior"
+          ? nonnegative(formulas.sipEntranceOpeningFastenerMultiplier, 1.5)
+          : 1;
+    return sum + Math.ceil(base * multiplier);
+  }, 0);
+
+export function calculateFramePartitionAssembly(plan, partitionLength, formulas = {}, section = "50x100") {
+  const length = Math.max(0, Number(partitionLength) || 0);
+  const wallHeight = Math.max(0, Number(plan?.wallHeight) || 2.5);
+  const boardWidth = 0.05;
+  const boardDepth = section === "50x150" ? 0.15 : 0.1;
+  const clearSpacing = positive(formulas.partitionStudClearSpacingM, 0.59);
+  const module = clearSpacing + boardWidth;
+  const topPlateLayers = Math.max(1, Math.round(nonnegative(formulas.partitionTopPlateLayers, 2)));
+  const stockLength = positive(formulas.partitionBoardStockLengthM, 6);
+  const openings = (plan?.openings || []).filter(
+    (opening) => opening.outer === false && opening.includeInEstimate !== false,
+  );
+  const baseStudCount = length ? Math.ceil(length / module) + 1 : 0;
+  const openingStudCount = openings.length * Math.max(
+    0,
+    Math.round(nonnegative(formulas.partitionOpeningExtraStuds, 2)),
+  );
+  const openingTrimLength = openings.reduce((sum, opening) => {
+    const width = Math.max(0, Number(opening.width) || 0);
+    return sum + width * (opening.type === "window" ? 2 : 1);
+  }, 0);
+  const plateLength = length * (1 + topPlateLayers);
+  const requiredLength =
+    (baseStudCount + openingStudCount) * wallHeight + plateLength + openingTrimLength;
+  const boardCount = requiredLength ? Math.ceil(requiredLength / stockLength) : 0;
+  return {
+    mode: "linear",
+    length: round(length),
+    clearSpacing,
+    baseStudCount,
+    openingStudCount,
+    studCount: baseStudCount + openingStudCount,
+    plateLength: round(plateLength),
+    openingTrimLength: round(openingTrimLength),
+    requiredLength: round(requiredLength),
+    stockLength,
+    boardCount,
+    volume: round(boardCount * stockLength * boardWidth * boardDepth),
+  };
+}
+
 const roomPoints = (room = {}) =>
   Array.isArray(room.points) && room.points.length >= 3
     ? room.points
@@ -348,6 +412,7 @@ export function calculateSipConsumables(
       edgeKg: round(edgeCount * edgeKgEach),
       structuralCount,
       structuralSize: structural.size,
+      structuralKgEach: structural.kgEach,
       structuralKg: round(structuralCount * structural.kgEach),
       universalScrewCount,
       sealLength,
@@ -366,6 +431,7 @@ export function calculateSipConsumables(
         seamCount: total.seamCount + (row.seamCount || 0),
         edgeCount: total.edgeCount + (row.edgeCount || 0),
         structuralCount: total.structuralCount + (row.structuralCount || 0),
+        structuralKg: round(total.structuralKg + (row.structuralKg || 0)),
         universalScrewCount:
           total.universalScrewCount + (row.universalScrewCount || 0),
         sealLength: round(total.sealLength + (row.sealLength || 0)),
@@ -377,6 +443,7 @@ export function calculateSipConsumables(
         seamCount: 0,
         edgeCount: 0,
         structuralCount: 0,
+        structuralKg: 0,
         universalScrewCount: 0,
         sealLength: 0,
         stapleCount: 0,
@@ -445,6 +512,11 @@ export function calculateSipJoinery(
       const currentHeight = Math.max(0, Number(currentPlan.house?.h) || 0);
       const currentWallHeight = Math.max(0, Number(currentPlan.wallHeight) || 2.5);
       const currentPerimeter = perimeterFor(currentPlan);
+      const openingFasteners = openingStructuralFastenerCount(
+        currentPlan,
+        bindingSpacing,
+        formulas,
+      );
       const wallSeams = (wallLength) =>
         Math.max(0, Math.ceil(wallLength / panelWidth) - 1) * currentWallHeight +
         Math.max(0, Math.ceil(currentWallHeight / panelLength) - 1) * wallLength;
@@ -470,7 +542,9 @@ export function calculateSipJoinery(
         structuralCount:
           2 * closedRunFastenerCount(currentPlan, bindingSpacing) +
           contourPointsFor(currentPlan).length *
-            (Math.ceil(currentWallHeight / cornerSpacing) + 1),
+            (Math.ceil(currentWallHeight / cornerSpacing) + 1) +
+          openingFasteners,
+        openingStructuralCount: openingFasteners,
         tNodeCount: partitionJunctionCount(currentPlan),
       };
     };
@@ -501,6 +575,7 @@ export function calculateSipJoinery(
           ),
           endBoardLength: perimeter,
           sealLength: perimeter,
+          structuralCount: closedRunFastenerCount(plan, bindingSpacing),
         }
       : null,
     services.sipWalls
@@ -546,6 +621,13 @@ export function calculateSipJoinery(
             (openingWidth > 0 && openingLength > 0
               ? 2 * (openingWidth + openingLength)
               : 0),
+          structuralCount:
+            closedRunFastenerCount(secondPlan, bindingSpacing) +
+            rectangularRunFastenerCount(
+              openingWidth,
+              openingLength,
+              bindingSpacing,
+            ),
         }
       : null,
     services.sipCeiling
@@ -561,6 +643,7 @@ export function calculateSipJoinery(
           ),
           endBoardLength: topPerimeter,
           sealLength: topPerimeter,
+          structuralCount: closedRunFastenerCount(topPlan, bindingSpacing),
         }
       : null,
     services.partitions &&

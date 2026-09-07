@@ -16,7 +16,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 120;
+export const REACT_PROJECT_VERSION = 121;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -496,6 +496,7 @@ export function createDefaultProject() {
         ceilingPanelFamily: "pps",
         partitionType: "frame",
         partitionFrameSection: "50x100",
+        partitionCalculationMode: "linear",
         partitionThickness: "124",
         partitionPanelFamily: "pps",
         floorPanelWidth: "1.25",
@@ -736,6 +737,9 @@ export function migrateProject(raw) {
   const preserveLegacyConsumables =
     (!Number.isFinite(savedVersion) || savedVersion < 79) &&
     !raw.settings?.sip?.consumablesMode;
+  const preserveLegacyPartitionCalculation =
+    (!Number.isFinite(savedVersion) || savedVersion < 121) &&
+    !raw.settings?.sip?.partitionCalculationMode;
   const upgradeFrameCatalog =
     !Number.isFinite(savedVersion) || savedVersion < 51;
   const upgradeV61Catalog = !Number.isFinite(savedVersion) || savedVersion < 61;
@@ -822,6 +826,9 @@ export function migrateProject(raw) {
         ...base.settings.sip,
         ...(raw.settings?.sip || {}),
         ...(preserveLegacyConsumables ? { consumablesMode: "quick" } : {}),
+        ...(preserveLegacyPartitionCalculation
+          ? { partitionCalculationMode: "area" }
+          : {}),
       },
       roof: { ...base.settings.roof, ...(raw.settings?.roof || {}) },
       delivery: {

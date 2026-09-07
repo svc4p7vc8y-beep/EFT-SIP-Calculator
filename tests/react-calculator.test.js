@@ -10,6 +10,9 @@ import { verifyPricePasscode } from '../src/react/security/price-access.js';
 import { fitFloorOpening, moveConnectedWall, resizeProjectHouse } from '../src/react/planner/geometry.js';
 import { releasePlanLinkedQuantityOverrides } from '../src/react/state/estimate-edits.js';
 import { resolveRoofAxes } from '../src/calculations/roof-orientation.js';
+import { calculationFlowRows } from '../src/react/calculations/calculation-links.js';
+import { calculateFramePartitionAssembly } from '../src/react/calculations/sip-joinery.js';
+import { SIP_GUIDE_ENTRIES } from '../src/react/data/sip-guide.js';
 
 test('new blank plan starts without a contour, piles or binding', () => {
   const plan = createBlankPlan();
@@ -609,7 +612,9 @@ test('gable roof uses a full-perimeter SIP mauerlat and adds the ridge board to 
   assert.equal(result.roof.mauerlatLength, Math.round(perimeter * 1000) / 1000);
   assert.equal(result.roof.mauerlatBoardCount, Math.ceil(perimeter * result.inputs.formulas.mauerlatReserve / 6));
   assert.equal(result.lines.some((line) => line.id === 'roof:mauerlat-anchors'), false);
-  assert.equal(screws.catalogId, 'MAT-081');
+  assert.equal(screws.catalogId, 'MAT-201');
+  assert.equal(screws.unit, 'шт');
+  assert.equal(screws.qty, result.roof.mauerlatScrewCount);
   assert.equal(result.roof.mauerlatScrewCount, result.roof.mauerlatFastenerPoints * result.inputs.formulas.mauerlatScrewRows);
   assert.match(screws.name, new RegExp(`${result.roof.mauerlatScrewCount} шт`));
   assert.equal(rafters.catalogId, 'MAT-023');
@@ -1292,8 +1297,7 @@ test('new SIP projects calculate adhesive and fasteners from joints and nodes', 
     assert.equal(row.foamUnits, Math.ceil((joinery.jointLength + joinery.endBoardLength) * project.settings.formulas.foamUnitsPerJointMeter));
     assert.ok(row.seamCount > 0);
     assert.ok(row.edgeCount > 0);
-    if (row.key.startsWith('walls')) assert.ok(row.structuralCount > 0);
-    else assert.equal(row.structuralCount, 0);
+    assert.ok(row.structuralCount > 0);
     assert.match(row.structuralSize, /^8×(180|220|280)$/);
     assert.equal(row.stapleCount, Math.ceil(row.sealLength * project.settings.formulas.sipSealStaplesPerMeter));
   });
@@ -1329,6 +1333,27 @@ test('quick SIP consumables preserve the version 78 area formulas', () => {
   assert.ok(result.lines.some((line) => line.id === 'sip:spiral-fasteners-floor'));
   assert.ok(result.lines.some((line) => line.id === 'sip:fasteners-floor' && line.catalogId === 'MAT-081' && line.price > 0));
   assert.equal(result.lines.some((line) => /undefined/.test(line.name)), false);
+  const flow = calculationFlowRows(project, result).find((row) => row.target === 'Общая позиция «Саморезы конст.»');
+  assert.equal(flow.result, result.sip.consumables.totals.structuralKg);
+  assert.equal(flow.unit, 'кг');
+  assert.ok(flow.result > 0);
+});
+
+test('node SIP fasteners cover floor, ceiling and strengthened exterior openings', () => {
+  const project = createDefaultProject();
+  const withEntrance = calculateProject(project);
+  const wallWithEntrance = withEntrance.sip.consumables.rows.find((row) => row.key === 'walls');
+  project.plan.openings = [];
+  const withoutOpenings = calculateProject(project);
+  const wallWithoutOpenings = withoutOpenings.sip.consumables.rows.find((row) => row.key === 'walls');
+  assert.ok(wallWithEntrance.structuralCount > wallWithoutOpenings.structuralCount);
+  assert.ok(withEntrance.sip.consumables.rows.find((row) => row.key === 'floor').structuralCount > 0);
+  assert.ok(withEntrance.sip.consumables.rows.find((row) => row.key === 'ceiling').structuralCount > 0);
+  withEntrance.lines.filter((line) => /^sip:fasteners-/.test(line.id)).forEach((line) => {
+    assert.equal(line.unit, 'шт');
+    assert.equal(Number.isInteger(line.qty), true);
+    assert.ok(line.price > 0);
+  });
 });
 
 test('migration keeps old projects on quick SIP consumables unless they chose a mode', () => {
@@ -1341,6 +1366,15 @@ test('migration keeps old projects on quick SIP consumables unless they chose a 
   explicit.appVersion = 78;
   explicit.settings.sip.consumablesMode = 'node';
   assert.equal(migrateProject(explicit).settings.sip.consumablesMode, 'node');
+});
+
+test('migration preserves the old area partition formula while new projects use assembly mode', () => {
+  const current = createDefaultProject();
+  assert.equal(current.settings.sip.partitionCalculationMode, 'linear');
+  const legacy = createDefaultProject();
+  legacy.appVersion = 120;
+  delete legacy.settings.sip.partitionCalculationMode;
+  assert.equal(migrateProject(legacy).settings.sip.partitionCalculationMode, 'area');
 });
 
 test('version 100 projects copy their protected structural-screw price into the new size rows', () => {
@@ -1400,6 +1434,33 @@ test('frame partitions can use 50x150 boards with proportional volume and the ex
   assert.equal(Math.round(deepBoard.quantity * 1000), Math.round(standardBoard.quantity * 1500));
   assert.equal(deepLabor.price, standardLabor.price);
   assert.match(deepBoard.name, /50×150/);
+  assert.match(deepBoard.name, /шт × 6 м/);
+});
+
+test('frame partition assembly counts studs, plates, opening trim and whole stock boards', () => {
+  const project = createDefaultProject();
+  const length = 10;
+  const base = calculateFramePartitionAssembly({ ...project.plan, openings: [] }, length, project.settings.formulas, '50x100');
+  const withDoor = calculateFramePartitionAssembly({
+    ...project.plan,
+    openings: [{ id: 'inside-door', type: 'door', doorType: 'interior', width: 0.9, height: 2.1, outer: false }],
+  }, length, project.settings.formulas, '50x100');
+  assert.equal(base.baseStudCount, Math.ceil(length / 0.64) + 1);
+  assert.equal(base.plateLength, length * 3);
+  assert.equal(withDoor.openingStudCount, 2);
+  assert.equal(withDoor.openingTrimLength, 0.9);
+  assert.ok(withDoor.boardCount > base.boardCount);
+  assert.equal(withDoor.volume, Math.round(withDoor.boardCount * 6 * 0.05 * 0.1 * 1000) / 1000);
+});
+
+test('SIP guide keeps printed pages, scope, limits and calculation status for every rule', () => {
+  assert.ok(SIP_GUIDE_ENTRIES.length >= 7);
+  SIP_GUIDE_ENTRIES.forEach((entry) => {
+    assert.ok(entry.pages);
+    assert.ok(entry.scope);
+    assert.ok(entry.limits);
+    assert.ok(['reference', 'candidate', 'confirmed'].includes(entry.status));
+  });
 });
 
 test('roof covering selection switches metal tile and soft roof OSB', () => {

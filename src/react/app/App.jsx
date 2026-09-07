@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import {
   Calculator, ChevronLeft, ChevronRight, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
-  LibraryBig, Menu, Moon, PaintRoller, PanelTop, Ruler, Save, Settings2, Sun, Tags, Trees,
+  BookOpenCheck, LibraryBig, Menu, Moon, PaintRoller, PanelTop, Ruler, Save, Settings2, Sun, Tags, Trees,
   Truck, Wrench, X
 } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
@@ -23,6 +23,7 @@ const PriceScreen = lazy(() => import('../screens/PriceScreen.jsx'));
 const EstimateScreen = lazy(() => import('../screens/EstimateScreen.jsx'));
 const CalculationSettingsScreen = lazy(() => import('../screens/CalculationSettingsScreen.jsx'));
 const KnowledgeLibraryScreen = lazy(() => import('../screens/KnowledgeLibraryScreen.jsx'));
+const SipGuideScreen = lazy(() => import('../screens/SipGuideScreen.jsx'));
 
 const NAV_ITEMS = [
   { id: 'plan', label: 'План дома', icon: Ruler, group: 'project' },
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { id: 'delivery', label: 'Доставка', icon: Truck, group: 'calculate' },
   { id: 'price', label: 'Прайс-лист', icon: Tags, group: 'data' },
   { id: 'knowledge', label: 'Библиотека знаний', icon: LibraryBig, group: 'data' },
+  { id: 'sip-guide', label: 'Справочник SIP', icon: BookOpenCheck, group: 'data' },
   { id: 'estimate', label: 'Смета', icon: Calculator, group: 'data' }
 ];
 
@@ -57,6 +59,7 @@ function Screen({ active }) {
   if (active === 'price') return <PriceScreen />;
   if (active === 'estimate') return <EstimateScreen />;
   if (active === 'knowledge') return <KnowledgeLibraryScreen />;
+  if (active === 'sip-guide') return <SipGuideScreen />;
   if (active === 'calculation-settings') return <CalculationSettingsScreen />;
   return <Calculators type={active} />;
 }

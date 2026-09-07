@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v120-manager-guide-1';
+const CACHE_NAME = 'eft-calculator-react-v121-fastener-audit-1';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

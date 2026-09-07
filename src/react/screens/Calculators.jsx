@@ -1208,7 +1208,10 @@ export default function Calculators({ type }) {
               {project.settings.sip.partitionType === "sip" ? <>
                 <SelectField label="Тип панели перегородок" value={project.settings.sip.partitionPanelFamily || "pps"} onChange={(value) => setSetting("sip", "partitionPanelFamily", value)} options={PANEL_FAMILIES} />
                 <SelectField label="Толщина перегородок" value={project.settings.sip.partitionThickness || "124"} onChange={(value) => setSetting("sip", "partitionThickness", value)} options={PANEL_THICKNESSES} />
-              </> : <SelectField label="Доска каркаса перегородок" value={project.settings.sip.partitionFrameSection || "50x100"} onChange={(value) => setSetting("sip", "partitionFrameSection", value)} options={[{ value: "50x100", label: "50×100 мм" }, { value: "50x150", label: "50×150 мм" }]} />}
+              </> : <>
+                <SelectField label="Доска каркаса перегородок" value={project.settings.sip.partitionFrameSection || "50x100"} onChange={(value) => setSetting("sip", "partitionFrameSection", value)} options={[{ value: "50x100", label: "50×100 мм" }, { value: "50x150", label: "50×150 мм" }]} />
+                <SelectField label="Расчёт каркаса перегородок" value={project.settings.sip.partitionCalculationMode || "linear"} onChange={(value) => setSetting("sip", "partitionCalculationMode", value)} options={[{ value: "linear", label: "По стойкам и обвязкам · точный" }, { value: "area", label: "По площади · старый быстрый" }]} />
+              </>}
               <SelectField
                 label="Тип силового каркаса"
                 value={project.settings.sip.connectorType || "thermal"}
@@ -1329,7 +1332,7 @@ export default function Calculators({ type }) {
             title="Расход пеноклея и крепежа"
             description={
               calculation.sip.consumables.mode === "node"
-                ? "Количество считается по геометрии стыков и торцов. В смете крепёж оценивается по цене за килограмм; количество штук переводится через настраиваемую массу одного самореза."
+                ? "Количество считается по геометрии стыков и торцов. Конструкционные саморезы выводятся в штуках; цена за штуку пересчитывается из каталожной цены за килограмм через настраиваемую массу самореза."
                 : "Сохранённый быстрый режим старых проектов: пеноклей считается от количества панелей, крепёж — от площади."
             }
           >
