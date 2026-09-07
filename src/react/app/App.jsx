@@ -1,6 +1,6 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Calculator, ChevronLeft, ChevronRight, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
+  Calculator, ChevronLeft, ChevronRight, ClipboardList, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
   BookOpenCheck, LibraryBig, Menu, Moon, PaintRoller, PanelTop, Ruler, Save, Settings2, Sun, Tags, Trees,
   Truck, Wrench, X
 } from 'lucide-react';
@@ -13,6 +13,7 @@ import ProjectSummarySidebar from '../components/ProjectSummarySidebar.jsx';
 import {
   clientBriefSummary,
   createProjectFromClientBrief,
+  PENDING_CLIENT_BRIEF_KEY,
   validateClientBrief,
 } from '../storage/client-brief.js';
 
@@ -79,6 +80,22 @@ export function App() {
     () => calculateAdjustedPrice(project, calculation),
     [project, calculation],
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('clientBrief') !== 'pending') return;
+    try {
+      const brief = validateClientBrief(JSON.parse(localStorage.getItem(PENDING_CLIENT_BRIEF_KEY) || 'null'));
+      setBriefPreview({ fileName: 'Анкета с отдельной страницы', brief, summary: clientBriefSummary(brief) });
+    } catch (error) {
+      setNotice(`Не удалось открыть заявку: ${error.message}`);
+    } finally {
+      localStorage.removeItem(PENDING_CLIENT_BRIEF_KEY);
+      params.delete('clientBrief');
+      const query = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    }
+  }, []);
 
   const changeTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -169,6 +186,7 @@ export function App() {
           <button className="icon-button" onClick={newProject} aria-label="Новый проект"><FilePlus2 /></button>
           <button className="icon-button" onClick={saveProject} aria-label="Сохранить проект"><Save /></button>
           <button className="icon-button" onClick={() => fileRef.current?.click()} aria-label="Открыть проект"><FileUp /></button>
+          <a className="icon-button" href="./EFT_client_questionnaire.html" target="_blank" rel="noreferrer" aria-label="Открыть анкету будущего дома" title="Анкета будущего дома"><ClipboardList /></a>
           <button className="icon-button brief-import-button" onClick={() => briefFileRef.current?.click()} aria-label="Импортировать заявку клиента" title="Заявка клиента"><ClipboardPaste /></button>
           <button className="icon-button" onClick={() => setBackupOpen(true)} aria-label="Резервные копии"><History /></button>
           <input ref={fileRef} className="visually-hidden" type="file" accept=".json,.eft.json" onChange={importProject} />

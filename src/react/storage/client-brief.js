@@ -7,6 +7,7 @@ import { resizeProjectHouse } from "../planner/geometry.js";
 
 export const CLIENT_BRIEF_FORMAT = "eft-client-brief";
 export const CLIENT_BRIEF_SCHEMA_VERSION = 1;
+export const PENDING_CLIENT_BRIEF_KEY = "eft-pending-client-brief-v1";
 
 const clone = (value) => structuredClone(value);
 const numberOrNull = (value) => {
@@ -107,15 +108,60 @@ export function createProjectFromClientBrief(currentProject, raw) {
   const thickness = (value) => /^(124|174|224)(?:\s*мм)?$/.exec(String(value || ""))?.[1];
   const wallThickness = thickness(brief.sip?.wallThickness);
   const floorThickness = thickness(brief.sip?.floorThickness);
+  const ceilingThickness = thickness(brief.sip?.ceilingThickness);
   if (wallThickness) next.settings.sip.wallThickness = wallThickness;
   if (floorThickness) next.settings.sip.floorThickness = floorThickness;
+  if (ceilingThickness) next.settings.sip.ceilingThickness = ceilingThickness;
   if (brief.sip?.partitionType === "Каркасные") next.settings.sip.partitionType = "frame";
   if (brief.sip?.partitionType === "SIP-панели") next.settings.sip.partitionType = "sip";
+  const panelFamily = {
+    PPS: "pps",
+    Минвата: "mineral-wool",
+    "CSP PPS": "csp-pps",
+  }[brief.sip?.panelFamily];
+  if (panelFamily) {
+    next.settings.sip.floorPanelFamily = panelFamily;
+    next.settings.sip.wallPanelFamily = panelFamily;
+    next.settings.sip.ceilingPanelFamily = panelFamily;
+  }
+  if (brief.sip?.panelLayout === "625 мм") {
+    next.settings.sip.floorPanelWidth = "0.625";
+    next.settings.sip.ceilingPanelWidth = "0.625";
+  }
 
   const roofShape = ROOF_SHAPES[brief.roof?.shape];
   const roofCovering = ROOF_COVERINGS[brief.roof?.covering];
   if (roofShape) next.settings.roof.shape = roofShape;
   if (roofCovering) next.settings.roof.covering = roofCovering;
+  if (brief.roof?.type === "Тёплая SIP") next.settings.roof.type = "sip";
+  if (brief.roof?.type === "Холодная") next.settings.roof.type = "cold";
+  if (numberOrNull(brief.roof?.ridgeHeight)) next.settings.roof.ridgeHeight = numberOrNull(brief.roof.ridgeHeight);
+  if (numberOrNull(brief.roof?.eaveOverhang)) next.settings.roof.eaveOverhang = numberOrNull(brief.roof.eaveOverhang);
+  if (numberOrNull(brief.roof?.gableOverhang)) next.settings.roof.gableOverhang = numberOrNull(brief.roof.gableOverhang);
+  const gableType = {
+    "По типу кровли": "auto",
+    Каркасные: "cold",
+    "Из SIP-панелей": "sip",
+    "Не учитывать": "none",
+  }[brief.roof?.gableType];
+  if (gableType) next.settings.roof.gableType = gableType;
+  if (roofShape === "gable" && Number.isFinite(Number(brief.roof?.gableCount))) {
+    next.settings.roof.gableCount = Math.min(2, Math.max(0, Math.round(Number(brief.roof.gableCount))));
+  }
+  if (roofShape === "flat") {
+    next.settings.roof.flatSlopeDirection = String(brief.roof?.slopeDirection || "").trim();
+    next.settings.roof.flatSlopePercent = numberOrNull(brief.roof?.slopePercent);
+  }
+
+  if (Array.isArray(brief.scope)) {
+    const enabled = new Set(brief.scope);
+    next.services.engineeringElectric = enabled.has("Инженерия") && brief.engineering?.electricStage !== "Не нужна";
+    next.services.engineeringPlumbing = enabled.has("Инженерия") && brief.engineering?.waterSource !== "Не нужен";
+    next.services.engineeringSewerage = enabled.has("Инженерия") && brief.engineering?.sewer !== "Не нужна";
+    next.services.engineeringVentilation = enabled.has("Инженерия") && Boolean(brief.engineering?.ventilation);
+    next.services.internalFinish = enabled.has("Внутренняя отделка");
+    next.services.externalFinish = enabled.has("Внешняя отделка");
+  }
 
   next.clientBrief = {
     ...clone(brief),
