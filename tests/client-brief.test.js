@@ -18,6 +18,7 @@ const sampleBrief = () => ({
     email: "ivan@example.ru",
   },
   project: {
+    buildingType: "Жилой дом",
     address: "Московская область",
     floors: 2,
     length: 12,
@@ -47,12 +48,14 @@ test("client brief validation and preview expose the confirmed source data", () 
   assert.equal(validateClientBrief(brief), brief);
   assert.deepEqual(clientBriefSummary(brief), {
     customer: "Иван Иванов",
+    buildingType: "Жилой дом",
     contact: "+7 900 000-00-00 · ivan@example.ru",
     address: "Московская область",
     dimensions: "12 × 8 м",
     floors: "2",
     area: "160 м²",
     scope: "Сваи и обвязка, SIP-пол, SIP-стены, Кровля, Доставка",
+    readiness: "черновик готов, геометрию нужно проверить",
   });
 });
 
@@ -68,6 +71,7 @@ test("client brief creates a clean draft and preserves commercial calculation da
 
   assert.equal(next.meta.customer, "Иван Иванов");
   assert.equal(next.meta.address, "Московская область");
+  assert.equal(next.meta.buildingType, "Жилой дом");
   assert.equal(next.meta.floors, 2);
   assert.equal(next.plan.house.w, 12);
   assert.equal(next.plan.house.h, 8);

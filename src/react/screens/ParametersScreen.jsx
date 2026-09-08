@@ -455,6 +455,17 @@ export default function ParametersScreen() {
                   }
                 />
               </Field>
+              <SelectField
+                label="Тип строения"
+                value={project.meta.buildingType || "Жилой дом"}
+                onChange={(value) => write("meta.buildingType", value)}
+                options={[
+                  { value: "Гараж", label: "Гараж" },
+                  { value: "Пристройка", label: "Пристройка" },
+                  { value: "Хозблок", label: "Хозблок" },
+                  { value: "Жилой дом", label: "Жилой дом" },
+                ]}
+              />
               <Field label="Дата">
                 <input
                   type="date"

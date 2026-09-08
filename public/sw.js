@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v123-roof-ui-1';
+const CACHE_NAME = 'eft-calculator-react-v124-questionnaire-1';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

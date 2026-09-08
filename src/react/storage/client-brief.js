@@ -63,12 +63,16 @@ export function clientBriefSummary(raw) {
     .join(" × ");
   return {
     customer: String(brief.customer?.name || "").trim(),
+    buildingType: project.buildingType || "не указан",
     contact: [brief.customer?.phone, brief.customer?.email].filter(Boolean).join(" · ") || "не указан",
     address: project.address || "не указан",
     dimensions: dimensions ? `${dimensions} м` : "нужно уточнить",
     floors: [1, 2].includes(Number(project.floors)) ? String(project.floors) : "нужно уточнить",
     area: numberOrNull(project.approxArea) ? `${numberOrNull(project.approxArea)} м²` : "не указана",
     scope: Array.isArray(brief.scope) && brief.scope.length ? brief.scope.join(", ") : "не выбран",
+    readiness: brief.automation?.canCalculateAutomatically
+      ? "готово к автоматическому расчёту"
+      : "черновик готов, геометрию нужно проверить",
   };
 }
 
@@ -94,6 +98,7 @@ export function createProjectFromClientBrief(currentProject, raw) {
 
   next.meta.customer = String(brief.customer?.name || "").trim();
   next.meta.address = String(project.address || "").trim();
+  next.meta.buildingType = String(project.buildingType || "Жилой дом");
   ensureProjectFloorCount(next, [1, 2].includes(Number(project.floors)) ? Number(project.floors) : 1);
 
   if (Array.isArray(brief.scope)) {
@@ -109,9 +114,11 @@ export function createProjectFromClientBrief(currentProject, raw) {
   const wallThickness = thickness(brief.sip?.wallThickness);
   const floorThickness = thickness(brief.sip?.floorThickness);
   const ceilingThickness = thickness(brief.sip?.ceilingThickness);
+  const secondFloorThickness = thickness(brief.sip?.secondFloorThickness);
   if (wallThickness) next.settings.sip.wallThickness = wallThickness;
   if (floorThickness) next.settings.sip.floorThickness = floorThickness;
   if (ceilingThickness) next.settings.sip.ceilingThickness = ceilingThickness;
+  if (secondFloorThickness) next.settings.sip.secondFloorThickness = secondFloorThickness;
   if (brief.sip?.partitionType === "Каркасные") next.settings.sip.partitionType = "frame";
   if (brief.sip?.partitionType === "SIP-панели") next.settings.sip.partitionType = "sip";
   const panelFamily = {
@@ -133,6 +140,8 @@ export function createProjectFromClientBrief(currentProject, raw) {
   const roofCovering = ROOF_COVERINGS[brief.roof?.covering];
   if (roofShape) next.settings.roof.shape = roofShape;
   if (roofCovering) next.settings.roof.covering = roofCovering;
+  if (brief.roof?.ridgeAxis === "Вдоль длины дома") next.settings.roof.ridgeAxis = "x";
+  if (brief.roof?.ridgeAxis === "Вдоль ширины дома") next.settings.roof.ridgeAxis = "y";
   if (brief.roof?.type === "Тёплая SIP") next.settings.roof.type = "sip";
   if (brief.roof?.type === "Холодная") next.settings.roof.type = "cold";
   if (numberOrNull(brief.roof?.ridgeHeight)) next.settings.roof.ridgeHeight = numberOrNull(brief.roof.ridgeHeight);
@@ -179,6 +188,10 @@ export function createProjectFromClientBrief(currentProject, raw) {
     next.services.engineeringVentilation = enabled.has("Инженерия") && Boolean(brief.engineering?.ventilation);
     next.services.internalFinish = enabled.has("Внутренняя отделка");
     next.services.externalFinish = enabled.has("Внешняя отделка");
+  }
+
+  if (numberOrNull(brief.delivery?.distance)) {
+    next.settings.delivery.distance = numberOrNull(brief.delivery.distance);
   }
 
   next.clientBrief = {
