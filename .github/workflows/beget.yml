@@ -78,7 +78,7 @@ jobs:
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
             "${BEGET_SSH_USER}@${BEGET_SSH_HOST}" \
-            "test -f '${remote_path%/}/.htaccess' && test -f '${remote_path%/}/.htpasswd'"
+            "test -f '${remote_path%/}/.htaccess'"
 
       - name: Upload build to Beget
         env:
