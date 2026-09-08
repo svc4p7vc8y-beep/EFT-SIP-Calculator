@@ -48,8 +48,8 @@ jobs:
           : "${BEGET_SSH_PASSWORD:?Missing BEGET_SSH_PASSWORD secret}"
           : "${BEGET_SSH_KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS secret}"
           : "${BEGET_DEPLOY_PATH:?Missing BEGET_DEPLOY_PATH secret}"
-          [[ "$BEGET_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]*$ ]] || {
-            echo "BEGET_DEPLOY_PATH must be an absolute path without shell characters" >&2
+          [[ "$BEGET_DEPLOY_PATH" = "." || "$BEGET_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]*$ ]] || {
+            echo "BEGET_DEPLOY_PATH must be . or an absolute path without shell characters" >&2
             exit 1
           }
 
