@@ -2660,15 +2660,43 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "flat", label: "Плоская" },
         ]}
       />
-      <SelectField
-        label="Направление конька"
-        value={roof.ridgeAxis === "y" ? "y" : "x"}
-        onChange={(value) => commitRoof("ridgeAxis", value)}
-        options={[
-          { value: "x", label: "Вдоль длины дома" },
-          { value: "y", label: "Вдоль ширины дома" },
-        ]}
-      />
+      {roof.shape !== "flat" ? (
+        <SelectField
+          label="Направление конька"
+          value={roof.ridgeAxis === "y" ? "y" : "x"}
+          onChange={(value) => commitRoof("ridgeAxis", value)}
+          options={[
+            { value: "x", label: "Вдоль длины дома" },
+            { value: "y", label: "Вдоль ширины дома" },
+          ]}
+        />
+      ) : (
+        <>
+          <SelectField
+            label="Формирование уклона"
+            value={roof.flatSlopeMode || "none"}
+            onChange={(value) => commitRoof("flatSlopeMode", value)}
+            options={[
+              { value: "none", label: "Без уклона · старый расчёт" },
+              { value: "tapered", label: "Разуклонка поверх основания" },
+              { value: "structural", label: "Перепад высоты стен" },
+            ]}
+          />
+          {(roof.flatSlopeMode || "none") !== "none" ? (
+            <SelectField
+              label="Направление уклона"
+              value={roof.flatSlopeDirection || "back"}
+              onChange={(value) => commitRoof("flatSlopeDirection", value)}
+              options={[
+                { value: "front", label: "К фасаду" },
+                { value: "back", label: "К задней стороне" },
+                { value: "left", label: "Влево" },
+                { value: "right", label: "Вправо" },
+              ]}
+            />
+          ) : null}
+        </>
+      )}
       <SelectField
         label="Тип стропильной системы"
         value={roof.rafterSystem || "hanging"}
@@ -2690,14 +2718,26 @@ function RoofLayerInspector({ roof, commitRoof }) {
         ]}
       />
       <div className="form-grid">
-        <NumberField
-          label="Высота конька"
-          value={roof.ridgeHeight || 1.8}
-          suffix="м"
-          min={0}
-          step={0.1}
-          onChange={(value) => commitRoof("ridgeHeight", value)}
-        />
+        {roof.shape === "flat" && (roof.flatSlopeMode || "none") !== "none" ? (
+          <NumberField
+            label="Уклон"
+            value={roof.flatSlopePercent ?? 3}
+            suffix="%"
+            min={0}
+            max={20}
+            step={0.5}
+            onChange={(value) => commitRoof("flatSlopePercent", value)}
+          />
+        ) : roof.shape !== "flat" ? (
+          <NumberField
+            label="Высота конька"
+            value={roof.ridgeHeight || 1.8}
+            suffix="м"
+            min={0}
+            step={0.1}
+            onChange={(value) => commitRoof("ridgeHeight", value)}
+          />
+        ) : null}
         <NumberField
           label="Свес карниза"
           value={roof.eaveOverhang ?? 0.5}

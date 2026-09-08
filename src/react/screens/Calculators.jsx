@@ -320,6 +320,9 @@ function RoofConstructionPanels({
   setSetting,
   setPlatformRoof,
 }) {
+  const isFlatRoof = project.settings.roof.shape === "flat";
+  const hasFlatSlope = isFlatRoof && (project.settings.roof.flatSlopeMode || "none") !== "none";
+  const hasStructuralFlatGables = hasFlatSlope && project.settings.roof.flatSlopeMode === "structural";
   return (
     <>
       <Panel
@@ -348,15 +351,17 @@ function RoofConstructionPanels({
                 { value: "flat", label: "Плоская" },
               ]}
             />
-            <SelectField
-              label="Направление конька"
-              value={project.settings.roof.ridgeAxis === "y" ? "y" : "x"}
-              onChange={(value) => setSetting("roof", "ridgeAxis", value)}
-              options={[
-                { value: "x", label: "Вдоль длины дома" },
-                { value: "y", label: "Вдоль ширины дома" },
-              ]}
-            />
+            {!isFlatRoof ? (
+              <SelectField
+                label="Направление конька"
+                value={project.settings.roof.ridgeAxis === "y" ? "y" : "x"}
+                onChange={(value) => setSetting("roof", "ridgeAxis", value)}
+                options={[
+                  { value: "x", label: "Вдоль длины дома" },
+                  { value: "y", label: "Вдоль ширины дома" },
+                ]}
+              />
+            ) : null}
             <SelectField
               label="Кровельное покрытие"
               value={project.settings.roof.covering || "profile"}
@@ -373,6 +378,46 @@ function RoofConstructionPanels({
                 { value: "combo", label: "Комбинированная" },
               ]}
             />
+            {isFlatRoof ? (
+              <SelectField
+                label="Как формируется уклон"
+                value={project.settings.roof.flatSlopeMode || "none"}
+                onChange={(value) => setSetting("roof", "flatSlopeMode", value)}
+                options={[
+                  { value: "none", label: "Без уклона · старый расчёт" },
+                  { value: "tapered", label: "Разуклонка поверх основания" },
+                  { value: "structural", label: "Перепад высоты стен" },
+                ]}
+              />
+            ) : null}
+            {hasFlatSlope ? (
+              <>
+                <SelectField
+                  label="Направление уклона"
+                  value={project.settings.roof.flatSlopeDirection || "back"}
+                  onChange={(value) => setSetting("roof", "flatSlopeDirection", value)}
+                  options={[
+                    { value: "front", label: "К фасаду" },
+                    { value: "back", label: "К задней стороне" },
+                    { value: "left", label: "Влево" },
+                    { value: "right", label: "Вправо" },
+                  ]}
+                />
+                <NumberField
+                  label="Уклон"
+                  value={project.settings.roof.flatSlopePercent ?? 3}
+                  suffix="%"
+                  min={0}
+                  max={20}
+                  step={0.5}
+                  onChange={(value) => setSetting("roof", "flatSlopePercent", value)}
+                />
+                <div className="readout">
+                  <span>Перепад высоты</span>
+                  <strong>{formatNumber(calculation.roof.flatRise, 3)} м</strong>
+                </div>
+              </>
+            ) : null}
             {project.settings.roof.shape !== "flat" ? (
               <NumberField
                 label="Высота конька"
@@ -438,7 +483,7 @@ function RoofConstructionPanels({
           </div>
         </section>
         <section className="roof-main-section">
-          <h3>Стропильная система и фронтоны</h3>
+          <h3>{hasStructuralFlatGables ? "Стропильная система и треугольные торцы" : "Стропильная система и фронтоны"}</h3>
         <div className="form-grid four">
           <SelectField
             label="Режим расчёта"
@@ -507,10 +552,10 @@ function RoofConstructionPanels({
             step={0.05}
             onChange={(value) => setSetting("roof", "lathStep", value)}
           />
-          {project.settings.roof.shape === "gable" ? (
+          {project.settings.roof.shape === "gable" || hasStructuralFlatGables ? (
             <>
               <SelectField
-                label="Фронтоны основной крыши"
+                label={hasStructuralFlatGables ? "Треугольные торцы" : "Фронтоны основной крыши"}
                 value={project.settings.roof.gableType || "auto"}
                 onChange={(value) => setSetting("roof", "gableType", value)}
                 options={[
@@ -521,7 +566,7 @@ function RoofConstructionPanels({
                 ]}
               />
               <NumberField
-                label="Количество фронтонов"
+                label={hasStructuralFlatGables ? "Количество торцов" : "Количество фронтонов"}
                 value={project.settings.roof.gableCount ?? 2}
                 suffix="шт"
                 min={0}
@@ -533,8 +578,13 @@ function RoofConstructionPanels({
               />
             </>
           ) : null}
+          {isFlatRoof ? (
+            <p className="inspector-note">
+              При разуклонке поверх основания треугольные торцы не возникают, а материал разуклонки задаётся вручную. При перепаде высоты стен калькулятор считает два треугольных торца существующими правилами для каркаса или SIP.
+            </p>
+          ) : null}
           <div className="readout">
-            <span>Площадь фронтонов</span>
+            <span>{hasStructuralFlatGables ? "Площадь треугольных торцов" : "Площадь фронтонов"}</span>
             <strong>{formatNumber(calculation.roof.gableArea)} м²</strong>
           </div>
           <div className="readout">

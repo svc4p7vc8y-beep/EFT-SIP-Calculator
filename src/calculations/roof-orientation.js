@@ -16,7 +16,12 @@ const dimensionBounds = (plan = {}) => {
 
 export function resolveRoofAxes(plan = {}, roof = {}) {
   const { width, height } = dimensionBounds(plan);
-  const ridgeAxis = roof.ridgeAxis === "y" ? "y" : "x";
+  const flatSlopeDirection = ["front", "back", "left", "right"].includes(roof.flatSlopeDirection)
+    ? roof.flatSlopeDirection
+    : "back";
+  const ridgeAxis = roof.shape === "flat" && roof.flatSlopeMode !== "none"
+    ? (["left", "right"].includes(flatSlopeDirection) ? "y" : "x")
+    : roof.ridgeAxis === "y" ? "y" : "x";
   return {
     ridgeAxis,
     vertical: ridgeAxis === "y",

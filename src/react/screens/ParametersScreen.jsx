@@ -888,7 +888,7 @@ export default function ParametersScreen() {
                 type: "select",
                 options: roofShapes,
               },
-              {
+              project.settings.roof.shape !== "flat" && {
                 path: "settings.roof.ridgeAxis",
                 label: "Направление конька",
                 type: "select",
@@ -896,6 +896,35 @@ export default function ParametersScreen() {
                   { value: "x", label: "Вдоль длины дома" },
                   { value: "y", label: "Вдоль ширины дома" },
                 ],
+              },
+              project.settings.roof.shape === "flat" && {
+                path: "settings.roof.flatSlopeMode",
+                label: "Формирование уклона",
+                type: "select",
+                options: [
+                  { value: "none", label: "Без уклона · старый расчёт" },
+                  { value: "tapered", label: "Разуклонка поверх основания" },
+                  { value: "structural", label: "Перепад высоты стен" },
+                ],
+              },
+              project.settings.roof.shape === "flat" && project.settings.roof.flatSlopeMode !== "none" && {
+                path: "settings.roof.flatSlopeDirection",
+                label: "Направление уклона",
+                type: "select",
+                options: [
+                  { value: "front", label: "К фасаду" },
+                  { value: "back", label: "К задней стороне" },
+                  { value: "left", label: "Влево" },
+                  { value: "right", label: "Вправо" },
+                ],
+              },
+              project.settings.roof.shape === "flat" && project.settings.roof.flatSlopeMode !== "none" && {
+                path: "settings.roof.flatSlopePercent",
+                label: "Уклон",
+                suffix: "%",
+                min: 0,
+                max: 20,
+                step: 0.5,
               },
               {
                 path: "settings.roof.covering",
@@ -1042,9 +1071,9 @@ export default function ParametersScreen() {
                   { value: "angles", label: "Усиленные уголки" },
                 ],
               },
-              project.settings.roof.shape === "gable" && {
+              (project.settings.roof.shape === "gable" || (project.settings.roof.shape === "flat" && project.settings.roof.flatSlopeMode === "structural")) && {
                 path: "settings.roof.gableType",
-                label: "Фронтоны",
+                label: project.settings.roof.shape === "flat" ? "Треугольные торцы" : "Фронтоны",
                 type: "select",
                 options: [
                   { value: "auto", label: "По типу кровли" },
@@ -1053,9 +1082,9 @@ export default function ParametersScreen() {
                   { value: "none", label: "Нет" },
                 ],
               },
-              project.settings.roof.shape === "gable" && {
+              (project.settings.roof.shape === "gable" || (project.settings.roof.shape === "flat" && project.settings.roof.flatSlopeMode === "structural")) && {
                 path: "settings.roof.gableCount",
-                label: "Фронтонов",
+                label: project.settings.roof.shape === "flat" ? "Торцов" : "Фронтонов",
                 suffix: "шт",
                 max: 2,
                 step: 1,

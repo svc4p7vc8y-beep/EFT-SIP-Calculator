@@ -713,6 +713,37 @@ test('main roof switches to one flat plane without ridge and gables', () => {
   assert.ok(result.lines.some((line) => line.id === 'roof:cover-work' && line.catalogId === 'LAB-031'));
 });
 
+test('flat roof slope made above the deck changes slope area without adding gables', () => {
+  const project = createDefaultProject();
+  project.settings.roof.shape = 'flat';
+  project.settings.roof.flatSlopeMode = 'tapered';
+  project.settings.roof.flatSlopePercent = 5;
+  project.settings.roof.flatSlopeDirection = 'back';
+  const result = calculateProject(project);
+
+  assert.ok(Math.abs(result.roof.flatRise - project.plan.house.h * 0.05) < 0.001);
+  assert.ok(result.roof.geometry.slopeCoefficient > 1);
+  assert.equal(result.roof.gableArea, 0);
+  assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
+});
+
+test('structurally inclined flat roof adds two triangular end walls', () => {
+  const project = createDefaultProject();
+  project.settings.roof.shape = 'flat';
+  project.settings.roof.flatSlopeMode = 'structural';
+  project.settings.roof.flatSlopePercent = 5;
+  project.settings.roof.flatSlopeDirection = 'right';
+  project.settings.roof.gableType = 'cold';
+  project.settings.roof.gableCount = 2;
+  const result = calculateProject(project);
+
+  const expectedRise = project.plan.house.w * 0.05;
+  assert.equal(result.roof.ridgeAxis, 'y');
+  assert.ok(Math.abs(result.roof.flatRise - expectedRise) < 0.001);
+  assert.ok(Math.abs(result.roof.gableArea - project.plan.house.w * expectedRise) < 0.01);
+  assert.ok(result.lines.some((line) => line.id === 'roof:gable-frame'));
+});
+
 test('main roof can count one exposed gable instead of two', () => {
   const project = createDefaultProject();
   project.settings.roof.gableCount = 1;
@@ -1375,6 +1406,21 @@ test('migration preserves the old area partition formula while new projects use 
   legacy.appVersion = 120;
   delete legacy.settings.sip.partitionCalculationMode;
   assert.equal(migrateProject(legacy).settings.sip.partitionCalculationMode, 'area');
+});
+
+test('old flat-roof projects keep the horizontal calculation until slope mode is selected', () => {
+  const legacy = createDefaultProject();
+  legacy.appVersion = 121;
+  legacy.settings.roof.shape = 'flat';
+  delete legacy.settings.roof.flatSlopeMode;
+  delete legacy.settings.roof.flatSlopeDirection;
+  delete legacy.settings.roof.flatSlopePercent;
+  const migrated = migrateProject(legacy);
+  const result = calculateProject(migrated);
+
+  assert.equal(migrated.settings.roof.flatSlopeMode, 'none');
+  assert.equal(result.roof.geometry.slopeCoefficient, 1);
+  assert.equal(result.roof.gableArea, 0);
 });
 
 test('version 100 projects copy their protected structural-screw price into the new size rows', () => {

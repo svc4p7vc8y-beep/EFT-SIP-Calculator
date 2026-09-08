@@ -149,8 +149,26 @@ export function createProjectFromClientBrief(currentProject, raw) {
     next.settings.roof.gableCount = Math.min(2, Math.max(0, Math.round(Number(brief.roof.gableCount))));
   }
   if (roofShape === "flat") {
-    next.settings.roof.flatSlopeDirection = String(brief.roof?.slopeDirection || "").trim();
-    next.settings.roof.flatSlopePercent = numberOrNull(brief.roof?.slopePercent);
+    const flatSlopeModes = {
+      "Перепад высоты стен": "structural",
+      "Разуклонка по основанию": "tapered",
+      "Без уклона": "none",
+    };
+    const flatSlopeDirections = {
+      "К фасаду": "front",
+      "К задней стороне": "back",
+      Влево: "left",
+      Вправо: "right",
+    };
+    next.settings.roof.flatSlopeMode = flatSlopeModes[brief.roof?.slopeMode] || "none";
+    next.settings.roof.flatSlopeDirection = flatSlopeDirections[brief.roof?.slopeDirection] || "back";
+    next.settings.roof.flatSlopePercent = numberOrNull(brief.roof?.slopePercent) || 0;
+    if (next.settings.roof.flatSlopeMode === "structural") {
+      next.settings.roof.gableType = gableType || "auto";
+      next.settings.roof.gableCount = Number.isFinite(Number(brief.roof?.gableCount))
+        ? Math.min(2, Math.max(0, Math.round(Number(brief.roof.gableCount))))
+        : 2;
+    }
   }
 
   if (Array.isArray(brief.scope)) {

@@ -188,6 +188,16 @@ test('flat main roof uses one horizontal plane without ridge or gables', () => {
   assert.equal(geometry.slopeCoefficient, 1);
 });
 
+test('inclined flat roof calculates its rise and optional triangular end walls', () => {
+  const tapered = roofGeometry({ span: 8, ridgeLength: 10, shape: 'flat', slopePercent: 5 });
+  assert.equal(tapered.rise, 0.4);
+  assert.equal(tapered.totalSlopeArea, 80.1);
+  assert.equal(tapered.gableArea, 0);
+
+  const structural = roofGeometry({ span: 8, ridgeLength: 10, shape: 'flat', slopePercent: 5, includeSlopeGables: true });
+  assert.equal(structural.gableArea, 3.2);
+});
+
 test('main roof geometry includes independent eave and gable overhangs', () => {
   const geometry = roofGeometry({ span: 8, ridgeLength: 10, ridgeHeight: 3, eaveOverhang: 0.5, gableOverhang: 0.3 });
   assert.equal(geometry.roofSpan, 9);

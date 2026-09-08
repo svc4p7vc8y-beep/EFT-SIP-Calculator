@@ -58,12 +58,15 @@ test("flat roof brief keeps its one-side slope direction and value", () => {
   });
   const project = createProjectFromClientBrief(createDefaultProject(), brief);
 
-  assert.equal(brief.roof.gableCount, 0);
+  assert.equal(brief.roof.gableCount, 2);
   assert.equal(brief.roof.slopeDirection, "Вправо");
   assert.equal(brief.roof.slopePercent, 4.5);
   assert.equal(project.settings.roof.shape, "flat");
-  assert.equal(project.settings.roof.flatSlopeDirection, "Вправо");
+  assert.equal(brief.roof.slopeMode, "Перепад высоты стен");
+  assert.equal(project.settings.roof.flatSlopeMode, "structural");
+  assert.equal(project.settings.roof.flatSlopeDirection, "right");
   assert.equal(project.settings.roof.flatSlopePercent, 4.5);
+  assert.equal(project.settings.roof.gableCount, 2);
 });
 
 test("questionnaire completion reflects the important calculator inputs", () => {

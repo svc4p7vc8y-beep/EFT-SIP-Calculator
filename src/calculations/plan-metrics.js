@@ -411,6 +411,8 @@ export function roofGeometry({
   shape = "gable",
   eaveOverhang = 0,
   gableOverhang = 0,
+  slopePercent = 0,
+  includeSlopeGables = false,
 }) {
   const safeSpan = Math.max(0, Number(span) || 0);
   const safeLength = Math.max(0, Number(ridgeLength) || 0);
@@ -420,15 +422,22 @@ export function roofGeometry({
   const roofSpan = safeSpan + safeEaveOverhang * 2;
   const roofLength = safeLength + safeGableOverhang * 2;
   if (shape === "flat") {
-    const area = roofLength * roofSpan;
+    const safeSlopePercent = Math.min(100, Math.max(0, Number(slopePercent) || 0));
+    const slopeCoefficient = Math.hypot(1, safeSlopePercent / 100);
+    const slopeLength = roofSpan * slopeCoefficient;
+    const wallSlopeLength = safeSpan * slopeCoefficient;
+    const rise = safeSpan * safeSlopePercent / 100;
+    const area = roofLength * slopeLength;
     return {
       shape: "flat",
-      slopeLength: round(roofSpan, 3),
-      wallSlopeLength: round(safeSpan, 3),
+      slopeLength: round(slopeLength, 3),
+      wallSlopeLength: round(wallSlopeLength, 3),
       slopeArea: round(area, 2),
       totalSlopeArea: round(area, 2),
-      gableArea: 0,
-      slopeCoefficient: 1,
+      gableArea: includeSlopeGables ? round(safeSpan * rise, 2) : 0,
+      slopeCoefficient: round(slopeCoefficient, 3),
+      slopePercent: round(safeSlopePercent, 2),
+      rise: round(rise, 3),
       roofSpan: round(roofSpan, 3),
       roofLength: round(roofLength, 3),
       eaveOverhang: round(safeEaveOverhang, 3),

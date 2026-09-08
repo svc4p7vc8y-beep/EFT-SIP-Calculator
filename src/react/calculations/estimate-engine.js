@@ -928,6 +928,13 @@ function roofSection(project, metrics, index, inputs) {
   const mainRoofShape = ["flat", "hip"].includes(roof.shape)
     ? roof.shape
     : "gable";
+  const flatSlopeMode = mainRoofShape === "flat" && ["tapered", "structural"].includes(roof.flatSlopeMode)
+    ? roof.flatSlopeMode
+    : "none";
+  const flatSlopePercent = flatSlopeMode === "none"
+    ? 0
+    : Math.min(20, Math.max(0, Number(roof.flatSlopePercent) || 0));
+  const hasStructuralFlatGables = flatSlopeMode === "structural" && flatSlopePercent > 0;
   const eaveOverhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
   const geometry = roofGeometry({
@@ -937,6 +944,8 @@ function roofSection(project, metrics, index, inputs) {
     shape: mainRoofShape,
     eaveOverhang,
     gableOverhang,
+    slopePercent: flatSlopePercent,
+    includeSlopeGables: hasStructuralFlatGables,
   });
   const mainArea = geometry.totalSlopeArea;
   const mainWarmPercent =
@@ -966,8 +975,9 @@ function roofSection(project, metrics, index, inputs) {
     if (platform.roof?.mode === "warm") warmSlopeArea += result.netArea;
     if (platform.roof?.mode === "cold") coldSlopeArea += result.netArea;
   });
+  const supportsMainGables = mainRoofShape === "gable" || hasStructuralFlatGables;
   const mainGableType =
-    mainRoofShape !== "gable" || roof.gableType === "none"
+    !supportsMainGables || roof.gableType === "none"
       ? "none"
       : roof.gableType === "cold"
         ? "cold"
@@ -977,7 +987,7 @@ function roofSection(project, metrics, index, inputs) {
             ? "sip"
             : "cold";
   const mainGableCount =
-    mainRoofShape === "gable"
+    supportsMainGables
       ? Math.min(2, Math.max(0, Math.round(Number(roof.gableCount) || 0)))
       : 0;
   const mainGableArea =
@@ -1870,7 +1880,7 @@ function roofSection(project, metrics, index, inputs) {
         key: "rafters",
         unit: "м³",
         digits: 3,
-        name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`,
+        name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м${mainRoofShape === "flat" ? "" : `, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`}`,
       },
     ),
     makeLine(
@@ -2212,6 +2222,10 @@ function roofSection(project, metrics, index, inputs) {
     geometry,
     mainRoofShape,
     ridgeAxis: roofAxes.ridgeAxis,
+    flatSlopeMode,
+    flatSlopeDirection: roof.flatSlopeDirection || "back",
+    flatSlopePercent,
+    flatRise: geometry.rise || 0,
     terraceRoofs,
     sipCutting,
     gableSipCutting,
