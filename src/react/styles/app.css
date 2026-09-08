@@ -207,6 +207,7 @@ button:disabled {
   height: calc(100vh - 76px);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   padding: 18px 12px;
   border-right: 1px solid var(--line);
   background: var(--panel);
@@ -214,8 +215,15 @@ button:disabled {
 }
 .sidebar nav {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 3px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-color: color-mix(in srgb, var(--green) 55%, transparent) transparent;
+  scrollbar-width: thin;
 }
 .sidebar nav button {
   width: 100%;
@@ -250,7 +258,8 @@ button:disabled {
   border-top: 1px solid var(--line);
 }
 .sidebar-status {
-  margin-top: auto;
+  flex: 0 0 auto;
+  margin-top: 12px;
   padding: 13px;
   color: var(--muted);
   font-size: 11px;
