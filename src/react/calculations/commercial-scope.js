@@ -86,7 +86,9 @@ function scopeDescription(key, project, calculation, lineCount) {
         project.settings.roof.shape === 'hip' && `коэффициент вальмовой кровли: материалы +25%, работы +50%`,
         `конёк включён`,
         project.settings.roof.includeGutter === true && `водосточная система ${formatNumber(roof.gutterLength)} м`,
-        roof.gableArea > 0 && `фронтоны ${formatNumber(roof.gableArea)} м²`,
+        roof.gableArea > 0 && (roof.flatSlopeMode === 'structural'
+          ? `зашивка перепада высот ${formatNumber(roof.gableArea)} м²`
+          : `фронтоны ${formatNumber(roof.gableArea)} м²`),
         coveredPlatforms > 0 && `кровля ${pluralRu(coveredPlatforms, 'пристройки', 'пристроек', 'пристроек')}`
       ])
     };

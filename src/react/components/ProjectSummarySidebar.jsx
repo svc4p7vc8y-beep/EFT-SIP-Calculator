@@ -419,7 +419,7 @@ export default function ProjectSummarySidebar({
             value={`${formatNumber((roof.coldSlopeArea || 0) + (roof.warmSlopeArea || 0))} м²`}
           />
           <SummaryValue
-            label="Фронтоны"
+            label={project.settings.roof.shape === "flat" && roof.flatSlopeMode === "structural" ? "Зашивка перепада" : "Фронтоны"}
             value={`${formatNumber(roof.gableArea)} м²`}
           />
           <SummaryValue

@@ -407,6 +407,7 @@ export function calculateSipRoofCutting(area, options = {}) {
 export function roofGeometry({
   span,
   ridgeLength,
+  wallLength,
   ridgeHeight,
   shape = "gable",
   eaveOverhang = 0,
@@ -416,6 +417,10 @@ export function roofGeometry({
 }) {
   const safeSpan = Math.max(0, Number(span) || 0);
   const safeLength = Math.max(0, Number(ridgeLength) || 0);
+  const safeWallLength = Math.max(
+    0,
+    Number(wallLength ?? ridgeLength) || 0,
+  );
   const safeHeight = Math.max(0, Number(ridgeHeight) || 0);
   const safeEaveOverhang = Math.max(0, Number(eaveOverhang) || 0);
   const safeGableOverhang = Math.max(0, Number(gableOverhang) || 0);
@@ -428,13 +433,18 @@ export function roofGeometry({
     const wallSlopeLength = safeSpan * slopeCoefficient;
     const rise = safeSpan * safeSlopePercent / 100;
     const area = roofLength * slopeLength;
+    const slopeSideWallArea = safeSpan * rise;
+    const slopeHighWallArea = safeWallLength * rise;
+    const slopeEnclosureArea = slopeSideWallArea + slopeHighWallArea;
     return {
       shape: "flat",
       slopeLength: round(slopeLength, 3),
       wallSlopeLength: round(wallSlopeLength, 3),
       slopeArea: round(area, 2),
       totalSlopeArea: round(area, 2),
-      gableArea: includeSlopeGables ? round(safeSpan * rise, 2) : 0,
+      gableArea: includeSlopeGables ? round(slopeEnclosureArea, 2) : 0,
+      slopeSideWallArea: includeSlopeGables ? round(slopeSideWallArea, 2) : 0,
+      slopeHighWallArea: includeSlopeGables ? round(slopeHighWallArea, 2) : 0,
       slopeCoefficient: round(slopeCoefficient, 3),
       slopePercent: round(safeSlopePercent, 2),
       rise: round(rise, 3),

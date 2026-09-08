@@ -56,6 +56,7 @@ import {
   generateAutoPileRows,
 } from "../calculations/foundation-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
+import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
 import { RoomNameField } from "../components/RoomNameField.jsx";
 import {
   Field,
@@ -596,7 +597,12 @@ function RoofPlanOverlay({ plan, roof, p }) {
   const bounds = boundsOf(contour);
   const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const shape = ["flat", "hip"].includes(roof.shape) ? roof.shape : "gable";
-  const { vertical } = resolveRoofAxes(plan, roof);
+  const resolvedAxes = resolveRoofAxes(plan, roof);
+  const flatSlopeDirection = roof.flatSlopeDirection || "back";
+  const vertical =
+    shape === "flat"
+      ? ["left", "right"].includes(flatSlopeDirection)
+      : resolvedAxes.vertical;
   const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
   const xOverhang =
     shape === "gable" ? (vertical ? overhang : gableOverhang) : overhang;
@@ -619,6 +625,13 @@ function RoofPlanOverlay({ plan, roof, p }) {
     : { x: shape === "hip" ? x2 - ridgeInset : x2, y: centerY };
   const roofRect = [p(x1, y1), p(x2, y1), p(x2, y2), p(x1, y2)];
   const ridge = [p(ridgeA.x, ridgeA.y), p(ridgeB.x, ridgeB.y)];
+  const arrowInset = Math.min(Math.max(0.3, Math.min(x2 - x1, y2 - y1) * 0.18), 1.5);
+  const flatSlopeArrow = {
+    front: [p(centerX, y1 + arrowInset), p(centerX, y2 - arrowInset)],
+    back: [p(centerX, y2 - arrowInset), p(centerX, y1 + arrowInset)],
+    left: [p(x2 - arrowInset, centerY), p(x1 + arrowInset, centerY)],
+    right: [p(x1 + arrowInset, centerY), p(x2 - arrowInset, centerY)],
+  }[flatSlopeDirection];
   const step = Math.max(0.3, Number(roof.rafterStep) || 0.6);
   const spacedValues = (start, end, spacing) => {
     const count = Math.max(1, Math.ceil(Math.max(0, end - start) / spacing));
@@ -943,6 +956,21 @@ function RoofPlanOverlay({ plan, roof, p }) {
       className={`roof-plan-overlay roof-${shape}`}
       aria-label="План кровли сверху"
     >
+      {shape === "flat" ? (
+        <defs>
+          <marker
+            id="roof-plan-slope-arrow"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" />
+          </marker>
+        </defs>
+      ) : null}
       {roof.showRoofCover !== false ? (
         <polygon
           className="roof-cover-plane"
@@ -998,6 +1026,18 @@ function RoofPlanOverlay({ plan, roof, p }) {
         <g className="roof-counter-lath">{rafters}</g>
       ) : null}
       {roof.showLath !== false ? <g className="roof-lath">{laths}</g> : null}
+      {shape === "flat" &&
+      (roof.flatSlopeMode || "none") !== "none" &&
+      Number(roof.flatSlopePercent) > 0 ? (
+        <line
+          className="roof-flat-slope-arrow"
+          x1={flatSlopeArrow[0].x}
+          y1={flatSlopeArrow[0].y}
+          x2={flatSlopeArrow[1].x}
+          y2={flatSlopeArrow[1].y}
+          markerEnd="url(#roof-plan-slope-arrow)"
+        />
+      ) : null}
       <polygon
         className="roof-overhang-outline"
         points={roofRect.map((point) => `${point.x},${point.y}`).join(" ")}
@@ -2647,6 +2687,7 @@ function RoomList({ plan, issues, onSelect }) {
 }
 
 function RoofLayerInspector({ roof, commitRoof }) {
+  const visibility = roofControlVisibility(roof);
   return (
     <div className="inspector-form roof-layer-inspector">
       <h3>Кровля · вид сверху</h3>
@@ -2697,7 +2738,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           ) : null}
         </>
       )}
-      <SelectField
+      {visibility.showRafterSystem ? <SelectField
         label="Тип стропильной системы"
         value={roof.rafterSystem || "hanging"}
         onChange={(value) => commitRoof("rafterSystem", value)}
@@ -2706,7 +2747,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "layered", label: "Наслонная · с опорами" },
           { value: "truss", label: "Стропильная ферма" },
         ]}
-      />
+      /> : null}
       <SelectField
         label="Конструкция кровли"
         value={roof.type || "cold"}
@@ -2746,7 +2787,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           step={0.05}
           onChange={(value) => commitRoof("eaveOverhang", value)}
         />
-        {roof.shape === "gable" ? (
+        {visibility.showGableOverhang ? (
           <NumberField
             label="Свес фронтона"
             value={roof.gableOverhang ?? 0.3}
@@ -2756,14 +2797,14 @@ function RoofLayerInspector({ roof, commitRoof }) {
             onChange={(value) => commitRoof("gableOverhang", value)}
           />
         ) : null}
-        <NumberField
+        {visibility.showRafterDimensions ? <NumberField
           label="Шаг стропил"
           value={roof.rafterStep || 0.6}
           suffix="м"
           min={0.3}
           step={0.05}
           onChange={(value) => commitRoof("rafterStep", value)}
-        />
+        /> : null}
         <NumberField
           label="Шаг обрешётки"
           value={roof.lathStep || 0.35}
@@ -2773,7 +2814,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           onChange={(value) => commitRoof("lathStep", value)}
         />
       </div>
-      <SelectField
+      {visibility.showRafterDimensions ? <SelectField
         label="Стропильная доска"
         value={roof.rafterSection || "50x150"}
         onChange={(value) => commitRoof("rafterSection", value)}
@@ -2781,8 +2822,8 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "50x150", label: "50 × 150 мм" },
           { value: "50x200", label: "50 × 200 мм" },
         ]}
-      />
-      <SelectField
+      /> : null}
+      {visibility.showMauerlat ? <SelectField
         label="Схема мауэрлата"
         value={roof.mauerlatLayout || "perimeter"}
         onChange={(value) => commitRoof("mauerlatLayout", value)}
@@ -2791,8 +2832,8 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "supports", label: "Только опорные стены" },
           { value: "none", label: "Не учитывать" },
         ]}
-      />
-      <SelectField
+      /> : null}
+      {visibility.showMauerlat ? <SelectField
         label="Крепление мауэрлата"
         value={roof.mauerlatFastener || "sip-screws"}
         onChange={(value) => commitRoof("mauerlatFastener", value)}
@@ -2801,8 +2842,8 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "anchors", label: "Анкер-шпильки · армопояс" },
           { value: "none", label: "Не учитывать" },
         ]}
-      />
-      <SelectField
+      /> : null}
+      {visibility.showRafterSupport ? <SelectField
         label="Опора стропил"
         value={roof.rafterSupportConnection || "nails"}
         onChange={(value) => commitRoof("rafterSupportConnection", value)}
@@ -2810,23 +2851,23 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "nails", label: "Гвоздевой узел по СП" },
           { value: "angles", label: "Усиленные уголки" },
         ]}
-      />
+      /> : null}
       <div className="roof-layer-toggles">
         <Toggle
           label="Покрытие"
           checked={roof.showRoofCover !== false}
           onChange={(value) => commitRoof("showRoofCover", value)}
         />
-        <Toggle
+        {visibility.showMauerlat ? <Toggle
           label="Мауэрлат"
           checked={roof.showMauerlat !== false}
           onChange={(value) => commitRoof("showMauerlat", value)}
-        />
-        <Toggle
+        /> : null}
+        {visibility.showRafterStructure ? <Toggle
           label="Стропила"
           checked={roof.showRafters !== false}
           onChange={(value) => commitRoof("showRafters", value)}
-        />
+        /> : null}
         <Toggle
           label="Обрешётка"
           checked={roof.showLath !== false}
@@ -2847,7 +2888,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           checked={roof.includeEaveTrim !== false}
           onChange={(value) => commitRoof("includeEaveTrim", value)}
         />
-        {roof.shape === "gable" ? (
+        {visibility.showVergeTrim ? (
           <Toggle
             label="Торцевые планки"
             checked={roof.includeVergeTrim !== false}

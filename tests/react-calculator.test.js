@@ -13,6 +13,30 @@ import { resolveRoofAxes } from '../src/calculations/roof-orientation.js';
 import { calculationFlowRows } from '../src/react/calculations/calculation-links.js';
 import { calculateFramePartitionAssembly } from '../src/react/calculations/sip-joinery.js';
 import { SIP_GUIDE_ENTRIES } from '../src/react/data/sip-guide.js';
+import { roofControlVisibility } from '../src/react/calculations/roof-control-visibility.js';
+
+test('roof controls only expose parameters that affect the selected construction', () => {
+  const gable = roofControlVisibility({ shape: 'gable', type: 'cold' });
+  assert.equal(gable.showRafterSystem, true);
+  assert.equal(gable.showMauerlat, true);
+  assert.equal(gable.showVergeTrim, true);
+
+  const hip = roofControlVisibility({ shape: 'hip', type: 'cold' });
+  assert.equal(hip.showGableOverhang, false);
+  assert.equal(hip.showVergeTrim, false);
+
+  const flat = roofControlVisibility({ shape: 'flat', type: 'cold' });
+  assert.equal(flat.showRafterSystem, false);
+  assert.equal(flat.showMauerlat, false);
+  assert.equal(flat.showMainAccessories, false);
+  assert.equal(flat.showRafterDimensions, true);
+
+  const sip = roofControlVisibility({ shape: 'gable', type: 'sip' });
+  assert.equal(sip.showRafterStructure, false);
+  assert.equal(sip.showRafterSystem, false);
+  assert.equal(sip.showRafterDimensions, false);
+  assert.equal(sip.showRafterSupport, false);
+});
 
 test('new blank plan starts without a contour, piles or binding', () => {
   const plan = createBlankPlan();
@@ -727,7 +751,7 @@ test('flat roof slope made above the deck changes slope area without adding gabl
   assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
 });
 
-test('structurally inclined flat roof adds two triangular end walls', () => {
+test('structurally inclined flat roof adds two triangular sides and the high wall', () => {
   const project = createDefaultProject();
   project.settings.roof.shape = 'flat';
   project.settings.roof.flatSlopeMode = 'structural';
@@ -738,10 +762,29 @@ test('structurally inclined flat roof adds two triangular end walls', () => {
   const result = calculateProject(project);
 
   const expectedRise = project.plan.house.w * 0.05;
+  const expectedSideArea = project.plan.house.w * expectedRise;
+  const expectedHighWallArea = project.plan.house.h * expectedRise;
   assert.equal(result.roof.ridgeAxis, 'y');
   assert.ok(Math.abs(result.roof.flatRise - expectedRise) < 0.001);
-  assert.ok(Math.abs(result.roof.gableArea - project.plan.house.w * expectedRise) < 0.01);
+  assert.ok(Math.abs(result.roof.flatSideWallArea - expectedSideArea) < 0.01);
+  assert.ok(Math.abs(result.roof.flatHighWallArea - expectedHighWallArea) < 0.01);
+  assert.ok(Math.abs(result.roof.gableArea - expectedSideArea - expectedHighWallArea) < 0.01);
   assert.ok(result.lines.some((line) => line.id === 'roof:gable-frame'));
+  assert.match(result.lines.find((line) => line.id === 'roof:gable-frame').name, /перепада высот/);
+});
+
+test('structural flat roof can still exclude all three-sided infill manually', () => {
+  const project = createDefaultProject();
+  project.settings.roof.shape = 'flat';
+  project.settings.roof.flatSlopeMode = 'structural';
+  project.settings.roof.flatSlopePercent = 5;
+  project.settings.roof.gableType = 'none';
+  const result = calculateProject(project);
+
+  assert.equal(result.roof.gableArea, 0);
+  assert.equal(result.roof.flatSideWallArea, 0);
+  assert.equal(result.roof.flatHighWallArea, 0);
+  assert.equal(result.lines.some((line) => line.source === 'gables'), false);
 });
 
 test('main roof can count one exposed gable instead of two', () => {

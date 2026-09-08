@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { calculateProject } from "../calculations/estimate-engine.js";
+import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import { InternalEditor } from '../components/InternalEditor.jsx';
@@ -124,6 +125,25 @@ function SectionResult({ calculation, sectionKey }) {
 function RafterSystemPreview({ calculation }) {
   const roof = calculation.roof;
   const structure = roof.rafterStructure || {};
+  const flat = roof.mainRoofShape === "flat";
+  const flatSlopeDirection = roof.flatSlopeDirection || "back";
+  const flatSlopePercent = Math.max(0, Number(roof.flatSlopePercent) || 0);
+  const flatHasSlope = flat && flatSlopePercent > 0;
+  const flatFallsToStart = ["front", "left"].includes(flatSlopeDirection);
+  const flatStartY = flatHasSlope ? (flatFallsToStart ? 128 : 54) : 92;
+  const flatEndY = flatHasSlope ? (flatFallsToStart ? 54 : 128) : 92;
+  const flatDirectionLabels = {
+    front: "к фасаду",
+    back: "к задней стороне",
+    left: "влево",
+    right: "вправо",
+  };
+  const flatArrow = {
+    front: { x1: 529, y1: 55, x2: 529, y2: 169 },
+    back: { x1: 529, y1: 169, x2: 529, y2: 55 },
+    left: { x1: 663, y1: 112, x2: 395, y2: 112 },
+    right: { x1: 395, y1: 112, x2: 663, y2: 112 },
+  }[flatSlopeDirection];
   const count = Math.max(2, structure.pairCount || 2);
   const planRafters = Array.from(
     { length: count },
@@ -145,32 +165,59 @@ function RafterSystemPreview({ calculation }) {
         role="img"
         aria-label="Схема стропильной системы"
       >
+        <defs>
+          <marker
+            id="flat-roof-slope-arrow"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" />
+          </marker>
+        </defs>
         <g className="roof-scheme-house">
           <rect x="45" y="135" width="250" height="52" />
-          <line x1="35" y1="135" x2="170" y2="38" />
-          <line x1="170" y1="38" x2="305" y2="135" />
-          <rect
-            className="roof-scheme-mauerlat"
-            x="48"
-            y="127"
-            width="18"
-            height="8"
-          />
-          <rect
-            className="roof-scheme-mauerlat"
-            x="274"
-            y="127"
-            width="18"
-            height="8"
-          />
-          <rect
-            className="roof-scheme-ridge-block"
-            x="166"
-            y="32"
-            width="8"
-            height="14"
-          />
-          {layered ? (
+          {flat ? (
+            <>
+              <polygon
+                className="roof-scheme-flat-infill"
+                points={`45,135 45,${flatStartY} 295,${flatEndY} 295,135`}
+              />
+              <line
+                className="roof-scheme-flat-plane"
+                x1="35"
+                y1={flatStartY}
+                x2="305"
+                y2={flatEndY}
+              />
+              <line
+                className="roof-scheme-support"
+                x1="45"
+                y1={flatStartY}
+                x2="45"
+                y2="135"
+              />
+              <line
+                className="roof-scheme-support"
+                x1="295"
+                y1={flatEndY}
+                x2="295"
+                y2="135"
+              />
+            </>
+          ) : (
+            <>
+              <line x1="35" y1="135" x2="170" y2="38" />
+              <line x1="170" y1="38" x2="305" y2="135" />
+              <rect className="roof-scheme-mauerlat" x="48" y="127" width="18" height="8" />
+              <rect className="roof-scheme-mauerlat" x="274" y="127" width="18" height="8" />
+              <rect className="roof-scheme-ridge-block" x="166" y="32" width="8" height="14" />
+            </>
+          )}
+          {!flat && layered ? (
             <>
               <rect
                 className="roof-scheme-mauerlat"
@@ -201,7 +248,7 @@ function RafterSystemPreview({ calculation }) {
                 y2="83"
               />
             </>
-          ) : truss ? (
+          ) : !flat && truss ? (
             <>
               <line
                 className="roof-scheme-support"
@@ -232,7 +279,7 @@ function RafterSystemPreview({ calculation }) {
                 y2="127"
               />
             </>
-          ) : (
+          ) : !flat ? (
             <line
               className="roof-scheme-support"
               x1="84"
@@ -240,9 +287,11 @@ function RafterSystemPreview({ calculation }) {
               x2="256"
               y2="100"
             />
-          )}
+          ) : null}
           <text x="170" y="207" textAnchor="middle">
-            {layered
+            {flat
+              ? `Плоская кровля · ${flatHasSlope ? `уклон ${formatNumber(flatSlopePercent)}% ${flatDirectionLabels[flatSlopeDirection]}` : "без уклона"}`
+              : layered
               ? "Наслонная · прогон, стойка и подкосы"
               : truss
                 ? "Стропильная ферма · пояс и решётка"
@@ -251,32 +300,27 @@ function RafterSystemPreview({ calculation }) {
         </g>
         <g className="roof-scheme-plan">
           <rect x="370" y="38" width="318" height="149" />
-          <line
-            className="roof-scheme-mauerlat-line"
-            x1="374"
-            y1="45"
-            x2="684"
-            y2="45"
-          />
-          <line
-            className="roof-scheme-mauerlat-line"
-            x1="374"
-            y1="180"
-            x2="684"
-            y2="180"
-          />
-          <line
-            className="roof-scheme-ridge"
-            x1="370"
-            y1="112"
-            x2="688"
-            y2="112"
-          />
+          {!flat ? (
+            <>
+              <line className="roof-scheme-mauerlat-line" x1="374" y1="45" x2="684" y2="45" />
+              <line className="roof-scheme-mauerlat-line" x1="374" y1="180" x2="684" y2="180" />
+              <line className="roof-scheme-ridge" x1="370" y1="112" x2="688" y2="112" />
+            </>
+          ) : flatHasSlope ? (
+            <line
+              className="roof-scheme-slope-arrow"
+              x1={flatArrow.x1}
+              y1={flatArrow.y1}
+              x2={flatArrow.x2}
+              y2={flatArrow.y2}
+              markerEnd="url(#flat-roof-slope-arrow)"
+            />
+          ) : null}
           {planRafters.map((x) => (
             <line key={x} x1={x} y1="38" x2={x} y2="187" />
           ))}
           <text x="529" y="207" textAnchor="middle">
-            {structure.pairCount || 0} пар · шаг{" "}
+            {structure.pairCount || 0} {flat ? "балок" : "пар"} · шаг{" "}
             {formatNumber(structure.step || 0.6)} м
           </text>
         </g>
@@ -287,7 +331,7 @@ function RafterSystemPreview({ calculation }) {
           <strong>{systemLabel}</strong>
         </div>
         <div>
-          <span>Стропильные ноги</span>
+          <span>{flat ? "Балки" : "Стропильные ноги"}</span>
           <strong>
             {structure.legCount || 0} шт · {formatNumber(roof.rafterLegLength)}{" "}
             м
@@ -321,8 +365,20 @@ function RoofConstructionPanels({
   setPlatformRoof,
 }) {
   const isFlatRoof = project.settings.roof.shape === "flat";
+  const roofVisibility = roofControlVisibility(project.settings.roof);
   const hasFlatSlope = isFlatRoof && (project.settings.roof.flatSlopeMode || "none") !== "none";
   const hasStructuralFlatGables = hasFlatSlope && project.settings.roof.flatSlopeMode === "structural";
+  const roofStructureTitle = isFlatRoof
+    ? hasStructuralFlatGables
+      ? roofVisibility.showRafterStructure
+        ? "Балки и зашивка перепада высот"
+        : "Зашивка перепада высот"
+      : roofVisibility.showRafterStructure
+        ? "Балки плоской кровли"
+        : "Обрешётка"
+    : roofVisibility.showRafterStructure
+      ? "Стропильная система и фронтоны"
+      : "Фронтоны";
   return (
     <>
       <Panel
@@ -454,15 +510,17 @@ function RoofConstructionPanels({
               step={0.05}
               onChange={(value) => setSetting("roof", "eaveOverhang", value)}
             />
-            <NumberField
-              label="Торцевой свес · спереди и сзади"
-              value={project.settings.roof.gableOverhang ?? 0.3}
-              suffix="м"
-              min={0}
-              max={2}
-              step={0.05}
-              onChange={(value) => setSetting("roof", "gableOverhang", value)}
-            />
+            {roofVisibility.showGableOverhang ? (
+              <NumberField
+                label={isFlatRoof ? "Свес по длине кровли" : "Торцевой свес · спереди и сзади"}
+                value={project.settings.roof.gableOverhang ?? 0.3}
+                suffix="м"
+                min={0}
+                max={2}
+                step={0.05}
+                onChange={(value) => setSetting("roof", "gableOverhang", value)}
+              />
+            ) : null}
             <div className="readout">
               <span>Габарит кровли со свесами</span>
               <strong>
@@ -483,9 +541,9 @@ function RoofConstructionPanels({
           </div>
         </section>
         <section className="roof-main-section">
-          <h3>{hasStructuralFlatGables ? "Стропильная система и треугольные торцы" : "Стропильная система и фронтоны"}</h3>
+          <h3>{roofStructureTitle}</h3>
         <div className="form-grid four">
-          <SelectField
+          {roofVisibility.showRafterStructure ? <SelectField
             label="Режим расчёта"
             value={project.settings.roof.structureMode || "auto"}
             onChange={(value) => setSetting("roof", "structureMode", value)}
@@ -493,8 +551,8 @@ function RoofConstructionPanels({
               { value: "auto", label: "Автоматически по плану" },
               { value: "manual", label: "Ручная настройка" },
             ]}
-          />
-          <SelectField
+          /> : null}
+          {roofVisibility.showRafterSystem ? <SelectField
             label="Тип стропильной системы"
             value={
               (project.settings.roof.structureMode || "auto") === "auto"
@@ -510,8 +568,8 @@ function RoofConstructionPanels({
               { value: "layered", label: "Наслонная · с опорой" },
               { value: "truss", label: "Стропильная ферма" },
             ]}
-          />
-          <NumberField
+          /> : null}
+          {roofVisibility.showRafterDimensions ? <NumberField
             label="Чистый шаг между стропилами"
             value={
               (project.settings.roof.structureMode || "auto") === "auto"
@@ -526,8 +584,8 @@ function RoofConstructionPanels({
               (project.settings.roof.structureMode || "auto") === "auto"
             }
             onChange={(value) => setSetting("roof", "rafterStep", value)}
-          />
-          <SelectField
+          /> : null}
+          {roofVisibility.showRafterDimensions ? <SelectField
             label="Стропильная доска"
             value={
               (project.settings.roof.structureMode || "auto") === "auto"
@@ -542,7 +600,7 @@ function RoofConstructionPanels({
               { value: "50x150", label: "50×150 мм" },
               { value: "50x200", label: "50×200 мм" },
             ]}
-          />
+          /> : null}
           <NumberField
             label="Шаг обрешётки"
             value={project.settings.roof.lathStep ?? 0.35}
@@ -555,7 +613,7 @@ function RoofConstructionPanels({
           {project.settings.roof.shape === "gable" || hasStructuralFlatGables ? (
             <>
               <SelectField
-                label={hasStructuralFlatGables ? "Треугольные торцы" : "Фронтоны основной крыши"}
+                label={hasStructuralFlatGables ? "Зашивка перепада высот" : "Фронтоны основной крыши"}
                 value={project.settings.roof.gableType || "auto"}
                 onChange={(value) => setSetting("roof", "gableType", value)}
                 options={[
@@ -566,7 +624,7 @@ function RoofConstructionPanels({
                 ]}
               />
               <NumberField
-                label={hasStructuralFlatGables ? "Количество торцов" : "Количество фронтонов"}
+                label={hasStructuralFlatGables ? "Количество боковых треугольников" : "Количество фронтонов"}
                 value={project.settings.roof.gableCount ?? 2}
                 suffix="шт"
                 min={0}
@@ -580,33 +638,40 @@ function RoofConstructionPanels({
           ) : null}
           {isFlatRoof ? (
             <p className="inspector-note">
-              При разуклонке поверх основания треугольные торцы не возникают, а материал разуклонки задаётся вручную. При перепаде высоты стен калькулятор считает два треугольных торца существующими правилами для каркаса или SIP.
+              При разуклонке поверх основания дополнительная зашивка стен не возникает, а материал разуклонки задаётся вручную. При перепаде высоты стен калькулятор считает высокую сторону и выбранное количество боковых треугольников по правилам для каркаса или SIP. Значение «Не учитывать» исключает всю зашивку.
             </p>
           ) : null}
           <div className="readout">
-            <span>{hasStructuralFlatGables ? "Площадь треугольных торцов" : "Площадь фронтонов"}</span>
-            <strong>{formatNumber(calculation.roof.gableArea)} м²</strong>
+            <span>{hasStructuralFlatGables ? "Зашивка перепада высот" : "Площадь фронтонов"}</span>
+            <strong>
+              {formatNumber(calculation.roof.gableArea)} м²
+              {hasStructuralFlatGables
+                ? ` · боковые ${formatNumber(calculation.roof.flatSideWallArea)} + высокая сторона ${formatNumber(calculation.roof.flatHighWallArea)}`
+                : ""}
+            </strong>
           </div>
           <div className="readout">
             <span>Столбы пристроек</span>
             <strong>{calculation.roof.terracePostCount} шт</strong>
           </div>
-          <div className="readout">
-            <span>Стропильные пары</span>
+          {roofVisibility.showRafterStructure ? <div className="readout">
+            <span>{isFlatRoof ? "Балки кровли" : "Стропильные пары"}</span>
             <strong>
               {calculation.roof.rafterStructure.pairCount} шт · модуль{" "}
               {formatNumber(calculation.roof.rafterStructure.module, 2)} м
             </strong>
-          </div>
+          </div> : null}
           <div className="readout">
             <span>Обрешётка</span>
             <strong>{calculation.roof.mainLathBoardCount} досок × 6 м</strong>
           </div>
         </div>
-        <RafterSystemPreview calculation={calculation} />
+        {roofVisibility.showRafterStructure ? (
+          <RafterSystemPreview calculation={calculation} />
+        ) : null}
         </section>
-        <section className="roof-main-section">
-          <h3>Мауэрлат и крепёж стропильной системы</h3>
+        {roofVisibility.showMauerlat ? <section className="roof-main-section">
+          <h3>{roofVisibility.showRafterSupport ? "Мауэрлат и крепёж стропильной системы" : "Мауэрлат и крепёж кровли"}</h3>
           <p className="roof-section-note">
             Мауэрлат считается шестиметровыми брусьями. Крепёж формируется по
             точкам опирания, узлам конька, затяжкам и пересечениям обрешётки.
@@ -632,7 +697,7 @@ function RoofConstructionPanels({
                 { value: "none", label: "Не учитывать" },
               ]}
             />
-            <SelectField
+            {roofVisibility.showRafterSupport ? <SelectField
               label="Опора стропил"
               value={project.settings.roof.rafterSupportConnection || "nails"}
               onChange={(value) => setSetting("roof", "rafterSupportConnection", value)}
@@ -640,7 +705,7 @@ function RoofConstructionPanels({
                 { value: "nails", label: "Гвоздевой узел по СП" },
                 { value: "angles", label: "Усиленные уголки" },
               ]}
-            />
+            /> : null}
             <div className="readout">
               <span>Мауэрлат 100×150</span>
               <strong>
@@ -657,7 +722,7 @@ function RoofConstructionPanels({
                     : "не учитывается"}
               </strong>
             </div>
-            <div className="readout">
+            {roofVisibility.showRafterSupport ? <div className="readout">
               <span>Опорные узлы стропил</span>
               <strong>
                 {calculation.roof.rafterSupportNodeCount || 0} узлов
@@ -665,11 +730,11 @@ function RoofConstructionPanels({
                   ? ` · ${calculation.roof.rafterSupportBracketCount} уголков`
                   : ""}
               </strong>
-            </div>
-            <div className="readout">
+            </div> : null}
+            {roofVisibility.showRafterSupport ? <div className="readout">
               <span>Гвозди стропильных узлов</span>
               <strong>{calculation.roof.framingNailCount || 0} шт</strong>
-            </div>
+            </div> : null}
             <div className="readout">
               <span>Крепёж обрешётки</span>
               <strong>
@@ -682,8 +747,8 @@ function RoofConstructionPanels({
             31-105-2002. Несущую способность уголков, саморезов и анкеров нужно
             подтвердить конструктивным проектом конкретного дома.
           </p>
-        </section>
-        <section className="roof-main-section">
+        </section> : null}
+        {roofVisibility.showMainAccessories ? <section className="roof-main-section">
           <h3>Доборные элементы</h3>
           <p className="roof-section-note">
             Коньковая планка и её монтаж всегда входят в двускатную кровлю.
@@ -698,14 +763,14 @@ function RoofConstructionPanels({
                 setSetting("roof", "includeEaveTrim", value)
               }
             />
-            <Toggle
+            {roofVisibility.showVergeTrim ? <Toggle
               label="Торцевые (ветровые) планки"
               hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`}
               checked={project.settings.roof.includeVergeTrim !== false}
               onChange={(value) =>
                 setSetting("roof", "includeVergeTrim", value)
               }
-            />
+            /> : null}
             <Toggle
               label="Уплотнитель под конёк"
               hint="Коньковая планка при этом остаётся"
@@ -733,7 +798,7 @@ function RoofConstructionPanels({
               </strong>
             </div>
           </div>
-        </section>
+        </section> : null}
       </Panel>
       <Panel
         title="Настройка кровель террас и крыльца"
@@ -1161,7 +1226,7 @@ export default function Calculators({ type }) {
               />
             ) : null}
             <Stat
-              label="SIP-фронтоны"
+              label={calculation.roof.flatSlopeMode === "structural" ? "SIP-зашивка перепада" : "SIP-фронтоны"}
               value={`${formatNumber(calculation.roof.warmGableArea)} м² · ${calculation.roof.gableSipCutting?.panels || 0} пан.`}
               tone={calculation.roof.warmGableArea ? "accent" : ""}
             />
@@ -1490,7 +1555,7 @@ export default function Calculators({ type }) {
             </div>
             {calculation.roof.coldGableArea > 0 ? (
               <p className="panel-note">
-                Каркасные фронтоны: {formatNumber(calculation.roof.coldGableArea)} м². Для них считаются доска 50×150 мм, ОСБ, крепёж и монтаж; в раскрой СИП-панелей они не входят.
+                {calculation.roof.flatSlopeMode === "structural" ? "Каркасная зашивка перепада высот" : "Каркасные фронтоны"}: {formatNumber(calculation.roof.coldGableArea)} м². Для них считаются доска 50×150 мм, ОСБ, крепёж и монтаж; в раскрой СИП-панелей они не входят.
               </p>
             ) : null}
           </Panel>
@@ -1527,11 +1592,11 @@ export default function Calculators({ type }) {
               value={`${calculation.roof.sipCutting?.panels || 0} шт`}
             />
             <Stat
-              label="Каркасные фронтоны"
+              label={calculation.roof.flatSlopeMode === "structural" ? "Каркасная зашивка перепада" : "Каркасные фронтоны"}
               value={`${formatNumber(calculation.roof.coldGableArea)} м²`}
             />
             <Stat
-              label="СИП-фронтоны"
+              label={calculation.roof.flatSlopeMode === "structural" ? "SIP-зашивка перепада" : "СИП-фронтоны"}
               value={`${formatNumber(calculation.roof.warmGableArea)} м² · ${calculation.roof.gableSipCutting?.panels || 0} пан.`}
               tone={calculation.roof.warmGableArea ? "accent" : ""}
             />

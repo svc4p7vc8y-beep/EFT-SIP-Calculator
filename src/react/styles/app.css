@@ -1527,6 +1527,34 @@ select,
   stroke: var(--green);
   stroke-width: 4;
 }
+.rafter-scheme svg .roof-scheme-flat-infill {
+  fill: color-mix(in srgb, var(--green-soft) 42%, transparent);
+  stroke: var(--green);
+  stroke-width: 1.5;
+}
+.rafter-scheme svg .roof-scheme-flat-plane {
+  stroke: var(--ink);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.rafter-scheme svg .roof-scheme-slope-arrow {
+  stroke: #c88b24;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.rafter-scheme svg marker path {
+  fill: #c88b24;
+}
+.roof-plan-overlay .roof-flat-slope-arrow {
+  fill: none;
+  stroke: #c88b24;
+  stroke-width: 5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.roof-plan-overlay marker path {
+  fill: #c88b24;
+}
 .rafter-scheme svg text {
   fill: var(--muted);
   font-size: 12px;

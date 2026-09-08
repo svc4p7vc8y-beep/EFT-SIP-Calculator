@@ -940,6 +940,7 @@ function roofSection(project, metrics, index, inputs) {
   const geometry = roofGeometry({
     span,
     ridgeLength: inputs.roof.ridgeLength,
+    wallLength: roofAxes.ridgeBaseLength,
     ridgeHeight: roof.ridgeHeight,
     shape: mainRoofShape,
     eaveOverhang,
@@ -990,8 +991,18 @@ function roofSection(project, metrics, index, inputs) {
     supportsMainGables
       ? Math.min(2, Math.max(0, Math.round(Number(roof.gableCount) || 0)))
       : 0;
+  const mainFlatSideWallArea = hasStructuralFlatGables
+    ? ((geometry.slopeSideWallArea || 0) * mainGableCount) / 2
+    : 0;
+  const mainFlatHighWallArea = hasStructuralFlatGables
+    ? geometry.slopeHighWallArea || 0
+    : 0;
   const mainGableArea =
-    mainGableType === "none" ? 0 : (geometry.gableArea * mainGableCount) / 2;
+    mainGableType === "none"
+      ? 0
+      : hasStructuralFlatGables
+        ? mainFlatSideWallArea + mainFlatHighWallArea
+        : (geometry.gableArea * mainGableCount) / 2;
   const mainColdGableArea = mainGableType === "cold" ? mainGableArea : 0;
   const mainWarmGableArea = mainGableType === "sip" ? mainGableArea : 0;
   let coldGableArea = mainColdGableArea;
@@ -1892,13 +1903,16 @@ function roofSection(project, metrics, index, inputs) {
         key: "gable-frame",
         unit: "м³",
         digits: 3,
-        name: `Каркас холодных фронтонов · доска 50×150 мм · ${mainGableBoardCount} шт × 6 м`,
+        name: `${hasStructuralFlatGables ? "Каркас холодной зашивки перепада высот" : "Каркас холодных фронтонов"} · доска 50×150 мм · ${mainGableBoardCount} шт × 6 м`,
         source: "gables",
       },
     ),
     makeLine(index, "roof", "Монтаж каркаса фронтонов", mainColdGableArea, {
       key: "gable-frame-work",
       kind: "labor",
+      name: hasStructuralFlatGables
+        ? "Монтаж каркаса зашивки перепада высот"
+        : "Монтаж каркаса фронтонов",
       source: "gables",
     }),
     makeLine(index, "roof", "Доска ест.влажн. сосна 25*100мм", mainLathVolume, {
@@ -1939,13 +1953,15 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, "roof", "ОСБ-3 12 мм 1250×2500 мм", mainOsbSheets, {
       key: "roof-osb",
       unit: "шт",
-      name: `ОСБ-3 12 мм · ${covering.osb ? "сплошной настил мягкой кровли" : "обшивка каркасных фронтонов"}`,
+      name: `ОСБ-3 12 мм · ${covering.osb ? "сплошной настил мягкой кровли" : hasStructuralFlatGables ? "обшивка каркасной зашивки перепада высот" : "обшивка каркасных фронтонов"}`,
       source: covering.osb ? "roof-cover" : "gables",
     }),
     makeLine(index, "roof", "Монтаж подкладочного слоя ОСБ/ГВЛВ", mainOsbArea, {
       key: "roof-osb-work",
       kind: "labor",
-      name: "Монтаж ОСБ кровли/фронтонов",
+      name: hasStructuralFlatGables
+        ? "Монтаж ОСБ кровли/зашивки перепада высот"
+        : "Монтаж ОСБ кровли/фронтонов",
       unit: "м²",
       source: covering.osb ? "roof-cover" : "gables",
     }),
@@ -2189,7 +2205,9 @@ function roofSection(project, metrics, index, inputs) {
       {
         key: "gable-sip-install",
         kind: "labor",
-        name: "Монтаж тёплых SIP-фронтонов",
+        name: hasStructuralFlatGables
+          ? "Монтаж SIP-зашивки перепада высот"
+          : "Монтаж тёплых SIP-фронтонов",
         source: "gables",
       },
     ),
@@ -2226,6 +2244,10 @@ function roofSection(project, metrics, index, inputs) {
     flatSlopeDirection: roof.flatSlopeDirection || "back",
     flatSlopePercent,
     flatRise: geometry.rise || 0,
+    flatSideWallArea:
+      mainGableType === "none" ? 0 : round(mainFlatSideWallArea),
+    flatHighWallArea:
+      mainGableType === "none" ? 0 : round(mainFlatHighWallArea),
     terraceRoofs,
     sipCutting,
     gableSipCutting,
