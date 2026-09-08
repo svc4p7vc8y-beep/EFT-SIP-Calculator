@@ -87,7 +87,7 @@ jobs:
           SSHPASS: ${{ secrets.BEGET_SSH_PASSWORD }}
           BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
         run: |
-          sshpass -e rsync -az --checksum --omit-dir-times \
+          sshpass -e rsync -az --checksum --omit-dir-times --no-perms --no-owner --no-group \
             --exclude='.htaccess' \
             --exclude='.htpasswd' \
             -e "ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes" \
