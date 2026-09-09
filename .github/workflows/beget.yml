@@ -35,6 +35,12 @@ jobs:
       - name: Build production files
         run: npm run build
 
+      - name: Keep calculator at the Beget domain root
+        run: |
+          test -f dist/react.html
+          cp dist/react.html dist/index.html
+          grep -q 'React-калькулятор СИП-домов' dist/index.html
+
       - name: Validate deployment secrets
         env:
           BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
