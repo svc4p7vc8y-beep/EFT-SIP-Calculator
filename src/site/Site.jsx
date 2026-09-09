@@ -1,0 +1,56 @@
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, Menu, X } from 'lucide-react';
+import { asset, houses } from './data.js';
+import Panels from './Panels.jsx';
+const ProjectDialog = lazy(() => import('./ProjectDialog.jsx'));
+const nav = [['projects', 'Проекты домов'], ['panels', 'СИП-панели'], ['technology', 'Технология'], ['about', 'О компании']];
+
+function HouseCard({ house, onOpen }) {
+  const hover = useRef(null);
+  const suppressed = useRef(false);
+  useEffect(() => {
+    const cancel = () => { clearTimeout(hover.current); hover.current = null; };
+    window.addEventListener('scroll', cancel, true);
+    return () => { cancel(); window.removeEventListener('scroll', cancel, true); };
+  }, []);
+  return <button className="house-card" aria-label={`Открыть проект ${house.name}`} onPointerMove={(e) => {
+    if (e.pointerType !== 'mouse' || suppressed.current || hover.current || document.querySelector('dialog[open]')) return;
+    import('./ProjectDialog.jsx');
+    hover.current = setTimeout(() => { suppressed.current = true; onOpen(house); }, 650);
+  }} onPointerLeave={() => { clearTimeout(hover.current); hover.current = null; suppressed.current = false; }} onBlur={() => { clearTimeout(hover.current); hover.current = null; }} onFocus={() => import('./ProjectDialog.jsx')} onClick={() => { clearTimeout(hover.current); suppressed.current = true; onOpen(house); }}>
+    <div className="house-image"><img loading="lazy" src={asset(house.image)} alt={`Дом ${house.name} — пример фасада`} /><span className="view-label">Фасад и планировка<ArrowUpRight size={18} /></span><span className="house-open"><ArrowUpRight /></span></div><div className="house-caption"><div><h3>{house.name}</h3><span>{house.mood}</span></div><span className="house-tag">{house.tag}</span></div><div className="house-meta"><span>1 этаж</span><span>Открытая терраса</span><span>Стоимость по запросу</span></div>
+  </button>;
+}
+
+function Contact({ cart, selection, setSelection }) {
+  const [saved, setSaved] = useState(false);
+  function download(e) {
+    e.preventDefault();
+    const values = new FormData(e.currentTarget);
+    const request = { format: 'eft-site-inquiry', version: 1, createdAt: new Date().toISOString(), name: values.get('name').trim(), phone: values.get('phone').trim(), project: selection, panels: cart, comment: values.get('comment').trim() };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(request, null, 2)], { type: 'application/json;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'EFT-заявка.json'; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000); setSaved(true);
+  }
+  return <section id="contact" className="contact-section"><div className="contact-image"><img loading="lazy" src={asset('family.webp')} alt="Светлый дом с террасой — визуализация" /><div><span>EFT</span><p>Большие планы.<br />Своя история.</p></div></div><div className="contact-content"><span className="section-number">04 / Следующий шаг</span><h2>Начнём<br />с вашего дома.</h2><p>Расскажите, что вы задумали.<br />Сохраните пожелания и выбранные панели в одну заявку.</p><form onSubmit={download} onChange={() => setSaved(false)}><label className="field">Интересующий проект<select value={selection} onChange={(e) => setSelection(e.target.value)}><option value="">Помогите выбрать</option>{selection && !houses.some((h) => h.name === selection) && selection !== 'Только СИП-панели' && <option>{selection}</option>}{houses.map((h) => <option key={h.id}>{h.name}</option>)}<option>Только СИП-панели</option></select></label><div className="form-row"><label className="field">Ваше имя<input name="name" autoComplete="name" required maxLength="100" pattern=".*\S.*" placeholder="Как к вам обращаться" /></label><label className="field">Телефон<input name="phone" type="tel" autoComplete="tel" required minLength="6" maxLength="30" placeholder="+7 (___) ___-__-__" /></label></div><label className="field">Пожелания<textarea name="comment" rows="2" maxLength="3000" placeholder="Участок, планировка, комплектация…" /></label>{cart.length > 0 && <p className="request-count">В заявке: {cart.reduce((total, item) => total + item.quantity, 0)} панелей · {cart.length} поз.</p>}<button className="btn primary" type="submit">Скачать подготовленную заявку<ArrowDown size={18} /></button><small className="sample-note">Пока заявка сохраняется только на ваше устройство. Отправка менеджеру ещё не подключена.</small><div role="status" className="feedback">{saved && <><Check size={16} />Файл подготовлен к скачиванию. Данные никуда не отправлены.</>}</div></form><a className="text-link" href="./EFT_client_questionnaire.html">Заполнить подробную анкету<ArrowUpRight size={18} /></a></div></section>;
+}
+
+export default function Site() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeHouse, setActiveHouse] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const [cart, setCart] = useState([]);
+  const [selection, setSelection] = useState('');
+  function discuss(project) { setSelection(project); setActiveHouse(null); requestAnimationFrame(() => document.getElementById('contact').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })); }
+  useEffect(() => { const escape = (e) => { if (e.key === 'Escape') setMenuOpen(false); }; window.addEventListener('keydown', escape); return () => window.removeEventListener('keydown', escape); }, []);
+  return <><a className="skip-link" href="#main">К содержанию</a><header className="site-header"><a className="wordmark" href="#" aria-label="EFT — на главную">EFT<span className="brand-caption">ЭнергоЭффективные<br />Технологии</span></a><nav className={menuOpen ? 'site-nav open' : 'site-nav'} id="main-navigation" aria-label="Основная навигация">{nav.map(([id, label]) => <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>{label}</a>)}</nav><a className="btn outline header-cta" href="#contact">Обсудить проект<ArrowUpRight size={16} /></a><button className="icon-btn menu-toggle" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button></header>
+    <main id="main"><section className="hero"><div className="hero-copy"><h1>Дом, в котором<br />всё на своём<br /><em>месте.</em></h1><p>Продуманные пространства для жизни.<br />Проекты домов и СИП-панели от EFT.</p><div className="hero-actions"><a className="btn primary" href="#projects">Выбрать дом<ArrowUpRight size={18} /></a><a className="btn outline" href="#panels">Купить СИП-панели</a></div><a className="hero-scroll" href="#projects"><span className="round-arrow"><ArrowDown size={18} /></span>Найдите место для своей истории</a></div><div className="hero-photo"><img fetchPriority="high" src={asset('forest.webp')} alt="Современный дом с террасой среди берёз — архитектурная визуализация" /><div className="photo-caption"><span>Ближе к природе.<br />Ближе к себе.</span><span>Коллекция EFT / 01</span></div></div></section>
+    <section className="section projects-section" id="projects"><div className="section-heading"><div><span className="section-number">01 / Коллекция домов</span><h2>Снаружи — дом.<br /><span className="muted">Внутри — ваша жизнь.</span></h2></div><p>Начните с архитектуры, которая вам близка.<br />Раскройте проект, чтобы изучить планировку.</p></div><div className="catalog-toolbar"><div className="filters" aria-label="Подбор проектов">{[['all', 'Все проекты'], ['compact', 'С кабинетом'], ['family', 'Для семьи']].map(([id, label]) => <button key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}</button>)}</div><span>Фасад + планировка<ArrowUpRight size={16} /></span></div><div className="houses-grid">{houses.filter((h) => filter === 'all' || h.type === filter).map((h) => <HouseCard key={h.id} house={h} onOpen={setActiveHouse} />)}</div><p className="catalog-note">Первые эскизы коллекции. Изображения и планировки демонстрационные; размеры, состав и стоимость уточняются.</p></section>
+    <section className="approach-strip" id="about"><span className="section-number">Подход EFT</span><p>Хороший дом начинается<br />с понимания <em>вашей жизни.</em></p><div>Сначала — привычки, пожелания и участок.<br />Затем — планировка и комплектация.<a className="text-link" href="./EFT_client_questionnaire.html">Расскажите о вашем доме<ArrowUpRight size={18} /></a></div></section>
+    <Panels cart={cart} setCart={setCart} />
+    <section className="section technology-section" id="technology"><div className="section-heading"><div><span className="section-number">03 / Технология</span><h2>Понятно с первого слоя.</h2></div><p>Познакомьтесь с устройством панели<br />и соберите вопросы для вашего проекта.</p></div><div className="technology-content"><div className="layer-title">Три слоя.<br /><span>Одна панель.</span><a href="#panels" className="text-link">Выбрать панели<ArrowRight size={18} /></a></div><div className="technology-details">{[['01', 'Наружная обшивка', 'Плита OSB — наружный слой панели.'], ['02', 'Сердцевина', 'Теплоизоляционный слой между обшивками. Материал уточняется при заказе.'], ['03', 'Внутренняя обшивка', 'Вторая плита OSB завершает конструкцию панели.']].map(([n, title, text]) => <details key={n} open={n === '01'}><summary><span>{n}</span>{title}<span aria-hidden="true" className="details-plus">+</span></summary><p>{text}</p></details>)}</div></div></section>
+    <Contact cart={cart} selection={selection} setSelection={setSelection} /></main>
+    <footer className="site-footer"><div><a className="wordmark" href="#">EFT</a><p>Ваш дом начинается<br />с хорошего плана.</p></div><nav aria-label="Навигация в подвале"><a href="#projects">Проекты домов</a><a href="#panels">СИП-панели</a><a href="./EFT_client_questionnaire.html">Анкета</a><a href="./react.html">Калькулятор</a></nav><div className="footer-note">ЭнергоЭффективные Технологии<small>Предварительная версия каталога.<br />Реальные проекты и контакты готовятся к добавлению.</small></div><div className="footer-bottom"><span>© {new Date().getFullYear()} EFT</span><span>С заботой о пространстве для жизни.</span><a href="#">Наверх<ArrowUpRight size={15} /></a></div></footer>
+    {activeHouse && <Suspense fallback={<div className="dialog-loading" role="status">Открываем проект…</div>}><ProjectDialog house={activeHouse} onClose={() => setActiveHouse(null)} onDiscuss={discuss} /></Suspense>}
+  </>;
+}
