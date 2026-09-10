@@ -21,6 +21,7 @@ import {
   resolveSipSupportScrew,
   resolveSipStructuralScrew,
 } from "./sip-joinery.js";
+import { calculateConstructionNodes } from './construction-nodes.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -578,23 +579,36 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         },
       ),
     );
-    const structuralQuery =
-      consumables.mode === "node"
-        ? `Саморез конструкционный ${usage.structuralSize} мм`
-        : "Саморезы конст.";
-    lines.push(
-      makeLine(index, "sip", structuralQuery, consumables.mode === "node" ? usage.structuralCount : usage.structuralKg, {
-        key: `fasteners-${key}`,
-        unit: consumables.mode === "node" ? "шт" : "кг",
-        priceMultiplier: consumables.mode === "node" ? usage.structuralKgEach : 1,
-        exactQuantity: consumables.mode === "node",
-        name:
-          consumables.mode === "node"
-            ? `Саморезы конструкционные ${usage.structuralSize} · ${usage.structuralCount} шт`
-            : undefined,
-        ...lineOptions,
-      }),
-    );
+    if (consumables.mode === "node") {
+      const bySize = new Map();
+      (usage.structuralBreakdown || []).forEach((item) => {
+        const current = bySize.get(item.size) || { ...item, count: 0, ruleCodes: [] };
+        current.count += item.count;
+        current.ruleCodes.push(item.ruleCode);
+        bySize.set(item.size, current);
+      });
+      [...bySize.values()]
+        .sort((left, right) => Number(right.size === usage.structuralSize) - Number(left.size === usage.structuralSize))
+        .forEach((item) => {
+          const keepsLegacyId = item.size === usage.structuralSize;
+          lines.push(makeLine(index, "sip", `Саморез конструкционный ${item.size} мм`, item.count, {
+            key: keepsLegacyId ? `fasteners-${key}` : `fasteners-${key}-${item.size.replace(/\D/g, "-")}`,
+            unit: "шт",
+            priceMultiplier: item.kgEach,
+            exactQuantity: true,
+            name: `Саморезы конструкционные ${item.size} · ${item.count} шт · ${item.ruleCodes.join(", ")}`,
+            ...lineOptions,
+          }));
+        });
+    } else {
+      lines.push(
+        makeLine(index, "sip", "Саморезы конст.", usage.structuralKg, {
+          key: `fasteners-${key}`,
+          unit: "кг",
+          ...lineOptions,
+        }),
+      );
+    }
     if (consumables.mode === "node") {
       lines.push(
         makeLine(
@@ -2763,7 +2777,7 @@ export function calculateProject(project) {
     { materials: 0, labor: 0 },
   );
   totals.total = totals.materials + totals.labor;
-  return {
+  const result = {
     metrics,
     inputs,
     foundation: foundation.foundation,
@@ -2777,4 +2791,6 @@ export function calculateProject(project) {
     lines,
     totals,
   };
+  result.nodeFasteners = calculateConstructionNodes(project, result);
+  return result;
 }

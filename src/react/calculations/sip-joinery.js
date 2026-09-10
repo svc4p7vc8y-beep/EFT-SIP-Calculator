@@ -252,7 +252,7 @@ const roomPoints = (room = {}) =>
         { x: room.x, y: (room.y || 0) + (room.h || 0) },
       ];
 
-const partitionJunctionCount = (plan, tolerance = 0.05) => {
+export const detectSipTJunctions = (plan, tolerance = 0.05) => {
   const outerRuns = contourRuns(plan);
   const wallThickness = Math.max(0.05, Number(plan?.wallThickness) || 0.174);
   const rawSegments = [];
@@ -330,7 +330,7 @@ const partitionJunctionCount = (plan, tolerance = 0.05) => {
         );
     });
     return touchesOuter || incidentDirections.size >= 3;
-  }).length;
+  });
 };
 
 export function calculateSipConsumables(
@@ -389,10 +389,7 @@ export function calculateSipConsumables(
       Math.ceil((joineryRow.jointLength * 2) / seamSpacing) +
       cutting.panels * supportPerPanel;
     const edgeCount = Math.ceil(joineryRow.endBoardLength / edgeSpacing);
-    const structuralCount = Math.max(
-      0,
-      Math.round(joineryRow.structuralCount || 0),
-    );
+    const structuralCount = Math.max(0, Math.round(joineryRow.structuralCount || 0));
     const universalScrewCount = Math.max(
       0,
       Math.round((joineryRow.tNodeCount || 0) * universalPerTNode),
@@ -400,6 +397,45 @@ export function calculateSipConsumables(
     const sealLength = round(joineryRow.sealLength || 0);
     const stapleCount = Math.ceil(sealLength * staplesPerSealMeter);
     const structural = resolveSipStructuralScrew(joineryRow.panelThickness, formulas);
+    const support = resolveSipSupportScrew(joineryRow.supportPanelThickness, formulas);
+    const structuralBreakdown = [];
+    const addStructural = (ruleCode, count, screw) => {
+      const quantity = Math.max(0, Math.round(Number(count) || 0));
+      if (!quantity) return;
+      structuralBreakdown.push({
+        ruleCode,
+        count: quantity,
+        size: screw.size,
+        kgEach: screw.kgEach,
+        kg: round(quantity * screw.kgEach),
+      });
+    };
+    if (joineryRow.key.startsWith("walls")) {
+      addStructural(
+        Number(joineryRow.supportPanelThickness) >= 224
+          ? "SIP_START_BOARD_THROUGH_224"
+          : "SIP_START_BOARD",
+        joineryRow.bottomBindingCount,
+        joineryRow.supportPanelThickness ? support : structural,
+      );
+      addStructural("SIP_TOP_BOARD", joineryRow.topBindingCount, structural);
+      addStructural("SIP_WALL_CORNER", joineryRow.cornerStructuralCount, structural);
+      addStructural("OPENING_FRAME", joineryRow.openingStructuralCount, structural);
+    } else if (["floor", "secondFloor", "ceiling"].includes(joineryRow.key)) {
+      addStructural(
+        joineryRow.key === "floor"
+          ? "SIP_FLOOR_SUPPORT"
+          : joineryRow.key === "ceiling"
+            ? "SIP_CEILING_SUPPORT"
+            : "SIP_WALL_TO_FLOOR",
+        structuralCount,
+        support,
+      );
+    } else {
+      addStructural("SIP_WALL_CONNECTION", structuralCount, structural);
+    }
+    const resolvedStructuralCount = structuralBreakdown.reduce((sum, item) => sum + item.count, 0);
+    const resolvedStructuralKg = round(structuralBreakdown.reduce((sum, item) => sum + item.kg, 0));
     return {
       key: joineryRow.key,
       label: joineryRow.label,
@@ -410,10 +446,11 @@ export function calculateSipConsumables(
       seamKg: round(seamCount * seamKgEach),
       edgeCount,
       edgeKg: round(edgeCount * edgeKgEach),
-      structuralCount,
+      structuralCount: resolvedStructuralCount,
       structuralSize: structural.size,
       structuralKgEach: structural.kgEach,
-      structuralKg: round(structuralCount * structural.kgEach),
+      structuralKg: resolvedStructuralKg,
+      structuralBreakdown,
       universalScrewCount,
       sealLength,
       stapleCount,
@@ -517,6 +554,9 @@ export function calculateSipJoinery(
         bindingSpacing,
         formulas,
       );
+      const bindingCount = closedRunFastenerCount(currentPlan, bindingSpacing);
+      const cornerCount = contourPointsFor(currentPlan).length *
+        (Math.ceil(currentWallHeight / cornerSpacing) + 1);
       const wallSeams = (wallLength) =>
         Math.max(0, Math.ceil(wallLength / panelWidth) - 1) * currentWallHeight +
         Math.max(0, Math.ceil(currentWallHeight / panelLength) - 1) * wallLength;
@@ -539,13 +579,12 @@ export function calculateSipJoinery(
         }, 0),
         edges: 2 * currentPerimeter + 4 * currentWallHeight + openingEdges,
         sealLength: 2 * currentPerimeter,
-        structuralCount:
-          2 * closedRunFastenerCount(currentPlan, bindingSpacing) +
-          contourPointsFor(currentPlan).length *
-            (Math.ceil(currentWallHeight / cornerSpacing) + 1) +
-          openingFasteners,
+        structuralCount: 2 * bindingCount + cornerCount + openingFasteners,
+        bottomBindingCount: bindingCount,
+        topBindingCount: bindingCount,
+        cornerStructuralCount: cornerCount,
         openingStructuralCount: openingFasteners,
-        tNodeCount: partitionJunctionCount(currentPlan),
+        tNodeCount: detectSipTJunctions(currentPlan).length,
       };
     };
   const firstWallAssembly = wallAssemblyFor(floorPlans[0]);
@@ -576,6 +615,7 @@ export function calculateSipJoinery(
           endBoardLength: perimeter,
           sealLength: perimeter,
           structuralCount: closedRunFastenerCount(plan, bindingSpacing),
+          supportPanelThickness: sipSettings.floorThickness,
         }
       : null,
     services.sipWalls
@@ -587,6 +627,12 @@ export function calculateSipJoinery(
           endBoardLength: firstWallAssembly.edges,
           sealLength: firstWallAssembly.sealLength,
           structuralCount: firstWallAssembly.structuralCount,
+          supportPanelThickness: services.sipFloor ? sipSettings.floorThickness : null,
+          bottomBindingCount: firstWallAssembly.bottomBindingCount,
+          topBindingCount: firstWallAssembly.topBindingCount,
+          cornerStructuralCount: firstWallAssembly.cornerStructuralCount,
+          openingStructuralCount: firstWallAssembly.openingStructuralCount,
+          tNodeCount: firstWallAssembly.tNodeCount,
         }
       : null,
     services.sipWalls && floorPlans.length > 1
@@ -598,6 +644,12 @@ export function calculateSipJoinery(
           endBoardLength: secondWallAssembly.edges,
           sealLength: secondWallAssembly.sealLength,
           structuralCount: secondWallAssembly.structuralCount,
+          supportPanelThickness: services.sipSecondFloor ? sipSettings.secondFloorThickness : null,
+          bottomBindingCount: secondWallAssembly.bottomBindingCount,
+          topBindingCount: secondWallAssembly.topBindingCount,
+          cornerStructuralCount: secondWallAssembly.cornerStructuralCount,
+          openingStructuralCount: secondWallAssembly.openingStructuralCount,
+          tNodeCount: secondWallAssembly.tNodeCount,
         }
       : null,
     services.sipSecondFloor && Number(metrics.secondFloorArea) > 0
@@ -628,6 +680,7 @@ export function calculateSipJoinery(
               openingLength,
               bindingSpacing,
             ),
+          supportPanelThickness: sipSettings.secondFloorThickness,
         }
       : null,
     services.sipCeiling
@@ -644,6 +697,7 @@ export function calculateSipJoinery(
           endBoardLength: topPerimeter,
           sealLength: topPerimeter,
           structuralCount: closedRunFastenerCount(topPlan, bindingSpacing),
+          supportPanelThickness: sipSettings.ceilingThickness,
         }
       : null,
     services.partitions &&

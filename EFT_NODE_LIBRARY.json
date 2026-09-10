@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 1,
+  "library": "EFT_NODE_LIBRARY",
+  "manufacturerIndependent": true,
+  "units": { "length": "m", "fastenerLength": "mm", "quantity": "pcs" },
+  "nodes": [
+    {
+      "code": "SIP_SPLINE",
+      "name": "СИП-панель ↔ термобрус / соединительная шпонка",
+      "section": "СИП",
+      "marker": "S",
+      "elements": ["SIP_PANEL", "THERMOBRUS"],
+      "fasteners": [{ "type": "screw", "size": "3.8x41", "diameterMm": 3.8, "lengthMm": 41, "quantityMode": "length-step", "stepFormulaKey": "sipSeamScrewSpacingM", "rows": 2, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "sip-seams", "pages": "12, 34, 60, 78, 143–144", "note": "Крепление шва с двух сторон; проектный шаг остаётся редактируемым." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_EDGE_BOARD",
+      "name": "Торцевая доска SIP",
+      "section": "СИП",
+      "marker": "E",
+      "elements": ["SIP_PANEL", "EDGE_BOARD"],
+      "fasteners": [{ "type": "screw", "size": "4.2x75", "diameterMm": 4.2, "lengthMm": 75, "quantityMode": "length-step", "stepFormulaKey": "sipEdgeScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "sip-seams", "pages": "12, 34, 60, 78, 143–144", "note": "Открытая кромка считается отдельно от межпанельного шва." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_PANEL_SUPPORT",
+      "name": "SIP-панель → опорный брус",
+      "section": "СИП",
+      "marker": "S",
+      "elements": ["SIP_PANEL", "TIMBER_SUPPORT"],
+      "fasteners": [{ "type": "screw", "size": "3.8x41", "diameterMm": 3.8, "lengthMm": 41, "quantityMode": "per-panel", "qtyFormulaKey": "sipPanelSupportScrews", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "sip-seams", "pages": "12, 34, 60, 78, 143–144", "note": "Опорный крепёж панели учитывается отдельно от двухстороннего крепления шва." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_START_BOARD",
+      "name": "Стартовая доска стены",
+      "section": "Стены",
+      "marker": "S",
+      "elements": ["START_BOARD_45", "SIP_WALL", "TIMBER_BINDING"],
+      "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "wall-bindings", "pages": "56, 59–60, 68–78", "note": "Размер зависит от фактического состава опорного узла." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_START_BOARD_THROUGH_224",
+      "name": "Стартовая доска 45 мм через SIP 224 мм в обвязку",
+      "section": "Стены",
+      "marker": "S",
+      "elements": ["START_BOARD_45", "SIP_FLOOR_224", "TIMBER_BINDING"],
+      "fasteners": [{ "type": "structural-screw", "size": "8x320", "diameterMm": 8, "lengthMm": 320, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "starter-through-224", "pages": null, "note": "Принятый стандарт EFT; шаг берётся только из проектной настройки." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_TOP_BOARD",
+      "name": "Верхняя обвязка SIP-стены",
+      "section": "Стены",
+      "marker": "B",
+      "elements": ["SIP_WALL", "TOP_BOARD"],
+      "fasteners": [{ "type": "structural-screw", "size": "BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "wall-bindings", "pages": "56, 59–60, 68–78", "note": "Размер выбирается по толщине SIP; шаг — редактируемая проектная норма." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_WALL_CORNER",
+      "name": "Наружный угол SIP-стен",
+      "section": "Стены",
+      "marker": "C",
+      "elements": ["SIP_WALL", "SIP_WALL", "TIMBER_INSERT"],
+      "fasteners": [{ "type": "structural-screw", "size": "BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step-plus-end", "stepFormulaKey": "sipCornerScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "wall-bindings", "pages": "56, 59–60, 68–78", "note": "Вертикальный угол; наличие деревянной закладной обязательно проверяется." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_WALL_CONNECTION",
+      "name": "Соединение SIP-стен между собой",
+      "section": "Стены",
+      "marker": "W",
+      "elements": ["SIP_WALL", "SIP_WALL"],
+      "fasteners": [{ "type": "structural-screw", "size": "BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "wall-bindings", "pages": "56, 59–60, 68–78", "note": "Нельзя применять один размер ко всем толщинам SIP." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_WALL_T",
+      "name": "Т-образное примыкание SIP-стены",
+      "section": "Стены",
+      "marker": "T",
+      "elements": ["SIP_WALL", "SIP_PARTITION"],
+      "fasteners": [{ "type": "structural-screw", "size": "6x120", "diameterMm": 6, "lengthMm": 120, "quantityMode": "per-node", "qtyFormulaKey": "sipUniversalScrewsPerTNode", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "wall-t-junction", "pages": "68–78", "note": "Принятая схема EFT; количество на узел редактируется." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "OPENING_FRAME_WINDOW",
+      "name": "Обрамление оконного проёма",
+      "section": "Проёмы",
+      "marker": "O",
+      "elements": ["SIP_WALL", "WINDOW_OPENING", "OPENING_FRAME"],
+      "fasteners": [{ "type": "structural-screw", "size": "BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "perimeter-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "opening-frame", "pages": null, "note": "Геометрия точная; окончательная схема усиления требует конструктивной проверки." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "OPENING_FRAME_DOOR",
+      "name": "Обрамление дверного проёма",
+      "section": "Проёмы",
+      "marker": "O",
+      "elements": ["SIP_WALL", "DOOR_OPENING", "OPENING_FRAME"],
+      "fasteners": [{ "type": "structural-screw", "size": "BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "perimeter-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "opening-frame", "pages": null, "note": "Входные двери и ворота используют сохранённый коэффициент усиления." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "SIP_FLOOR_SUPPORT",
+      "name": "Опорный контур SIP-пола",
+      "section": "Перекрытия",
+      "marker": "F",
+      "elements": ["SIP_FLOOR", "TIMBER_BINDING"],
+      "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "floor-ceiling-supports", "pages": "34–64", "note": "Считается по фактическим сторонам опорного контура." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_CEILING_SUPPORT",
+      "name": "Опорный контур SIP-потолка",
+      "section": "Перекрытия",
+      "marker": "F",
+      "elements": ["SIP_CEILING", "TOP_BOARD"],
+      "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "floor-ceiling-supports", "pages": "34–64", "note": "Считается по фактическим сторонам опорного контура." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_WALL_TO_FLOOR",
+      "name": "SIP-стена ↔ межэтажное перекрытие",
+      "section": "Перекрытия",
+      "marker": "F",
+      "elements": ["SIP_WALL", "SIP_FLOOR"],
+      "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "floor-ceiling-supports", "pages": "34–64", "note": "Контур лестничного проёма учитывается отдельно." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_WALL_TO_CEILING",
+      "name": "SIP-стена ↔ SIP-потолок",
+      "section": "Перекрытия",
+      "marker": "F",
+      "elements": ["SIP_WALL", "SIP_CEILING", "TOP_BOARD"],
+      "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "floor-ceiling-supports", "pages": "34–64", "note": "Опорный контур потолка; длина крепежа определяется толщиной SIP." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "MAUERLAT",
+      "name": "Крепление мауэрлата",
+      "section": "Кровля",
+      "marker": "M",
+      "elements": ["MAUERLAT", "SIP_WALL"],
+      "fasteners": [{ "type": "project-selected", "size": "BY_SIP_THICKNESS_OR_M12", "diameterMm": null, "lengthMm": null, "quantityMode": "length-step-rows", "stepFormulaKey": "mauerlatScrewSpacing", "rowsFormulaKey": "mauerlatScrewRows", "edgeOffsetMm": null, "staggered": false, "washer": true, "metalConnector": false, "packSize": null, "alternatives": ["anchor-M12"] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "mauerlat", "pages": null, "note": "Выбор саморезов, анкеров или отключения хранится в проекте." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "RAFTER_TO_MAUERLAT",
+      "name": "Стропило → мауэрлат",
+      "section": "Кровля",
+      "marker": "R",
+      "elements": ["RAFTER", "MAUERLAT"],
+      "fasteners": [{ "type": "project-selected", "size": null, "diameterMm": null, "lengthMm": null, "quantityMode": "per-node", "qtyFormulaKey": "roofRafterSupportNails", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": true, "packSize": null, "alternatives": ["metal-angle"] }],
+      "source": { "type": "REFERENCE", "indexId": "rafter-support", "pages": null, "note": "Геометрия и число узлов известны; типоразмер подтверждает конструктор." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "RAFTER_TO_RIDGE",
+      "name": "Стропило → конёк",
+      "section": "Кровля",
+      "marker": "R",
+      "elements": ["RAFTER", "RIDGE_BOARD"],
+      "fasteners": [{ "type": "project-selected", "size": null, "diameterMm": null, "lengthMm": null, "quantityMode": "per-node", "qtyFormulaKey": "roofRafterRidgeNails", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "REFERENCE", "indexId": "rafter-ridge", "pages": null, "note": "Типоразмер и схема требуют конструктивной проверки." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "RAFTER_TIE",
+      "name": "Стропило → затяжка",
+      "section": "Кровля",
+      "marker": "R",
+      "elements": ["RAFTER", "RAFTER_TIE"],
+      "fasteners": [{ "type": "project-selected", "size": null, "diameterMm": null, "lengthMm": null, "quantityMode": "per-node", "qtyFormulaKey": "roofRafterTieNails", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "REFERENCE", "indexId": "rafter-tie", "pages": null, "note": "Типоразмер и схема требуют конструктивной проверки." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "ROOF_LATH",
+      "name": "Обрешётка → стропила",
+      "section": "Кровля",
+      "marker": "L",
+      "elements": ["ROOF_LATH", "RAFTER"],
+      "fasteners": [{ "type": "project-selected", "size": null, "diameterMm": null, "lengthMm": null, "quantityMode": "per-node", "qtyFormulaKey": "roofLathNailsPerCrossing", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "roof-lath", "pages": null, "note": "Количество пересечений точное; тип крепежа требует подтверждения." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "ROOF_COUNTERLATH",
+      "name": "Контробрешётка → стропила",
+      "section": "Кровля",
+      "marker": "L",
+      "elements": ["ROOF_COUNTERLATH", "RAFTER"],
+      "fasteners": [],
+      "source": { "type": "UNCONFIRMED", "indexId": "roof-counterlath", "pages": null, "note": "Норма отсутствует; количество крепежа не начисляется." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "SIP_ROOF_SUPPORT",
+      "name": "Опирание SIP-панели кровли",
+      "section": "Кровля",
+      "marker": "R",
+      "elements": ["SIP_ROOF", "ROOF_SUPPORT"],
+      "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "per-panel", "qtyFormulaKey": "sipRoofSupportPointsPerPanel", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_BOOK", "indexId": "sip-roof", "pages": "134–144, 161–164", "note": "Опорные точки панелей считаются отдельно от коньковых пластин." },
+      "requiresEngineeringReview": false
+    },
+    {
+      "code": "PILE_BINDING",
+      "name": "Крепление деревянной обвязки к свае",
+      "section": "Фундамент",
+      "marker": "P",
+      "elements": ["PILE_HEAD", "TIMBER_BINDING"],
+      "fasteners": [{ "type": "lag-screw", "size": null, "diameterMm": null, "lengthMm": null, "quantityMode": "per-node", "qtyFormulaKey": "pileLagScrews", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": true, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "pile-binding", "pages": null, "note": "Количество на сваю хранится в проектной формуле; типоразмер требует проверки." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "TERRACE_LEDGER",
+      "name": "Примыкание террасы к дому",
+      "section": "Террасы",
+      "marker": "T",
+      "elements": ["TERRACE_FRAME", "HOUSE_FRAME"],
+      "fasteners": [],
+      "source": { "type": "UNCONFIRMED", "indexId": "terrace-ledger", "pages": null, "note": "Узел распознаётся, но крепёж без проектной нормы не начисляется." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "TERRACE_JOIST",
+      "name": "Узлы лаг террасы",
+      "section": "Террасы",
+      "marker": "T",
+      "elements": ["TERRACE_JOIST", "TERRACE_BEAM"],
+      "fasteners": [],
+      "source": { "type": "UNCONFIRMED", "indexId": "terrace-joist", "pages": null, "note": "Шаг лаг и крепёж должны быть заданы конструктивным проектом." },
+      "requiresEngineeringReview": true
+    },
+    {
+      "code": "PORCH_FRAME",
+      "name": "Каркас крыльца",
+      "section": "Крыльцо",
+      "marker": "P",
+      "elements": ["PORCH_FRAME", "HOUSE_FRAME"],
+      "fasteners": [],
+      "source": { "type": "UNCONFIRMED", "indexId": "porch-frame", "pages": null, "note": "Крепёж не начисляется до инженерного подтверждения." },
+      "requiresEngineeringReview": true
+    }
+  ]
+}

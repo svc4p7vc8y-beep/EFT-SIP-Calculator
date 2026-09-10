@@ -16,7 +16,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 124;
+export const REACT_PROJECT_VERSION = 125;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -456,6 +456,20 @@ export function createDefaultProject() {
     },
     plan,
     upperFloors: [],
+    construction: {
+      floorPanels: [],
+      wallPanels: [],
+      ceilingPanels: [],
+      splines: [],
+      starterBoards: [],
+      topBoards: [],
+      edgeBoards: [],
+      rafters: [],
+      mauerlat: [],
+      lath: [],
+      counterLath: [],
+    },
+    nodes: [],
     services: {
       foundation: true,
       sipFloor: true,
@@ -509,6 +523,11 @@ export function createDefaultProject() {
         wastePercent: 5,
         consumablesMode: "node",
         foamScope: "joints-and-edges",
+      },
+      nodeFasteners: {
+        reservePercent: 10,
+        packSizes: {},
+        lastCalculatedAt: null,
       },
       roof: {
         shape: "gable",
@@ -821,6 +840,15 @@ export function migrateProject(raw) {
     meta: { ...base.meta, ...meta, floors: requestedFloorCount },
     plan,
     upperFloors,
+    construction: Object.fromEntries(
+      Object.keys(base.construction).map((key) => [
+        key,
+        Array.isArray(raw.construction?.[key]) ? raw.construction[key] : [],
+      ]),
+    ),
+    nodes: Array.isArray(raw.nodes)
+      ? raw.nodes.filter((node) => node && typeof node === "object")
+      : [],
     services: { ...base.services, ...(raw.services || {}) },
     settings: {
       ...base.settings,
@@ -833,6 +861,14 @@ export function migrateProject(raw) {
         ...(preserveLegacyPartitionCalculation
           ? { partitionCalculationMode: "area" }
           : {}),
+      },
+      nodeFasteners: {
+        ...base.settings.nodeFasteners,
+        ...(raw.settings?.nodeFasteners || {}),
+        packSizes: {
+          ...base.settings.nodeFasteners.packSizes,
+          ...(raw.settings?.nodeFasteners?.packSizes || {}),
+        },
       },
       roof: { ...base.settings.roof, ...(raw.settings?.roof || {}) },
       delivery: {

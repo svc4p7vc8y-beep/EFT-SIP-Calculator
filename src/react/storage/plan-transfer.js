@@ -3,13 +3,15 @@ import { ensureProjectFloorCount, normalizePlan, REACT_PROJECT_VERSION } from '.
 export function createPlanTransfer(project) {
   return {
     format: 'eft-house-plan',
-    schemaVersion: 3,
+    schemaVersion: 4,
     appVersion: REACT_PROJECT_VERSION,
     savedAt: new Date().toISOString(),
     sourceProject: project.meta?.projectNum || '',
     plan: structuredClone(project.plan),
     floors: Math.max(1, Math.min(2, Number(project.meta?.floors) || 1)),
     upperFloors: structuredClone(project.upperFloors || []),
+    construction: structuredClone(project.construction || {}),
+    nodes: structuredClone(project.nodes || []),
     settings: structuredClone(project.settings || {}),
     services: structuredClone(project.services || {})
   };
@@ -23,6 +25,8 @@ export function validatePlanTransfer(raw) {
     plan: normalizePlan(plan),
     floors: Math.max(1, Math.min(2, Number(raw.floors || raw.meta?.floors) || 1)),
     upperFloors: Array.isArray(raw.upperFloors) ? raw.upperFloors.map(normalizePlan) : [],
+    construction: raw.construction && typeof raw.construction === 'object' ? raw.construction : {},
+    nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
     settings: raw.settings || {},
     services: raw.services || {},
     sourceProject: raw.sourceProject || raw.meta?.projectNum || ''
@@ -35,6 +39,8 @@ export function applyPlanTransfer(project, raw) {
   next.plan = incoming.plan;
   next.meta.floors = incoming.floors;
   next.upperFloors = incoming.upperFloors;
+  next.construction = structuredClone(incoming.construction);
+  next.nodes = structuredClone(incoming.nodes);
   ensureProjectFloorCount(next, incoming.floors);
   Object.entries(incoming.settings).forEach(([key, value]) => {
     next.settings[key] = value && typeof value === 'object' && !Array.isArray(value)

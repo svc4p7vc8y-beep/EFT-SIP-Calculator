@@ -25,12 +25,14 @@ const EstimateScreen = lazy(() => import('../screens/EstimateScreen.jsx'));
 const CalculationSettingsScreen = lazy(() => import('../screens/CalculationSettingsScreen.jsx'));
 const KnowledgeLibraryScreen = lazy(() => import('../screens/KnowledgeLibraryScreen.jsx'));
 const SipGuideScreen = lazy(() => import('../screens/SipGuideScreen.jsx'));
+const NodeFastenersScreen = lazy(() => import('../screens/NodeFastenersScreen.jsx'));
 
 const NAV_ITEMS = [
   { id: 'plan', label: 'План дома', icon: Ruler, group: 'project' },
   { id: 'parameters', label: 'Параметры', icon: Settings2, group: 'project' },
   { id: 'piles', label: 'Сваи', icon: HardHat, group: 'calculate' },
   { id: 'sip', label: 'СИП', icon: Layers3, group: 'calculate' },
+  { id: 'nodes', label: 'Метизы по узлам', icon: Wrench, group: 'calculate' },
   { id: 'roof', label: 'Кровля', icon: Home, group: 'calculate' },
   { id: 'terrace', label: 'Терраса', icon: Trees, group: 'calculate' },
   { id: 'openings', label: 'Окна / двери', icon: PanelTop, group: 'calculate' },
@@ -54,13 +56,14 @@ function downloadProject(project) {
   setTimeout(() => URL.revokeObjectURL(link.href), 0);
 }
 
-function Screen({ active }) {
+function Screen({ active, calculation }) {
   if (active === 'plan') return <PlanScreen />;
   if (active === 'parameters') return <ParametersScreen />;
   if (active === 'price') return <PriceScreen />;
   if (active === 'estimate') return <EstimateScreen />;
   if (active === 'knowledge') return <KnowledgeLibraryScreen />;
   if (active === 'sip-guide') return <SipGuideScreen />;
+  if (active === 'nodes') return <NodeFastenersScreen calculation={calculation} />;
   if (active === 'calculation-settings') return <CalculationSettingsScreen />;
   return <Calculators type={active} />;
 }
@@ -210,7 +213,7 @@ export function App() {
         {menuOpen ? <button className="sidebar-backdrop" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} /> : null}
         <main className="workspace">
           <Suspense fallback={<div className="screen-loader">Загружаю раздел…</div>}>
-            <Screen active={active} />
+            <Screen active={active} calculation={calculation} />
           </Suspense>
         </main>
         <ProjectSummarySidebar project={project} calculation={calculation} onNavigate={setActive} />
