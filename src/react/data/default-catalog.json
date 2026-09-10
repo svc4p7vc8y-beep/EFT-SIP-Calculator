@@ -829,6 +829,26 @@
       "priceEstimated": true,
       "priceNote": "Ориентир на 31.08.2026 за укладку покрытия, без стропил и основания. https://stroydoka.ru/krovlya/montazh-krovli/montazh-gibkoy-cherepicy/",
       "unit": "м2"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "LAB-140",
+      "kind": "labor",
+      "name": "Монтаж окна по фактической площади",
+      "price": 2777.78,
+      "priceEstimated": true,
+      "priceNote": "Пересчёт действующей ставки 4000 руб. за базовое окно 1200×1200 мм: 4000 / 1,44 м². Итог уточняется после замера и выбора монтажного шва.",
+      "unit": "м2"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "LAB-141",
+      "kind": "labor",
+      "name": "Монтаж входной двери с терморазрывом",
+      "price": 8000,
+      "priceEstimated": true,
+      "priceNote": "Ориентир производителя: монтаж от 8000 руб. в зависимости от сложности. https://www.1994doors.ru/metallicheskie_dveri/dveri_s_termorazryvom/vhodnaya_dver_s_termorazryvom_7.html",
+      "unit": "шт"
     }
   ],
   "priceMat": [
@@ -2375,6 +2395,56 @@
       "priceEstimated": true,
       "priceNote": "Ориентир на 31.08.2026 по стандартным воротам 2500×2200 мм; индивидуальные размеры и комплектацию уточнить. Без монтажа. https://jrm.ru/vorota/",
       "unit": "компл"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "MAT-240",
+      "kind": "material",
+      "name": "Окно ПВХ по фактической площади",
+      "price": 9722.22,
+      "priceEstimated": true,
+      "priceNote": "Базовая ставка из действующей позиции 14000 руб. за окно 1200×1200 мм: 14000 / 1,44 м². Профиль, стеклопакет, створки и фурнитура уточняются после замера.",
+      "unit": "м2"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "MAT-241",
+      "kind": "material",
+      "name": "Панорамное / витражное остекление по площади",
+      "price": 9722.22,
+      "priceEstimated": true,
+      "priceNote": "Предварительная базовая ставка без повышающего коэффициента. Для остекления в пол обязательны расчёт размеров секций, безопасного стекла, профиля и ветровой нагрузки.",
+      "unit": "м2"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "MAT-242",
+      "kind": "material",
+      "name": "Ворота гаражные секционные тёплые по площади",
+      "price": 23200,
+      "priceEstimated": true,
+      "priceNote": "Норма EFT по ориентиру пользователя: проём 4000×2500 мм = 232000 руб. за изделие + 8000 руб. монтаж = 240000 руб. Комплектация и автоматика уточняются.",
+      "unit": "м2"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "MAT-243",
+      "kind": "material",
+      "name": "Роллетные гаражные ворота по площади",
+      "price": 22130,
+      "priceEstimated": true,
+      "priceNote": "Ориентир ALUTECH Prestige 4000×2500 мм: 221300 руб. без монтажа, то есть 22130 руб./м². https://alutech.ru/rolletnye-sistemy/rolletnye-vorota/alutech-prestige-4000-2500/",
+      "unit": "м2"
+    },
+    {
+      "cat": "Окна и двери",
+      "id": "MAT-244",
+      "kind": "material",
+      "name": "Дверь входная с терморазрывом",
+      "price": 45000,
+      "priceEstimated": true,
+      "priceNote": "Ориентир пользователя и производителя для базового размера: от 45000 руб. https://www.1994doors.ru/metallicheskie_dveri/dveri_s_termorazryvom/vhodnaya_dver_s_termorazryvom_7.html",
+      "unit": "шт"
     }
   ],
   "priceMode": "reference",

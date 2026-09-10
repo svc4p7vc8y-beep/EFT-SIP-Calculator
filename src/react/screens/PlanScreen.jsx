@@ -1356,6 +1356,9 @@ function PlanCanvas({
         width: type === "window" ? 1.2 : isGarage ? 2.5 : 0.86,
         height: type === "window" ? 1.2 : isGarage ? 2.2 : 2.05,
         doorType: isGarage ? "garage" : segment.outer ? "entrance" : "interior",
+        ...(type === "window" ? { windowType: "standard" } : {}),
+        ...(isGarage ? { garageDoorType: "sectional-warm" } : {}),
+        ...(openingType === "door" && !isGarage && segment.outer ? { entranceDoorType: "standard" } : {}),
         hinge: "right",
         swing: segment.outer ? "out" : "in",
       };
@@ -3384,8 +3387,11 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
         if (!item) return;
         item.doorType = value;
         if (value === "garage") {
+          item.garageDoorType ||= "sectional-warm";
           if (item.width < 1.5) item.width = 2.5;
           if (item.height < 2.1) item.height = 2.2;
+        } else if (value === "entrance") {
+          item.entranceDoorType ||= "standard";
         }
         Object.assign(
           item,
@@ -3427,6 +3433,17 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
             }
           />
         </div>
+        {opening.type === "window" ? (
+          <SelectField
+            label="Вид окна"
+            value={opening.windowType || "standard"}
+            onChange={(value) => update("openings", (item) => { item.windowType = value; })}
+            options={[
+              { value: "standard", label: "Окно ПВХ" },
+              { value: "panoramic", label: "Панорамное / витражное" },
+            ]}
+          />
+        ) : null}
         {opening.type === "door" ? (
           <>
             <SelectField
@@ -3442,21 +3459,38 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
               ]}
             />
             {garage ? (
-              <SelectField
-                label="Открывание ворот"
-                value={opening.swing || "in"}
-                onChange={(value) =>
-                  update("openings", (item) => {
-                    item.swing = value;
-                  })
-                }
-                options={[
-                  { value: "in", label: "Внутрь" },
-                  { value: "out", label: "Наружу" },
-                ]}
-              />
+              <>
+                <SelectField
+                  label="Исполнение ворот"
+                  value={opening.garageDoorType || "sectional-warm"}
+                  onChange={(value) => update("openings", (item) => { item.garageDoorType = value; })}
+                  options={[
+                    { value: "sectional-warm", label: "Секционные тёплые" },
+                    { value: "roller-shutter", label: "Роллетные / рольставни" },
+                  ]}
+                />
+                <SelectField
+                  label="Открывание ворот"
+                  value={opening.swing || "in"}
+                  onChange={(value) => update("openings", (item) => { item.swing = value; })}
+                  options={[
+                    { value: "in", label: "Внутрь" },
+                    { value: "out", label: "Наружу" },
+                  ]}
+                />
+              </>
             ) : (
-              <div className="form-grid">
+              <>
+                {opening.outer !== false ? <SelectField
+                  label="Исполнение двери"
+                  value={opening.entranceDoorType || "standard"}
+                  onChange={(value) => update("openings", (item) => { item.entranceDoorType = value; })}
+                  options={[
+                    { value: "standard", label: "Стандартная" },
+                    { value: "thermal-break", label: "С терморазрывом" },
+                  ]}
+                /> : null}
+                <div className="form-grid">
                 <SelectField
                   label="Петли"
                   value={opening.hinge || "right"}
@@ -3483,7 +3517,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
                     { value: "out", label: "Наружу" },
                   ]}
                 />
-              </div>
+                </div>
+              </>
             )}
           </>
         ) : null}

@@ -1087,10 +1087,53 @@ test('garage gates from the plan reach the openings estimate as their own item',
   const result = calculateProject(project);
   const gate = result.lines.find((line) => line.id === 'openings:opening-1');
   const work = result.lines.find((line) => line.id === 'openings:work-1');
-  assert.equal(gate.catalogId, 'MAT-189');
+  assert.equal(gate.catalogId, 'MAT-242');
+  assert.equal(gate.qty, 5.5);
   assert.equal(work.catalogId, 'LAB-110');
-  assert.match(gate.name, /Гаражные ворота/);
+  assert.match(gate.name, /секционные/i);
   assert.equal(result.lines.some((line) => line.id === 'openings:fastener-1'), false);
+});
+
+test('every window uses its actual area instead of the 1200x1200 catalog item', () => {
+  const project = createDefaultProject();
+  project.plan.openings.push({ id: 'window-custom', type: 'window', windowType: 'standard', width: 2.4, height: 2.5, x: 2, y: 0, orientation: 'h', outer: true });
+  const result = calculateProject(project);
+  const product = result.lines.find((line) => line.id === 'openings:opening-1');
+  const work = result.lines.find((line) => line.id === 'openings:work-1');
+  assert.equal(product.catalogId, 'MAT-240');
+  assert.equal(product.qty, 6);
+  assert.match(product.name, /2400×2500 мм · 6 м²/);
+  assert.equal(work.catalogId, 'LAB-140');
+  assert.equal(work.qty, 6);
+});
+
+test('the 1200x1200 baseline remains 14000 for the window and 4000 for installation', () => {
+  const project = createDefaultProject();
+  project.plan.openings.push({ id: 'window-base', type: 'window', width: 1.2, height: 1.2, outer: true });
+  const result = calculateProject(project);
+  const product = result.lines.find((line) => line.id === 'openings:opening-1');
+  const work = result.lines.find((line) => line.id === 'openings:work-1');
+  assert.equal(Math.round(product.qty * product.price), 14000);
+  assert.equal(Math.round(work.qty * work.price), 4000);
+});
+
+test('panoramic windows, roller shutters, warm gates and thermal-break doors have separate pricing', () => {
+  const panoramicProject = createDefaultProject();
+  panoramicProject.plan.openings.push({ id: 'panorama', type: 'window', windowType: 'panoramic', width: 3, height: 2.5, outer: true });
+  assert.equal(calculateProject(panoramicProject).lines.find((line) => line.id === 'openings:opening-1').catalogId, 'MAT-241');
+
+  const gateProject = createDefaultProject();
+  gateProject.plan.openings.push({ id: 'warm-gate', type: 'door', doorType: 'garage', garageDoorType: 'sectional-warm', width: 4, height: 2.5, outer: true });
+  const warm = calculateProject(gateProject).lines.filter((line) => line.section === 'openings' && /opening-1|work-1/.test(line.id));
+  assert.equal(Math.round(warm.reduce((sum, line) => sum + line.qty * line.price, 0)), 240000);
+  gateProject.plan.openings[1].garageDoorType = 'roller-shutter';
+  assert.equal(calculateProject(gateProject).lines.find((line) => line.id === 'openings:opening-1').catalogId, 'MAT-243');
+
+  const doorProject = createDefaultProject();
+  doorProject.plan.openings[0].entranceDoorType = 'thermal-break';
+  const doorLines = calculateProject(doorProject).lines.filter((line) => line.section === 'openings' && /opening-0|work-0|fastener-0/.test(line.id));
+  assert.deepEqual(doorLines.map((line) => line.catalogId), ['MAT-244', 'LAB-141', 'MAT-070']);
+  assert.equal(Math.round(doorLines.reduce((sum, line) => sum + line.qty * line.price, 0)), 53450);
 });
 
 test('second light moves room area from SIP ceiling to insulated rafters', () => {

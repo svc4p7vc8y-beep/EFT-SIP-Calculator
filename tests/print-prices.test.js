@@ -10,7 +10,7 @@ test('soft roofing and garage gates have provisional prices and can print', () =
   project.settings.roof.covering = 'soft';
   project.plan.openings.push({ id: 'garage-1', type: 'door', doorType: 'garage', width: 2.5, height: 2.2, x: 4, y: 0, orientation: 'h', outer: true });
   const result = calculateProject(project);
-  for (const id of ['MAT-199', 'MAT-189', 'LAB-110', 'LAB-113']) {
+  for (const id of ['MAT-199', 'MAT-242', 'LAB-110', 'LAB-113']) {
     assert.ok(result.lines.some(line => line.catalogId === id && line.price > 0), id);
   }
   assert.deepEqual(unpricedClientLines(result), []);

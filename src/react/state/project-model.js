@@ -16,7 +16,7 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 
-export const REACT_PROJECT_VERSION = 125;
+export const REACT_PROJECT_VERSION = 126;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -668,6 +668,13 @@ export function normalizePlan(plan) {
       includeInEstimate: true,
       subtractFromSip: true,
       ...opening,
+      ...(opening.type === "window" ? { windowType: opening.windowType || "standard" } : {}),
+      ...(opening.type === "door" && opening.doorType === "garage"
+        ? { garageDoorType: opening.garageDoorType || "sectional-warm" }
+        : {}),
+      ...(opening.type === "door" && opening.doorType !== "garage" && opening.outer !== false
+        ? { entranceDoorType: opening.entranceDoorType || "standard" }
+        : {}),
     })),
     excludedPiles: plan.excludedPiles || [],
     pileRows: normalizedPileRows,

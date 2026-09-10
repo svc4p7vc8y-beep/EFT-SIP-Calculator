@@ -1763,12 +1763,12 @@ export default function Calculators({ type }) {
                   <div>
                     <strong>
                       {opening.type === "window"
-                        ? "Окно"
+                        ? opening.windowType === "panoramic" ? "Панорамное / витражное окно" : "Окно ПВХ"
                         : opening.doorType === "garage"
-                          ? "Гаражные ворота"
+                          ? opening.garageDoorType === "roller-shutter" ? "Роллетные ворота" : "Секционные тёплые ворота"
                           : opening.doorType === "interior"
                             ? "Межкомнатная дверь"
-                            : "Входная дверь"}
+                            : opening.entranceDoorType === "thermal-break" ? "Входная дверь с терморазрывом" : "Входная дверь"}
                       {(project.meta.floors || 1) > 1 ? ` · ${floor} этаж` : ""}
                     </strong>
                     <span>

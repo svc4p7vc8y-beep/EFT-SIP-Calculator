@@ -2412,45 +2412,62 @@ function openingSection(project, index) {
       if (isInteriorDoor(opening)) return;
       const width = Math.round((opening.width || 0.8) * 1000);
       const height = Math.round((opening.height || 2) * 1000);
+      const area = round((Number(opening.width) || 0.8) * (Number(opening.height) || 2), 3);
       const garage = opening.type === "door" && opening.doorType === "garage";
+      const panoramic = opening.type === "window" && opening.windowType === "panoramic";
+      const rollerShutter = garage && opening.garageDoorType === "roller-shutter";
+      const thermalBreak = opening.type === "door" && !garage && opening.doorType !== "interior" && opening.entranceDoorType === "thermal-break";
       const type =
         opening.type === "window"
-          ? "Окно"
+          ? panoramic ? "Панорамное / витражное остекление" : "Окно ПВХ"
           : garage
-            ? "Гаражные ворота"
+            ? rollerShutter ? "Роллетные гаражные ворота" : "Ворота гаражные секционные тёплые"
             : opening.doorType === "interior"
               ? "Комплект межкомнатной двери"
-              : "Дверь входная";
-      const item =
-        findCatalog(index, `${type} ${width}`) || findCatalog(index, type);
+              : thermalBreak ? "Дверь входная с терморазрывом" : "Дверь входная";
+      const catalogId = opening.type === "window"
+        ? panoramic ? "MAT-241" : "MAT-240"
+        : garage
+          ? rollerShutter ? "MAT-243" : "MAT-242"
+          : thermalBreak ? "MAT-244" : undefined;
+      const item = catalogId
+        ? index.byId.get(catalogId)
+        : findCatalog(index, `${type} ${width}`) || findCatalog(index, type);
+      const pricedByArea = opening.type === "window" || garage;
       lines.push(
         makeLine(
           index,
           "openings",
           item?.name || `${type} ${width}×${height}`,
-          1,
+          pricedByArea ? area : 1,
           {
             key: `opening-${openingIndex}`,
-            name: item?.name || `${type} ${width}×${height} мм`,
-            unit: "шт",
+            catalogId,
+            name: `${type} ${width}×${height} мм · ${area} м²`,
+            unit: pricedByArea ? "м2" : "шт",
+            exactQuantity: pricedByArea,
           },
         ),
       );
-      const work =
-        opening.type === "window"
-          ? "Монтаж окна"
-          : garage
-            ? "Монтаж гаражных ворот"
-            : opening.doorType === "interior"
-              ? "Установка межкомнатной двери"
-              : "Монтаж двери";
+      const workCatalogId = opening.type === "window"
+        ? "LAB-140"
+        : thermalBreak
+          ? "LAB-141"
+          : undefined;
+      const work = opening.type === "window"
+        ? "Монтаж окна по фактической площади"
+        : garage
+          ? "Монтаж гаражных ворот"
+          : opening.doorType === "interior"
+            ? "Установка межкомнатной двери"
+            : thermalBreak ? "Монтаж входной двери с терморазрывом" : "Монтаж двери";
       lines.push(
         makeLine(
           index,
           "openings",
           work,
-          opening.type === "window" ? opening.width * opening.height : 1,
-          { key: `work-${openingIndex}`, kind: "labor" },
+          opening.type === "window" ? area : 1,
+          { key: `work-${openingIndex}`, kind: "labor", catalogId: workCatalogId, exactQuantity: opening.type === "window" },
         ),
       );
       if (!garage)
