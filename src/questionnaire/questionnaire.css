@@ -107,6 +107,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .q-area-note svg { width: 17px; }
 .q-area-note strong { margin-left: auto; font-size: 15px; }
 .q-inline-panel { margin-top: 16px; padding: 16px; border-radius: 13px; background: #f5f8f4; }
+.q-inline-panel h3 { margin: 0 0 14px; font-size: 14px; }
+.q-compact-panel { display: flex; flex-direction: column; gap: 4px; margin: -8px 0 20px; color: var(--q-green-dark); background: var(--q-green-soft); }
+.q-compact-panel strong { font-size: 12px; }
+.q-compact-panel span { color: var(--q-muted); font-size: 10px; line-height: 1.5; }
+.q-empty-state { min-height: 190px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; padding: 28px; border: 1px dashed #b8c7b4; border-radius: 14px; color: var(--q-muted); background: #f7faf6; text-align: center; }
+.q-empty-state svg { width: 28px; color: var(--q-green); }
+.q-empty-state strong { color: var(--q-text); font-size: 13px; }
+.q-empty-state span { max-width: 420px; font-size: 11px; line-height: 1.55; }
 .q-upload { position: relative; min-height: 112px; display: grid; grid-template-columns: 30px 1fr; gap: 3px 10px; align-content: center; margin-top: 20px; padding: 20px; border: 1px dashed #9cb294; border-radius: 14px; background: #f7faf6; cursor: pointer; }
 .q-upload > svg { grid-row: span 2; width: 22px; color: var(--q-green); }
 .q-upload strong { font-size: 13px; }

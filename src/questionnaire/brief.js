@@ -15,9 +15,11 @@ export const initialAnswers = {
   windowWidth: "1.2", windowHeight: "1.4", entranceDoorWidth: "0.96", entranceDoorHeight: "2.05",
   garageDoorWidth: "3", garageDoorHeight: "2.5", openingsNotes: "",
   platformSize: "", platformLength: "", platformWidth: "", platformSide: "Подобрать", platformRoof: "Без кровли",
+  terraceLength: "", terraceWidth: "", terraceArea: "", terraceSide: "Подобрать", terraceRoof: "Без кровли",
+  porchLength: "", porchWidth: "", porchArea: "", porchSide: "Фасад", porchRoof: "Без кровли",
   scope: ["Сваи и обвязка", "SIP-пол", "SIP-стены", "Перегородки", "SIP-потолок", "Кровля", "Доставка"],
   wallThickness: "174 мм", floorThickness: "224 мм", ceilingThickness: "224 мм",
-  secondFloorThickness: "224 мм",
+  secondFloorThickness: "224 мм", secondFloorWallThickness: "174 мм", secondFloorWallHeight: "2.5", secondFloorPartitionType: "Каркасные",
   partitionType: "Каркасные", panelFamily: "PPS", panelLayout: "1250 мм",
   roofShape: "Двускатная", roofType: "Холодная", roofCovering: "Металлочерепица",
   ridgeAxis: "Вдоль длины дома",
@@ -25,11 +27,12 @@ export const initialAnswers = {
   flatRoofSlopeDirection: "К задней стороне", flatRoofSlopePercent: "3",
   flatRoofSlopeMode: "Перепад высоты стен",
   gableType: "По типу кровли", gableCount: "2",
-  electricStage: "Полная", heating: "Электрическое", waterSource: "Скважина", sewer: "Септик",
+  electricStage: "Полная", waterStage: "Полная разводка", sewerStage: "Полная разводка",
+  heating: "Электрическое", waterSource: "Скважина", sewer: "Септик",
   ventilation: "Естественная", gas: false, fireplace: false,
   exteriorFinish: "Без отделки", interiorFinish: "Без отделки", floorFinish: "Без отделки",
   ceilingFinish: "Без отделки", plinth: false, gutters: true,
-  budget: "", desiredStart: "", decisionStatus: "Собираю информацию", contactMethod: "Телефон",
+  budget: "", desiredStart: "", decisionStatus: "Собираю информацию", contactMethod: "Звонок",
   contactTime: "", notes: "", consent: false,
 };
 
@@ -41,9 +44,22 @@ const numberOrNull = (value) => {
 export function buildClientBrief(answers, attachments = []) {
   const floors = Number(answers.floors);
   const features = [answers.secondLight && "Второй свет", answers.staircaseOpening && "Лестничный проём"].filter(Boolean);
-  const extras = [answers.terrace && "Терраса", answers.porch && "Крыльцо", answers.balcony && "Балкон"].filter(Boolean);
+  const extras = [answers.terrace && "Терраса", answers.porch && "Крыльцо"].filter(Boolean);
+  const terrace = {
+    enabled: Boolean(answers.terrace),
+    length: numberOrNull(answers.terraceLength), width: numberOrNull(answers.terraceWidth),
+    area: numberOrNull(answers.terraceArea) || (numberOrNull(answers.terraceLength) && numberOrNull(answers.terraceWidth) ? numberOrNull(answers.terraceLength) * numberOrNull(answers.terraceWidth) : null),
+    side: answers.terraceSide, roof: answers.terraceRoof,
+  };
+  const porch = {
+    enabled: Boolean(answers.porch),
+    length: numberOrNull(answers.porchLength), width: numberOrNull(answers.porchWidth),
+    area: numberOrNull(answers.porchArea) || (numberOrNull(answers.porchLength) && numberOrNull(answers.porchWidth) ? numberOrNull(answers.porchLength) * numberOrNull(answers.porchWidth) : null),
+    side: answers.porchSide, roof: answers.porchRoof,
+  };
+  const legacyPlatform = answers.terrace ? terrace : porch;
   return {
-    format: "eft-client-brief", schemaVersion: 1, questionnaireVersion: 3, createdAt: new Date().toISOString(),
+    format: "eft-client-brief", schemaVersion: 1, questionnaireVersion: 4, createdAt: new Date().toISOString(),
     customer: { name: answers.customerName.trim(), phone: answers.phone.trim(), email: answers.email.trim(), preferredContact: answers.contactMethod, preferredTime: answers.contactTime },
     project: {
       goal: answers.goal, buildingType: answers.buildingType, address: answers.address.trim() || answers.region.trim(), region: answers.region.trim(),
@@ -55,7 +71,11 @@ export function buildClientBrief(answers, attachments = []) {
     },
     site: { area: numberOrNull(answers.siteArea), cadastralNumber: answers.cadastralNumber.trim(), terrain: answers.terrain, soil: answers.soil, access: answers.access, utilities: { electricity: answers.electricityOnSite, water: answers.waterOnSite, sewer: answers.sewerOnSite } },
     scope: [...answers.scope],
-    sip: { wallThickness: answers.wallThickness, floorThickness: answers.floorThickness, secondFloorThickness: answers.secondFloorThickness, ceilingThickness: answers.ceilingThickness, partitionType: answers.partitionType, panelFamily: answers.panelFamily, panelLayout: answers.panelLayout },
+    sip: {
+      wallThickness: answers.wallThickness, floorThickness: answers.floorThickness, secondFloorThickness: answers.secondFloorThickness,
+      ceilingThickness: answers.ceilingThickness, partitionType: answers.partitionType, panelFamily: answers.panelFamily, panelLayout: answers.panelLayout,
+      secondFloor: floors === 2 ? { wallThickness: answers.secondFloorWallThickness, wallHeight: numberOrNull(answers.secondFloorWallHeight), partitionType: answers.secondFloorPartitionType } : null,
+    },
     roof: {
       shape: answers.roofShape,
       type: answers.roofType,
@@ -83,10 +103,16 @@ export function buildClientBrief(answers, attachments = []) {
     },
     extras: {
       items: extras,
-      platformSize: answers.platformSize.trim() || [answers.platformLength, answers.platformWidth].filter(Boolean).join(" × "),
-      platform: { length: numberOrNull(answers.platformLength), width: numberOrNull(answers.platformWidth), side: answers.platformSide, roof: answers.platformRoof },
+      terrace, porch,
+      platformSize: answers.platformSize.trim() || [legacyPlatform.length, legacyPlatform.width].filter(Boolean).join(" × "),
+      platform: legacyPlatform,
     },
-    engineering: { electricStage: answers.electricStage, heating: answers.heating, waterSource: answers.waterSource, sewer: answers.sewer, ventilation: answers.ventilation, gas: answers.gas, fireplace: answers.fireplace },
+    engineering: {
+      requested: answers.scope.includes("Инженерия"), electricStage: answers.electricStage,
+      waterStage: answers.waterStage, sewerStage: answers.sewerStage,
+      heating: answers.heating, waterSource: answers.waterSource, sewer: answers.sewer,
+      ventilation: answers.ventilation, gas: answers.gas, fireplace: answers.fireplace,
+    },
     finish: { exterior: answers.exteriorFinish, interior: answers.interiorFinish, floor: answers.floorFinish, ceiling: answers.ceilingFinish, plinth: answers.plinth, gutters: answers.gutters },
     delivery: { access: answers.access, distance: numberOrNull(answers.deliveryDistance) },
     budget: { amount: numberOrNull(answers.budget), desiredStart: answers.desiredStart, decisionStatus: answers.decisionStatus },
@@ -109,7 +135,7 @@ export function automationReadiness(answers, attachments = []) {
     answers.houseShape !== "Прямоугольная" && "Нужен точный контур строения",
     "Нужна геометрия помещений и внутренних стен",
     "Нужно расположение окон, дверей и ворот на плане",
-    (answers.terrace || answers.porch || answers.balcony) && "Нужно положение площадок относительно строения",
+    (answers.terrace || answers.porch) && "Нужно проверить положение террасы или крыльца относительно строения",
     attachments.length ? "Приложенный план нужно проверить и перенести в редактор" : "Нужен план или эскиз с размерами",
   ].filter(Boolean);
   return {
@@ -122,6 +148,8 @@ export function automationReadiness(answers, attachments = []) {
 }
 
 export function completionPercent(answers) {
-  const important = [answers.customerName, answers.phone || answers.email, answers.region || answers.address, answers.buildingType, answers.length, answers.width, answers.floors, answers.wallHeight, answers.scope.length, answers.wallThickness, answers.roofShape, answers.heating, answers.exteriorFinish, answers.decisionStatus];
+  const contact = answers.contactMethod === "Почта" ? answers.email : answers.phone;
+  const engineering = answers.scope.includes("Инженерия") ? answers.electricStage || answers.waterStage || answers.heating : true;
+  const important = [answers.customerName, contact, answers.region || answers.address, answers.buildingType, answers.length, answers.width, answers.floors, answers.wallHeight, answers.scope.length, answers.wallThickness, answers.roofShape, engineering, answers.exteriorFinish, answers.decisionStatus];
   return Math.round((important.filter(Boolean).length / important.length) * 100);
 }
