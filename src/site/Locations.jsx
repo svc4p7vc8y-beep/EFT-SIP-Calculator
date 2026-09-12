@@ -16,7 +16,7 @@ function LocationCard({ location }) {
 
 export default function Locations() {
   return <section className="locations-section section" id="locations" data-reveal>
-    <div className="locations-intro"><div><span className="section-number">07 / Контакты и локации</span><h2>Мы рядом — от первого<br />звонка до производства.</h2></div><p>Обсудите проект в офисе и посмотрите,<br />где создаются домокомплекты EFT.</p></div>
+    <div className="locations-intro"><div><span className="section-number">07 / Контакты и локации</span><h2>Мы рядом — от первого<br />звонка до производства.</h2></div><p>Обсудите проект в офисе и посмотрите,<br />где создаются домокомплекты ЭФТ.</p></div>
     <div className="contact-links">
       {contacts.phones.map((phone) => <a key={phone} href={phoneHref(phone)}><Phone size={19} />{phone}</a>)}
       <a href={`mailto:${contacts.email}`}><Mail size={19} />{contacts.email}</a>

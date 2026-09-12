@@ -15,15 +15,11 @@ function PanelExploder() {
   return <div className={`panel-photo panel-exploder sip-model${expanded ? ' is-expanded' : ''}`} onPointerMove={tilt} onPointerLeave={reset} data-reveal>
     <svg className="sip-assembly" viewBox="0 0 620 480" role="img" aria-label="СИП-панель: два отдельных листа OSB и пенопласт с отступом 50 миллиметров от каждого края. Схема, не рабочий чертёж.">
       <defs>
-        <pattern id={`${textureId}-osb`} width="48" height="32" patternUnits="userSpaceOnUse">
-          <rect width="48" height="32" fill="#c9a16b" />
-          <path d="M-5 5L23 1L20 5L-2 10Z M26 10L50 16L48 20L25 14Z M4 22L35 16L32 21L5 26Z M28 30L50 25L49 30L31 34Z" fill="#ecd1a0" />
-          <path d="M3 2L7 15L10 17L7 3Z M34 1L22 13L26 12L39 0Z M12 30L20 23L22 23L18 32Z" fill="#a97e4c" />
-          <path d="M1 19L25 12M29 23L46 21M10 29L34 23M13 6L23 4" stroke="#f3deba" strokeWidth="1" />
+        <pattern id={`${textureId}-osb`} width="180" height="180" patternUnits="userSpaceOnUse" patternTransform="matrix(1 -.286 .68 .32 0 0)">
+          <image href={asset('osb-natural.png')} width="180" height="180" preserveAspectRatio="none" />
         </pattern>
-        <pattern id={`${textureId}-eps`} width="14" height="12" patternUnits="userSpaceOnUse">
-          <rect width="14" height="12" fill="#f0f1eb" />
-          <g fill="#fafbf6" stroke="#d9ddd4" strokeWidth=".65"><circle cx="3" cy="3" r="2.6" /><circle cx="10" cy="4" r="3.2" /><circle cx="5" cy="10" r="3.3" /><circle cx="13" cy="11" r="2.7" /></g>
+        <pattern id={`${textureId}-eps`} width="110" height="110" patternUnits="userSpaceOnUse">
+          <image href={asset('eps-natural.png')} width="110" height="110" />
         </pattern>
       </defs>
       <ellipse cx="305" cy="397" rx="218" ry="27" fill="#354435" opacity=".07" />
