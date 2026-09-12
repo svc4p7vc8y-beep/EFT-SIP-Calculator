@@ -1,112 +1,1718 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, ChevronRight, ClipboardCheck, Download, Home, Layers3, MapPinned, Paperclip, Phone, Ruler, Save, Send, Wrench } from "lucide-react";
-import { buildClientBrief, completionPercent, initialAnswers, PENDING_CLIENT_BRIEF_KEY, QUESTIONNAIRE_STORAGE_KEY } from "./brief.js";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardCheck,
+  Download,
+  Home,
+  Layers3,
+  MapPinned,
+  Paperclip,
+  Phone,
+  Ruler,
+  Save,
+  Send,
+  Wrench,
+} from "lucide-react";
+import {
+  buildClientBrief,
+  completionPercent,
+  initialAnswers,
+  QUESTIONNAIRE_STORAGE_KEY,
+} from "./brief.js";
+import { submitPublicIntake } from "../shared/team-api.js";
 import "./questionnaire.css";
 
 const STEPS = [
-  ["О проекте", "Цель и контакты", ClipboardCheck], ["Участок", "Адрес и подъезд", MapPinned],
-  ["Дом", "Габариты и этажи", Home], ["Планировка", "Комнаты и проёмы", Ruler],
-  ["Конструкции", "SIP и кровля", Layers3], ["Инженерия", "Системы дома", Wrench],
-  ["Отделка", "Внутри и снаружи", Building2], ["Бюджет и контакты", "Проверка заявки", Send],
+  ["О проекте", "Цель и контакты", ClipboardCheck],
+  ["Участок", "Адрес и подъезд", MapPinned],
+  ["Дом", "Габариты и этажи", Home],
+  ["Планировка", "Комнаты и проёмы", Ruler],
+  ["Конструкции", "SIP и кровля", Layers3],
+  ["Инженерия", "Системы дома", Wrench],
+  ["Отделка", "Внутри и снаружи", Building2],
+  ["Бюджет и контакты", "Проверка заявки", Send],
 ];
-const SCOPES = ["Сваи и обвязка", "SIP-пол", "SIP-стены", "Перегородки", "SIP-потолок", "Кровля", "Окна и двери", "Терраса или крыльцо", "Инженерия", "Внешняя отделка", "Внутренняя отделка", "Доставка"];
-const BUILD_STAGES = ["Сваи", "Обвязка", "SIP-пол", "Стены", "Второй этаж", "Кровля и проёмы", "Фасад", "Дом готов"];
+const SCOPES = [
+  "Сваи и обвязка",
+  "SIP-пол",
+  "SIP-стены",
+  "Перегородки",
+  "SIP-потолок",
+  "Кровля",
+  "Окна и двери",
+  "Терраса или крыльцо",
+  "Инженерия",
+  "Внешняя отделка",
+  "Внутренняя отделка",
+  "Доставка",
+];
+const BUILD_STAGES = [
+  "Сваи",
+  "Обвязка",
+  "SIP-пол",
+  "Стены",
+  "Второй этаж",
+  "Кровля и проёмы",
+  "Фасад",
+  "Дом готов",
+];
 
-function Field({ label, name, answers, onChange, type = "text", placeholder, unit, required, min, max, step }) {
-  return <label className="q-field"><span>{label}{required ? <b> *</b> : null}</span><div className={unit ? "q-input-with-unit" : ""}><input name={name} type={type} value={answers[name]} onChange={onChange} placeholder={placeholder} min={min} max={max} step={step} required={required} />{unit ? <em>{unit}</em> : null}</div></label>;
+function Field({
+  label,
+  name,
+  answers,
+  onChange,
+  type = "text",
+  placeholder,
+  unit,
+  required,
+  min,
+  max,
+  step,
+}) {
+  return (
+    <label className="q-field">
+      <span>
+        {label}
+        {required ? <b> *</b> : null}
+      </span>
+      <div className={unit ? "q-input-with-unit" : ""}>
+        <input
+          name={name}
+          type={type}
+          value={answers[name]}
+          onChange={onChange}
+          placeholder={placeholder}
+          min={min}
+          max={max}
+          step={step}
+          required={required}
+        />
+        {unit ? <em>{unit}</em> : null}
+      </div>
+    </label>
+  );
 }
 function SelectField({ label, name, answers, onChange, options }) {
-  return <label className="q-field"><span>{label}</span><select name={name} value={answers[name]} onChange={onChange}>{options.map((option) => <option key={option}>{option}</option>)}</select></label>;
+  return (
+    <label className="q-field">
+      <span>{label}</span>
+      <select name={name} value={answers[name]} onChange={onChange}>
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
 }
 function Choices({ label, name, value, options, setValue, columns = 3 }) {
-  return <fieldset className="q-choice-group"><legend>{label}</legend><div className="q-choices" style={{ "--choice-columns": columns }}>{options.map((option) => { const [title, hint] = Array.isArray(option) ? option : [option, ""]; const selected = value === title; return <button key={title} type="button" className={selected ? "selected" : ""} onClick={() => setValue(name, title)} aria-pressed={selected}><span className="q-choice-mark">{selected ? <Check /> : null}</span><strong>{title}</strong>{hint ? <small>{hint}</small> : null}</button>; })}</div></fieldset>;
+  return (
+    <fieldset className="q-choice-group">
+      <legend>{label}</legend>
+      <div className="q-choices" style={{ "--choice-columns": columns }}>
+        {options.map((option) => {
+          const [title, hint] = Array.isArray(option) ? option : [option, ""];
+          const selected = value === title;
+          return (
+            <button
+              key={title}
+              type="button"
+              className={selected ? "selected" : ""}
+              onClick={() => setValue(name, title)}
+              aria-pressed={selected}
+            >
+              <span className="q-choice-mark">
+                {selected ? <Check /> : null}
+              </span>
+              <strong>{title}</strong>
+              {hint ? <small>{hint}</small> : null}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
 }
 function Toggle({ label, name, answers, setValue, hint }) {
   const selected = Boolean(answers[name]);
-  return <button className={`q-toggle ${selected ? "selected" : ""}`} type="button" onClick={() => setValue(name, !selected)} aria-pressed={selected}><span>{selected ? <Check /> : null}</span><div><strong>{label}</strong>{hint ? <small>{hint}</small> : null}</div></button>;
+  return (
+    <button
+      className={`q-toggle ${selected ? "selected" : ""}`}
+      type="button"
+      onClick={() => setValue(name, !selected)}
+      aria-pressed={selected}
+    >
+      <span>{selected ? <Check /> : null}</span>
+      <div>
+        <strong>{label}</strong>
+        {hint ? <small>{hint}</small> : null}
+      </div>
+    </button>
+  );
 }
 function StepHeader({ number, title, description }) {
-  return <header className="q-step-header"><span>{String(number).padStart(2, "0")}</span><div><h1>{title}</h1><p>{description}</p></div></header>;
+  return (
+    <header className="q-step-header">
+      <span>{String(number).padStart(2, "0")}</span>
+      <div>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
+    </header>
+  );
 }
 
 function ProjectStep({ answers, onChange, setValue }) {
-  const contactLabel = {
-    WhatsApp: "Номер WhatsApp", Telegram: "Телефон или @имя в Telegram",
-    Max: "Номер телефона в Max", Звонок: "Номер телефона",
-  }[answers.contactMethod] || "Номер телефона";
-  return <><StepHeader number={1} title="Начнём с главного" description="Расскажите, какой результат вы хотите получить. Технические детали можно уточнить позже." /><Choices label="Что нужно рассчитать?" name="goal" value={answers.goal} setValue={setValue} options={[["Домокомплект", "SIP-панели, пиломатериал и крепёж"], ["Тёплый контур", "Основание, стены, кровля и проёмы"], ["Под ключ", "Дом с инженерией и отделкой"]]} /><div className="q-grid two"><Field label="Ваше имя" name="customerName" answers={answers} onChange={onChange} placeholder="Как к вам обращаться" required /><Field label="Регион строительства" name="region" answers={answers} onChange={onChange} placeholder="Например, Московская область" required /></div><div className="q-section-gap"><Choices label="Как с вами связаться?" name="contactMethod" value={answers.contactMethod} setValue={setValue} columns={5} options={[["WhatsApp", "Сообщение в мессенджере"], ["Telegram", "Телефон или @имя"], ["Max", "Сообщение в мессенджере"], ["Почта", "Ответ на электронную почту"], ["Звонок", "Позвоним по телефону"]]} /></div><div className="q-grid two">{answers.contactMethod === "Почта" ? <Field label="Электронная почта" name="email" answers={answers} onChange={onChange} type="email" placeholder="name@example.ru" required /> : <Field label={contactLabel} name="phone" answers={answers} onChange={onChange} type={answers.contactMethod === "Telegram" ? "text" : "tel"} placeholder={answers.contactMethod === "Telegram" ? "+7 900 000-00-00 или @username" : "+7 900 000-00-00"} required />}</div><div className="q-section-gap"><Choices label="Тип строения" name="buildingType" value={answers.buildingType} setValue={setValue} columns={4} options={[["Гараж", "Отдельный или пристроенный"], ["Пристройка", "К существующему зданию"], ["Хозблок", "Хозяйственное строение"], ["Жилой дом", "Для постоянного или сезонного проживания"]]} /></div></>;
+  const contactLabel =
+    {
+      WhatsApp: "Номер WhatsApp",
+      Telegram: "Телефон или @имя в Telegram",
+      Max: "Номер телефона в Max",
+      Звонок: "Номер телефона",
+    }[answers.contactMethod] || "Номер телефона";
+  return (
+    <>
+      <StepHeader
+        number={1}
+        title="Начнём с главного"
+        description="Расскажите, какой результат вы хотите получить. Технические детали можно уточнить позже."
+      />
+      <Choices
+        label="Что нужно рассчитать?"
+        name="goal"
+        value={answers.goal}
+        setValue={setValue}
+        options={[
+          ["Домокомплект", "SIP-панели, пиломатериал и крепёж"],
+          ["Тёплый контур", "Основание, стены, кровля и проёмы"],
+          ["Под ключ", "Дом с инженерией и отделкой"],
+        ]}
+      />
+      <div className="q-grid two">
+        <Field
+          label="Ваше имя"
+          name="customerName"
+          answers={answers}
+          onChange={onChange}
+          placeholder="Как к вам обращаться"
+          required
+        />
+        <Field
+          label="Регион строительства"
+          name="region"
+          answers={answers}
+          onChange={onChange}
+          placeholder="Например, Московская область"
+          required
+        />
+      </div>
+      <div className="q-section-gap">
+        <Choices
+          label="Как с вами связаться?"
+          name="contactMethod"
+          value={answers.contactMethod}
+          setValue={setValue}
+          columns={5}
+          options={[
+            ["WhatsApp", "Сообщение в мессенджере"],
+            ["Telegram", "Телефон или @имя"],
+            ["Max", "Сообщение в мессенджере"],
+            ["Почта", "Ответ на электронную почту"],
+            ["Звонок", "Позвоним по телефону"],
+          ]}
+        />
+      </div>
+      <div className="q-grid two">
+        {answers.contactMethod === "Почта" ? (
+          <Field
+            label="Электронная почта"
+            name="email"
+            answers={answers}
+            onChange={onChange}
+            type="email"
+            placeholder="name@example.ru"
+            required
+          />
+        ) : (
+          <Field
+            label={contactLabel}
+            name="phone"
+            answers={answers}
+            onChange={onChange}
+            type={answers.contactMethod === "Telegram" ? "text" : "tel"}
+            placeholder={
+              answers.contactMethod === "Telegram"
+                ? "+7 900 000-00-00 или @username"
+                : "+7 900 000-00-00"
+            }
+            required
+          />
+        )}
+      </div>
+      <div className="q-section-gap">
+        <Choices
+          label="Тип строения"
+          name="buildingType"
+          value={answers.buildingType}
+          setValue={setValue}
+          columns={4}
+          options={[
+            ["Гараж", "Отдельный или пристроенный"],
+            ["Пристройка", "К существующему зданию"],
+            ["Хозблок", "Хозяйственное строение"],
+            ["Жилой дом", "Для постоянного или сезонного проживания"],
+          ]}
+        />
+      </div>
+    </>
+  );
 }
 function SiteStep({ answers, onChange }) {
-  return <><StepHeader number={2} title="Участок и логистика" description="Эти сведения влияют на фундамент, разгрузку и количество рейсов." /><div className="q-grid two"><Field label="Адрес или населённый пункт" name="address" answers={answers} onChange={onChange} placeholder="Район, деревня, улица" /><Field label="Площадь участка" name="siteArea" answers={answers} onChange={onChange} type="number" unit="сот." min="0" step="0.1" /><Field label="Кадастровый номер" name="cadastralNumber" answers={answers} onChange={onChange} placeholder="Если известен" /><Field label="Расстояние доставки" name="deliveryDistance" answers={answers} onChange={onChange} type="number" unit="км" min="0" step="1" placeholder="От производства до объекта" /><SelectField label="Рельеф" name="terrain" answers={answers} onChange={onChange} options={["Ровный", "Небольшой уклон", "Выраженный уклон", "Не знаю"]} /><SelectField label="Грунт" name="soil" answers={answers} onChange={onChange} options={["Не знаю", "Песок", "Суглинок", "Глина", "Торф / слабый грунт", "Есть геология"]} /><SelectField label="Подъезд грузового транспорта" name="access" answers={answers} onChange={onChange} options={["Свободный", "Есть ограничения", "Нужна перегрузка", "Подъезд невозможен", "Не знаю"]} /></div><h2 className="q-subtitle">Коммуникации на участке</h2><div className="q-grid three"><SelectField label="Электричество" name="electricityOnSite" answers={answers} onChange={onChange} options={["Есть", "Будет подключено", "Нет", "Не знаю"]} /><SelectField label="Вода" name="waterOnSite" answers={answers} onChange={onChange} options={["Не выбрано", "Центральная", "Скважина", "Колодец", "Нет"]} /><SelectField label="Канализация" name="sewerOnSite" answers={answers} onChange={onChange} options={["Не выбрано", "Центральная", "Септик", "ЛОС", "Нет"]} /></div></>;
+  return (
+    <>
+      <StepHeader
+        number={2}
+        title="Участок и логистика"
+        description="Эти сведения влияют на фундамент, разгрузку и количество рейсов."
+      />
+      <div className="q-grid two">
+        <Field
+          label="Адрес или населённый пункт"
+          name="address"
+          answers={answers}
+          onChange={onChange}
+          placeholder="Район, деревня, улица"
+        />
+        <Field
+          label="Площадь участка"
+          name="siteArea"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="сот."
+          min="0"
+          step="0.1"
+        />
+        <Field
+          label="Кадастровый номер"
+          name="cadastralNumber"
+          answers={answers}
+          onChange={onChange}
+          placeholder="Если известен"
+        />
+        <Field
+          label="Расстояние доставки"
+          name="deliveryDistance"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="км"
+          min="0"
+          step="1"
+          placeholder="От производства до объекта"
+        />
+        <SelectField
+          label="Рельеф"
+          name="terrain"
+          answers={answers}
+          onChange={onChange}
+          options={["Ровный", "Небольшой уклон", "Выраженный уклон", "Не знаю"]}
+        />
+        <SelectField
+          label="Грунт"
+          name="soil"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Не знаю",
+            "Песок",
+            "Суглинок",
+            "Глина",
+            "Торф / слабый грунт",
+            "Есть геология",
+          ]}
+        />
+        <SelectField
+          label="Подъезд грузового транспорта"
+          name="access"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Свободный",
+            "Есть ограничения",
+            "Нужна перегрузка",
+            "Подъезд невозможен",
+            "Не знаю",
+          ]}
+        />
+      </div>
+      <h2 className="q-subtitle">Коммуникации на участке</h2>
+      <div className="q-grid three">
+        <SelectField
+          label="Электричество"
+          name="electricityOnSite"
+          answers={answers}
+          onChange={onChange}
+          options={["Есть", "Будет подключено", "Нет", "Не знаю"]}
+        />
+        <SelectField
+          label="Вода"
+          name="waterOnSite"
+          answers={answers}
+          onChange={onChange}
+          options={["Не выбрано", "Центральная", "Скважина", "Колодец", "Нет"]}
+        />
+        <SelectField
+          label="Канализация"
+          name="sewerOnSite"
+          answers={answers}
+          onChange={onChange}
+          options={["Не выбрано", "Центральная", "Септик", "ЛОС", "Нет"]}
+        />
+      </div>
+    </>
+  );
 }
 function HouseStep({ answers, onChange, setValue }) {
-  const area = (Number(answers.length) || 0) * (Number(answers.width) || 0) * Number(answers.floors || 1);
-  return <><StepHeader number={3} title="Габариты будущего дома" description="Можно указать ориентировочные размеры — точный контур позже проверит проектировщик." /><div className="q-dimension-row"><Field label="Длина" name="length" answers={answers} onChange={onChange} type="number" unit="м" min="1" step="0.1" required /><span>×</span><Field label="Ширина" name="width" answers={answers} onChange={onChange} type="number" unit="м" min="1" step="0.1" required /><span>×</span><Field label="Этажей" name="floors" answers={answers} onChange={onChange} type="number" min="1" max="2" required /></div><div className="q-area-note"><Ruler /><span>Площадь по габаритам</span><strong>{area ? `${Math.round(area * 10) / 10} м²` : "—"}</strong></div><div className="q-grid three"><Field label="Желаемая площадь" name="approxArea" answers={answers} onChange={onChange} type="number" unit="м²" min="1" /><Field label="Высота стен" name="wallHeight" answers={answers} onChange={onChange} type="number" unit="м" min="2" step="0.1" /><SelectField label="Форма дома" name="houseShape" answers={answers} onChange={onChange} options={["Прямоугольная", "Г-образная", "П-образная", "Сложный контур", "Не определена"]} /></div></>;
+  const area =
+    (Number(answers.length) || 0) *
+    (Number(answers.width) || 0) *
+    Number(answers.floors || 1);
+  return (
+    <>
+      <StepHeader
+        number={3}
+        title="Габариты будущего дома"
+        description="Можно указать ориентировочные размеры — точный контур позже проверит проектировщик."
+      />
+      <div className="q-dimension-row">
+        <Field
+          label="Длина"
+          name="length"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="м"
+          min="1"
+          step="0.1"
+          required
+        />
+        <span>×</span>
+        <Field
+          label="Ширина"
+          name="width"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="м"
+          min="1"
+          step="0.1"
+          required
+        />
+        <span>×</span>
+        <Field
+          label="Этажей"
+          name="floors"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="1"
+          max="2"
+          required
+        />
+      </div>
+      <div className="q-area-note">
+        <Ruler />
+        <span>Площадь по габаритам</span>
+        <strong>{area ? `${Math.round(area * 10) / 10} м²` : "—"}</strong>
+      </div>
+      <div className="q-grid three">
+        <Field
+          label="Желаемая площадь"
+          name="approxArea"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="м²"
+          min="1"
+        />
+        <Field
+          label="Высота стен"
+          name="wallHeight"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="м"
+          min="2"
+          step="0.1"
+        />
+        <SelectField
+          label="Форма дома"
+          name="houseShape"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Прямоугольная",
+            "Г-образная",
+            "П-образная",
+            "Сложный контур",
+            "Не определена",
+          ]}
+        />
+      </div>
+    </>
+  );
 }
 function LayoutStep({ answers, onChange, setValue }) {
-  const terraceCalculatedArea = (Number(answers.terraceLength) || 0) * (Number(answers.terraceWidth) || 0);
-  const porchCalculatedArea = (Number(answers.porchLength) || 0) * (Number(answers.porchWidth) || 0);
-  return <><StepHeader number={4} title="Планировка и проёмы" description="Количество помещений формирует первичный план и объёмы отделки и инженерии." /><div className="q-grid four"><Field label="Спальни" name="bedrooms" answers={answers} onChange={onChange} type="number" min="0" /><Field label="Санузлы" name="bathrooms" answers={answers} onChange={onChange} type="number" min="0" /><Field label="Кухни" name="kitchens" answers={answers} onChange={onChange} type="number" min="0" /><Field label="Техпомещения" name="utilityRooms" answers={answers} onChange={onChange} type="number" min="0" /></div><label className="q-field q-section-gap"><span>Состав помещений и пожелания к планировке</span><textarea name="roomsNotes" value={answers.roomsNotes} onChange={onChange} placeholder="Кухня-гостиная с выходом на террасу, кабинет, мастер-спальня…" /></label><div className="q-grid two"><Toggle label="Второй свет" name="secondLight" answers={answers} setValue={setValue} hint="Открытое пространство на два этажа" /><Toggle label="Лестничный проём" name="staircaseOpening" answers={answers} setValue={setValue} hint="Учесть вычет из перекрытия" /></div><h2 className="q-subtitle">Окна, двери и площадки</h2><div className="q-grid four"><Field label="Окна" name="windowsCount" answers={answers} onChange={onChange} type="number" min="0" /><Field label="Входные двери" name="entranceDoorsCount" answers={answers} onChange={onChange} type="number" min="0" /><Field label="Межкомнатные" name="interiorDoorsCount" answers={answers} onChange={onChange} type="number" min="0" /><Field label="Ворота" name="garageDoorsCount" answers={answers} onChange={onChange} type="number" min="0" /></div><div className="q-inline-panel q-section-gap"><h3>Типовые размеры проёмов</h3><div className="q-grid three"><Field label="Окно: ширина" name="windowWidth" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.01" /><Field label="Окно: высота" name="windowHeight" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.01" /><Field label="Входная дверь: ширина" name="entranceDoorWidth" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.01" />{Number(answers.garageDoorsCount) > 0 || answers.buildingType === "Гараж" ? <><Field label="Ворота: ширина" name="garageDoorWidth" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.01" /><Field label="Ворота: высота" name="garageDoorHeight" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.01" /></> : null}</div><label className="q-field q-section-gap"><span>Другие размеры и расположение проёмов</span><textarea name="openingsNotes" value={answers.openingsNotes} onChange={onChange} placeholder="Например: панорамное окно 2,4 × 2,1 м на фасаде" /></label></div><div className="q-grid two q-section-gap"><Toggle label="Терраса" name="terrace" answers={answers} setValue={setValue} /><Toggle label="Крыльцо" name="porch" answers={answers} setValue={setValue} /></div>{answers.terrace ? <div className="q-inline-panel"><h3>Параметры террасы</h3><div className="q-grid three"><Field label="Длина террасы" name="terraceLength" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.1" /><Field label="Ширина террасы" name="terraceWidth" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.1" /><Field label="Площадь террасы" name="terraceArea" answers={answers} onChange={onChange} type="number" unit="м²" min="0" step="0.1" placeholder={terraceCalculatedArea ? String(Math.round(terraceCalculatedArea * 10) / 10) : "Можно указать отдельно"} /><SelectField label="Расположение террасы" name="terraceSide" answers={answers} onChange={onChange} options={["Подобрать", "Фасад", "Задняя сторона", "Слева", "Справа"]} /><SelectField label="Кровля террасы" name="terraceRoof" answers={answers} onChange={onChange} options={["Без кровли", "Холодная", "Тёплая SIP", "Подобрать"]} /></div>{terraceCalculatedArea ? <div className="q-area-note"><Ruler /><span>Площадь по размерам</span><strong>{Math.round(terraceCalculatedArea * 10) / 10} м²</strong></div> : null}</div> : null}{answers.porch ? <div className="q-inline-panel"><h3>Параметры крыльца</h3><div className="q-grid three"><Field label="Длина крыльца" name="porchLength" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.1" /><Field label="Ширина крыльца" name="porchWidth" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.1" /><Field label="Площадь крыльца" name="porchArea" answers={answers} onChange={onChange} type="number" unit="м²" min="0" step="0.1" placeholder={porchCalculatedArea ? String(Math.round(porchCalculatedArea * 10) / 10) : "Можно указать отдельно"} /><SelectField label="Расположение крыльца" name="porchSide" answers={answers} onChange={onChange} options={["Фасад", "Задняя сторона", "Слева", "Справа", "Подобрать"]} /><SelectField label="Кровля крыльца" name="porchRoof" answers={answers} onChange={onChange} options={["Без кровли", "Холодная", "Тёплая SIP", "Подобрать"]} /></div>{porchCalculatedArea ? <div className="q-area-note"><Ruler /><span>Площадь по размерам</span><strong>{Math.round(porchCalculatedArea * 10) / 10} м²</strong></div> : null}</div> : null}</>;
+  const terraceCalculatedArea =
+    (Number(answers.terraceLength) || 0) * (Number(answers.terraceWidth) || 0);
+  const porchCalculatedArea =
+    (Number(answers.porchLength) || 0) * (Number(answers.porchWidth) || 0);
+  return (
+    <>
+      <StepHeader
+        number={4}
+        title="Планировка и проёмы"
+        description="Количество помещений формирует первичный план и объёмы отделки и инженерии."
+      />
+      <div className="q-grid four">
+        <Field
+          label="Спальни"
+          name="bedrooms"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+        <Field
+          label="Санузлы"
+          name="bathrooms"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+        <Field
+          label="Кухни"
+          name="kitchens"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+        <Field
+          label="Техпомещения"
+          name="utilityRooms"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+      </div>
+      <label className="q-field q-section-gap">
+        <span>Состав помещений и пожелания к планировке</span>
+        <textarea
+          name="roomsNotes"
+          value={answers.roomsNotes}
+          onChange={onChange}
+          placeholder="Кухня-гостиная с выходом на террасу, кабинет, мастер-спальня…"
+        />
+      </label>
+      <div className="q-grid two">
+        <Toggle
+          label="Второй свет"
+          name="secondLight"
+          answers={answers}
+          setValue={setValue}
+          hint="Открытое пространство на два этажа"
+        />
+        <Toggle
+          label="Лестничный проём"
+          name="staircaseOpening"
+          answers={answers}
+          setValue={setValue}
+          hint="Учесть вычет из перекрытия"
+        />
+      </div>
+      <h2 className="q-subtitle">Окна, двери и площадки</h2>
+      <div className="q-grid four">
+        <Field
+          label="Окна"
+          name="windowsCount"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+        <Field
+          label="Входные двери"
+          name="entranceDoorsCount"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+        <Field
+          label="Межкомнатные"
+          name="interiorDoorsCount"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+        <Field
+          label="Ворота"
+          name="garageDoorsCount"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          min="0"
+        />
+      </div>
+      <div className="q-inline-panel q-section-gap">
+        <h3>Типовые размеры проёмов</h3>
+        <div className="q-grid three">
+          <Field
+            label="Окно: ширина"
+            name="windowWidth"
+            answers={answers}
+            onChange={onChange}
+            type="number"
+            unit="м"
+            min="0"
+            step="0.01"
+          />
+          <Field
+            label="Окно: высота"
+            name="windowHeight"
+            answers={answers}
+            onChange={onChange}
+            type="number"
+            unit="м"
+            min="0"
+            step="0.01"
+          />
+          <Field
+            label="Входная дверь: ширина"
+            name="entranceDoorWidth"
+            answers={answers}
+            onChange={onChange}
+            type="number"
+            unit="м"
+            min="0"
+            step="0.01"
+          />
+          {Number(answers.garageDoorsCount) > 0 ||
+          answers.buildingType === "Гараж" ? (
+            <>
+              <Field
+                label="Ворота: ширина"
+                name="garageDoorWidth"
+                answers={answers}
+                onChange={onChange}
+                type="number"
+                unit="м"
+                min="0"
+                step="0.01"
+              />
+              <Field
+                label="Ворота: высота"
+                name="garageDoorHeight"
+                answers={answers}
+                onChange={onChange}
+                type="number"
+                unit="м"
+                min="0"
+                step="0.01"
+              />
+            </>
+          ) : null}
+        </div>
+        <label className="q-field q-section-gap">
+          <span>Другие размеры и расположение проёмов</span>
+          <textarea
+            name="openingsNotes"
+            value={answers.openingsNotes}
+            onChange={onChange}
+            placeholder="Например: панорамное окно 2,4 × 2,1 м на фасаде"
+          />
+        </label>
+      </div>
+      <div className="q-grid two q-section-gap">
+        <Toggle
+          label="Терраса"
+          name="terrace"
+          answers={answers}
+          setValue={setValue}
+        />
+        <Toggle
+          label="Крыльцо"
+          name="porch"
+          answers={answers}
+          setValue={setValue}
+        />
+      </div>
+      {answers.terrace ? (
+        <div className="q-inline-panel">
+          <h3>Параметры террасы</h3>
+          <div className="q-grid three">
+            <Field
+              label="Длина террасы"
+              name="terraceLength"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="м"
+              min="0"
+              step="0.1"
+            />
+            <Field
+              label="Ширина террасы"
+              name="terraceWidth"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="м"
+              min="0"
+              step="0.1"
+            />
+            <Field
+              label="Площадь террасы"
+              name="terraceArea"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="м²"
+              min="0"
+              step="0.1"
+              placeholder={
+                terraceCalculatedArea
+                  ? String(Math.round(terraceCalculatedArea * 10) / 10)
+                  : "Можно указать отдельно"
+              }
+            />
+            <SelectField
+              label="Расположение террасы"
+              name="terraceSide"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Подобрать",
+                "Фасад",
+                "Задняя сторона",
+                "Слева",
+                "Справа",
+              ]}
+            />
+            <SelectField
+              label="Кровля террасы"
+              name="terraceRoof"
+              answers={answers}
+              onChange={onChange}
+              options={["Без кровли", "Холодная", "Тёплая SIP", "Подобрать"]}
+            />
+          </div>
+          {terraceCalculatedArea ? (
+            <div className="q-area-note">
+              <Ruler />
+              <span>Площадь по размерам</span>
+              <strong>{Math.round(terraceCalculatedArea * 10) / 10} м²</strong>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {answers.porch ? (
+        <div className="q-inline-panel">
+          <h3>Параметры крыльца</h3>
+          <div className="q-grid three">
+            <Field
+              label="Длина крыльца"
+              name="porchLength"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="м"
+              min="0"
+              step="0.1"
+            />
+            <Field
+              label="Ширина крыльца"
+              name="porchWidth"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="м"
+              min="0"
+              step="0.1"
+            />
+            <Field
+              label="Площадь крыльца"
+              name="porchArea"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="м²"
+              min="0"
+              step="0.1"
+              placeholder={
+                porchCalculatedArea
+                  ? String(Math.round(porchCalculatedArea * 10) / 10)
+                  : "Можно указать отдельно"
+              }
+            />
+            <SelectField
+              label="Расположение крыльца"
+              name="porchSide"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Фасад",
+                "Задняя сторона",
+                "Слева",
+                "Справа",
+                "Подобрать",
+              ]}
+            />
+            <SelectField
+              label="Кровля крыльца"
+              name="porchRoof"
+              answers={answers}
+              onChange={onChange}
+              options={["Без кровли", "Холодная", "Тёплая SIP", "Подобрать"]}
+            />
+          </div>
+          {porchCalculatedArea ? (
+            <div className="q-area-note">
+              <Ruler />
+              <span>Площадь по размерам</span>
+              <strong>{Math.round(porchCalculatedArea * 10) / 10} м²</strong>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function StructureStep({ answers, onChange, setValue }) {
-  const toggleScope = (scope) => setValue("scope", answers.scope.includes(scope) ? answers.scope.filter((item) => item !== scope) : [...answers.scope, scope]);
-  return <><StepHeader number={5} title="Конструкции и комплектность" description="Выбранные решения попадут в расчёт материалов, работ, раскроя и крепежа." /><fieldset className="q-choice-group"><legend>Что включить в расчёт?</legend><div className="q-scope-list">{SCOPES.map((scope) => <button type="button" key={scope} className={answers.scope.includes(scope) ? "selected" : ""} onClick={() => toggleScope(scope)}><span>{answers.scope.includes(scope) ? <Check /> : null}</span>{scope}</button>)}</div></fieldset>{answers.scope.includes("Инженерия") ? <div className="q-inline-panel q-compact-panel"><strong>Инженерия включена</strong><span>На следующем шаге раскроются электрика, водоснабжение, канализация, отопление и вентиляция.</span></div> : null}<h2 className="q-subtitle">SIP-конструкции первого этажа</h2><div className="q-grid three"><SelectField label="Семейство панели" name="panelFamily" answers={answers} onChange={onChange} options={["PPS", "Минвата", "CSP PPS", "Подобрать"]} /><SelectField label="Стены первого этажа" name="wallThickness" answers={answers} onChange={onChange} options={["124 мм", "174 мм", "224 мм", "Подобрать"]} /><SelectField label="Пол" name="floorThickness" answers={answers} onChange={onChange} options={["124 мм", "174 мм", "224 мм", "Подобрать"]} /><SelectField label="Потолок" name="ceilingThickness" answers={answers} onChange={onChange} options={["124 мм", "174 мм", "224 мм", "Подобрать"]} /><SelectField label="Перегородки первого этажа" name="partitionType" answers={answers} onChange={onChange} options={["Каркасные", "SIP-панели", "Подобрать"]} /><SelectField label="Шаг раскладки" name="panelLayout" answers={answers} onChange={onChange} options={["1250 мм", "625 мм", "Подобрать"]} /></div>{Number(answers.floors) === 2 ? <div className="q-inline-panel"><h3>Конструкции второго этажа</h3><div className="q-grid two"><SelectField label="Межэтажное перекрытие" name="secondFloorThickness" answers={answers} onChange={onChange} options={["124 мм", "174 мм", "224 мм", "Подобрать"]} /><SelectField label="Стены второго этажа" name="secondFloorWallThickness" answers={answers} onChange={onChange} options={["124 мм", "174 мм", "224 мм", "Подобрать"]} /><Field label="Высота стен второго этажа" name="secondFloorWallHeight" answers={answers} onChange={onChange} type="number" unit="м" min="2" step="0.1" /><SelectField label="Перегородки второго этажа" name="secondFloorPartitionType" answers={answers} onChange={onChange} options={["Каркасные", "SIP-панели", "Подобрать"]} /></div></div> : null}<h2 className="q-subtitle">Кровля</h2><div className="q-grid three"><SelectField label="Форма" name="roofShape" answers={answers} onChange={onChange} options={["Двускатная", "Вальмовая", "Плоская", "Односкатная", "Подобрать"]} /><SelectField label="Конструкция" name="roofType" answers={answers} onChange={onChange} options={["Холодная", "Тёплая SIP", "Утеплённая по стропилам", "Подобрать"]} /><SelectField label="Покрытие" name="roofCovering" answers={answers} onChange={onChange} options={["Металлочерепица", "Профлист", "Мягкая кровля", "Подобрать"]} />{answers.roofShape !== "Плоская" ? <SelectField label="Направление конька" name="ridgeAxis" answers={answers} onChange={onChange} options={["Вдоль длины дома", "Вдоль ширины дома", "Подобрать"]} /> : null}{answers.roofShape === "Плоская" ? <><SelectField label="Направление уклона" name="flatRoofSlopeDirection" answers={answers} onChange={onChange} options={["К фасаду", "К задней стороне", "Влево", "Вправо", "Уточнить по участку"]} /><Field label="Уклон" name="flatRoofSlopePercent" answers={answers} onChange={onChange} type="number" unit="%" min="0.5" max="20" step="0.5" /></> : <Field label="Высота конька" name="ridgeHeight" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.1" />}<Field label="Карнизный свес" name="eaveOverhang" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.1" /><Field label="Фронтонный свес" name="gableOverhang" answers={answers} onChange={onChange} type="number" unit="м" min="0" step="0.1" /></div>{answers.roofShape === "Двускатная" ? <div className="q-inline-panel q-section-gap"><h3>Фронтоны</h3><div className="q-grid two"><SelectField label="Исполнение фронтонов" name="gableType" answers={answers} onChange={onChange} options={["По типу кровли", "Каркасные", "Из SIP-панелей", "Не учитывать"]} /><Field label="Количество фронтонов" name="gableCount" answers={answers} onChange={onChange} type="number" unit="шт" min="0" max="2" step="1" /></div></div> : null}</>;
+  const toggleScope = (scope) =>
+    setValue(
+      "scope",
+      answers.scope.includes(scope)
+        ? answers.scope.filter((item) => item !== scope)
+        : [...answers.scope, scope],
+    );
+  return (
+    <>
+      <StepHeader
+        number={5}
+        title="Конструкции и комплектность"
+        description="Выбранные решения попадут в расчёт материалов, работ, раскроя и крепежа."
+      />
+      <fieldset className="q-choice-group">
+        <legend>Что включить в расчёт?</legend>
+        <div className="q-scope-list">
+          {SCOPES.map((scope) => (
+            <button
+              type="button"
+              key={scope}
+              className={answers.scope.includes(scope) ? "selected" : ""}
+              onClick={() => toggleScope(scope)}
+            >
+              <span>{answers.scope.includes(scope) ? <Check /> : null}</span>
+              {scope}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      {answers.scope.includes("Инженерия") ? (
+        <div className="q-inline-panel q-compact-panel">
+          <strong>Инженерия включена</strong>
+          <span>
+            На следующем шаге раскроются электрика, водоснабжение, канализация,
+            отопление и вентиляция.
+          </span>
+        </div>
+      ) : null}
+      <h2 className="q-subtitle">SIP-конструкции первого этажа</h2>
+      <div className="q-grid three">
+        <SelectField
+          label="Семейство панели"
+          name="panelFamily"
+          answers={answers}
+          onChange={onChange}
+          options={["PPS", "Минвата", "CSP PPS", "Подобрать"]}
+        />
+        <SelectField
+          label="Стены первого этажа"
+          name="wallThickness"
+          answers={answers}
+          onChange={onChange}
+          options={["124 мм", "174 мм", "224 мм", "Подобрать"]}
+        />
+        <SelectField
+          label="Пол"
+          name="floorThickness"
+          answers={answers}
+          onChange={onChange}
+          options={["124 мм", "174 мм", "224 мм", "Подобрать"]}
+        />
+        <SelectField
+          label="Потолок"
+          name="ceilingThickness"
+          answers={answers}
+          onChange={onChange}
+          options={["124 мм", "174 мм", "224 мм", "Подобрать"]}
+        />
+        <SelectField
+          label="Перегородки первого этажа"
+          name="partitionType"
+          answers={answers}
+          onChange={onChange}
+          options={["Каркасные", "SIP-панели", "Подобрать"]}
+        />
+        <SelectField
+          label="Шаг раскладки"
+          name="panelLayout"
+          answers={answers}
+          onChange={onChange}
+          options={["1250 мм", "625 мм", "Подобрать"]}
+        />
+      </div>
+      {Number(answers.floors) === 2 ? (
+        <div className="q-inline-panel">
+          <h3>Конструкции второго этажа</h3>
+          <div className="q-grid two">
+            <SelectField
+              label="Межэтажное перекрытие"
+              name="secondFloorThickness"
+              answers={answers}
+              onChange={onChange}
+              options={["124 мм", "174 мм", "224 мм", "Подобрать"]}
+            />
+            <SelectField
+              label="Стены второго этажа"
+              name="secondFloorWallThickness"
+              answers={answers}
+              onChange={onChange}
+              options={["124 мм", "174 мм", "224 мм", "Подобрать"]}
+            />
+            <Field
+              label="Высота стен второго этажа"
+              name="secondFloorWallHeight"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="м"
+              min="2"
+              step="0.1"
+            />
+            <SelectField
+              label="Перегородки второго этажа"
+              name="secondFloorPartitionType"
+              answers={answers}
+              onChange={onChange}
+              options={["Каркасные", "SIP-панели", "Подобрать"]}
+            />
+          </div>
+        </div>
+      ) : null}
+      <h2 className="q-subtitle">Кровля</h2>
+      <div className="q-grid three">
+        <SelectField
+          label="Форма"
+          name="roofShape"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Двускатная",
+            "Вальмовая",
+            "Плоская",
+            "Односкатная",
+            "Подобрать",
+          ]}
+        />
+        <SelectField
+          label="Конструкция"
+          name="roofType"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Холодная",
+            "Тёплая SIP",
+            "Утеплённая по стропилам",
+            "Подобрать",
+          ]}
+        />
+        <SelectField
+          label="Покрытие"
+          name="roofCovering"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Металлочерепица",
+            "Профлист",
+            "Мягкая кровля",
+            "Подобрать",
+          ]}
+        />
+        {answers.roofShape !== "Плоская" ? (
+          <SelectField
+            label="Направление конька"
+            name="ridgeAxis"
+            answers={answers}
+            onChange={onChange}
+            options={["Вдоль длины дома", "Вдоль ширины дома", "Подобрать"]}
+          />
+        ) : null}
+        {answers.roofShape === "Плоская" ? (
+          <>
+            <SelectField
+              label="Направление уклона"
+              name="flatRoofSlopeDirection"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "К фасаду",
+                "К задней стороне",
+                "Влево",
+                "Вправо",
+                "Уточнить по участку",
+              ]}
+            />
+            <Field
+              label="Уклон"
+              name="flatRoofSlopePercent"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="%"
+              min="0.5"
+              max="20"
+              step="0.5"
+            />
+          </>
+        ) : (
+          <Field
+            label="Высота конька"
+            name="ridgeHeight"
+            answers={answers}
+            onChange={onChange}
+            type="number"
+            unit="м"
+            min="0"
+            step="0.1"
+          />
+        )}
+        <Field
+          label="Карнизный свес"
+          name="eaveOverhang"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="м"
+          min="0"
+          step="0.1"
+        />
+        <Field
+          label="Фронтонный свес"
+          name="gableOverhang"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="м"
+          min="0"
+          step="0.1"
+        />
+      </div>
+      {answers.roofShape === "Двускатная" ? (
+        <div className="q-inline-panel q-section-gap">
+          <h3>Фронтоны</h3>
+          <div className="q-grid two">
+            <SelectField
+              label="Исполнение фронтонов"
+              name="gableType"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "По типу кровли",
+                "Каркасные",
+                "Из SIP-панелей",
+                "Не учитывать",
+              ]}
+            />
+            <Field
+              label="Количество фронтонов"
+              name="gableCount"
+              answers={answers}
+              onChange={onChange}
+              type="number"
+              unit="шт"
+              min="0"
+              max="2"
+              step="1"
+            />
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function EngineeringStep({ answers, onChange, setValue }) {
   const engineeringSelected = answers.scope.includes("Инженерия");
-  const setEngineering = (enabled) => setValue("scope", enabled ? [...new Set([...answers.scope, "Инженерия"])] : answers.scope.filter((item) => item !== "Инженерия"));
-  return <><StepHeader number={6} title="Инженерные системы" description="Выберите, какие системы и в какой степени готовности требуется включить в предложение." /><Toggle label="Включить инженерные системы в расчёт" name="engineeringSelected" answers={{ engineeringSelected }} setValue={(_, enabled) => setEngineering(enabled)} hint="Электрика, вода, канализация, отопление и вентиляция" />{engineeringSelected ? <div className="q-inline-panel"><h3>Состав инженерных работ</h3><div className="q-grid two"><SelectField label="Электрика" name="electricStage" answers={answers} onChange={onChange} options={["Не нужна", "Черновая", "Полная", "Подобрать"]} /><SelectField label="Водоснабжение — объём работ" name="waterStage" answers={answers} onChange={onChange} options={["Не нужно", "Только ввод в дом", "Черновая разводка", "Полная разводка", "Подобрать"]} /><SelectField label="Источник воды" name="waterSource" answers={answers} onChange={onChange} options={["Не нужен", "Центральный", "Скважина", "Колодец", "Подобрать"]} /><SelectField label="Канализация — объём работ" name="sewerStage" answers={answers} onChange={onChange} options={["Не нужна", "Только выпуск из дома", "Черновая разводка", "Полная разводка", "Подобрать"]} /><SelectField label="Канализация на участке" name="sewer" answers={answers} onChange={onChange} options={["Не нужна", "Центральная", "Септик", "ЛОС", "Подобрать"]} /><SelectField label="Отопление" name="heating" answers={answers} onChange={onChange} options={["Не нужно", "Электрическое", "Газовое", "Тепловой насос", "Печь / камин", "Подобрать"]} /><SelectField label="Вентиляция" name="ventilation" answers={answers} onChange={onChange} options={["Не нужна", "Естественная", "Приточные клапаны", "Рекуператоры", "Приточная установка", "Подобрать"]} /></div><div className="q-grid two q-section-gap"><Toggle label="Подключение газа" name="gas" answers={answers} setValue={setValue} /><Toggle label="Камин или печь" name="fireplace" answers={answers} setValue={setValue} hint="Учесть место и проход дымохода" /></div></div> : <div className="q-empty-state"><Wrench /><strong>Инженерия не включена</strong><span>Включите раздел выше, если нужно рассчитать хотя бы одну инженерную систему.</span></div>}</>;
+  const setEngineering = (enabled) =>
+    setValue(
+      "scope",
+      enabled
+        ? [...new Set([...answers.scope, "Инженерия"])]
+        : answers.scope.filter((item) => item !== "Инженерия"),
+    );
+  return (
+    <>
+      <StepHeader
+        number={6}
+        title="Инженерные системы"
+        description="Выберите, какие системы и в какой степени готовности требуется включить в предложение."
+      />
+      <Toggle
+        label="Включить инженерные системы в расчёт"
+        name="engineeringSelected"
+        answers={{ engineeringSelected }}
+        setValue={(_, enabled) => setEngineering(enabled)}
+        hint="Электрика, вода, канализация, отопление и вентиляция"
+      />
+      {engineeringSelected ? (
+        <div className="q-inline-panel">
+          <h3>Состав инженерных работ</h3>
+          <div className="q-grid two">
+            <SelectField
+              label="Электрика"
+              name="electricStage"
+              answers={answers}
+              onChange={onChange}
+              options={["Не нужна", "Черновая", "Полная", "Подобрать"]}
+            />
+            <SelectField
+              label="Водоснабжение — объём работ"
+              name="waterStage"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Не нужно",
+                "Только ввод в дом",
+                "Черновая разводка",
+                "Полная разводка",
+                "Подобрать",
+              ]}
+            />
+            <SelectField
+              label="Источник воды"
+              name="waterSource"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Не нужен",
+                "Центральный",
+                "Скважина",
+                "Колодец",
+                "Подобрать",
+              ]}
+            />
+            <SelectField
+              label="Канализация — объём работ"
+              name="sewerStage"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Не нужна",
+                "Только выпуск из дома",
+                "Черновая разводка",
+                "Полная разводка",
+                "Подобрать",
+              ]}
+            />
+            <SelectField
+              label="Канализация на участке"
+              name="sewer"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Не нужна",
+                "Центральная",
+                "Септик",
+                "ЛОС",
+                "Подобрать",
+              ]}
+            />
+            <SelectField
+              label="Отопление"
+              name="heating"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Не нужно",
+                "Электрическое",
+                "Газовое",
+                "Тепловой насос",
+                "Печь / камин",
+                "Подобрать",
+              ]}
+            />
+            <SelectField
+              label="Вентиляция"
+              name="ventilation"
+              answers={answers}
+              onChange={onChange}
+              options={[
+                "Не нужна",
+                "Естественная",
+                "Приточные клапаны",
+                "Рекуператоры",
+                "Приточная установка",
+                "Подобрать",
+              ]}
+            />
+          </div>
+          <div className="q-grid two q-section-gap">
+            <Toggle
+              label="Подключение газа"
+              name="gas"
+              answers={answers}
+              setValue={setValue}
+            />
+            <Toggle
+              label="Камин или печь"
+              name="fireplace"
+              answers={answers}
+              setValue={setValue}
+              hint="Учесть место и проход дымохода"
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="q-empty-state">
+          <Wrench />
+          <strong>Инженерия не включена</strong>
+          <span>
+            Включите раздел выше, если нужно рассчитать хотя бы одну инженерную
+            систему.
+          </span>
+        </div>
+      )}
+    </>
+  );
 }
 
 function FinishStep({ answers, onChange, setValue }) {
-  return <><StepHeader number={7} title="Отделка дома" description="Выберите желаемый уровень готовности. Материалы и цвета уточняются после первичного расчёта." /><div className="q-grid two"><SelectField label="Фасад" name="exteriorFinish" answers={answers} onChange={onChange} options={["Без отделки", "Покраска OSB", "Сайдинг", "Имитация бруса", "Штукатурный фасад", "Комбинированный", "Подобрать"]} /><SelectField label="Стены внутри" name="interiorFinish" answers={answers} onChange={onChange} options={["Без отделки", "Гипсокартон", "Имитация бруса", "Вагонка", "Под покраску", "Комбинированная", "Подобрать"]} /><SelectField label="Полы" name="floorFinish" answers={answers} onChange={onChange} options={["Без отделки", "Ламинат", "Кварцвинил", "Плитка", "Доска", "Комбинированные", "Подобрать"]} /><SelectField label="Потолки" name="ceilingFinish" answers={answers} onChange={onChange} options={["Без отделки", "Гипсокартон", "Натяжной", "Вагонка", "Имитация бруса", "Подобрать"]} /></div><div className="q-grid two q-section-gap"><Toggle label="Отделка цоколя" name="plinth" answers={answers} setValue={setValue} /><Toggle label="Водосточная система" name="gutters" answers={answers} setValue={setValue} /></div></>;
+  return (
+    <>
+      <StepHeader
+        number={7}
+        title="Отделка дома"
+        description="Выберите желаемый уровень готовности. Материалы и цвета уточняются после первичного расчёта."
+      />
+      <div className="q-grid two">
+        <SelectField
+          label="Фасад"
+          name="exteriorFinish"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Без отделки",
+            "Покраска OSB",
+            "Сайдинг",
+            "Имитация бруса",
+            "Штукатурный фасад",
+            "Комбинированный",
+            "Подобрать",
+          ]}
+        />
+        <SelectField
+          label="Стены внутри"
+          name="interiorFinish"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Без отделки",
+            "Гипсокартон",
+            "Имитация бруса",
+            "Вагонка",
+            "Под покраску",
+            "Комбинированная",
+            "Подобрать",
+          ]}
+        />
+        <SelectField
+          label="Полы"
+          name="floorFinish"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Без отделки",
+            "Ламинат",
+            "Кварцвинил",
+            "Плитка",
+            "Доска",
+            "Комбинированные",
+            "Подобрать",
+          ]}
+        />
+        <SelectField
+          label="Потолки"
+          name="ceilingFinish"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Без отделки",
+            "Гипсокартон",
+            "Натяжной",
+            "Вагонка",
+            "Имитация бруса",
+            "Подобрать",
+          ]}
+        />
+      </div>
+      <div className="q-grid two q-section-gap">
+        <Toggle
+          label="Отделка цоколя"
+          name="plinth"
+          answers={answers}
+          setValue={setValue}
+        />
+        <Toggle
+          label="Водосточная система"
+          name="gutters"
+          answers={answers}
+          setValue={setValue}
+        />
+      </div>
+    </>
+  );
 }
 
-function FinalStep({ answers, onChange, setValue, attachments, setAttachments }) {
-  return <><StepHeader number={8} title="Почти готово" description="Проверьте ожидания по бюджету и срокам, затем передайте заявку прямо в калькулятор." /><div className="q-grid two"><Field label="Ориентир бюджета" name="budget" answers={answers} onChange={onChange} type="number" unit="₽" min="0" /><Field label="Желаемое начало работ" name="desiredStart" answers={answers} onChange={onChange} type="month" /><SelectField label="Стадия решения" name="decisionStatus" answers={answers} onChange={onChange} options={["Собираю информацию", "Сравниваю предложения", "Готов обсуждать проект", "Готов заключать договор"]} /><Field label="Удобное время для связи" name="contactTime" answers={answers} onChange={onChange} placeholder="Например, будни после 18:00" /></div><label className="q-field q-section-gap"><span>Комментарий для специалиста</span><textarea name="notes" value={answers.notes} onChange={onChange} placeholder="Особенности участка, пожелания по срокам, планировке и комплектации" /></label><label className="q-upload"><Paperclip /><strong>Добавить план, эскиз или фотографии</strong><span>{attachments.length ? attachments.map((file) => file.name).join(", ") : "PDF, JPG, PNG, WEBP — названия файлов сохранятся в заявке"}</span><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.dwg,.dxf" onChange={(event) => setAttachments([...event.target.files])} /></label><label className="q-consent"><input type="checkbox" checked={answers.consent} onChange={(event) => setValue("consent", event.target.checked)} /><span><strong>Согласен на обработку данных</strong><small>Контакты используются только для подготовки расчёта и обратной связи.</small></span></label></>;
+function FinalStep({
+  answers,
+  onChange,
+  setValue,
+  attachments,
+  setAttachments,
+}) {
+  return (
+    <>
+      <StepHeader
+        number={8}
+        title="Почти готово"
+        description="Проверьте ожидания по бюджету и срокам, затем передайте заявку прямо в калькулятор."
+      />
+      <div className="q-grid two">
+        <Field
+          label="Ориентир бюджета"
+          name="budget"
+          answers={answers}
+          onChange={onChange}
+          type="number"
+          unit="₽"
+          min="0"
+        />
+        <Field
+          label="Желаемое начало работ"
+          name="desiredStart"
+          answers={answers}
+          onChange={onChange}
+          type="month"
+        />
+        <SelectField
+          label="Стадия решения"
+          name="decisionStatus"
+          answers={answers}
+          onChange={onChange}
+          options={[
+            "Собираю информацию",
+            "Сравниваю предложения",
+            "Готов обсуждать проект",
+            "Готов заключать договор",
+          ]}
+        />
+        <Field
+          label="Удобное время для связи"
+          name="contactTime"
+          answers={answers}
+          onChange={onChange}
+          placeholder="Например, будни после 18:00"
+        />
+      </div>
+      <label className="q-field q-section-gap">
+        <span>Комментарий для специалиста</span>
+        <textarea
+          name="notes"
+          value={answers.notes}
+          onChange={onChange}
+          placeholder="Особенности участка, пожелания по срокам, планировке и комплектации"
+        />
+      </label>
+      <label className="q-upload">
+        <Paperclip />
+        <strong>Добавить план, эскиз или фотографии</strong>
+        <span>
+          {attachments.length
+            ? attachments.map((file) => file.name).join(", ")
+            : "PDF, JPG, PNG, WEBP — названия файлов сохранятся в заявке"}
+        </span>
+        <input
+          type="file"
+          multiple
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
+          onChange={(event) => setAttachments([...event.target.files])}
+        />
+      </label>
+      <label className="q-consent">
+        <input
+          type="checkbox"
+          checked={answers.consent}
+          onChange={(event) => setValue("consent", event.target.checked)}
+        />
+        <span>
+          <strong>Согласен на обработку данных</strong>
+          <small>
+            Контакты используются только для подготовки расчёта и обратной
+            связи.
+          </small>
+        </span>
+      </label>
+    </>
+  );
 }
 
-const STEP_COMPONENTS = [ProjectStep, SiteStep, HouseStep, LayoutStep, StructureStep, EngineeringStep, FinishStep, FinalStep];
+const STEP_COMPONENTS = [
+  ProjectStep,
+  SiteStep,
+  HouseStep,
+  LayoutStep,
+  StructureStep,
+  EngineeringStep,
+  FinishStep,
+  FinalStep,
+];
 
 function App() {
   const restored = useMemo(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(QUESTIONNAIRE_STORAGE_KEY) || "{}");
+      const saved = JSON.parse(
+        localStorage.getItem(QUESTIONNAIRE_STORAGE_KEY) || "{}",
+      );
       if (saved.contactMethod === "Телефон") saved.contactMethod = "Звонок";
-      if (saved.contactMethod === "Электронная почта") saved.contactMethod = "Почта";
-      if (!saved.terraceLength && saved.terrace && saved.platformLength) saved.terraceLength = saved.platformLength;
-      if (!saved.terraceWidth && saved.terrace && saved.platformWidth) saved.terraceWidth = saved.platformWidth;
-      if (!saved.porchLength && saved.porch && saved.platformLength) saved.porchLength = saved.platformLength;
-      if (!saved.porchWidth && saved.porch && saved.platformWidth) saved.porchWidth = saved.platformWidth;
-      return { ...initialAnswers, ...saved, basement: "Нет", attic: "Нет", balcony: false };
-    } catch { return initialAnswers; }
+      if (saved.contactMethod === "Электронная почта")
+        saved.contactMethod = "Почта";
+      if (!saved.terraceLength && saved.terrace && saved.platformLength)
+        saved.terraceLength = saved.platformLength;
+      if (!saved.terraceWidth && saved.terrace && saved.platformWidth)
+        saved.terraceWidth = saved.platformWidth;
+      if (!saved.porchLength && saved.porch && saved.platformLength)
+        saved.porchLength = saved.platformLength;
+      if (!saved.porchWidth && saved.porch && saved.platformWidth)
+        saved.porchWidth = saved.platformWidth;
+      return {
+        ...initialAnswers,
+        ...saved,
+        basement: "Нет",
+        attic: "Нет",
+        balcony: false,
+      };
+    } catch {
+      return initialAnswers;
+    }
   }, []);
   const [answers, setAnswers] = useState(restored);
   const [step, setStep] = useState(0);
   const [attachments, setAttachments] = useState([]);
   const [saved, setSaved] = useState("Черновик сохранён");
   const [notice, setNotice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submittedNumber, setSubmittedNumber] = useState("");
   const Step = STEP_COMPONENTS[step];
   const completion = completionPercent(answers);
-  useEffect(() => { setSaved("Сохраняем…"); const timer = window.setTimeout(() => { localStorage.setItem(QUESTIONNAIRE_STORAGE_KEY, JSON.stringify(answers)); setSaved("Черновик сохранён"); }, 250); return () => window.clearTimeout(timer); }, [answers]);
-  const setValue = (name, value) => setAnswers((current) => ({ ...current, [name]: value }));
+  useEffect(() => {
+    setSaved("Сохраняем…");
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(QUESTIONNAIRE_STORAGE_KEY, JSON.stringify(answers));
+      setSaved("Черновик сохранён");
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [answers]);
+  const setValue = (name, value) =>
+    setAnswers((current) => ({ ...current, [name]: value }));
   const onChange = (event) => setValue(event.target.name, event.target.value);
   const validateStep = () => {
     if (step === 0) {
-      const contact = answers.contactMethod === "Почта" ? answers.email.trim() : answers.phone.trim();
-      if (!answers.customerName.trim() || !answers.region.trim() || !contact) { setNotice("Укажите имя, регион и контакт для выбранного способа связи."); return false; }
+      const contact =
+        answers.contactMethod === "Почта"
+          ? answers.email.trim()
+          : answers.phone.trim();
+      if (!answers.customerName.trim() || !answers.region.trim() || !contact) {
+        setNotice(
+          "Укажите имя, регион и контакт для выбранного способа связи.",
+        );
+        return false;
+      }
     }
-    if (step === 2 && (!(Number(answers.length) > 0) || !(Number(answers.width) > 0) || ![1, 2].includes(Number(answers.floors)))) { setNotice("Проверьте длину, ширину и количество этажей (1 или 2)."); return false; }
-    setNotice(""); return true;
+    if (
+      step === 2 &&
+      (!(Number(answers.length) > 0) ||
+        !(Number(answers.width) > 0) ||
+        ![1, 2].includes(Number(answers.floors)))
+    ) {
+      setNotice("Проверьте длину, ширину и количество этажей (1 или 2).");
+      return false;
+    }
+    setNotice("");
+    return true;
   };
-  const move = (direction) => { if (direction > 0 && !validateStep()) return; setStep((current) => Math.max(0, Math.min(STEPS.length - 1, current + direction))); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const move = (direction) => {
+    if (direction > 0 && !validateStep()) return;
+    setStep((current) =>
+      Math.max(0, Math.min(STEPS.length - 1, current + direction)),
+    );
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const brief = () => buildClientBrief(answers, attachments);
-  const download = () => { if (!answers.customerName.trim()) { setNotice("Сначала укажите имя заказчика."); return; } const blob = new Blob([JSON.stringify(brief(), null, 2)], { type: "application/json;charset=utf-8" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Заявка_EFT_${answers.customerName.trim().replace(/[^a-zа-яё0-9_-]+/gi, "_")}.eft-brief.json`; link.click(); window.setTimeout(() => URL.revokeObjectURL(link.href), 0); };
-  const sendToCalculator = () => { if (!answers.consent) { setNotice("Подтвердите согласие на обработку данных."); return; } localStorage.setItem(PENDING_CLIENT_BRIEF_KEY, JSON.stringify(brief())); window.location.href = "./?clientBrief=pending"; };
-  return <div className="questionnaire-app"><header className="q-topbar"><a className="q-brand" href="./" aria-label="ЭФТ — калькулятор"><img src="./icons/eft-logo.png" alt="ЭФТ" /><span><strong>Анкета будущего дома</strong><small>ЭнергоЭффективные Технологии</small></span></a><div className="q-save-state"><Save />{saved}</div><button type="button" className="q-ghost-button" onClick={download}><Download />Скачать анкету</button></header><div className="q-progress-mobile"><span>{step + 1} из {STEPS.length}</span><div><i style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} /></div><strong>{STEPS[step][0]}</strong></div><main className="q-shell"><aside className="q-rail"><div className="q-rail-intro"><h2>Расскажите о доме</h2><p>Ответы превратятся в исходные данные для расчёта.</p></div><nav>{STEPS.map(([label, hint, Icon], index) => <button key={label} type="button" className={index === step ? "active" : index < step ? "done" : ""} onClick={() => index <= step && setStep(index)}><span>{index < step ? <Check /> : <Icon />}</span><div><strong>{label}</strong><small>{hint}</small></div>{index === step ? <ChevronRight /> : null}</button>)}</nav><div className="q-rail-help"><Phone /><div><strong>Нужна помощь?</strong><span>Оставьте сложный вопрос пустым — специалист уточнит его позже.</span></div></div></aside><section className="q-workspace"><form onSubmit={(event) => event.preventDefault()}><Step answers={answers} onChange={onChange} setValue={setValue} attachments={attachments} setAttachments={setAttachments} />{notice ? <div className="q-notice" role="alert">{notice}</div> : null}<footer className="q-actions"><button type="button" className="q-secondary" onClick={() => move(-1)} disabled={step === 0}><ArrowLeft />Назад</button>{step < STEPS.length - 1 ? <button type="button" className="q-primary" onClick={() => move(1)}>Продолжить<ArrowRight /></button> : <><button type="button" className="q-secondary q-download-mobile" onClick={download}><Download />Скачать</button><button type="button" className="q-primary" onClick={sendToCalculator}>Передать в калькулятор<Send /></button></>}</footer></form></section><aside className="q-summary"><div className="q-summary-head"><span>{completion}%</span><div><strong>Заявка заполнена</strong><div><i style={{ width: `${completion}%` }} /></div></div></div><dl><div><dt>Тип строения</dt><dd>{answers.buildingType}</dd></div><div><dt>Комплектация</dt><dd>{answers.goal}</dd></div><div><dt>Габариты</dt><dd>{answers.length && answers.width ? `${answers.length} × ${answers.width} м` : "Не указаны"}</dd></div><div><dt>Этажность</dt><dd>{answers.floors ? `${answers.floors} этаж` : "Не указана"}</dd></div><div><dt>SIP-стены</dt><dd>{answers.wallThickness}</dd></div><div><dt>Кровля</dt><dd>{answers.roofShape}</dd></div></dl><div className="q-ready-note"><CheckCircle2 /><div><strong>Данные подготовлены для калькулятора</strong><span>После отправки вы увидите сводку перед созданием проекта.</span></div></div><div className="q-house-mark"><div key={step} className="q-house-progress-image" role="img" aria-label={`Строительство дома: этап ${step + 1} из ${STEPS.length}, ${BUILD_STAGES[step]}`} style={{ backgroundImage: 'url("./icons/eft-house-progress-3d-v1.png")', "--stage-x": step % 4, "--stage-y": Math.floor(step / 4) }} /><strong>Этап {step + 1} из {STEPS.length} · {BUILD_STAGES[step]}</strong></div></aside></main></div>;
+  const download = () => {
+    if (!answers.customerName.trim()) {
+      setNotice("Сначала укажите имя заказчика.");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(brief(), null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Заявка_EFT_${answers.customerName.trim().replace(/[^a-zа-яё0-9_-]+/gi, "_")}.eft-brief.json`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+  };
+  const sendRequest = async () => {
+    if (!answers.consent) {
+      setNotice("Подтвердите согласие на обработку данных.");
+      return;
+    }
+    if (!answers.customerName.trim() || (!answers.phone.trim() && !answers.email.trim())) {
+      setNotice("Укажите имя и телефон или электронную почту.");
+      return;
+    }
+    setSubmitting(true);
+    setNotice("");
+    try {
+      const result = await submitPublicIntake(brief());
+      setSubmittedNumber(result.number);
+      setNotice(`Заявка ${result.number} отправлена. Менеджер увидит её во внутреннем калькуляторе.`);
+      localStorage.removeItem(QUESTIONNAIRE_STORAGE_KEY);
+    } catch (error) {
+      setNotice(`Не удалось отправить заявку: ${error.message}. Анкету можно скачать и передать менеджеру файлом.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div className="questionnaire-app">
+      <header className="q-topbar">
+        <a className="q-brand" href="./" aria-label="ЭФТ — калькулятор">
+          <img src="./icons/eft-logo.png" alt="ЭФТ" />
+          <span>
+            <strong>Анкета будущего дома</strong>
+            <small>ЭнергоЭффективные Технологии</small>
+          </span>
+        </a>
+        <div className="q-save-state">
+          <Save />
+          {saved}
+        </div>
+        <button type="button" className="q-ghost-button" onClick={download}>
+          <Download />
+          Скачать анкету
+        </button>
+      </header>
+      <div className="q-progress-mobile">
+        <span>
+          {step + 1} из {STEPS.length}
+        </span>
+        <div>
+          <i style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+        </div>
+        <strong>{STEPS[step][0]}</strong>
+      </div>
+      <main className="q-shell">
+        <aside className="q-rail">
+          <div className="q-rail-intro">
+            <h2>Расскажите о доме</h2>
+            <p>Ответы превратятся в исходные данные для расчёта.</p>
+          </div>
+          <nav>
+            {STEPS.map(([label, hint, Icon], index) => (
+              <button
+                key={label}
+                type="button"
+                className={
+                  index === step ? "active" : index < step ? "done" : ""
+                }
+                onClick={() => index <= step && setStep(index)}
+              >
+                <span>{index < step ? <Check /> : <Icon />}</span>
+                <div>
+                  <strong>{label}</strong>
+                  <small>{hint}</small>
+                </div>
+                {index === step ? <ChevronRight /> : null}
+              </button>
+            ))}
+          </nav>
+          <div className="q-rail-help">
+            <Phone />
+            <div>
+              <strong>Нужна помощь?</strong>
+              <span>
+                Оставьте сложный вопрос пустым — специалист уточнит его позже.
+              </span>
+            </div>
+          </div>
+        </aside>
+        <section className="q-workspace">
+          <form onSubmit={(event) => event.preventDefault()}>
+            <Step
+              answers={answers}
+              onChange={onChange}
+              setValue={setValue}
+              attachments={attachments}
+              setAttachments={setAttachments}
+            />
+            {notice ? (
+              <div className="q-notice" role="alert">
+                {notice}
+              </div>
+            ) : null}
+            <footer className="q-actions">
+              <button
+                type="button"
+                className="q-secondary"
+                onClick={() => move(-1)}
+                disabled={step === 0}
+              >
+                <ArrowLeft />
+                Назад
+              </button>
+              {step < STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  className="q-primary"
+                  onClick={() => move(1)}
+                >
+                  Продолжить
+                  <ArrowRight />
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="q-secondary q-download-mobile"
+                    onClick={download}
+                  >
+                    <Download />
+                    Скачать
+                  </button>
+                  <button
+                    type="button"
+                    className="q-primary"
+                    onClick={sendRequest}
+                    disabled={submitting || Boolean(submittedNumber)}
+                  >
+                    {submittedNumber ? `Отправлено · ${submittedNumber}` : submitting ? "Отправляем…" : "Отправить заявку"}
+                    <Send />
+                  </button>
+                </>
+              )}
+            </footer>
+          </form>
+        </section>
+        <aside className="q-summary">
+          <div className="q-summary-head">
+            <span>{completion}%</span>
+            <div>
+              <strong>Заявка заполнена</strong>
+              <div>
+                <i style={{ width: `${completion}%` }} />
+              </div>
+            </div>
+          </div>
+          <dl>
+            <div>
+              <dt>Тип строения</dt>
+              <dd>{answers.buildingType}</dd>
+            </div>
+            <div>
+              <dt>Комплектация</dt>
+              <dd>{answers.goal}</dd>
+            </div>
+            <div>
+              <dt>Габариты</dt>
+              <dd>
+                {answers.length && answers.width
+                  ? `${answers.length} × ${answers.width} м`
+                  : "Не указаны"}
+              </dd>
+            </div>
+            <div>
+              <dt>Этажность</dt>
+              <dd>
+                {answers.floors ? `${answers.floors} этаж` : "Не указана"}
+              </dd>
+            </div>
+            <div>
+              <dt>SIP-стены</dt>
+              <dd>{answers.wallThickness}</dd>
+            </div>
+            <div>
+              <dt>Кровля</dt>
+              <dd>{answers.roofShape}</dd>
+            </div>
+          </dl>
+          <div className="q-ready-note">
+            <CheckCircle2 />
+            <div>
+                <strong>Данные подготовлены для расчёта</strong>
+                <span>
+                  После отправки заявка появится только у сотрудников ЭФТ. Доступ к калькулятору клиенту не открывается.
+                </span>
+            </div>
+          </div>
+          <div className="q-house-mark">
+            <div
+              key={step}
+              className="q-house-progress-image"
+              role="img"
+              aria-label={`Строительство дома: этап ${step + 1} из ${STEPS.length}, ${BUILD_STAGES[step]}`}
+              style={{
+                backgroundImage: 'url("./icons/eft-house-progress-3d-v1.png")',
+                "--stage-x": step % 4,
+                "--stage-y": Math.floor(step / 4),
+              }}
+            />
+            <strong>
+              Этап {step + 1} из {STEPS.length} · {BUILD_STAGES[step]}
+            </strong>
+          </div>
+        </aside>
+      </main>
+    </div>
+  );
 }
 
-createRoot(document.getElementById("questionnaire-root")).render(<React.StrictMode><App /></React.StrictMode>);
+createRoot(document.getElementById("questionnaire-root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);

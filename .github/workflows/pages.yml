@@ -1,4 +1,4 @@
-name: Deploy EFT calculator to GitHub Pages
+name: Deploy EFT public site to GitHub Pages
 
 on:
   push:
@@ -28,11 +28,11 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm test
-      - run: npm run build
+      - run: npm run build:public
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist-public
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

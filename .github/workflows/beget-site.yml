@@ -1,0 +1,87 @@
+name: Deploy EFT public site to Beget
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/site/**'
+      - 'src/questionnaire/**'
+      - 'src/shared/team-api.js'
+      - 'server/beget-api/**'
+      - 'public/site-assets/**'
+      - 'public/icons/**'
+      - 'index.html'
+      - 'EFT_client_questionnaire.html'
+      - 'vite.public.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beget-public-site
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test application
+        run: npm test
+      - name: Build public website
+        run: npm run build:public
+      - name: Add server API and lint PHP
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes php-cli
+          find server/beget-api -name '*.php' -print0 | xargs -0 -n1 php -l
+          cp -R server/beget-api dist-public/api
+          test ! -e dist-public/react.html
+          test ! -e dist-public/legacy-v45.html
+      - name: Validate deployment secrets
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          PASSWORD: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+          DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
+        run: |
+          : "${HOST:?Missing BEGET_SSH_HOST}"
+          : "${USER:?Missing BEGET_SITE_SSH_USER}"
+          : "${PASSWORD:?Missing BEGET_SITE_SSH_PASSWORD}"
+          : "${KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS}"
+          : "${DEPLOY_PATH:?Missing BEGET_SITE_DEPLOY_PATH}"
+          [[ "$DEPLOY_PATH" = "." || "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]*$ ]]
+      - name: Configure SSH
+        env:
+          KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          sudo apt-get install --yes sshpass
+      - name: Upload without deleting server files
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+          DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
+        run: |
+          sshpass -e rsync -az --checksum --omit-dir-times --no-perms --no-owner --no-group \
+            --exclude='/.htaccess' --exclude='/.htpasswd' --exclude='/api/config.local.php' \
+            -e "ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes" \
+            dist-public/ "${USER}@${HOST}:${DEPLOY_PATH%/}/"
+      - name: Verify public pages
+        run: |
+          test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/)" = "200"
+          test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/EFT_client_questionnaire.html)" = "200"

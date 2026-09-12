@@ -1,7 +1,10 @@
-import { migrateProject, REACT_PROJECT_VERSION } from '../state/project-model.js';
+import {
+  migrateProject,
+  REACT_PROJECT_VERSION,
+} from "../state/project-model.js";
 
-export const PLAN_LIBRARY_KEY = 'eft-react-plan-library-v103';
-export const LEGACY_SKETCHES_KEY = 'eft-react-plan-sketches-v47';
+export const PLAN_LIBRARY_KEY = "eft-react-plan-library-v103";
+export const LEGACY_SKETCHES_KEY = "eft-react-plan-sketches-v47";
 
 const clone = (value) => structuredClone(value);
 
@@ -13,11 +16,18 @@ function compactProject(project) {
   return snapshot;
 }
 
-export function createPlanLibraryEntry(project, name, calculation, existing = {}) {
+export function createPlanLibraryEntry(
+  project,
+  name,
+  calculation,
+  existing = {},
+) {
   const savedAt = new Date().toISOString();
   return {
-    id: existing.id || `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    name: String(name || existing.name || 'План дома').trim() || 'План дома',
+    id:
+      existing.id ||
+      `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    name: String(name || existing.name || "План дома").trim() || "План дома",
     savedAt,
     project: compactProject(project),
     priceSnapshot: {
@@ -31,21 +41,24 @@ export function createPlanLibraryEntry(project, name, calculation, existing = {}
 export function normalizePlanLibrary(entries = [], legacyEntries = []) {
   const current = Array.isArray(entries) ? entries : [];
   const legacy = Array.isArray(legacyEntries) ? legacyEntries : [];
-  return [...current, ...legacy.map((item) => ({
-    id: item.id || `legacy-${Date.now().toString(36)}`,
-    name: item.name || 'Старый эскиз',
-    savedAt: item.savedAt || '',
-    legacy: true,
-    plan: clone(item.plan),
-    priceSnapshot: { materials: 0, labor: 0, total: 0 },
-  }))].filter((item) => item?.id && (item.project?.plan || item.plan));
+  return [
+    ...current,
+    ...legacy.map((item) => ({
+      id: item.id || `legacy-${Date.now().toString(36)}`,
+      name: item.name || "Старый эскиз",
+      savedAt: item.savedAt || "",
+      legacy: true,
+      plan: clone(item.plan),
+      priceSnapshot: { materials: 0, labor: 0, total: 0 },
+    })),
+  ].filter((item) => item?.id && (item.project?.plan || item.plan));
 }
 
 export function readPlanLibrary(storage = localStorage) {
   try {
     const storedCurrent = storage.getItem(PLAN_LIBRARY_KEY);
-    const current = JSON.parse(storedCurrent || '[]');
-    const legacy = JSON.parse(storage.getItem(LEGACY_SKETCHES_KEY) || '[]');
+    const current = JSON.parse(storedCurrent || "[]");
+    const legacy = JSON.parse(storage.getItem(LEGACY_SKETCHES_KEY) || "[]");
     return normalizePlanLibrary(current, storedCurrent ? [] : legacy);
   } catch {
     return [];
@@ -53,9 +66,13 @@ export function readPlanLibrary(storage = localStorage) {
 }
 
 export function writePlanLibrary(entries, storage = localStorage) {
-  const persistent = (entries || []).filter((item) => !item.preset).slice(0, 20);
+  const persistent = (entries || [])
+    .filter((item) => !item.preset)
+    .slice(0, 20);
   storage.setItem(PLAN_LIBRARY_KEY, JSON.stringify(persistent));
   storage.removeItem?.(LEGACY_SKETCHES_KEY);
+  if (storage === localStorage)
+    window.dispatchEvent(new CustomEvent("eft:plan-library-changed"));
   return persistent;
 }
 
@@ -64,7 +81,7 @@ export function restorePlanLibraryEntry(currentProject, entry) {
     return migrateProject({
       ...clone(currentProject),
       plan: clone(entry.plan),
-      format: 'eft-project',
+      format: "eft-project",
       appVersion: REACT_PROJECT_VERSION,
       priceMat: clone(currentProject.priceMat),
       priceLab: clone(currentProject.priceLab),
@@ -73,7 +90,7 @@ export function restorePlanLibraryEntry(currentProject, entry) {
   return migrateProject({
     ...clone(currentProject),
     ...clone(entry.project),
-    format: 'eft-project',
+    format: "eft-project",
     appVersion: REACT_PROJECT_VERSION,
     priceMat: clone(currentProject.priceMat),
     priceLab: clone(currentProject.priceLab),
