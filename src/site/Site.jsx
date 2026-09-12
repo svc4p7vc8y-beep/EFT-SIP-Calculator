@@ -44,6 +44,7 @@ function Contact({ cart, selection, setSelection }) {
 
 export default function Site() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeNav, setActiveNav] = useState('projects');
   const [activeProject, setActiveProject] = useState(null);
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [cart, setCart] = useState([]);
@@ -57,7 +58,25 @@ export default function Site() {
   function collapseExpanded() { if (expandedCategory) toggleCategory(expandedCategory); }
   useSiteMotion();
   useEffect(() => { const escape = (event) => { if (event.key === 'Escape') setMenuOpen(false); }; window.addEventListener('keydown', escape); return () => window.removeEventListener('keydown', escape); }, []);
-  return <><a className="skip-link" href="#main">К содержанию</a><header className="site-header"><a className="wordmark header-wordmark" href="#" aria-label="ЭФТ — на главную"><AnimatedLogo /><span className="brand-caption">ЭнергоЭффективные<br />Технологии</span></a><nav className={menuOpen ? 'site-nav open' : 'site-nav'} id="main-navigation" aria-label="Основная навигация">{nav.map(([id, label]) => <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>{label}</a>)}</nav><a className="btn outline header-cta" href="#contact">Обсудить проект<ArrowUpRight size={16} /></a><button className="icon-btn menu-toggle" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button><div className="header-build-line" aria-hidden="true" /></header>
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const marker = window.innerHeight * 0.4;
+      let current = 'projects';
+      nav.forEach(([id]) => {
+        const section = document.getElementById(id);
+        if (section && section.getBoundingClientRect().top <= marker) current = id;
+      });
+      setActiveNav((previous) => previous === current ? previous : current);
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule, { passive: true });
+    return () => { window.removeEventListener('scroll', schedule); window.removeEventListener('resize', schedule); if (frame) cancelAnimationFrame(frame); };
+  }, []);
+  return <><a className="skip-link" href="#main">К содержанию</a><header className="site-header"><a className="wordmark header-wordmark" href="#" aria-label="ЭФТ — на главную"><AnimatedLogo /><span className="brand-caption">Энергоэффективные<br />технологии</span></a><nav className={menuOpen ? 'site-nav open' : 'site-nav'} id="main-navigation" aria-label="Основная навигация">{nav.map(([id, label]) => <a className={activeNav === id ? 'active' : undefined} aria-current={activeNav === id ? 'location' : undefined} key={id} href={`#${id}`} onClick={() => { setActiveNav(id); setMenuOpen(false); }}>{label}</a>)}</nav><a className="btn outline header-cta" href="#contact" onClick={() => setActiveNav('contact')}>Обсудить проект<ArrowUpRight size={16} /></a><button className="icon-btn menu-toggle" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button><div className="header-build-line" aria-hidden="true" /></header>
     <ScrollProgress expandedCategory={expandedCategory} onCollapse={collapseExpanded} />
     <main id="main"><section className="hero" data-reveal><div className="hero-copy"><h1>Дом, в котором<br />всё на своём<br /><em>месте.</em></h1><p>Продуманные пространства для жизни.<br />Проекты и СИП-панели от EFT.</p><div className="hero-actions"><a className="btn primary" href="#projects">Выбрать проект<ArrowUpRight size={18} /></a><a className="btn outline" href="#panels">Купить СИП-панели</a></div><a className="hero-scroll" href="#projects"><span className="round-arrow"><ArrowDown size={18} /></span>Найдите место для своей истории</a></div><div className="hero-photo"><img data-parallax fetchPriority="high" src={asset('forest.webp')} alt="Современный дом с террасой среди берёз — архитектурная визуализация" /><div className="photo-caption"><span>Ближе к природе.<br />Ближе к себе.</span><span>Коллекция EFT / 01</span></div></div></section>
     {projectCategories.map((category) => <ProjectCollection key={category.id} category={category} expanded={expandedCategory === category.id} onOpen={setActiveProject} onToggle={toggleCategory} />)}

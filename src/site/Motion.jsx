@@ -1,14 +1,78 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowUp } from 'lucide-react';
 import { asset } from './data.js';
 
+function traceLogo(image) {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+  const width = canvas.width;
+  const height = canvas.height;
+  const inside = (x, y) => x >= 0 && y >= 0 && x < width && y < height && Math.min(data[(y * width + x) * 4], data[(y * width + x) * 4 + 1], data[(y * width + x) * 4 + 2]) < 175;
+  const edges = new Map();
+  const add = (x, y, nextX, nextY) => {
+    const key = `${x},${y}`;
+    if (!edges.has(key)) edges.set(key, []);
+    edges.get(key).push([nextX, nextY]);
+  };
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (!inside(x, y)) continue;
+      if (!inside(x, y - 1)) add(x, y, x + 1, y);
+      if (!inside(x + 1, y)) add(x + 1, y, x + 1, y + 1);
+      if (!inside(x, y + 1)) add(x + 1, y + 1, x, y + 1);
+      if (!inside(x - 1, y)) add(x, y + 1, x, y);
+    }
+  }
+  const contours = [];
+  while (edges.size) {
+    let key = edges.keys().next().value;
+    const first = key;
+    const points = [key.split(',').map(Number)];
+    let guard = 0;
+    do {
+      const links = edges.get(key);
+      if (!links) break;
+      const next = links.pop();
+      if (!links.length) edges.delete(key);
+      points.push(next);
+      key = next.join(',');
+      guard += 1;
+    } while (key !== first && guard < 10000);
+    if (points.length > 18) contours.push(points);
+  }
+  return contours.sort((a, b) => {
+    const topA = Math.min(...a.map((point) => point[1]));
+    const topB = Math.min(...b.map((point) => point[1]));
+    const groupA = topA < 65 ? 0 : 1;
+    const groupB = topB < 65 ? 0 : 1;
+    return groupA - groupB || Math.min(...a.map((point) => point[0])) - Math.min(...b.map((point) => point[0]));
+  }).map((points) => ({
+    d: `M${points.map((point) => point.join(',')).join('L')}Z`,
+    length: points.length,
+  }));
+}
+
 export function AnimatedLogo({ compact = false }) {
-  return <span className={compact ? 'logo-motion compact' : 'logo-motion'}>
-    <svg className="logo-sketch" viewBox="0 0 240 118" aria-hidden="true">
-      <g className="sketch-guides"><path d="M8 94H230M22 17V108M78 9V108M132 9V108M186 9V108" /><path d="M12 72L99 22L224 73M31 67L100 32L205 78" /><circle cx="100" cy="32" r="5" /><path d="M94 7V57M75 32H125" /></g>
-      <g className="sketch-strokes"><path d="M22 63L100 20L226 66" /><path className="sketch-accent" d="M34 66L100 31L207 76" /><path d="M112 14L225 60" /><text x="18" y="105">ЭФТ</text></g>
+  const [contours, setContours] = useState([]);
+  const logoSrc = asset('eft-logo.webp');
+  useEffect(() => {
+    let active = true;
+    const image = new Image();
+    image.onload = () => { if (active) setContours(traceLogo(image)); };
+    image.src = logoSrc;
+    return () => { active = false; };
+  }, [logoSrc]);
+  const className = `${compact ? 'logo-motion compact' : 'logo-motion'}${contours.length ? ' is-ready' : ''}`;
+  return <span className={className}>
+    <svg className="logo-sketch" viewBox="-15 -16 350 158" aria-hidden="true">
+      <g className="sketch-guides"><path d="M-10 0H335M-10 70H335M-10 124H335M0-12V139M148-12V139M185-12V139M320-12V139M140 62L185 28L325 110" /><circle cx="185" cy="28" r="5" /></g>
+      <g className="sketch-contours">{contours.map((contour, index) => <path key={contour.d} d={contour.d} style={{ '--path-index': index, '--path-length': contour.length }} />)}</g>
     </svg>
-    <img className="logo-final" src={asset('eft-logo.webp')} alt="ЭФТ" />
+    <img className="logo-final" src={logoSrc} alt="ЭФТ" />
   </span>;
 }
 
