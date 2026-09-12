@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v128-residential-preset-1';
+const CACHE_NAME = 'eft-calculator-react-v129-plan-controls-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

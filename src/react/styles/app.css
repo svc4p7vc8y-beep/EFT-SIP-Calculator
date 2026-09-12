@@ -1829,11 +1829,6 @@ select,
   user-select: text;
   -webkit-user-select: text;
 }
-.auto-piles-button {
-  color: #8b5b12;
-  border-color: #e1c890;
-  background: #fff9e9;
-}
 .planner-tools {
   z-index: 2;
   min-height: 0;
@@ -1888,10 +1883,18 @@ select,
   width: 16px;
   height: 16px;
 }
-.planner-tools button:hover,
-.planner-tools button.active {
+.planner-tools button:hover {
   color: #37661f;
   background: #e5f1dd;
+}
+.planner-tools button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #548c35, #376b20);
+  box-shadow: 0 0 0 2px rgba(84, 140, 53, 0.2), 0 5px 12px rgba(55, 107, 32, 0.22);
+  font-weight: 800;
+}
+.planner-tools button.active svg {
+  transform: scale(1.08);
 }
 .polygon-actions {
   margin-top: 8px;
@@ -2219,11 +2222,14 @@ select,
 .room-fill {
   fill: rgba(249, 247, 226, 0.5);
   stroke: none;
-  cursor: move;
+  cursor: pointer;
 }
 .room-fill:hover,
 .room-fill.selected {
   fill: rgba(220, 239, 205, 0.68);
+}
+.room-fill.selected {
+  cursor: move;
 }
 .room-fill.invalid {
   fill: rgba(255, 208, 208, 0.58);

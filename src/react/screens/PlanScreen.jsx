@@ -82,6 +82,10 @@ import {
   sharePlanTransfer,
 } from "../storage/plan-transfer.js";
 import {
+  isSamePlanSelection,
+  planKeyboardCommand,
+} from "../planner/interactions.js";
+import {
   createPlanLibraryEntry,
   readPlanLibrary,
   restorePlanLibraryEntry,
@@ -1308,7 +1312,7 @@ function PlanCanvas({
     if (tool !== "select") return;
     if (event.pointerType === "touch") {
       event.stopPropagation();
-      if (selected?.type === type && selected?.id === id) {
+      if (isSamePlanSelection(selected, type, id)) {
         begin(event, {
           kind: extra.kind || "move",
           type,
@@ -1322,6 +1326,11 @@ function PlanCanvas({
         id,
         pointerId: event.pointerId,
       };
+      return;
+    }
+    if (type === "room" && !isSamePlanSelection(selected, type, id)) {
+      event.stopPropagation();
+      selectExisting({ type, id });
       return;
     }
     selectExisting({ type, id });
@@ -5071,6 +5080,23 @@ export default function PlanScreen({ onNavigate }) {
         ["INPUT", "TEXTAREA", "SELECT"].includes(
           document.activeElement?.tagName,
         ) || document.activeElement?.isContentEditable;
+      const keyboardCommand = planKeyboardCommand(event, editing);
+      if (keyboardCommand === "undo") {
+        event.preventDefault();
+        undo();
+        return;
+      }
+      if (keyboardCommand === "redo") {
+        event.preventDefault();
+        redo();
+        return;
+      }
+      if (keyboardCommand === "select") {
+        event.preventDefault();
+        setPolygonDraft([]);
+        setTool("select");
+        return;
+      }
       if (event.key === "Escape") {
         setPolygonDraft([]);
         setTool("select");
@@ -5160,10 +5186,10 @@ export default function PlanScreen({ onNavigate }) {
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [selected, commitPlan, commitFloorOpening, floorOpening]);
+  }, [selected, commitPlan, commitFloorOpening, floorOpening, undo, redo]);
   const toolHint =
     tool === "select"
-      ? "Выберите и перетащите объект. Комнаты и размеры можно двигать стрелками."
+      ? "Первый щелчок выбирает комнату, следующий — перемещает. Пробел — «Выбор», Ctrl+Z — отмена."
       : tool === "polygon"
         ? "Ставьте углы комнаты. После третьей точки щёлкните по первой точке — контур замкнётся автоматически."
         : tool === "houseContour"
@@ -5369,6 +5395,7 @@ export default function PlanScreen({ onNavigate }) {
           <button
             type="button"
             className={tool === "select" ? "active" : ""}
+            aria-pressed={tool === "select"}
             onClick={() => selectTool("select")}
           >
             <MousePointer2 />
@@ -5381,6 +5408,7 @@ export default function PlanScreen({ onNavigate }) {
               key={id}
               type="button"
               className={tool === id ? "active" : ""}
+              aria-pressed={tool === id}
               onClick={() => selectTool(id)}
             >
               <Icon />
@@ -5477,10 +5505,6 @@ export default function PlanScreen({ onNavigate }) {
               accept=".eft-plan.json,.eft.json,.json"
               onChange={openPlanFile}
             />
-            <button className="button secondary auto-piles-button" onClick={openFoundationSetup}>
-              <Layers3 />
-              Сваи и обвязка
-            </button>
             <button className="button secondary plan-library-button" onClick={() => setLibraryOpen(true)}>
               <PanelsTopLeft />Библиотека планов
             </button>
@@ -5774,6 +5798,7 @@ export default function PlanScreen({ onNavigate }) {
             <div className="planner-tools-fixed" key={id}>
               <button
                 className={tool === id ? "active" : ""}
+                aria-pressed={tool === id}
                 title={label}
                 onClick={() => selectTool(id)}
               >
@@ -5788,6 +5813,7 @@ export default function PlanScreen({ onNavigate }) {
                 <button
                   key={id}
                   className={tool === id ? "active" : ""}
+                  aria-pressed={tool === id}
                   title={label}
                   onClick={() => selectTool(id)}
                 >
@@ -5818,6 +5844,7 @@ export default function PlanScreen({ onNavigate }) {
             <div className="planner-tools-fixed planner-tools-delete" key={id}>
               <button
                 className={tool === id ? "active" : ""}
+                aria-pressed={tool === id}
                 title={label}
                 onClick={() => selectTool(id)}
               >
