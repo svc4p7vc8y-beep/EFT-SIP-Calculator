@@ -1,9 +1,8 @@
 import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { Download, KeyRound, LockKeyhole, LockOpen, Plus, RotateCcw, Search, ShieldCheck, Trash2, Upload } from 'lucide-react';
-import catalog from '../data/default-catalog.json' with { type: 'json' };
 import { NumericInput, Panel, ScreenHeader, Stat } from '../components/ui.jsx';
 import { useProject } from '../state/ProjectContext.jsx';
-import { migrateProject, REACT_PROJECT_VERSION } from '../state/project-model.js';
+import { createDefaultPriceLists, migrateProject, REACT_PROJECT_VERSION } from '../state/project-model.js';
 import { formatMoney, uid } from '../utils/format.js';
 import { isPriceEditorUnlocked, setPriceEditorUnlocked, verifyPricePasscode } from '../security/price-access.js';
 
@@ -93,7 +92,7 @@ export default function PriceScreen() {
   const reset = () => {
     if (!unlocked) return;
     if (!window.confirm('Вернуть встроенный прайс-лист? Текущие цены останутся в истории отмены.')) return;
-    commit((next) => ({ ...next, priceMat: structuredClone(catalog.priceMat), priceLab: structuredClone(catalog.priceLab) }));
+    commit((next) => ({ ...next, ...createDefaultPriceLists() }));
     setNotice('Восстановлен встроенный прайс-лист');
   };
   return <div className="screen price-screen"><ScreenHeader title="Прайс-лист" description="Единый источник цен для всех калькуляторов и итоговой сметы" actions={<><button className="button secondary" disabled={!unlocked} title={!unlocked ? 'Сначала разблокируйте редактор' : ''} onClick={() => fileRef.current?.click()}><Upload />Загрузить</button><button className="button secondary" onClick={() => downloadCatalog(project)}><Download />Скачать</button><button className="button ghost" disabled={!unlocked} title={!unlocked ? 'Сначала разблокируйте редактор' : ''} onClick={reset}><RotateCcw />Исходный</button><input ref={fileRef} className="visually-hidden" type="file" accept=".json" disabled={!unlocked} onChange={importCatalog} /></>} />

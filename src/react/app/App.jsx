@@ -1,15 +1,17 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Calculator, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
+  BadgeAlert, Calculator, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
   BookOpenCheck, LibraryBig, Menu, Moon, PaintRoller, PanelTop, Ruler, Save, Settings2, Sun, Tags, Trees,
   Truck, Wrench, X
 } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { calculateAdjustedPrice } from '../calculations/price-adjustments.js';
-import { createProjectWithCurrentPrices, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION } from '../state/project-model.js';
+import { createProjectWithCurrentPrices, migrateProject, REACT_BACKUPS_KEY, REACT_PROJECT_VERSION, summarizePriceCatalogChanges } from '../state/project-model.js';
+import { applyResidentialPreset } from '../state/residential-preset.js';
 import { formatMoney } from '../utils/format.js';
 import ProjectSummarySidebar from '../components/ProjectSummarySidebar.jsx';
+import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
 import {
   clientBriefSummary,
   createProjectFromClientBrief,
@@ -77,6 +79,7 @@ export function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('eft-react-theme') || 'light');
   const [menuOpen, setMenuOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [briefPreview, setBriefPreview] = useState(null);
   const [notice, setNotice] = useState('Готово');
   const fileRef = useRef(null);
@@ -85,6 +88,10 @@ export function App() {
   const adjustedPrice = useMemo(
     () => calculateAdjustedPrice(project, calculation),
     [project, calculation],
+  );
+  const priceChanges = useMemo(
+    () => summarizePriceCatalogChanges(project),
+    [project.priceMat, project.priceLab],
   );
 
   useEffect(() => {
@@ -145,11 +152,16 @@ export function App() {
   };
 
   const newProject = () => {
-    if (!window.confirm('Создать новый проект? Текущий проект сначала будет сохранён резервной копией.')) return;
+    setNewProjectOpen(true);
+  };
+
+  const createNewProject = (useResidentialPreset) => {
     checkpoint();
-    replace(createProjectWithCurrentPrices(project));
+    const next = createProjectWithCurrentPrices(project);
+    replace(useResidentialPreset ? applyResidentialPreset(next) : next);
     setActive('plan');
-    setNotice('Создан новый проект');
+    setNotice(useResidentialPreset ? 'Создан новый проект по стандарту жилого дома' : 'Создан новый проект без шаблона');
+    setNewProjectOpen(false);
   };
 
   const saveProject = () => {
@@ -206,7 +218,7 @@ export function App() {
             {NAV_ITEMS.map(({ id, label, icon: Icon, group }, index) => (
               <div key={id} className={index && NAV_ITEMS[index - 1].group !== group ? 'nav-separator' : ''}>
                 <button className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMenuOpen(false); }}>
-                  <Icon /><span>{label}</span>
+                  <Icon /><span>{label}</span>{id === 'price' && priceChanges.total ? <span className="nav-alert-badge" aria-label={`Изменений прайса: ${priceChanges.total}`}>{priceChanges.total}</span> : null}
                 </button>
               </div>
             ))}
@@ -215,12 +227,14 @@ export function App() {
         </aside>
         {menuOpen ? <button className="sidebar-backdrop" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} /> : null}
         <main className="workspace">
+          {priceChanges.total ? <button className="price-change-banner no-print" onClick={() => setActive('price')}><BadgeAlert /><span><strong>Прайс-лист изменён</strong><small>{priceChanges.priceChanged ? `Цены: ${priceChanges.priceChanged}. ` : ''}{priceChanges.added ? `Добавлено: ${priceChanges.added}. ` : ''}{priceChanges.removed ? `Удалено: ${priceChanges.removed}.` : ''} Нажмите, чтобы проверить.</small></span></button> : null}
           <Suspense fallback={<div className="screen-loader">Загружаю раздел…</div>}>
             <Screen active={active} calculation={calculation} />
           </Suspense>
         </main>
         <ProjectSummarySidebar project={project} calculation={calculation} onNavigate={setActive} />
       </div>
+      {newProjectOpen ? <ResidentialPresetDialog mode="new" onClose={() => setNewProjectOpen(false)} onManual={() => createNewProject(false)} onApply={() => createNewProject(true)} /> : null}
       {briefPreview ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setBriefPreview(null)}><section className="modal client-brief-modal" role="dialog" aria-modal="true" aria-labelledby="brief-title" onMouseDown={(event) => event.stopPropagation()}><header><div><h2 id="brief-title">Заявка клиента</h2><p>{briefPreview.fileName}</p></div><button className="icon-button" onClick={() => setBriefPreview(null)} aria-label="Закрыть"><X /></button></header><dl className="brief-summary"><div><dt>Клиент</dt><dd>{briefPreview.summary.customer}</dd></div><div><dt>Тип строения</dt><dd>{briefPreview.summary.buildingType}</dd></div><div><dt>Связь</dt><dd>{briefPreview.summary.contact}</dd></div><div><dt>Адрес</dt><dd>{briefPreview.summary.address}</dd></div><div><dt>Размер строения</dt><dd>{briefPreview.summary.dimensions}</dd></div><div><dt>Этажей</dt><dd>{briefPreview.summary.floors}</dd></div><div><dt>Площадь</dt><dd>{briefPreview.summary.area}</dd></div><div><dt>Готовность</dt><dd>{briefPreview.summary.readiness}</dd></div><div className="wide"><dt>Что посчитать</dt><dd>{briefPreview.summary.scope}</dd></div></dl><div className="brief-warning"><strong>Будет создан новый черновик.</strong><span>Текущий проект сохранится в резервной копии. Цены и расчётные правила останутся прежними. Размеры создадут пустой прямоугольный план; помещения, окна, двери и террасу нужно проверить и нанести вручную.</span></div><footer><button className="button secondary" onClick={() => setBriefPreview(null)}>Отмена</button><button className="button" onClick={applyClientBrief}>Создать черновик</button></footer></section></div> : null}
       {backupOpen ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setBackupOpen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="backup-title" onMouseDown={(event) => event.stopPropagation()}><header><div><h2 id="backup-title">Резервные копии</h2><p>Создаются при нажатии на дискету и перед новым проектом. Хранятся в этом браузере.</p></div><button className="icon-button" onClick={() => setBackupOpen(false)} aria-label="Закрыть"><X /></button></header>{backups.length ? <div className="backup-list">{backups.map((backup) => <button key={backup.backupId || backup.savedAt} onClick={() => { replace(backup); setBackupOpen(false); setNotice('Восстановлена резервная копия'); }}><span><strong>Проект № {backup.meta?.projectNum || 'без номера'}</strong><small>{backup.meta?.customer || 'Заказчик не указан'}</small></span><time>{new Date(backup.savedAt).toLocaleString('ru-RU')}</time></button>)}</div> : <div className="empty-state">Резервных копий пока нет. Нажмите дискету после важного изменения.</div>}<footer><button className="button secondary" onClick={() => setBackupOpen(false)}>Закрыть</button></footer></section></div> : null}
     </div>

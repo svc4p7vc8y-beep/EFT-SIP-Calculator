@@ -244,6 +244,17 @@ button:disabled {
   width: 19px;
   height: 19px;
 }
+.nav-alert-badge {
+  min-width: 22px;
+  margin-left: auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: #6d4700;
+  background: #ffd86b;
+  font-size: 9px;
+  font-weight: 900;
+  text-align: center;
+}
 .sidebar nav button:hover,
 .sidebar nav button.active {
   color: var(--green-dark);
@@ -288,6 +299,37 @@ button:disabled {
   min-width: 0;
   padding: 24px;
 }
+.price-change-banner {
+  width: 100%;
+  max-width: 1500px;
+  min-width: 0;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 13px;
+  border: 1px solid #e5b948;
+  border-radius: 11px;
+  color: #513600;
+  background: linear-gradient(135deg, #fff9e8, #fff1bd);
+  text-align: left;
+  box-shadow: 0 7px 20px rgba(128, 90, 0, 0.08);
+}
+.price-change-banner > svg {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  color: #ba7900;
+}
+.price-change-banner span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.price-change-banner strong { font-size: 12px; }
+.price-change-banner small { color: #795819; font-size: 10px; line-height: 1.35; }
+.price-change-banner:hover { border-color: #bd8208; background: #ffefb6; }
 .screen {
   max-width: 1500px;
   margin: 0 auto;
@@ -4721,6 +4763,48 @@ select,
     padding: 2.5px 4px;
   }
 }
+.residential-preset-modal { width: min(640px, 100%); }
+.preset-choice-card {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 13px;
+  padding: 15px;
+  border: 1px solid #99bd82;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--green-soft), var(--panel));
+}
+.preset-choice-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #fff;
+  background: var(--green);
+}
+.preset-choice-icon svg { width: 22px; height: 22px; }
+.preset-choice-card span {
+  color: var(--green-dark);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.preset-choice-card h3 { margin: 3px 0 10px; font-size: 15px; }
+.preset-choice-card ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.preset-choice-card li { display: flex; align-items: flex-start; gap: 7px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.preset-choice-card li svg { flex: 0 0 auto; width: 14px; height: 14px; margin-top: 1px; color: var(--green); }
+.preset-preserved {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--surface);
+}
+.preset-preserved strong { font-size: 10px; }
+.preset-preserved span { color: var(--muted); font-size: 10px; line-height: 1.45; }
 
 /* Manual request and commercial proposal */
 .request-screen {

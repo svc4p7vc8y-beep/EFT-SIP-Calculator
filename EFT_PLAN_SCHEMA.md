@@ -8,7 +8,7 @@
 {
   "format": "eft-house-plan",
   "schemaVersion": 4,
-  "appVersion": 127,
+  "appVersion": 128,
   "savedAt": "2026-09-10T12:00:00.000Z",
   "sourceProject": "0001576",
   "plan": {},

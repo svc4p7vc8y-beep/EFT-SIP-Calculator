@@ -1,9 +1,10 @@
-import { useMemo } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, CircleAlert, Home } from "lucide-react";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
+import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
 import { useProject } from "../state/ProjectContext.jsx";
 import {
   Field,
@@ -16,6 +17,7 @@ import {
 import { formatNumber } from "../utils/format.js";
 import { resizeProjectHouse } from "../planner/geometry.js";
 import { ensureProjectFloorCount } from "../state/project-model.js";
+import { applyResidentialPreset } from '../state/residential-preset.js';
 import {
   releasePlanLinkedQuantityOverrides,
   scopeEstimateOverrideToCurrentCatalog,
@@ -143,7 +145,8 @@ function AutoLink({ label, checked, onChange, hint }) {
 }
 
 export default function ParametersScreen() {
-  const { project, commit } = useProject();
+  const { project, commit, checkpoint } = useProject();
+  const [presetOpen, setPresetOpen] = useState(false);
   const calculation = useMemo(() => calculateProject(project), [project]);
   const { metrics, inputs } = calculation;
   const links = project.settings.links;
@@ -417,6 +420,7 @@ export default function ParametersScreen() {
       <ScreenHeader
         title="Параметры проекта"
         description="Главный опросный лист: пройдите его сверху вниз, и данные перейдут в план, калькуляторы, смету и печать"
+        actions={<button className="button secondary" onClick={() => setPresetOpen(true)}><Home />Стандарт жилого дома</button>}
       />
       <div className="stats-row">
         <Stat
@@ -1356,6 +1360,7 @@ export default function ParametersScreen() {
         </main>
         <Navigator items={checklist} />
       </div>
+      {presetOpen ? <ResidentialPresetDialog onClose={() => setPresetOpen(false)} onApply={() => { checkpoint(); commit(applyResidentialPreset); setPresetOpen(false); }} /> : null}
     </div>
   );
 }

@@ -17,7 +17,7 @@ import {
 } from "../calculations/price-adjustments.js";
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 
-export const REACT_PROJECT_VERSION = 127;
+export const REACT_PROJECT_VERSION = 128;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -25,6 +25,43 @@ export const REACT_BACKUPS_KEY = "eft-react-backups-v46";
 
 const clone = (value) => structuredClone(value);
 const today = () => new Date().toISOString().slice(0, 10);
+const DEFAULT_PRICE_MATERIALS = [...catalog.priceMat, ...EXTERIOR_MATERIALS, ...INTERNAL_MATERIALS, ...ENGINEERING_MATERIALS];
+const DEFAULT_PRICE_LABOR = [...catalog.priceLab, ...EXTERIOR_LABOR, ...INTERNAL_LABOR, ...ENGINEERING_LABOR];
+
+export function createDefaultPriceLists() {
+  return {
+    priceMat: clone(DEFAULT_PRICE_MATERIALS),
+    priceLab: clone(DEFAULT_PRICE_LABOR),
+  };
+}
+
+function summarizePriceList(current, defaults) {
+  const currentById = new Map((current || []).map((item) => [item.id, item]));
+  const defaultById = new Map(defaults.map((item) => [item.id, item]));
+  let priceChanged = 0;
+  let added = 0;
+  let removed = 0;
+  currentById.forEach((item, id) => {
+    const baseline = defaultById.get(id);
+    if (!baseline) added += 1;
+    else if (Number(item.price) !== Number(baseline.price)) priceChanged += 1;
+  });
+  defaultById.forEach((_, id) => {
+    if (!currentById.has(id)) removed += 1;
+  });
+  return { priceChanged, added, removed, total: priceChanged + added + removed };
+}
+
+export function summarizePriceCatalogChanges(project) {
+  const materials = summarizePriceList(project?.priceMat, DEFAULT_PRICE_MATERIALS);
+  const labor = summarizePriceList(project?.priceLab, DEFAULT_PRICE_LABOR);
+  return {
+    priceChanged: materials.priceChanged + labor.priceChanged,
+    added: materials.added + labor.added,
+    removed: materials.removed + labor.removed,
+    total: materials.total + labor.total,
+  };
+}
 
 function polygonRoom(id, name, points, extra = {}) {
   const xs = points.map(([x]) => x);
@@ -441,6 +478,7 @@ export function createCompactPlan() {
 
 export function createDefaultProject() {
   const plan = createDefaultPlan();
+  const prices = createDefaultPriceLists();
   return {
     format: "eft-project",
     schemaVersion: 4,
@@ -605,8 +643,8 @@ export function createDefaultProject() {
       formulas: clone(DEFAULT_FORMULAS),
       priceAdjustments: createDefaultPriceAdjustments(),
     },
-    priceMat: clone([...catalog.priceMat, ...EXTERIOR_MATERIALS, ...INTERNAL_MATERIALS, ...ENGINEERING_MATERIALS]),
-    priceLab: clone([...catalog.priceLab, ...EXTERIOR_LABOR, ...INTERNAL_LABOR, ...ENGINEERING_LABOR]),
+    priceMat: prices.priceMat,
+    priceLab: prices.priceLab,
     request: createDefaultRequest({
       projectNum: "0001",
       customer: "",
