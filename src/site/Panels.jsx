@@ -13,7 +13,7 @@ function PanelExploder() {
   }
   function reset(event) { event.currentTarget.style.removeProperty('--tilt-x'); event.currentTarget.style.removeProperty('--tilt-y'); }
   return <div className={`panel-photo panel-exploder sip-model${expanded ? ' is-expanded' : ''}`} onPointerMove={tilt} onPointerLeave={reset} data-reveal>
-    <svg className="sip-assembly" viewBox="0 0 620 480" role="img" aria-label="СИП-панель: два отдельных листа OSB и пенопласт с отступом 50 миллиметров от каждого края. Схема, не рабочий чертёж.">
+    <svg className="sip-assembly" viewBox="0 0 620 480" role="img" aria-label="СИП-панель: два отдельных листа ОСП и пенопласт с отступом 50 миллиметров от каждого края. Схема, не рабочий чертёж.">
       <defs>
         <pattern id={`${textureId}-osb`} width="180" height="180" patternUnits="userSpaceOnUse" patternTransform="matrix(1 -.286 .68 .32 0 0)">
           <image href={asset('osb-natural.png')} width="180" height="180" preserveAspectRatio="none" />
@@ -36,11 +36,8 @@ function PanelExploder() {
         <path d="M80 205L250 285L530 205V210L250 290L80 210Z" fill="#967044" />
         <path d="M80 205L360 125L530 205L250 285Z" fill={`url(#${textureId}-osb)`} stroke="#b48b55" strokeWidth="1" />
       </g>
-      <g className="sip-annotations" fill="#244b3b" fontSize="13" fontFamily="Arial, sans-serif">
-        <path d="M475 142H545M477 259H545M477 354H545" fill="none" stroke="#82917c" />
-        <text x="545" y="132" textAnchor="end">OSB</text><text x="545" y="249" textAnchor="end">Пенопласт</text><text x="545" y="344" textAnchor="end">OSB</text>
-      </g>
     </svg>
+    <div className="sip-layer-legend" aria-label="Слои панели"><span><i className="legend-osb" />ОСП, верхний лист</span><span><i className="legend-eps" />Пенопласт</span><span><i className="legend-osb" />ОСП, нижний лист</span></div>
     <div className="sip-model-controls"><button type="button" className="sip-toggle" aria-pressed={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Собрать панель' : 'Разобрать панель'}<span aria-hidden="true">{expanded ? '−' : '+'}</span></button><small>Пенопласт утоплен на 50 мм по периметру.<br />Схематическое изображение.</small></div>
   </div>;
 }
