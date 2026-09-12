@@ -1,4 +1,5 @@
 import { strToU8, zipSync } from 'fflate';
+import { requestFileName, requestTotals } from '../state/request-model.js';
 
 const escapeXml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -58,6 +59,39 @@ export function downloadEstimateWorkbook(project, calculation) {
   const link = document.createElement('a');
   link.href = URL.createObjectURL(createEstimateWorkbook(project, calculation));
   link.download = `Смета_ЭФТ_${project.meta.projectNum || 'без_номера'}.xlsx`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
+export function createRequestWorkbook(project, request) {
+  const totals = requestTotals(request);
+  const title = request.documentType === 'internal' ? 'ЭФТ — внутренняя заявка' : 'ЭФТ — коммерческое предложение';
+  const rows = [
+    [title],
+    ['Номер', request.number], ['Дата', request.date], ['Проект', project.meta.projectNum || ''],
+    ['Заказчик / объект', request.customer || project.meta.customer || ''],
+    ['Адрес', request.address || project.meta.address || ''],
+    ['Получатель / ответственный', request.recipient || ''], ['Подготовил', request.manager || project.meta.author || 'ЭФТ'],
+    [], ['№', 'Код', 'Категория', 'Номенклатура', 'Вид', 'Ед.', 'Количество', 'Цена, ₽', 'Сумма, ₽'],
+    ...request.items.map((item, index) => [index + 1, item.catalogId || '', item.category || '', item.name, item.kind === 'labor' ? 'Работа' : 'Материал', item.unit, item.qty, item.price, item.qty * item.price]),
+    [], ['Материалы', totals.materials], ['Работы', totals.labor], ['ИТОГО', totals.total],
+  ];
+  if (request.documentType === 'commercial') rows.push(['Срок действия, дней', request.validDays], ['Условия оплаты', request.paymentTerms], ['Условия поставки', request.deliveryTerms]);
+  if (request.note) rows.push(['Примечание', request.note]);
+  const files = {
+    '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'),
+    '_rels/.rels': strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+    'xl/workbook.xml': strToU8('<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Заявка" sheetId="1" r:id="rId1"/></sheets></workbook>'),
+    'xl/_rels/workbook.xml.rels': strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'),
+    'xl/worksheets/sheet1.xml': strToU8(worksheet(rows, [7, 16, 26, 58, 14, 10, 14, 16, 18])),
+  };
+  return new Blob([zipSync(files, { level: 6 })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+export function downloadRequestWorkbook(project, request) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(createRequestWorkbook(project, request));
+  link.download = `${requestFileName(request)}.xlsx`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 0);
 }

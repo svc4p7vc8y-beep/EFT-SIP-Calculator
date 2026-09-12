@@ -8,7 +8,7 @@
 {
   "format": "eft-house-plan",
   "schemaVersion": 4,
-  "appVersion": 126,
+  "appVersion": 127,
   "savedAt": "2026-09-10T12:00:00.000Z",
   "sourceProject": "0001576",
   "plan": {},
@@ -22,6 +22,10 @@
 ```
 
 `format` и `schemaVersion` обязательны для однозначного распознавания. `floors` — 1 или 2. `settings` и `services` переносят расчётные параметры проекта, но не изменяют общий прайс-лист.
+
+## `request`
+
+Ручная заявка хранится вместе с проектом и не изменяет общий прайс-лист. `documentType` принимает `commercial` или `internal`. Реквизиты документа находятся в полях `number`, `date`, `customer`, `address`, `recipient`, `manager`, `validDays`, `paymentTerms`, `deliveryTerms`, `note`. Массив `items[]` содержит снимки выбранных позиций: `catalogId`, `kind`, `category`, `name`, `unit`, `qty`, `price`. Изменение `qty` и `price` влияет только на заявку. Отсутствующая заявка в старом проекте создаётся пустой при миграции.
 
 ## Координаты и единицы
 

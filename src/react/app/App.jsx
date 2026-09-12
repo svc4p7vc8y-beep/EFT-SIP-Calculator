@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Calculator, ChevronLeft, ChevronRight, ClipboardList, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
+  Calculator, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, ClipboardPaste, FilePlus2, FileUp, HardHat, History, Home, Layers3,
   BookOpenCheck, LibraryBig, Menu, Moon, PaintRoller, PanelTop, Ruler, Save, Settings2, Sun, Tags, Trees,
   Truck, Wrench, X
 } from 'lucide-react';
@@ -21,6 +21,7 @@ const PlanScreen = lazy(() => import('../screens/PlanScreen.jsx'));
 const ParametersScreen = lazy(() => import('../screens/ParametersScreen.jsx'));
 const Calculators = lazy(() => import('../screens/Calculators.jsx'));
 const PriceScreen = lazy(() => import('../screens/PriceScreen.jsx'));
+const RequestScreen = lazy(() => import('../screens/RequestScreen.jsx'));
 const EstimateScreen = lazy(() => import('../screens/EstimateScreen.jsx'));
 const CalculationSettingsScreen = lazy(() => import('../screens/CalculationSettingsScreen.jsx'));
 const KnowledgeLibraryScreen = lazy(() => import('../screens/KnowledgeLibraryScreen.jsx'));
@@ -41,6 +42,7 @@ const NAV_ITEMS = [
   { id: 'internal', label: 'Внутренняя отделка', icon: PaintRoller, group: 'calculate' },
   { id: 'delivery', label: 'Доставка', icon: Truck, group: 'calculate' },
   { id: 'price', label: 'Прайс-лист', icon: Tags, group: 'data' },
+  { id: 'request', label: 'Заявка', icon: ClipboardCheck, group: 'data' },
   { id: 'knowledge', label: 'Библиотека знаний', icon: LibraryBig, group: 'data' },
   { id: 'sip-guide', label: 'Справочник SIP', icon: BookOpenCheck, group: 'data' },
   { id: 'estimate', label: 'Смета', icon: Calculator, group: 'data' }
@@ -60,6 +62,7 @@ function Screen({ active, calculation }) {
   if (active === 'plan') return <PlanScreen />;
   if (active === 'parameters') return <ParametersScreen />;
   if (active === 'price') return <PriceScreen />;
+  if (active === 'request') return <RequestScreen />;
   if (active === 'estimate') return <EstimateScreen />;
   if (active === 'knowledge') return <KnowledgeLibraryScreen />;
   if (active === 'sip-guide') return <SipGuideScreen />;

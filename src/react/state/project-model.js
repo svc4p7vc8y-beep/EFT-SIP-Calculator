@@ -15,8 +15,9 @@ import {
   createDefaultPriceAdjustments,
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
+import { createDefaultRequest, normalizeRequest } from './request-model.js';
 
-export const REACT_PROJECT_VERSION = 126;
+export const REACT_PROJECT_VERSION = 127;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -606,6 +607,13 @@ export function createDefaultProject() {
     },
     priceMat: clone([...catalog.priceMat, ...EXTERIOR_MATERIALS, ...INTERNAL_MATERIALS, ...ENGINEERING_MATERIALS]),
     priceLab: clone([...catalog.priceLab, ...EXTERIOR_LABOR, ...INTERNAL_LABOR, ...ENGINEERING_LABOR]),
+    request: createDefaultRequest({
+      projectNum: "0001",
+      customer: "",
+      address: "",
+      author: "",
+      date: today(),
+    }),
     estimateOverrides: [],
     customEstimateLines: [],
   };
@@ -917,6 +925,7 @@ export function migrateProject(raw) {
     },
     priceMat: normalizedPriceMat,
     priceLab: normalizeCatalog(raw.priceLab, base.priceLab, laborUpgradeIds),
+    request: normalizeRequest(raw.request, meta),
     estimateOverrides: Array.isArray(raw.estimateOverrides)
       ? raw.estimateOverrides
       : [],
