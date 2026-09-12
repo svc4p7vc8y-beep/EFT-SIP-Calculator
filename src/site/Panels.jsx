@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowRight, Check, Minus, Plus, Trash2 } from 'lucide-react';
 import { accessories, asset } from './data.js';
 
 function PanelExploder() {
+  const [expanded, setExpanded] = useState(false);
+  const textureId = useId().replace(/:/g, '');
   function tilt(event) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const box = event.currentTarget.getBoundingClientRect();
@@ -10,9 +12,40 @@ function PanelExploder() {
     event.currentTarget.style.setProperty('--tilt-y', `${((event.clientX - box.left) / box.width - 0.5) * 4}deg`);
   }
   function reset(event) { event.currentTarget.style.removeProperty('--tilt-x'); event.currentTarget.style.removeProperty('--tilt-y'); }
-  return <div className="panel-photo panel-exploder" tabIndex="0" aria-label="Интерактивный разрез СИП-панели" onPointerMove={tilt} onPointerLeave={reset} data-reveal>
-    <div className="panel-layers"><img className="panel-layer layer-top" src={asset('panel.webp')} alt="" /><img className="panel-layer layer-core" src={asset('panel.webp')} alt="" /><img className="panel-layer layer-bottom" src={asset('panel.webp')} alt="" /><img className="panel-layer layer-base" src={asset('panel.webp')} alt="СИП-панель: обшивки из OSB и утеплитель в разрезе" /></div>
-    <span className="layer-label label-osb-top">OSB</span><span className="layer-label label-core">Утеплитель</span><span className="layer-label label-osb-bottom">OSB</span><small>Наведите, чтобы увидеть слои</small>
+  return <div className={`panel-photo panel-exploder sip-model${expanded ? ' is-expanded' : ''}`} onPointerMove={tilt} onPointerLeave={reset} data-reveal>
+    <svg className="sip-assembly" viewBox="0 0 620 480" role="img" aria-label="СИП-панель: два отдельных листа OSB и пенопласт с отступом 50 миллиметров от каждого края. Схема, не рабочий чертёж.">
+      <defs>
+        <pattern id={`${textureId}-osb`} width="48" height="32" patternUnits="userSpaceOnUse">
+          <rect width="48" height="32" fill="#c9a16b" />
+          <path d="M-5 5L23 1L20 5L-2 10Z M26 10L50 16L48 20L25 14Z M4 22L35 16L32 21L5 26Z M28 30L50 25L49 30L31 34Z" fill="#ecd1a0" />
+          <path d="M3 2L7 15L10 17L7 3Z M34 1L22 13L26 12L39 0Z M12 30L20 23L22 23L18 32Z" fill="#a97e4c" />
+          <path d="M1 19L25 12M29 23L46 21M10 29L34 23M13 6L23 4" stroke="#f3deba" strokeWidth="1" />
+        </pattern>
+        <pattern id={`${textureId}-eps`} width="14" height="12" patternUnits="userSpaceOnUse">
+          <rect width="14" height="12" fill="#f0f1eb" />
+          <g fill="#fafbf6" stroke="#d9ddd4" strokeWidth=".65"><circle cx="3" cy="3" r="2.6" /><circle cx="10" cy="4" r="3.2" /><circle cx="5" cy="10" r="3.3" /><circle cx="13" cy="11" r="2.7" /></g>
+        </pattern>
+      </defs>
+      <ellipse cx="305" cy="397" rx="218" ry="27" fill="#354435" opacity=".07" />
+      <g className="sip-sheet sip-bottom">
+        <path d="M80 277L250 357L530 277V283L250 363L80 283Z" fill="#967044" />
+        <path d="M80 277L360 197L530 277L250 357Z" fill={`url(#${textureId}-osb)`} stroke="#b48b55" strokeWidth="1" />
+      </g>
+      <g className="sip-core">
+        <path d="M92.4 211.6L248.8 285.2L517.6 208.4V275.4L248.8 352.2L92.4 278.6Z" fill={`url(#${textureId}-eps)`} stroke="#cbd0c5" strokeWidth="1" />
+        <path d="M92.4 211.6L248.8 285.2V352.2L92.4 278.6Z" fill="#7b8877" opacity=".14" />
+        <path d="M92.4 211.6L361.2 134.8L517.6 208.4L248.8 285.2Z" fill={`url(#${textureId}-eps)`} stroke="#d9ddd2" strokeWidth="1" />
+      </g>
+      <g className="sip-sheet sip-top">
+        <path d="M80 205L250 285L530 205V210L250 290L80 210Z" fill="#967044" />
+        <path d="M80 205L360 125L530 205L250 285Z" fill={`url(#${textureId}-osb)`} stroke="#b48b55" strokeWidth="1" />
+      </g>
+      <g className="sip-annotations" fill="#244b3b" fontSize="13" fontFamily="Arial, sans-serif">
+        <path d="M475 142H545M477 259H545M477 354H545" fill="none" stroke="#82917c" />
+        <text x="545" y="132" textAnchor="end">OSB</text><text x="545" y="249" textAnchor="end">Пенопласт</text><text x="545" y="344" textAnchor="end">OSB</text>
+      </g>
+    </svg>
+    <div className="sip-model-controls"><button type="button" className="sip-toggle" aria-pressed={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Собрать панель' : 'Разобрать панель'}<span aria-hidden="true">{expanded ? '−' : '+'}</span></button><small>Пенопласт утоплен на 50 мм по периметру.<br />Схематическое изображение.</small></div>
   </div>;
 }
 
