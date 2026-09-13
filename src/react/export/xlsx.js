@@ -32,7 +32,7 @@ function worksheet(rows, widths = []) {
 export function createEstimateWorkbook(project, calculation) {
   const estimateRows = [
     ['ЭФТ — смета проекта'],
-    ['Номер проекта', project.meta.projectNum], ['Заказчик', project.meta.customer], ['Адрес', project.meta.address], ['Дата', project.meta.date],
+    ['Номер проекта', project.meta.projectNum], ['Заказчик', project.meta.customer], ['Адрес', project.meta.address], ['Дата', new Date().toLocaleDateString('ru-RU')],
     ['Габариты дома, м', `${project.plan.house.w} × ${project.plan.house.h}`],
     ['Пол всего дома, м²', calculation.metrics.floorArea], ['Площадь помещений, м²', calculation.metrics.roomArea],
     ['Горизонтальный СИП-потолок, м²', calculation.metrics.ceilingArea], ['Второй свет, м²', calculation.metrics.openCeilingArea],

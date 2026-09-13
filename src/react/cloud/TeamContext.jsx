@@ -16,7 +16,7 @@ import { readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
 
 const TeamContext = createContext(null);
 const isProductionCalculator = () =>
-  location.hostname === "calc.eftsip.ru" ||
+  (location.hostname === "calc.eftsip.ru" && import.meta.env.VITE_TEAM_ENABLED === 'true') ||
   new URLSearchParams(location.search).get("cloud") === "1";
 
 export function TeamProvider({ children }) {

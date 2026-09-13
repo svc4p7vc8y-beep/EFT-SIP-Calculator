@@ -2,6 +2,12 @@ name: Deploy EFT calculator to Beget
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/react/**'
+      - 'src/calculations/**'
+      - 'public/sw.js'
 
 permissions:
   contents: read

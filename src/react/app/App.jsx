@@ -31,10 +31,12 @@ import {
   X,
 } from "lucide-react";
 import { useProject } from "../state/ProjectContext.jsx";
+import { isPriceEditorUnlocked, verifyPricePasscode, setPriceEditorUnlocked } from '../security/price-access.js';
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { calculateAdjustedPrice } from "../calculations/price-adjustments.js";
 import {
   createProjectWithCurrentPrices,
+  createDefaultPriceLists,
   migrateProject,
   REACT_BACKUPS_KEY,
   REACT_PROJECT_VERSION,
@@ -144,6 +146,7 @@ function Screen({ active, calculation, teamProps }) {
 export function App() {
   const {
     project,
+    commit,
     replace,
     undo,
     redo,
@@ -516,7 +519,7 @@ export function App() {
         ) : null}
         <main className="workspace">
           {priceChanges.total ? (
-            <button
+            <div><button
               className="price-change-banner no-print"
               onClick={() => setActive("price")}
             >
@@ -536,7 +539,15 @@ export function App() {
                   Нажмите, чтобы проверить.
                 </small>
               </span>
-            </button>
+            </button><button className="button secondary no-print" onClick={() => {
+              if (!isPriceEditorUnlocked()) {
+                const code = window.prompt('Введите код доступа к прайс-листу');
+                if (code === null) return;
+                if (!verifyPricePasscode(code)) { window.alert('Неверный код'); return; }
+                setPriceEditorUnlocked(true);
+              }
+              if (window.confirm('Восстановить базовый прайс? Изменённые цены и добавленные позиции будут сброшены. Действие можно отменить.')) commit(next => ({ ...next, ...createDefaultPriceLists() }));
+            }}>Сбросить прайс</button></div>
           ) : null}
           <Suspense
             fallback={<div className="screen-loader">Загружаю раздел…</div>}

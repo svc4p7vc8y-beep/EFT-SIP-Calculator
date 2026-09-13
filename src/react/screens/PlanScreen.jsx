@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { roofOutline } from '../planner/roof-outline.js';
 import { isInteriorDoor } from '../calculations/opening-types.js';
 import {
   AlertTriangle,
@@ -596,7 +597,23 @@ function DraftPolygonEdge({ points, hoverPoint, p }) {
   );
 }
 
+function PlatformRoofOverlay({ platform, house, p }) {
+  const roof = platform.roof;
+  if (!roof || roof.mode === 'none') return null;
+  const side = calculateTerraceRoof(platform, house).side;
+  const overhang = Number(roof.sideOverhang) || 0;
+  const front = Number(roof.frontOverhang) || 0;
+  const horizontal = side === 'top' || side === 'bottom';
+  const a = p(platform.x - (horizontal ? overhang : side === 'left' ? front : 0), platform.y - (horizontal ? side === 'top' ? front : 0 : overhang));
+  const b = p(platform.x + platform.w + (horizontal ? overhang : side === 'right' ? front : 0), platform.y + platform.h + (horizontal ? side === 'bottom' ? front : 0 : overhang));
+  return <g pointerEvents="none" aria-label={`Кровля ${platform.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
+    <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill="#7da096" fillOpacity="0.22" stroke="#476f62" strokeWidth="2" strokeDasharray="7 4" />
+    {roof.shape === 'gable' ? <path d={horizontal ? `M ${(a.x+b.x)/2} ${a.y} V ${b.y}` : `M ${a.x} ${(a.y+b.y)/2} H ${b.x}`} stroke="#476f62" strokeWidth="3" /> : <path d={horizontal ? `M ${(a.x+b.x)/2} ${a.y+8} V ${b.y-8}` : `M ${a.x+8} ${(a.y+b.y)/2} H ${b.x-8}`} fill="none" stroke="#476f62" strokeWidth="2" />}
+  </g>;
+}
+
 function RoofPlanOverlay({ plan, roof, p }) {
+  const clipId = useId().replace(/:/g, '');
   const contour = houseContourPoints(plan);
   const bounds = boundsOf(contour);
   const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
@@ -628,6 +645,8 @@ function RoofPlanOverlay({ plan, roof, p }) {
     ? { x: centerX, y: shape === "hip" ? y2 - ridgeInset : y2 }
     : { x: shape === "hip" ? x2 - ridgeInset : x2, y: centerY };
   const roofRect = [p(x1, y1), p(x2, y1), p(x2, y2), p(x1, y2)];
+  const outline = roofOutline(contour, xOverhang, yOverhang).map(point => p(point.x, point.y));
+  const outlinePoints = outline.map(point => `${point.x},${point.y}`).join(' ');
   const ridge = [p(ridgeA.x, ridgeA.y), p(ridgeB.x, ridgeB.y)];
   const arrowInset = Math.min(Math.max(0.3, Math.min(x2 - x1, y2 - y1) * 0.18), 1.5);
   const flatSlopeArrow = {
@@ -959,7 +978,9 @@ function RoofPlanOverlay({ plan, roof, p }) {
     <g
       className={`roof-plan-overlay roof-${shape}`}
       aria-label="План кровли сверху"
+      clipPath={`url(#${clipId})`}
     >
+      <defs><clipPath id={clipId}><polygon points={outlinePoints} /></clipPath></defs>
       {shape === "flat" ? (
         <defs>
           <marker
@@ -978,7 +999,7 @@ function RoofPlanOverlay({ plan, roof, p }) {
       {roof.showRoofCover !== false ? (
         <polygon
           className="roof-cover-plane"
-          points={roofRect.map((point) => `${point.x},${point.y}`).join(" ")}
+          points={outlinePoints}
         />
       ) : null}
       {roof.showMauerlat !== false ? (
@@ -1044,7 +1065,7 @@ function RoofPlanOverlay({ plan, roof, p }) {
       ) : null}
       <polygon
         className="roof-overhang-outline"
-        points={roofRect.map((point) => `${point.x},${point.y}`).join(" ")}
+        points={outlinePoints}
       />
     </g>
   );
@@ -1877,7 +1898,7 @@ function PlanCanvas({
           </text>
         </g>
       ) : null}
-      {visibleLayers.plan || visibleLayers.piles || visibleLayers.binding
+      {visibleLayers.plan || visibleLayers.roof || visibleLayers.piles || visibleLayers.binding
         ? (shownPlan.platforms || []).map((platform) => {
             const q = p(platform.x, platform.y);
             return (
@@ -1910,6 +1931,7 @@ function PlanCanvas({
                   {formatNumber(platform.w * platform.h)} м²
                 </text>
                 <TerraceStairs platform={platform} p={p} />
+                {(visibleLayers.plan || visibleLayers.roof) ? <PlatformRoofOverlay platform={platform} house={shownPlan} p={p} /> : null}
                 {visibleLayers.binding && platform.binding?.mode !== "none" ? (
                   <rect
                     className="binding-guide"
@@ -1943,6 +1965,10 @@ function PlanCanvas({
             const screen = points.map((point) => p(point.x, point.y));
             const bounds = boundsOf(points);
             const center = p(bounds.x + bounds.w / 2, bounds.y + bounds.h / 2);
+            const labelWidth = Math.max(1, bounds.w * layout.scale - 18);
+            const labelHeight = Math.max(1, bounds.h * layout.scale - 18);
+            const fittedNameSize = Math.min(roomNameSize, labelWidth / Math.max(1, String(room.name).length * 0.62), labelHeight / 5);
+            const fittedMetaSize = Math.min(roomMetaSize, labelWidth / 15, labelHeight / 5);
             const selectedNow =
               selected?.type === "room" && selected.id === room.id;
             return (
@@ -1965,33 +1991,34 @@ function PlanCanvas({
                 ) : null}
                 <text
                   className="room-name"
-                  style={{ fontSize: roomNameSize }}
+                  style={{ fontSize: fittedNameSize }}
                   x={center.x}
-                  y={center.y - roomMetaSize * 0.8}
+                  y={center.y - fittedMetaSize * 0.8}
                 >
                   {room.name}
                 </text>
                 <text
                   className="room-dimensions"
-                  style={{ fontSize: roomMetaSize }}
+                  style={{ fontSize: fittedMetaSize }}
                   x={center.x}
-                  y={center.y + roomMetaSize * 0.55}
+                  y={center.y + fittedMetaSize * 0.55}
                 >
                   {formatNumber(bounds.w)} × {formatNumber(bounds.h)} м
                 </text>
                 <text
                   className="room-area"
-                  style={{ fontSize: roomMetaSize }}
+                  style={{ fontSize: fittedMetaSize }}
                   x={center.x}
-                  y={center.y + roomMetaSize * 1.8}
+                  y={center.y + fittedMetaSize * 1.8}
                 >
                   {formatNumber(polygonArea(points))} м²
                 </text>
                 {room.ceilingMode === "open-rafter" ? (
                   <text
                     className="room-ceiling-mode"
+                    style={{ fontSize: fittedMetaSize }}
                     x={center.x}
-                    y={center.y + 31}
+                    y={center.y + fittedMetaSize * 3}
                   >
                     Второй свет
                   </text>

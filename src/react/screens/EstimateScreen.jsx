@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { AlertTriangle, FileSpreadsheet, Printer } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
@@ -26,6 +27,12 @@ function EstimateSectionEditor({ section, project, commit }) {
 }
 
 export default function EstimateScreen() {
+  const [formationDate, setFormationDate] = useState(() => new Date().toLocaleDateString('ru-RU'));
+  useEffect(() => {
+    const refreshDate = () => flushSync(() => setFormationDate(new Date().toLocaleDateString('ru-RU')));
+    window.addEventListener('beforeprint', refreshDate);
+    return () => window.removeEventListener('beforeprint', refreshDate);
+  }, []);
   const { project, commit } = useProject();
   const calculation = useMemo(() => calculateProject(project), [project]);
   const commercialScope = useMemo(() => buildCommercialScope(project, calculation), [project, calculation]);
@@ -60,7 +67,7 @@ export default function EstimateScreen() {
         <dl>
           <div><dt>Заказчик</dt><dd>{project.meta.customer || 'Не указан'}</dd></div>
           <div><dt>Адрес</dt><dd>{project.meta.address || 'Не указан'}</dd></div>
-          <div><dt>Дата расчёта</dt><dd>{project.meta.date}</dd></div>
+          <div><dt>Дата расчёта</dt><dd>{formationDate}</dd></div>
           <div><dt>Автор</dt><dd>{project.meta.author || 'ЭФТ'}</dd></div>
         </dl>
         <dl>
