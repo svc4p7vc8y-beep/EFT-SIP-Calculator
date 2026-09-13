@@ -206,3 +206,11 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .hero-camera>img{transform:scale(1);transition:transform 2.4s cubic-bezier(.2,.65,.3,1)}
 @media(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){.hero-camera:hover>img{transform:translate(var(--camera-x,-1%),var(--camera-y,.5%)) scale(1.1);transition-duration:5s}}
 @media(prefers-reduced-motion:reduce){.hero-camera>img{transform:none!important;transition:none!important}}
+.residential-plan{margin:0;padding:75px 20px 22px;background:#faf9f5;width:100%;height:100%;overflow:auto}
+.residential-plan>svg{display:block;width:100%;min-height:230px;max-height:420px}
+.plan-room-list{padding-left:23px;margin:12px 0;display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;font-size:11px;color:#34473b}
+.plan-room-list li{padding-left:2px}.plan-room-list li::marker{font-weight:700;color:#244b3b}
+.plan-room-list small{display:block;font-size:9px;color:#6e796f}.plan-room-list b{font-size:11px}
+.residential-plan figcaption{font-size:10px;line-height:1.65;color:#6e796f;padding-top:12px;border-top:1px solid #dce2da}
+.project-highlights{padding-left:18px;font-size:12px;line-height:1.7;margin:0}
+@media(max-width:600px){.dialog-visual:has(.residential-plan){min-height:690px}.residential-plan{padding:72px 12px 16px}.plan-room-list{gap:8px 18px;font-size:10px}}
