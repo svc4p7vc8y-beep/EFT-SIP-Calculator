@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { asset, houses, projectCategories } from "./data.js";
 import Panels from "./Panels.jsx";
-import HeroPhoto from "./HeroPhoto.jsx";
+import HeroIntro from "./HeroIntro.jsx";
 import Locations from "./Locations.jsx";
 import { AnimatedLogo, ScrollProgress, useSiteMotion } from "./Motion.jsx";
 import { submitPublicIntake } from "../shared/team-api.js";
@@ -17,6 +17,7 @@ import { submitPublicIntake } from "../shared/team-api.js";
 const ProjectDialog = lazy(() => import("./ProjectDialog.jsx"));
 const nav = [
   ["projects", "Проекты"],
+  ["garages", "Постройки"],
   ["panels", "СИП и товары"],
   ["technology", "Технология"],
   ["contact", "Контакты"],
@@ -289,7 +290,7 @@ function Contact({ cart, selection, setSelection }) {
 
 export default function Site() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState("projects");
+  const [activeNav, setActiveNav] = useState("");
   const [activeProject, setActiveProject] = useState(null);
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [cart, setCart] = useState([]);
@@ -342,7 +343,7 @@ export default function Site() {
     const update = () => {
       frame = 0;
       const marker = window.innerHeight * 0.4;
-      let current = "projects";
+      let current = "";
       nav.forEach(([id]) => {
         const section = document.getElementById(id);
         if (section && section.getBoundingClientRect().top <= marker)
@@ -367,7 +368,7 @@ export default function Site() {
       <a className="skip-link" href="#main">
         К содержанию
       </a>
-      <header className="site-header">
+      <header className="site-header welcome-header">
         <a
           className="wordmark header-wordmark"
           href="#"
@@ -405,7 +406,7 @@ export default function Site() {
           href="#contact"
           onClick={() => setActiveNav("contact")}
         >
-          Обсудить проект
+          Обсудить дом
           <ArrowUpRight size={16} />
         </a>
         <button
@@ -424,38 +425,7 @@ export default function Site() {
         onCollapse={collapseExpanded}
       />
       <main id="main">
-        <section className="hero" data-reveal>
-          <div className="hero-copy">
-            <h1>
-              Дом, в котором
-              <br />
-              всё на своём
-              <br />
-              <em>месте.</em>
-            </h1>
-            <p>
-              Продуманные пространства для жизни.
-              <br />
-              Проекты и СИП-панели от ЭФТ.
-            </p>
-            <div className="hero-actions">
-              <a className="btn primary" href="#projects">
-                Выбрать проект
-                <ArrowUpRight size={18} />
-              </a>
-              <a className="btn outline" href="#panels">
-                Купить СИП-панели
-              </a>
-            </div>
-            <a className="hero-scroll" href="#projects">
-              <span className="round-arrow">
-                <ArrowDown size={18} />
-              </span>
-              Найдите место для своей истории
-            </a>
-          </div>
-          <HeroPhoto />
-        </section>
+        <HeroIntro />
         {projectCategories.map((category) => (
           <ProjectCollection
             key={category.id}
