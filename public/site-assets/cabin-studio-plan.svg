@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="470" height="720" viewBox="0 0 470 720">
+<defs><pattern id="wood" width="80" height="18" patternUnits="userSpaceOnUse"><rect width="80" height="18" fill="#e5d2af"/><path d="M0 18V0H80M15 6H66M30 12H75" fill="none" stroke="#c4ac86" stroke-width=".6"/></pattern><pattern id="tile" width="18" height="18" patternUnits="userSpaceOnUse"><rect width="18" height="18" fill="#dce5e1"/><path d="M0 18V0H18" fill="none" stroke="white"/></pattern><filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="4" dy="10" stdDeviation="6" flood-color="#273b31" flood-opacity=".22"/></filter></defs>
+<rect width="100%" height="100%" fill="#faf9f5"/><text x="60" y="35" font-family="Arial" font-size="22" fill="#244b3b">Лесная студия</text><text x="60" y="62" font-family="Arial" font-size="13" fill="#768272">5 × 6 м · эскиз планировки</text>
+<g filter="url(#shadow)"><rect x="60" y="100" width="350" height="420" rx="0" fill="#34473e" stroke="#aa9b83" stroke-width="1"/><rect x="72" y="112" width="326" height="396" rx="0" fill="url(#wood)" stroke="#aa9b83" stroke-width="1"/>
+<rect x="270" y="115" width="125" height="140" rx="0" fill="url(#tile)" stroke="#aa9b83" stroke-width="1"/><rect x="325" y="120" width="60" height="60" rx="5" fill="#f7faf7" stroke="#aa9b83" stroke-width="1"/><ellipse cx="365" cy="220" rx="15" ry="22" fill="white" stroke="#95a39c"/><rect x="276" y="125" width="36" height="26" rx="4" fill="white" stroke="#aa9b83" stroke-width="1"/><rect x="83" y="410" width="140" height="62" rx="8" fill="#e0d5bf" stroke="#aa9b83" stroke-width="1"/><rect x="87" y="413" width="132" height="15" rx="4" fill="#f4edde" stroke="#aa9b83" stroke-width="1"/><rect x="120" y="355" width="72" height="36" rx="7" fill="#a58a67" stroke="#aa9b83" stroke-width="1"/><rect x="78" y="115" width="160" height="42" rx="0" fill="#f3ebdc" stroke="#aa9b83" stroke-width="1"/>
+<rect x="82" y="120" width="28" height="27" rx="3" fill="#454947" stroke="#aa9b83" stroke-width="1"/><rect x="205" y="215" width="60" height="50" rx="10" fill="#b99b72" stroke="#aa9b83" stroke-width="1"/>
+<path d="M260 112V220M260 266H399" fill="none" stroke="#34473e" stroke-width="10"/><path d="M260 112V220M260 266H399" fill="none" stroke="#6d7566" stroke-width="3"/>
+<path d="M260 220H306A46 46 0 0 1 260 266" fill="none" stroke="#997648" stroke-width="2"/>
+<path d="M110 514H200M404 340V420M404 150V190" fill="none" stroke="#acd2d8" stroke-width="7"/>
+<path d="M285 514H345" stroke="#ece3d0" stroke-width="14"/><path d="M285 514V455A60 60 0 0 1 345 514" fill="none" stroke="#997648" stroke-width="2"/>
+<rect x="60" y="520" width="350" height="105" rx="0" fill="url(#wood)" stroke="#aa9b83" stroke-width="1"/><rect x="193" y="625" width="85" height="28" rx="0" fill="#b19570" stroke="#aa9b83" stroke-width="1"/><rect x="186" y="653" width="99" height="20" rx="0" fill="#bfa780" stroke="#aa9b83" stroke-width="1"/>
+<rect x="60" y="615" width="12" height="12" rx="0" fill="#34473e" stroke="#aa9b83" stroke-width="1"/><rect x="398" y="615" width="12" height="12" rx="0" fill="#34473e" stroke="#aa9b83" stroke-width="1"/>
+</g>
+<g font-family="Arial" fill="#244b3b" text-anchor="middle" font-size="12">
+<text x="328" y="253">Санузел</text>
+<text x="230" y="310">Студия · кухня и отдых</text><text x="235" y="586">Крытая терраса · 7,5 м²</text>
+</g>
+<text x="60" y="698" font-family="Arial" font-size="12" fill="#5d6d62">30 м² по наружному контуру · терраса отдельно</text>
+</svg>
