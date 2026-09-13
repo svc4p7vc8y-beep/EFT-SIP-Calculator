@@ -6,7 +6,9 @@
 <rect x="82" y="120" width="28" height="27" rx="3" fill="#454947" stroke="#aa9b83" stroke-width="1"/><rect x="205" y="215" width="60" height="50" rx="10" fill="#b99b72" stroke="#aa9b83" stroke-width="1"/>
 <path d="M260 112V220M260 266H399" fill="none" stroke="#34473e" stroke-width="10"/><path d="M260 112V220M260 266H399" fill="none" stroke="#6d7566" stroke-width="3"/>
 <path d="M260 220H306A46 46 0 0 1 260 266" fill="none" stroke="#997648" stroke-width="2"/>
-<path d="M110 514H200M404 340V420M404 150V190" fill="none" stroke="#acd2d8" stroke-width="7"/>
+<path d="M72 514H398" fill="none" stroke="#acd2d8" stroke-width="12"/>
+<path d="M72 510H398M72 518H398M140 508V520M210 508V520M280 508V520M350 508V520" fill="none" stroke="#34473e" stroke-width="1.5"/>
+<path d="M404 340V420M404 150V190" fill="none" stroke="#acd2d8" stroke-width="7"/>
 <path d="M285 514H345" stroke="#ece3d0" stroke-width="14"/><path d="M285 514V455A60 60 0 0 1 345 514" fill="none" stroke="#997648" stroke-width="2"/>
 <rect x="60" y="520" width="350" height="105" rx="0" fill="url(#wood)" stroke="#aa9b83" stroke-width="1"/><rect x="193" y="625" width="85" height="28" rx="0" fill="#b19570" stroke="#aa9b83" stroke-width="1"/><rect x="186" y="653" width="99" height="20" rx="0" fill="#bfa780" stroke="#aa9b83" stroke-width="1"/>
 <rect x="60" y="615" width="12" height="12" rx="0" fill="#34473e" stroke="#aa9b83" stroke-width="1"/><rect x="398" y="615" width="12" height="12" rx="0" fill="#34473e" stroke="#aa9b83" stroke-width="1"/>
