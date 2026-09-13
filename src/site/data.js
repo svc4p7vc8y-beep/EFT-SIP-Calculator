@@ -1,10 +1,12 @@
 import { residentialProjects } from './residential.js';
+import { referenceProjects } from './referenceProjects.js';
 
 export const projectCategories = [
   {
     id: 'projects', number: '01', eyebrow: 'Коллекция проектов', title: 'Жилые дома', accent: 'Для вашей истории.',
     description: 'Продуманные пространства для постоянной жизни — от компактного дома до семейной резиденции.',
     projects: [
+      ...referenceProjects,
       ...residentialProjects,
       { id: 'forest', name: 'Лесной', image: 'forest.webp', mood: 'Ближе к природе', description: 'Выразительный силуэт, открытая терраса и большая общая комната. Идея дома для неспешной жизни рядом с лесом.', rooms: ['Кухня-гостиная', 'Спальня', 'Кабинет', 'Санузел', 'Прихожая'], type: 'compact', tag: 'С кабинетом', meta: ['1 этаж', 'Открытая терраса', 'Стоимость по запросу'] },
       { id: 'family', name: 'Семейный', image: 'family.webp', mood: 'Больше места для жизни', description: 'Общее пространство для встреч и отдельные комнаты для каждого. Светлое дерево и терраса делают дом продолжением сада.', rooms: ['Кухня-гостиная', 'Спальня', 'Детская', 'Детская', 'Санузел'], type: 'family', tag: 'Для семьи', meta: ['1 этаж', 'Семейная планировка', 'Стоимость по запросу'] },

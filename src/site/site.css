@@ -214,3 +214,8 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .residential-plan figcaption{font-size:10px;line-height:1.65;color:#6e796f;padding-top:12px;border-top:1px solid #dce2da}
 .project-highlights{padding-left:18px;font-size:12px;line-height:1.7;margin:0}
 @media(max-width:600px){.dialog-visual:has(.residential-plan){min-height:690px}.residential-plan{padding:72px 12px 16px}.plan-room-list{gap:8px 18px;font-size:10px}}
+.reference-plan{margin:0;padding:75px 16px 20px;height:100%;display:flex;flex-direction:column;background:#faf9f5;gap:12px;min-height:0}
+.reference-plan-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;flex-wrap:wrap}.reference-plan-tools button{border:1px solid #bbc7be;border-radius:5px;padding:10px 12px;background:#fff;min-height:44px}.reference-plan-tools a{text-decoration:underline;text-underline-offset:3px}
+.reference-plan-scroll{overflow:auto;min-height:0;flex:1;overscroll-behavior:contain}.reference-plan-scroll img{width:100%;height:100%;object-fit:contain;object-position:top center}.reference-plan-scroll.is-zoomed img{width:1400px;height:auto;max-width:none}
+.reference-plan figcaption{font-size:10px;line-height:1.6;color:#6e796f}
+@media(max-width:600px){.dialog-visual:has(.reference-plan){min-height:720px}.reference-plan{padding:72px 12px 16px}.reference-plan-scroll{max-height:510px}}
