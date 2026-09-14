@@ -106,7 +106,7 @@ jobs:
             dist/ \
             "${BEGET_SSH_USER}@${BEGET_SSH_HOST}:${BEGET_DEPLOY_PATH%/}/"
 
-      - name: Verify protected website
+      - name: Verify employee login website
         run: |
-          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 30 https://calc.eftsip.ru/)"
-          test "$status" = "401"
+          response="$(curl --fail --silent --show-error --max-time 30 https://calc.eftsip.ru/)"
+          printf '%s' "$response" | grep -q 'React-калькулятор СИП-домов'
