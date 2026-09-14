@@ -51,8 +51,9 @@ test("questionnaire builds a calculator-compatible brief with complete construct
 
   assert.equal(brief.format, "eft-client-brief");
   assert.equal(brief.schemaVersion, 1);
-  assert.equal(brief.questionnaireVersion, 4);
+  assert.equal(brief.questionnaireVersion, 5);
   assert.equal(brief.customer.preferredContact, "WhatsApp");
+  assert.equal(brief.customer.consent, true);
   assert.equal(brief.project.buildingType, "Гараж");
   assert.equal(brief.project.floors, 2);
   assert.equal(brief.project.length, 12);

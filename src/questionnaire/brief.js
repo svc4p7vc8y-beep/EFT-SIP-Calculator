@@ -59,8 +59,8 @@ export function buildClientBrief(answers, attachments = []) {
   };
   const legacyPlatform = answers.terrace ? terrace : porch;
   return {
-    format: "eft-client-brief", schemaVersion: 1, questionnaireVersion: 4, createdAt: new Date().toISOString(),
-    customer: { name: answers.customerName.trim(), phone: answers.phone.trim(), email: answers.email.trim(), preferredContact: answers.contactMethod, preferredTime: answers.contactTime },
+    format: "eft-client-brief", schemaVersion: 1, questionnaireVersion: 5, createdAt: new Date().toISOString(),
+    customer: { name: answers.customerName.trim(), phone: answers.phone.trim(), email: answers.email.trim(), preferredContact: answers.contactMethod, preferredTime: answers.contactTime, consent: Boolean(answers.consent) },
     project: {
       goal: answers.goal, buildingType: answers.buildingType, address: answers.address.trim() || answers.region.trim(), region: answers.region.trim(),
       floors: [1, 2].includes(floors) ? floors : null, length: numberOrNull(answers.length), width: numberOrNull(answers.width),

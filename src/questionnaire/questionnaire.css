@@ -126,6 +126,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .q-consent strong { font-size: 12px; }
 .q-consent small { color: var(--q-muted); font-size: 10px; }
 .q-notice { margin-top: 18px; padding: 11px 14px; border: 1px solid #e5b8b3; border-radius: 10px; color: #8f332b; background: #fff3f1; font-size: 12px; font-weight: 700; }
+.q-notice.success { border-color: #b8d3aa; color: #315f20; background: #eef8e9; }
 .q-actions { position: sticky; bottom: 0; display: flex; gap: 10px; margin: auto -42px 0; padding: 18px 42px; border-top: 1px solid var(--q-line); background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
 .q-primary { margin-left: auto; border: 1px solid var(--q-green); color: #fff; background: var(--q-green); box-shadow: 0 8px 20px rgba(64, 117, 38, .18); }
 .q-primary:hover { background: #427725; }

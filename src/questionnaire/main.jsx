@@ -1591,7 +1591,7 @@ function App() {
               setAttachments={setAttachments}
             />
             {notice ? (
-              <div className="q-notice" role="alert">
+              <div className={`q-notice${submittedNumber ? " success" : ""}`} role="alert">
                 {notice}
               </div>
             ) : null}
