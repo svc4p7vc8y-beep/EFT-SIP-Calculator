@@ -28,6 +28,7 @@ export function TeamProvider({ children }) {
   });
   const [projects, setProjects] = useState([]);
   const [intakes, setIntakes] = useState([]);
+  const [unreadIntakes, setUnreadIntakes] = useState(0);
   const [users, setUsers] = useState([]);
   const [current, setCurrent] = useState(null);
   const currentRef = useRef(null);
@@ -46,6 +47,7 @@ export function TeamProvider({ children }) {
       await Promise.all(requests);
     setProjects(projectResult.projects || []);
     setIntakes(intakeResult.intakes || []);
+    setUnreadIntakes(Number(intakeResult.unread || 0));
     setUsers(userResult?.users || []);
   }, [session.user]);
 
@@ -106,6 +108,12 @@ export function TeamProvider({ children }) {
       }),
     );
   }, [session.user, refresh, syncLibraries]);
+
+  useEffect(() => {
+    if (!session.user) return undefined;
+    const timer = window.setInterval(() => refresh().catch(() => {}), 45000);
+    return () => window.clearInterval(timer);
+  }, [session.user, refresh]);
 
   useEffect(() => {
     if (!session.user) return undefined;
@@ -241,6 +249,35 @@ export function TeamProvider({ children }) {
     },
     [session.csrf, refresh],
   );
+  const reserveProjectNumber = useCallback(async () => {
+    const result = await eftApi("project-number", {
+      method: "POST",
+      csrf: session.csrf,
+      body: {},
+    });
+    return result.number;
+  }, [session.csrf]);
+  const deleteProject = useCallback(async (id, password) => {
+    await eftApi("project-delete", {
+      method: "POST",
+      csrf: session.csrf,
+      body: { id, password },
+    });
+    if (currentRef.current?.id === id) {
+      currentRef.current = null;
+      setCurrent(null);
+    }
+    await refresh();
+  }, [session.csrf, refresh]);
+  const markIntakeRead = useCallback(async (id) => {
+    await eftApi("intake-read", {
+      method: "POST",
+      csrf: session.csrf,
+      body: { id },
+    });
+    setIntakes((items) => items.map((item) => item.id === id ? { ...item, is_read: true } : item));
+    setUnreadIntakes((count) => Math.max(0, count - 1));
+  }, [session.csrf]);
   const detachProject = useCallback(() => {
     currentRef.current = null;
     setCurrent(null);
@@ -251,16 +288,20 @@ export function TeamProvider({ children }) {
   }, []);
   const createFromIntake = useCallback(
     async (payload, intakeId) => {
-      const created = await createProject(payload);
+      const number = await reserveProjectNumber();
+      const numberedPayload = structuredClone(payload);
+      numberedPayload.meta.projectNum = number;
+      if (numberedPayload.request) numberedPayload.request.number = `КП-${number}`;
+      const created = await createProject(numberedPayload);
       await eftApi("intake-status", {
         method: "POST",
         csrf: session.csrf,
         body: { id: intakeId, status: "imported", projectId: created.id },
       });
       await refresh();
-      return created;
+      return { ...created, payload: numberedPayload };
     },
-    [createProject, session.csrf, refresh],
+    [createProject, reserveProjectNumber, session.csrf, refresh],
   );
 
   const value = useMemo(
@@ -269,6 +310,7 @@ export function TeamProvider({ children }) {
       required: isProductionCalculator(),
       projects,
       intakes,
+      unreadIntakes,
       users,
       current,
       syncState,
@@ -279,6 +321,9 @@ export function TeamProvider({ children }) {
       openProject,
       saveProject,
       createUser,
+      reserveProjectNumber,
+      deleteProject,
+      markIntakeRead,
       createFromIntake,
       detachProject,
     }),
@@ -286,6 +331,7 @@ export function TeamProvider({ children }) {
       session,
       projects,
       intakes,
+      unreadIntakes,
       users,
       current,
       syncState,
@@ -296,6 +342,9 @@ export function TeamProvider({ children }) {
       openProject,
       saveProject,
       createUser,
+      reserveProjectNumber,
+      deleteProject,
+      markIntakeRead,
       createFromIntake,
       detachProject,
     ],

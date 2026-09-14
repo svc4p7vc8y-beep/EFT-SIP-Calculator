@@ -196,3 +196,4 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .q-download-mobile { display: inline-flex; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+.q-attachment-list{display:grid;gap:8px;margin-top:10px}.q-attachment-list>div{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid #dbe4d7;border-radius:10px;background:#f8faf7}.q-attachment-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.q-attachment-list small{color:#6b7567}.q-attachment-list button{border:0;background:transparent;color:#a13b32;font-weight:700;cursor:pointer}

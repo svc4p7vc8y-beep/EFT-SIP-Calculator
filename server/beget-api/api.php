@@ -36,7 +36,7 @@ if ($action === 'login' && $method === 'POST') {
 
 if ($action === 'intake' && $method === 'POST') {
     eft_require_allowed_origin();
-    $input = eft_input(2097152);
+    $input = eft_input(16777216);
     if (!empty($input['website'])) eft_json(['ok' => true, 'number' => 'EFT-' . date('ymd')]);
     $format = (string)($input['format'] ?? '');
     if (!in_array($format, ['eft-client-brief', 'eft-site-inquiry'], true)) eft_json(['ok' => false, 'code' => 'invalid_intake', 'message' => 'Формат анкеты не поддерживается.'], 422);
@@ -54,10 +54,29 @@ if ($action === 'intake' && $method === 'POST') {
     if ($format === 'eft-client-brief' && empty($customer['consent'])) eft_json(['ok' => false, 'code' => 'consent_required', 'message' => 'Необходимо согласие на обработку данных.'], 422);
     $id = eft_uuid();
     $number = 'EFT-' . date('ymd') . '-' . strtoupper(substr(str_replace('-', '', $id), 0, 6));
+    $attachmentFiles = is_array($input['attachmentFiles'] ?? null) ? $input['attachmentFiles'] : [];
+    unset($input['attachmentFiles']);
+    if (count($attachmentFiles) > 8) eft_json(['ok' => false, 'code' => 'too_many_attachments', 'message' => 'Можно приложить не более 8 файлов.'], 422);
+    $decodedAttachments = [];
+    $totalBytes = 0;
+    foreach ($attachmentFiles as $file) {
+        $mime = (string)($file['type'] ?? '');
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) eft_json(['ok' => false, 'code' => 'invalid_attachment', 'message' => 'Допустимы PDF, JPG, PNG и WEBP.'], 422);
+        $content = base64_decode((string)($file['data'] ?? ''), true);
+        if ($content === false || strlen($content) > 4194304) eft_json(['ok' => false, 'code' => 'attachment_too_large', 'message' => 'Каждый файл должен быть не больше 4 МБ.'], 413);
+        $totalBytes += strlen($content);
+        if ($totalBytes > 10485760) eft_json(['ok' => false, 'code' => 'attachments_too_large', 'message' => 'Общий размер файлов должен быть не больше 10 МБ.'], 413);
+        $decodedAttachments[] = ['id' => eft_uuid(), 'name' => mb_substr(basename((string)($file['name'] ?? 'file')), 0, 255), 'type' => $mime, 'content' => $content];
+    }
+    $pdo->beginTransaction();
     $statement = $pdo->prepare('INSERT INTO eft_questionnaires (id, public_number, customer_name, phone, email, payload, source_ip_hash, consent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $statement->execute([$id, $number, $name, $phone, $email, json_encode($input, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $ipHash, !empty($customer['consent']) ? date('Y-m-d H:i:s') : null]);
+    $attachmentStatement = $pdo->prepare('INSERT INTO eft_questionnaire_attachments (id, questionnaire_id, original_name, mime_type, size_bytes, content) VALUES (?, ?, ?, ?, ?, ?)');
+    foreach ($decodedAttachments as $file) $attachmentStatement->execute([$file['id'], $id, $file['name'], $file['type'], strlen($file['content']), $file['content']]);
+    $pdo->commit();
     eft_audit(null, 'intake_created', 'questionnaire', $id, ['number' => $number]);
-    eft_json(['ok' => true, 'id' => $id, 'number' => $number], 201);
+    $mailSent = eft_send_intake_email($input, $number);
+    eft_json(['ok' => true, 'id' => $id, 'number' => $number, 'mailAccepted' => $mailSent], 201);
 }
 
 $user = eft_user();
@@ -74,8 +93,19 @@ if ($action === 'logout' && $method === 'POST') {
 }
 
 if ($action === 'projects' && $method === 'GET') {
-    $rows = $pdo->query('SELECT p.id, p.name, p.status, p.revision, p.created_at, p.updated_at, u.display_name AS updated_by FROM eft_projects p JOIN eft_users u ON u.id = p.updated_by ORDER BY p.updated_at DESC LIMIT 250')->fetchAll();
+    $rows = $pdo->query("SELECT p.id, p.name, p.status, p.revision, p.payload, p.created_at, p.updated_at, u.display_name AS updated_by FROM eft_projects p JOIN eft_users u ON u.id = p.updated_by WHERE p.status <> 'archived' ORDER BY p.updated_at DESC LIMIT 250")->fetchAll();
+    foreach ($rows as &$row) {
+        $payload = json_decode((string)$row['payload'], true) ?: [];
+        $row['summary'] = ['number' => $payload['meta']['projectNum'] ?? '', 'customer' => $payload['meta']['customer'] ?? '', 'buildingType' => $payload['meta']['buildingType'] ?? '', 'address' => $payload['meta']['address'] ?? '', 'floors' => $payload['meta']['floors'] ?? '', 'area' => $payload['meta']['area'] ?? ''];
+        unset($row['payload']);
+    }
     eft_json(['ok' => true, 'projects' => $rows]);
+}
+
+if ($action === 'project-number' && $method === 'POST') {
+    $number = eft_next_project_number();
+    eft_audit((int)$user['id'], 'project_number_reserved', 'project', $number);
+    eft_json(['ok' => true, 'number' => $number], 201);
 }
 
 if ($action === 'project' && $method === 'GET') {
@@ -129,6 +159,22 @@ if ($action === 'project' && $method === 'PUT') {
     eft_json(['ok' => true, 'revision' => $nextRevision, 'name' => $name, 'versionCreated' => $needsVersion]);
 }
 
+if ($action === 'project-delete' && $method === 'POST') {
+    $admin = eft_require_role(['admin']);
+    $input = eft_input(65536);
+    $id = (string)($input['id'] ?? '');
+    $password = (string)($input['password'] ?? '');
+    $statement = $pdo->prepare('SELECT password_hash FROM eft_users WHERE id = ? LIMIT 1');
+    $statement->execute([(int)$admin['id']]);
+    $hash = (string)$statement->fetchColumn();
+    if ($password === '' || !password_verify($password, $hash)) eft_json(['ok' => false, 'code' => 'invalid_password', 'message' => 'Неверный пароль. Проект не удалён.'], 403);
+    $statement = $pdo->prepare("UPDATE eft_projects SET status = 'archived', updated_by = ?, updated_at = NOW() WHERE id = ? AND status <> 'archived'");
+    $statement->execute([(int)$admin['id'], $id]);
+    if (!$statement->rowCount()) eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Проект не найден.'], 404);
+    eft_audit((int)$admin['id'], 'project_archived', 'project', $id);
+    eft_json(['ok' => true]);
+}
+
 if ($action === 'versions' && $method === 'GET') {
     $id = (string)($_GET['id'] ?? '');
     $statement = $pdo->prepare('SELECT v.id, v.revision, v.reason, v.created_at, u.display_name AS saved_by FROM eft_project_versions v JOIN eft_users u ON u.id = v.saved_by WHERE v.project_id = ? ORDER BY v.revision DESC LIMIT 100');
@@ -147,9 +193,40 @@ if ($action === 'version' && $method === 'GET') {
 }
 
 if ($action === 'intakes' && $method === 'GET') {
-    $rows = $pdo->query("SELECT id, public_number, status, customer_name, phone, email, payload, created_at, updated_at FROM eft_questionnaires WHERE status <> 'archived' ORDER BY created_at DESC LIMIT 250")->fetchAll();
-    foreach ($rows as &$row) $row['payload'] = json_decode($row['payload'], true);
-    eft_json(['ok' => true, 'intakes' => $rows]);
+    $statement = $pdo->prepare("SELECT q.id, q.public_number, q.status, q.customer_name, q.phone, q.email, q.payload, q.created_at, q.updated_at, IF(r.read_at IS NULL, 0, 1) AS is_read FROM eft_questionnaires q LEFT JOIN eft_intake_reads r ON r.questionnaire_id = q.id AND r.user_id = ? WHERE q.status <> 'archived' ORDER BY q.created_at DESC LIMIT 250");
+    $statement->execute([(int)$user['id']]);
+    $rows = $statement->fetchAll();
+    $attachmentStatement = $pdo->prepare('SELECT id, original_name, mime_type, size_bytes FROM eft_questionnaire_attachments WHERE questionnaire_id = ? ORDER BY created_at');
+    $unread = 0;
+    foreach ($rows as &$row) {
+        $row['payload'] = json_decode($row['payload'], true);
+        $row['is_read'] = (bool)$row['is_read'];
+        if (!$row['is_read']) $unread++;
+        $attachmentStatement->execute([$row['id']]);
+        $row['attachments'] = $attachmentStatement->fetchAll();
+    }
+    eft_json(['ok' => true, 'intakes' => $rows, 'unread' => $unread]);
+}
+
+if ($action === 'intake-read' && $method === 'POST') {
+    $input = eft_input(65536);
+    $id = (string)($input['id'] ?? '');
+    $pdo->prepare('INSERT INTO eft_intake_reads (user_id, questionnaire_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE read_at = NOW()')->execute([(int)$user['id'], $id]);
+    eft_json(['ok' => true]);
+}
+
+if ($action === 'attachment' && $method === 'GET') {
+    $id = (string)($_GET['id'] ?? '');
+    $statement = $pdo->prepare('SELECT original_name, mime_type, size_bytes, content FROM eft_questionnaire_attachments WHERE id = ? LIMIT 1');
+    $statement->execute([$id]);
+    $file = $statement->fetch();
+    if (!$file) eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Файл не найден.'], 404);
+    header('Content-Type: ' . $file['mime_type']);
+    header('Content-Length: ' . (int)$file['size_bytes']);
+    header("Content-Disposition: inline; filename*=UTF-8''" . rawurlencode((string)$file['original_name']));
+    header('Cache-Control: private, no-store');
+    echo $file['content'];
+    exit;
 }
 
 if ($action === 'intake-status' && $method === 'POST') {

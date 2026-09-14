@@ -88,3 +88,32 @@ CREATE TABLE IF NOT EXISTS eft_audit_log (
   KEY idx_eft_audit_entity (entity_type, entity_id),
   CONSTRAINT fk_eft_audit_user FOREIGN KEY (user_id) REFERENCES eft_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS eft_counters (
+  counter_key VARCHAR(80) NOT NULL,
+  next_value BIGINT UNSIGNED NOT NULL DEFAULT 1,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (counter_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS eft_questionnaire_attachments (
+  id CHAR(36) NOT NULL,
+  questionnaire_id CHAR(36) NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(80) NOT NULL,
+  size_bytes INT UNSIGNED NOT NULL,
+  content MEDIUMBLOB NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_eft_attachment_questionnaire (questionnaire_id),
+  CONSTRAINT fk_eft_attachment_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES eft_questionnaires(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS eft_intake_reads (
+  user_id BIGINT UNSIGNED NOT NULL,
+  questionnaire_id CHAR(36) NOT NULL,
+  read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, questionnaire_id),
+  CONSTRAINT fk_eft_intake_read_user FOREIGN KEY (user_id) REFERENCES eft_users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_eft_intake_read_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES eft_questionnaires(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

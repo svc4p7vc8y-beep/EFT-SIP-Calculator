@@ -1362,16 +1362,31 @@ function FinalStep({
         <strong>Добавить план, эскиз или фотографии</strong>
         <span>
           {attachments.length
-            ? attachments.map((file) => file.name).join(", ")
-            : "PDF, JPG, PNG, WEBP — названия файлов сохранятся в заявке"}
+            ? `Добавлено файлов: ${attachments.length}`
+            : "PDF, JPG, PNG, WEBP — до 8 файлов, каждый до 4 МБ"}
         </span>
         <input
           type="file"
           multiple
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
-          onChange={(event) => setAttachments([...event.target.files])}
+          accept=".pdf,.jpg,.jpeg,.png,.webp"
+          onChange={(event) => {
+            const selected = [...event.target.files];
+            setAttachments((current) => [...current, ...selected].slice(0, 8));
+            event.target.value = "";
+          }}
         />
       </label>
+      {attachments.length ? (
+        <div className="q-attachment-list">
+          {attachments.map((file, index) => (
+            <div key={`${file.name}-${file.lastModified}-${index}`}>
+              <span>{file.name}</span>
+              <small>{(file.size / 1048576).toFixed(1)} МБ</small>
+              <button type="button" onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Удалить</button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <label className="q-consent">
         <input
           type="checkbox"
@@ -1482,6 +1497,21 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const brief = () => buildClientBrief(answers, attachments);
+  const encodeAttachments = async () => {
+    const total = attachments.reduce((sum, file) => sum + file.size, 0);
+    if (attachments.some((file) => file.size > 4194304) || total > 10485760) {
+      throw new Error("файлы превышают лимит: 4 МБ на файл и 10 МБ суммарно");
+    }
+    return Promise.all(attachments.map(async (file) => {
+      const buffer = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      const chunk = 0x8000;
+      for (let offset = 0; offset < buffer.length; offset += chunk) {
+        binary += String.fromCharCode(...buffer.subarray(offset, offset + chunk));
+      }
+      return { name: file.name, type: file.type, data: btoa(binary) };
+    }));
+  };
   const download = () => {
     if (!answers.customerName.trim()) {
       setNotice("Сначала укажите имя заказчика.");
@@ -1508,7 +1538,9 @@ function App() {
     setSubmitting(true);
     setNotice("");
     try {
-      const result = await submitPublicIntake(brief());
+      const payload = brief();
+      payload.attachmentFiles = await encodeAttachments();
+      const result = await submitPublicIntake(payload);
       setSubmittedNumber(result.number);
       setNotice(`Заявка ${result.number} отправлена. Менеджер увидит её во внутреннем калькуляторе.`);
       localStorage.removeItem(QUESTIONNAIRE_STORAGE_KEY);

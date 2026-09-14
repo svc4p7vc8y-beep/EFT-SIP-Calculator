@@ -1,0 +1,54 @@
+name: Migrate EFT shared database
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server/beget-api/**'
+      - '.github/workflows/beget-api-migrate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beget-api-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+        run: |
+          : "${KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          sudo apt-get update
+          sudo apt-get install --yes sshpass php-cli
+          php -l server/beget-api/api.php
+          php -l server/beget-api/bootstrap.php
+          php -l server/beget-api/migrate.php
+      - name: Upload API and run idempotent migration
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+          DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
+        run: |
+          : "${HOST:?Missing BEGET_SSH_HOST}"
+          : "${USER:?Missing BEGET_SITE_SSH_USER}"
+          : "${SSHPASS:?Missing BEGET_SITE_SSH_PASSWORD}"
+          : "${DEPLOY_PATH:?Missing BEGET_SITE_DEPLOY_PATH}"
+          SSH_COMMAND="ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes"
+          API_DIR="${DEPLOY_PATH%/}/api"
+          sshpass -e $SSH_COMMAND "${USER}@${HOST}" "mkdir -p '${API_DIR}'"
+          sshpass -e rsync -az --checksum --omit-dir-times --no-perms --no-owner --no-group \
+            --exclude='/config.local.php' --exclude='/config.local.php.pending-*' \
+            -e "$SSH_COMMAND" server/beget-api/ "${USER}@${HOST}:${API_DIR}/"
+          sshpass -e $SSH_COMMAND "${USER}@${HOST}" "cd '${API_DIR}' && php migrate.php"

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeAlert,
+  BellRing,
   Calculator,
   ChevronLeft,
   ChevronRight,
@@ -48,6 +49,7 @@ import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
 import ResidentialPresetDialog from "../components/ResidentialPresetDialog.jsx";
 import TeamLogin from "../components/TeamLogin.jsx";
 import { useTeam } from "../cloud/TeamContext.jsx";
+import { resolveEftApiUrl } from "../../shared/team-api.js";
 import {
   clientBriefSummary,
   createProjectFromClientBrief,
@@ -164,6 +166,7 @@ export function App() {
   const [backupOpen, setBackupOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [briefPreview, setBriefPreview] = useState(null);
+  const [teamFocus, setTeamFocus] = useState("projects");
   const [notice, setNotice] = useState("Готово");
   const fileRef = useRef(null);
   const briefFileRef = useRef(null);
@@ -255,11 +258,12 @@ export function App() {
     if (briefPreview.intakeId && team.user) {
       team
         .createFromIntake(nextProject, briefPreview.intakeId)
-        .then(() =>
+        .then((created) => {
+          replace(created.payload);
           setNotice(
             `Заявка ${briefPreview.fileName} импортирована в общий проект`,
-          ),
-        )
+          );
+        })
         .catch((error) =>
           setNotice(
             `Черновик создан локально, но общая база не сохранила его: ${error.message}`,
@@ -273,10 +277,21 @@ export function App() {
     setNewProjectOpen(true);
   };
 
-  const createNewProject = (useResidentialPreset) => {
+  const createNewProject = async (useResidentialPreset) => {
     checkpoint();
     team.detachProject();
     const next = createProjectWithCurrentPrices(project);
+    try {
+      const number = team.user
+        ? await team.reserveProjectNumber()
+        : String(Math.max(1, Number.parseInt(project.meta.projectNum, 10) + 1 || 1)).padStart(4, "0");
+      next.meta.projectNum = number;
+      if (next.request) next.request.number = `КП-${number}`;
+    } catch (error) {
+      setNotice(`Проект не создан: не удалось получить следующий номер — ${error.message}`);
+      setNewProjectOpen(false);
+      return;
+    }
     replace(useResidentialPreset ? applyResidentialPreset(next) : next);
     setActive("plan");
     setNotice(
@@ -306,7 +321,10 @@ export function App() {
 
   const importTeamIntake = (item) => {
     try {
-      const brief = validateClientBrief(item.payload);
+      const brief = validateClientBrief({
+        ...item.payload,
+        serverAttachments: item.attachments || [],
+      });
       setBriefPreview({
         fileName: item.public_number,
         brief,
@@ -487,6 +505,7 @@ export function App() {
                   className={active === id ? "active" : ""}
                   onClick={() => {
                     setActive(id);
+                    if (id === "team") setTeamFocus("projects");
                     setMenuOpen(false);
                   }}
                 >
@@ -504,6 +523,16 @@ export function App() {
               </div>
             ))}
           </nav>
+          {team.user ? (
+            <button
+              className={`intake-indicator ${team.unreadIntakes ? "has-new" : ""}`}
+              onClick={() => { setTeamFocus("intakes"); setActive("team"); setMenuOpen(false); }}
+              aria-label={`Новые заявки: ${team.unreadIntakes}`}
+            >
+              <BellRing />
+              <span>{team.unreadIntakes ? `Новые заявки: ${team.unreadIntakes}` : "Новых заявок нет"}</span>
+            </button>
+          ) : null}
           <div className={`sidebar-status ${saveState.status}`}>
             <span className="status-dot" />
             {notice}
@@ -549,6 +578,14 @@ export function App() {
               if (window.confirm('Восстановить базовый прайс? Изменённые цены и добавленные позиции будут сброшены. Действие можно отменить.')) commit(next => ({ ...next, ...createDefaultPriceLists() }));
             }}>Сбросить прайс</button></div>
           ) : null}
+          {project.clientBrief?.serverAttachments?.length ? (
+            <aside className="project-source-files no-print" aria-label="Файлы клиента">
+              <strong>Файлы из анкеты</strong>
+              <div>{project.clientBrief.serverAttachments.map((file) => (
+                <a key={file.id} href={`${resolveEftApiUrl()}?action=attachment&id=${encodeURIComponent(file.id)}`} target="_blank" rel="noreferrer">{file.original_name}</a>
+              ))}</div>
+            </aside>
+          ) : null}
           <Suspense
             fallback={<div className="screen-loader">Загружаю раздел…</div>}
           >
@@ -559,6 +596,7 @@ export function App() {
                 project,
                 onOpenProject: openTeamProject,
                 onImportIntake: importTeamIntake,
+                focusTab: teamFocus,
               }}
             />
           </Suspense>
@@ -641,6 +679,7 @@ export function App() {
                 <dd>{briefPreview.summary.scope}</dd>
               </div>
             </dl>
+            {briefPreview.brief?.serverAttachments?.length ? <div className="brief-attachments"><strong>Приложенные файлы</strong>{briefPreview.brief.serverAttachments.map((file) => <a key={file.id} href={`${resolveEftApiUrl()}?action=attachment&id=${encodeURIComponent(file.id)}`} target="_blank" rel="noreferrer">{file.original_name}</a>)}</div> : null}
             <div className="brief-warning">
               <strong>Будет создан новый черновик.</strong>
               <span>

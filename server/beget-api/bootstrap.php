@@ -116,3 +116,45 @@ function eft_project_name(array $payload): string {
     if ($number !== '') return mb_substr('Проект № ' . $number, 0, 255);
     return 'Новый проект';
 }
+
+function eft_next_project_number(): string {
+    $pdo = eft_db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->exec("INSERT IGNORE INTO eft_counters (counter_key, next_value) VALUES ('project', 1)");
+        $row = $pdo->query("SELECT next_value FROM eft_counters WHERE counter_key = 'project' FOR UPDATE")->fetch();
+        $number = max(1, (int)($row['next_value'] ?? 1));
+        $statement = $pdo->prepare("UPDATE eft_counters SET next_value = ? WHERE counter_key = 'project'");
+        $statement->execute([$number + 1]);
+        $pdo->commit();
+        return str_pad((string)$number, 4, '0', STR_PAD_LEFT);
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
+function eft_send_intake_email(array $payload, string $number): bool {
+    $config = eft_config();
+    $recipient = (string)($config['notification_email'] ?? 'info@eftsip.ru');
+    $customer = $payload['format'] === 'eft-client-brief' ? ($payload['customer'] ?? []) : $payload;
+    $project = $payload['format'] === 'eft-client-brief' ? ($payload['project'] ?? []) : [];
+    $subjectText = 'Новая заявка EFT ' . $number;
+    $subject = '=?UTF-8?B?' . base64_encode($subjectText) . '?=';
+    $lines = [
+        'Получена новая заявка ' . $number,
+        'Источник: ' . ($payload['format'] === 'eft-client-brief' ? 'анкета будущего дома' : 'форма на сайте'),
+        'Клиент: ' . (string)($customer['name'] ?? ''),
+        'Телефон: ' . (string)($customer['phone'] ?? ''),
+        'Почта: ' . (string)($customer['email'] ?? ''),
+        'Проект: ' . (string)($project['buildingType'] ?? ($payload['project'] ?? '')),
+        'Комментарий: ' . (string)($payload['notes'] ?? ($payload['comment'] ?? '')),
+        '',
+        'Откройте раздел «Общие проекты → Анкеты» в калькуляторе.',
+    ];
+    $from = (string)($config['mail_from'] ?? 'no-reply@eftsip.ru');
+    $headers = "From: EFT <{$from}>\r\nContent-Type: text/plain; charset=UTF-8\r\n";
+    $sent = @mail($recipient, $subject, implode("\n", $lines), $headers);
+    if (!$sent) error_log('EFT intake mail was not accepted for ' . $number);
+    return $sent;
+}

@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FileClock,
   FilePlus2,
   Inbox,
   LogOut,
   RefreshCw,
+  Trash2,
   UserPlus,
   Users,
 } from "lucide-react";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { clientBriefSummary } from "../storage/client-brief.js";
+import { resolveEftApiUrl } from "../../shared/team-api.js";
 
 const roleNames = {
   admin: "Администратор",
@@ -22,10 +24,15 @@ export default function TeamWorkspaceScreen({
   project,
   onOpenProject,
   onImportIntake,
+  focusTab,
 }) {
   const team = useTeam();
   const [tab, setTab] = useState("projects");
   const [notice, setNotice] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  useEffect(() => { if (focusTab) setTab(focusTab); }, [focusTab]);
   const [newUser, setNewUser] = useState({
     username: "",
     displayName: "",
@@ -55,6 +62,19 @@ export default function TeamWorkspaceScreen({
       setNotice(error.message);
     }
   };
+  const removeProject = async (event) => {
+    event.preventDefault();
+    setDeleting(true);
+    try {
+      await team.deleteProject(deleteTarget.id, deletePassword);
+      setNotice(`Проект «${deleteTarget.name}» перемещён в архив`);
+      setDeleteTarget(null);
+      setDeletePassword("");
+    } catch (error) {
+      setNotice(error.message);
+    } finally { setDeleting(false); }
+  };
+  const attachmentUrl = (id) => `${resolveEftApiUrl()}?action=attachment&id=${encodeURIComponent(id)}`;
   return (
     <section className="screen team-workspace">
       <header className="screen-header">
@@ -125,18 +145,22 @@ export default function TeamWorkspaceScreen({
               <article key={item.id}>
                 <div>
                   <strong>{item.name}</strong>
+                  <div className="team-card-meta">
+                    {item.summary?.number ? <span>№ {item.summary.number}</span> : null}
+                    {item.summary?.buildingType ? <span>{item.summary.buildingType}</span> : null}
+                    {item.summary?.floors ? <span>{item.summary.floors} эт.</span> : null}
+                    {item.summary?.area ? <span>{item.summary.area} м²</span> : null}
+                    {item.summary?.address ? <span>{item.summary.address}</span> : null}
+                  </div>
                   <span>
-                    {item.updated_by} ·{" "}
-                    {new Date(item.updated_at).toLocaleString("ru-RU")}
+                    Создан {new Date(item.created_at).toLocaleString("ru-RU")} · изменил {item.updated_by} {new Date(item.updated_at).toLocaleString("ru-RU")}
                   </span>
                 </div>
                 <em>рев. {item.revision}</em>
-                <button
-                  className="button secondary"
-                  onClick={() => onOpenProject(item.id)}
-                >
-                  Открыть
-                </button>
+                <div className="team-row-actions">
+                  <button className="button secondary" onClick={() => onOpenProject(item.id)}>Открыть</button>
+                  {team.user?.role === "admin" ? <button className="button secondary danger" onClick={() => setDeleteTarget(item)} aria-label={`Удалить проект ${item.name}`}><Trash2 /></button> : null}
+                </div>
               </article>
             ))}
             {!team.projects.length ? (
@@ -163,7 +187,7 @@ export default function TeamWorkspaceScreen({
                   ? clientBriefSummary(item.payload)
                   : null;
               return (
-                <article key={item.id}>
+                <article key={item.id} className={item.is_read ? "" : "unread"}>
                   <div>
                     <strong>
                       {item.public_number} · {item.customer_name}
@@ -174,14 +198,25 @@ export default function TeamWorkspaceScreen({
                         : item.payload?.project || "Короткая заявка"}{" "}
                       · {item.phone || item.email}
                     </span>
+                    <div className="team-card-meta">
+                      <span>{new Date(item.created_at).toLocaleString("ru-RU")}</span>
+                      {summary?.address ? <span>{summary.address}</span> : null}
+                      {summary?.area ? <span>{summary.area}</span> : null}
+                      {summary?.scope ? <span>{summary.scope}</span> : null}
+                      {!summary && item.payload?.comment ? <span>{item.payload.comment}</span> : null}
+                    </div>
+                    {item.attachments?.length ? <div className="intake-attachments">
+                      {item.attachments.map((file) => <a key={file.id} href={attachmentUrl(file.id)} target="_blank" rel="noreferrer">
+                        {file.mime_type.startsWith("image/") ? <img src={attachmentUrl(file.id)} alt={file.original_name} /> : <span>PDF</span>}
+                        <span>{file.original_name}</span>
+                      </a>)}
+                    </div> : null}
                   </div>
-                  <em>{item.status}</em>
-                  <button
-                    className="button secondary"
-                    onClick={() => onImportIntake(item)}
-                  >
-                    Создать черновик
-                  </button>
+                  <em>{item.is_read ? item.status : "новая"}</em>
+                  <div className="team-row-actions">
+                    {!item.is_read ? <button className="button secondary" onClick={() => team.markIntakeRead(item.id)}>Просмотрено</button> : null}
+                    {summary ? <button className="button secondary" onClick={() => { team.markIntakeRead(item.id).catch(() => {}); onImportIntake(item); }}>Создать черновик</button> : null}
+                  </div>
                 </article>
               );
             })}
@@ -258,6 +293,13 @@ export default function TeamWorkspaceScreen({
           </form>
         </div>
       ) : null}
+      {deleteTarget ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteTarget(null)}>
+        <form className="modal delete-project-dialog" role="dialog" aria-modal="true" onSubmit={removeProject} onMouseDown={(event) => event.stopPropagation()}>
+          <header><div><h2>Удалить проект?</h2><p>«{deleteTarget.name}» исчезнет из общего списка, но останется в архиве и журнале действий.</p></div></header>
+          <label><span>Пароль администратора</span><input autoFocus type="password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} required /></label>
+          <footer><button type="button" className="button secondary" onClick={() => setDeleteTarget(null)}>Отмена</button><button className="button danger" disabled={deleting}>{deleting ? "Удаляем…" : "Удалить проект"}</button></footer>
+        </form>
+      </div> : null}
     </section>
   );
 }
