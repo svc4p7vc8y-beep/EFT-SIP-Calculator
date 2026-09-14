@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
+require __DIR__ . '/mail-client.php';
 
 eft_origin_headers();
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
@@ -100,6 +101,57 @@ if ($action === 'projects' && $method === 'GET') {
         unset($row['payload']);
     }
     eft_json(['ok' => true, 'projects' => $rows]);
+}
+
+if ($action === 'mail-status' && $method === 'GET') {
+    $state = eft_mail_ready();
+    $state['unread'] = $state['configured'] && $state['imapAvailable'] ? eft_mail_unread_count() : 0;
+    eft_json(['ok' => true, 'mail' => $state]);
+}
+
+if ($action === 'mail-messages' && $method === 'GET') {
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? 50)));
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+    $query = mb_substr(trim((string)($_GET['query'] ?? '')), 0, 120);
+    eft_json(array_merge(['ok' => true], eft_mail_overview($limit, $offset, $query)));
+}
+
+if ($action === 'mail-message' && $method === 'GET') {
+    $uid = (int)($_GET['uid'] ?? 0);
+    if ($uid < 1) eft_json(['ok' => false, 'code' => 'invalid_uid', 'message' => 'Письмо не найдено.'], 422);
+    eft_json(['ok' => true, 'message' => eft_mail_message($uid, true)]);
+}
+
+if ($action === 'mail-attachment' && $method === 'GET') {
+    $file = eft_mail_attachment((int)($_GET['uid'] ?? 0), (string)($_GET['part'] ?? ''));
+    header('Content-Type: ' . $file['mime']);
+    header('Content-Length: ' . strlen($file['content']));
+    header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($file['name']));
+    header('Cache-Control: private, no-store');
+    echo $file['content'];
+    exit;
+}
+
+if ($action === 'mail-send' && $method === 'POST') {
+    $input = eft_input(524288);
+    $to = mb_substr(trim((string)($input['to'] ?? '')), 0, 190);
+    $subject = mb_substr(trim((string)($input['subject'] ?? '')), 0, 240);
+    $body = mb_substr(trim((string)($input['body'] ?? '')), 0, 200000);
+    if ($body === '') eft_json(['ok' => false, 'code' => 'empty_message', 'message' => 'Введите текст письма.'], 422);
+    eft_send_smtp($to, $subject ?: '(без темы)', $body);
+    eft_audit((int)$user['id'], 'mail_sent', 'mail', '', ['to' => $to, 'subject' => $subject]);
+    eft_json(['ok' => true]);
+}
+
+if ($action === 'mail-link' && $method === 'POST') {
+    $input = eft_input(65536);
+    $messageKey = (string)($input['messageKey'] ?? '');
+    $projectId = (string)($input['projectId'] ?? '');
+    if (!preg_match('/^[a-f0-9]{64}$/', $messageKey) || !preg_match('/^[a-f0-9-]{36}$/i', $projectId)) eft_json(['ok' => false, 'code' => 'invalid_link', 'message' => 'Не удалось связать письмо с проектом.'], 422);
+    $statement = $pdo->prepare('INSERT INTO eft_mail_links (message_key, project_id, linked_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE project_id = VALUES(project_id), linked_by = VALUES(linked_by), created_at = NOW()');
+    $statement->execute([$messageKey, $projectId, (int)$user['id']]);
+    eft_audit((int)$user['id'], 'mail_linked', 'mail', $messageKey, ['projectId' => $projectId]);
+    eft_json(['ok' => true]);
 }
 
 if ($action === 'project-number' && $method === 'POST') {

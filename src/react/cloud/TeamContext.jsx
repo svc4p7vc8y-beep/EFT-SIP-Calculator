@@ -29,6 +29,8 @@ export function TeamProvider({ children }) {
   const [projects, setProjects] = useState([]);
   const [intakes, setIntakes] = useState([]);
   const [unreadIntakes, setUnreadIntakes] = useState(0);
+  const [unreadMail, setUnreadMail] = useState(0);
+  const [mailStatus, setMailStatus] = useState(null);
   const [users, setUsers] = useState([]);
   const [current, setCurrent] = useState(null);
   const currentRef = useRef(null);
@@ -81,6 +83,13 @@ export function TeamProvider({ children }) {
     }
   }, [session.user, session.csrf]);
 
+  const refreshMailStatus = useCallback(async () => {
+    if (!session.user) return;
+    const result = await eftApi("mail-status");
+    setMailStatus(result.mail || null);
+    setUnreadMail(Number(result.mail?.unread || 0));
+  }, [session.user]);
+
   useEffect(() => {
     eftApi("session")
       .then((result) =>
@@ -107,13 +116,20 @@ export function TeamProvider({ children }) {
         message: `Библиотеки: ${error.message}`,
       }),
     );
-  }, [session.user, refresh, syncLibraries]);
+    refreshMailStatus().catch(() => {});
+  }, [session.user, refresh, syncLibraries, refreshMailStatus]);
 
   useEffect(() => {
     if (!session.user) return undefined;
     const timer = window.setInterval(() => refresh().catch(() => {}), 45000);
     return () => window.clearInterval(timer);
   }, [session.user, refresh]);
+
+  useEffect(() => {
+    if (!session.user) return undefined;
+    const timer = window.setInterval(() => refreshMailStatus().catch(() => {}), 60000);
+    return () => window.clearInterval(timer);
+  }, [session.user, refreshMailStatus]);
 
   useEffect(() => {
     if (!session.user) return undefined;
@@ -311,6 +327,8 @@ export function TeamProvider({ children }) {
       projects,
       intakes,
       unreadIntakes,
+      unreadMail,
+      mailStatus,
       users,
       current,
       syncState,
@@ -324,6 +342,7 @@ export function TeamProvider({ children }) {
       reserveProjectNumber,
       deleteProject,
       markIntakeRead,
+      refreshMailStatus,
       createFromIntake,
       detachProject,
     }),
@@ -332,6 +351,8 @@ export function TeamProvider({ children }) {
       projects,
       intakes,
       unreadIntakes,
+      unreadMail,
+      mailStatus,
       users,
       current,
       syncState,
@@ -345,6 +366,7 @@ export function TeamProvider({ children }) {
       reserveProjectNumber,
       deleteProject,
       markIntakeRead,
+      refreshMailStatus,
       createFromIntake,
       detachProject,
     ],

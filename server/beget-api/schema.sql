@@ -117,3 +117,14 @@ CREATE TABLE IF NOT EXISTS eft_intake_reads (
   CONSTRAINT fk_eft_intake_read_user FOREIGN KEY (user_id) REFERENCES eft_users(id) ON DELETE CASCADE,
   CONSTRAINT fk_eft_intake_read_questionnaire FOREIGN KEY (questionnaire_id) REFERENCES eft_questionnaires(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS eft_mail_links (
+  message_key VARCHAR(190) NOT NULL,
+  project_id CHAR(36) NOT NULL,
+  linked_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (message_key),
+  KEY idx_eft_mail_link_project (project_id),
+  CONSTRAINT fk_eft_mail_link_project FOREIGN KEY (project_id) REFERENCES eft_projects(id) ON DELETE CASCADE,
+  CONSTRAINT fk_eft_mail_link_user FOREIGN KEY (linked_by) REFERENCES eft_users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

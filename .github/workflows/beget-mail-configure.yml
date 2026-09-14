@@ -1,0 +1,58 @@
+name: Configure EFT mailbox on Beget
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and prepare private mail configuration
+        env:
+          MAIL_PASSWORD: ${{ secrets.EFT_MAIL_APP_PASSWORD }}
+        run: |
+          : "${MAIL_PASSWORD:?Missing EFT_MAIL_APP_PASSWORD}"
+          MAIL_PASSWORD_B64="$(printf '%s' "$MAIL_PASSWORD" | base64 -w0)"
+          mkdir -p .deploy-private
+          chmod 700 .deploy-private
+          cat > .deploy-private/mail.local.php <<PHP
+          <?php
+          declare(strict_types=1);
+          return [
+              'username' => 'info@eftsip.ru',
+              'password' => base64_decode('${MAIL_PASSWORD_B64}'),
+              'imap_host' => 'imap.mail.ru',
+              'imap_port' => 993,
+              'smtp_host' => 'smtp.mail.ru',
+              'smtp_port' => 465,
+          ];
+          PHP
+          chmod 600 .deploy-private/mail.local.php
+          sudo apt-get update
+          sudo apt-get install --yes php-cli sshpass
+          php -l .deploy-private/mail.local.php
+      - name: Upload private configuration
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+          DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
+        run: |
+          : "${HOST:?Missing BEGET_SSH_HOST}"
+          : "${USER:?Missing BEGET_SITE_SSH_USER}"
+          : "${SSHPASS:?Missing BEGET_SITE_SSH_PASSWORD}"
+          : "${DEPLOY_PATH:?Missing BEGET_SITE_DEPLOY_PATH}"
+          SSH_COMMAND="ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes"
+          sshpass -e rsync -az --chmod=F600 -e "$SSH_COMMAND" .deploy-private/mail.local.php "${USER}@${HOST}:${DEPLOY_PATH%/}/api/mail.local.php"
+      - name: Verify IMAP connection without sending mail
+        env:
+          SETUP_TOKEN: ${{ secrets.EFT_SETUP_TOKEN }}
+        run: |
+          : "${SETUP_TOKEN:?Missing EFT_SETUP_TOKEN}"
+          RESPONSE="$(curl --fail --silent --show-error --max-time 45 -X POST -H "X-EFT-Setup-Token: ${SETUP_TOKEN}" 'https://eftsip.ru/api/mail-check.php')"
+          printf '%s' "$RESPONSE" | jq -e '.ok == true and .mail.configured == true and .mail.imapAvailable == true' > /dev/null

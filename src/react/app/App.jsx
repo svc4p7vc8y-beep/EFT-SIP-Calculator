@@ -17,6 +17,7 @@ import {
   Layers3,
   BookOpenCheck,
   LibraryBig,
+  Mail,
   Menu,
   Moon,
   PaintRoller,
@@ -76,9 +77,11 @@ const NodeFastenersScreen = lazy(
 const TeamWorkspaceScreen = lazy(
   () => import("../screens/TeamWorkspaceScreen.jsx"),
 );
+const MailScreen = lazy(() => import("../screens/MailScreen.jsx"));
 
 const NAV_ITEMS = [
   { id: "team", label: "Общие проекты", icon: Cloud, group: "team" },
+  { id: "mail", label: "Почта", icon: Mail, group: "team" },
   { id: "plan", label: "План дома", icon: Ruler, group: "project" },
   { id: "parameters", label: "Параметры", icon: Settings2, group: "project" },
   { id: "piles", label: "Сваи", icon: HardHat, group: "calculate" },
@@ -132,6 +135,7 @@ function downloadProject(project) {
 
 function Screen({ active, calculation, teamProps }) {
   if (active === "team") return <TeamWorkspaceScreen {...teamProps} />;
+  if (active === "mail") return <MailScreen />;
   if (active === "plan") return <PlanScreen />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
@@ -519,6 +523,7 @@ export function App() {
                       {priceChanges.total}
                     </span>
                   ) : null}
+                  {id === "mail" && team.unreadMail ? <span className="nav-alert-badge" aria-label={`Непрочитанных писем: ${team.unreadMail}`}>{team.unreadMail}</span> : null}
                 </button>
               </div>
             ))}
