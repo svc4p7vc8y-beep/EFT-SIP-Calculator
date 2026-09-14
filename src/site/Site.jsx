@@ -155,7 +155,8 @@ function Contact({ cart, selection, setSelection }) {
   const [submission, setSubmission] = useState({ status: "idle", message: "" });
   async function submit(event) {
     event.preventDefault();
-    const values = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const values = new FormData(form);
     const request = {
       format: "eft-site-inquiry",
       version: 1,
@@ -171,7 +172,7 @@ function Contact({ cart, selection, setSelection }) {
     try {
       const result = await submitPublicIntake(request);
       setSubmission({ status: "sent", message: `Заявка ${result.number} отправлена менеджеру.` });
-      event.currentTarget.reset();
+      form.reset();
       setSelection("");
     } catch (error) {
       setSubmission({ status: "error", message: `Не удалось отправить: ${error.message}` });
