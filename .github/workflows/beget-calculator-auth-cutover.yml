@@ -70,18 +70,12 @@ jobs:
              cp .htaccess '${backup_dir}/.htaccess'
              cp .htpasswd '${backup_dir}/.htpasswd'
              chmod 600 '${backup_dir}/.htaccess' '${backup_dir}/.htpasswd'
-             awk '
-               BEGIN { IGNORECASE = 1 }
-               /^[[:space:]]*AuthType[[:space:]]+Basic([[:space:]]|$)/ { next }
-               /^[[:space:]]*AuthName[[:space:]]/ { next }
-               /^[[:space:]]*AuthUserFile[[:space:]]/ { next }
-               /^[[:space:]]*Require[[:space:]]+valid-user([[:space:]]|$)/ { next }
-               { print }
-             ' .htaccess > .htaccess.employee-login
-             if grep -Eiq '^[[:space:]]*(AuthType|AuthUserFile|Require[[:space:]]+valid-user)' .htaccess.employee-login; then
-               rm -f .htaccess.employee-login
-               exit 1
-             fi
+             printf '%s\n' \
+               '# EFT calculator: access is controlled by individual application accounts.' \
+               '<IfModule mod_authz_core.c>' \
+               '  Require all granted' \
+               '</IfModule>' \
+               > .htaccess.employee-login
              mv .htaccess.employee-login .htaccess
              chmod 644 .htaccess"
 
