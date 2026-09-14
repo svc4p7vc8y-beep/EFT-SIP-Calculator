@@ -62,5 +62,11 @@ jobs:
           SETUP_TOKEN: ${{ secrets.EFT_SETUP_TOKEN }}
         run: |
           : "${SETUP_TOKEN:?Missing EFT_SETUP_TOKEN}"
-          RESPONSE="$(curl --fail --silent --show-error --max-time 45 -X POST -H "X-EFT-Setup-Token: ${SETUP_TOKEN}" 'https://eftsip.ru/api/mail-check.php')"
+          RESPONSE_FILE="$(mktemp)"
+          STATUS="$(curl --silent --show-error --output "$RESPONSE_FILE" --write-out '%{http_code}' --max-time 45 -X POST -H "X-EFT-Setup-Token: ${SETUP_TOKEN}" 'https://eftsip.ru/api/mail-check.php')"
+          RESPONSE="$(cat "$RESPONSE_FILE")"
+          rm -f "$RESPONSE_FILE"
+          printf 'Mail check HTTP status: %s\n' "$STATUS"
+          printf '%s' "$RESPONSE" | jq '{ok, code, message, mail}'
+          test "$STATUS" = "200"
           printf '%s' "$RESPONSE" | jq -e '.ok == true and .mail.configured == true and .mail.imapAvailable == true and .imap == true and .smtp == true' > /dev/null
