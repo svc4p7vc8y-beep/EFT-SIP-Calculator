@@ -67,8 +67,8 @@ jobs:
              test -f .htpasswd
              mkdir -p '${backup_dir}'
              chmod 700 '${remote_path%/}/.eft-backups' '${backup_dir}'
-             cp -p .htaccess '${backup_dir}/.htaccess'
-             cp -p .htpasswd '${backup_dir}/.htpasswd'
+             cp .htaccess '${backup_dir}/.htaccess'
+             cp .htpasswd '${backup_dir}/.htpasswd'
              chmod 600 '${backup_dir}/.htaccess' '${backup_dir}/.htpasswd'
              awk '
                BEGIN { IGNORECASE = 1 }
@@ -104,7 +104,6 @@ jobs:
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=yes \
             "${USER}@${HOST}" \
-            "set -eu; cp -p '${backup_dir}/.htaccess' '${remote_path%/}/.htaccess'"
+            "set -eu; cp '${backup_dir}/.htaccess' '${remote_path%/}/.htaccess'; chmod 644 '${remote_path%/}/.htaccess'"
           echo "Employee login page was not reachable; Basic Auth configuration restored." >&2
           exit 1
-
