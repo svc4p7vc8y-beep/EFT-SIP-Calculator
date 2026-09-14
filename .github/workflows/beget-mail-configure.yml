@@ -36,6 +36,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes php-cli sshpass
           php -l .deploy-private/mail.local.php
+      - name: Configure SSH host verification
+        env:
+          BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+        run: |
+          : "${BEGET_SSH_KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$BEGET_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
       - name: Upload private configuration
         env:
           HOST: ${{ secrets.BEGET_SSH_HOST }}
