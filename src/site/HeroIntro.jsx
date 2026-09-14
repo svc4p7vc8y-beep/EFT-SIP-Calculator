@@ -44,7 +44,7 @@ export default function HeroIntro() {
 
   useEffect(() => {
     if (phase !== 'playing') return undefined;
-    const duration = window.matchMedia('(max-width: 600px)').matches ? 700 : 5600;
+    const duration = window.matchMedia('(max-width: 600px)').matches ? 700 : 7000;
     const timer = window.setTimeout(() => setPhase('done'), duration);
     return () => window.clearTimeout(timer);
   }, [phase, run]);
