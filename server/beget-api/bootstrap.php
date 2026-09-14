@@ -6,7 +6,7 @@ set_exception_handler(function (Throwable $error): void {
     eft_json(['ok' => false, 'code' => 'server_error', 'message' => 'Внутренняя ошибка сервера.'], 500);
 });
 
-function eft_json(array $payload, int $status = 200): never {
+function eft_json(array $payload, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

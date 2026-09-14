@@ -1,0 +1,64 @@
+name: Stage EFT public site on Beget
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/beget-site-stage.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beget-public-site-stage
+  cancel-in-progress: false
+
+jobs:
+  build-and-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test application
+        run: npm test
+      - name: Build public website
+        run: npm run build:public
+      - name: Prepare SSH
+        env:
+          KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS}"
+          sudo apt-get update -qq
+          sudo apt-get install --yes sshpass
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Upload to isolated preview directory
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${HOST:?Missing host}"
+          : "${DEPLOY_USER:?Missing site user}"
+          : "${SSHPASS:?Missing site password}"
+          SSH_OPTIONS='ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes'
+          sshpass -e $SSH_OPTIONS "$DEPLOY_USER@$HOST" 'mkdir -p ./__eft_next'
+          sshpass -e rsync -az --checksum --omit-dir-times --no-perms --no-owner --no-group \
+            -e "$SSH_OPTIONS" dist-public/ "$DEPLOY_USER@$HOST:./__eft_next/"
+      - name: Verify preview and untouched production root
+        run: |
+          set -euo pipefail
+          preview="$(curl -LfsS --max-time 30 https://eftsip.ru/__eft_next/)"
+          grep -Fq 'ЭФТ — ваш дом начинается с хорошего плана' <<<"$preview"
+          test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/)" = "200"
+          curl -LIsS --max-time 30 https://eftsip.ru/ | grep -Fqi 'X-Powered-By: PHP/7.4'
