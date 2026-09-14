@@ -1,0 +1,108 @@
+name: Configure EFT server API on Beget
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/beget-api-configure.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beget-api-configuration
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          PASSWORD: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+          DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
+          DB_PASSWORD: ${{ secrets.BEGET_DB_PASSWORD }}
+          SETUP_TOKEN: ${{ secrets.EFT_SETUP_TOKEN }}
+        run: |
+          : "${HOST:?Missing BEGET_SSH_HOST}"
+          : "${USER:?Missing BEGET_SITE_SSH_USER}"
+          : "${PASSWORD:?Missing BEGET_SITE_SSH_PASSWORD}"
+          : "${KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS}"
+          : "${DEPLOY_PATH:?Missing BEGET_SITE_DEPLOY_PATH}"
+          : "${DB_PASSWORD:?Missing BEGET_DB_PASSWORD}"
+          : "${SETUP_TOKEN:?Missing EFT_SETUP_TOKEN}"
+          [[ "$DEPLOY_PATH" = "." || "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]*$ ]]
+
+      - name: Configure SSH
+        env:
+          KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          sudo apt-get update
+          sudo apt-get install --yes sshpass php-cli
+
+      - name: Prepare private API configuration
+        env:
+          DB_PASSWORD: ${{ secrets.BEGET_DB_PASSWORD }}
+          SETUP_TOKEN: ${{ secrets.EFT_SETUP_TOKEN }}
+        run: |
+          DB_PASSWORD_B64="$(printf '%s' "$DB_PASSWORD" | base64 -w0)"
+          SETUP_TOKEN_B64="$(printf '%s' "$SETUP_TOKEN" | base64 -w0)"
+          APP_SECRET_B64="$(openssl rand -base64 72 | tr -d '\n' | base64 -w0)"
+          mkdir -p .deploy-private
+          chmod 700 .deploy-private
+          cat > .deploy-private/config.local.php <<PHP
+          <?php
+          declare(strict_types=1);
+
+          return [
+              'db_host' => 'localhost',
+              'db_name' => 'mishin7t_eftcrm',
+              'db_user' => 'mishin7t_eftcrm',
+              'db_password' => base64_decode('${DB_PASSWORD_B64}'),
+              'app_secret' => base64_decode('${APP_SECRET_B64}'),
+              'setup_token' => base64_decode('${SETUP_TOKEN_B64}'),
+              'allowed_origins' => [
+                  'https://eftsip.ru',
+                  'https://www.eftsip.ru',
+                  'https://calc.eftsip.ru',
+                  'https://svc4p7vc8y-beep.github.io',
+              ],
+          ];
+          PHP
+          chmod 600 .deploy-private/config.local.php
+          php -l .deploy-private/config.local.php
+
+      - name: Upload API and install configuration atomically
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+          DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
+        run: |
+          SSH_COMMAND="ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes"
+          API_DIR="${DEPLOY_PATH%/}/api"
+          PENDING_FILE="config.local.php.pending-${GITHUB_RUN_ID}"
+          sshpass -e $SSH_COMMAND "${USER}@${HOST}" "mkdir -p '${API_DIR}'"
+          sshpass -e rsync -az --checksum --omit-dir-times --no-perms --no-owner --no-group \
+            --exclude='/config.local.php' --exclude='/config.local.php.pending-*' \
+            -e "$SSH_COMMAND" server/beget-api/ "${USER}@${HOST}:${API_DIR}/"
+          sshpass -e rsync -az --no-perms --no-owner --no-group \
+            -e "$SSH_COMMAND" .deploy-private/config.local.php "${USER}@${HOST}:${API_DIR}/${PENDING_FILE}"
+          sshpass -e $SSH_COMMAND "${USER}@${HOST}" \
+            "umask 077; if [ ! -f '${API_DIR}/config.local.php' ]; then mv '${API_DIR}/${PENDING_FILE}' '${API_DIR}/config.local.php'; else rm -f '${API_DIR}/${PENDING_FILE}'; fi; chmod 600 '${API_DIR}/config.local.php'"
+
+      - name: Verify database connection through HTTPS
+        run: |
+          RESPONSE="$(curl --fail --silent --show-error --max-time 30 'https://eftsip.ru/api/api.php?action=session')"
+          printf '%s' "$RESPONSE" | jq -e '.ok == true and .user == null and (.csrf | type == "string")' > /dev/null
+
