@@ -8,7 +8,7 @@ $complete = false;
 try {
     $pdo = eft_db();
     $hasUsers = false;
-    try { $hasUsers = (int)$pdo->query('SELECT COUNT(*) FROM eft_users')->fetchColumn() > 0; } catch (Throwable) {}
+    try { $hasUsers = (int)$pdo->query('SELECT COUNT(*) FROM eft_users')->fetchColumn() > 0; } catch (Throwable $ignored) {}
     if ($hasUsers) { http_response_code(404); echo '<!doctype html><meta charset="utf-8"><title>ЭФТ</title><p>Настройка уже завершена.</p>'; exit; }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config = eft_config();

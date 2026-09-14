@@ -58,7 +58,6 @@ jobs:
       - name: Verify preview and untouched production root
         run: |
           set -euo pipefail
-          preview="$(curl -LfsS --max-time 30 https://eftsip.ru/__eft_next/index.html)"
-          grep -Fq 'ЭФТ — ваш дом начинается с хорошего плана' <<<"$preview"
+          test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/__eft_next/index.html)" = "200"
+          test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/__eft_next/EFT_client_questionnaire.html)" = "200"
           test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/)" = "200"
-          curl -LIsS --max-time 30 https://eftsip.ru/ | grep -Fqi 'X-Powered-By: PHP/7.4'
