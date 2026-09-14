@@ -37,6 +37,8 @@ jobs:
         run: npm test
 
       - name: Build production files
+        env:
+          VITE_TEAM_ENABLED: 'true'
         run: npm run build
 
       - name: Keep calculator at the Beget domain root
