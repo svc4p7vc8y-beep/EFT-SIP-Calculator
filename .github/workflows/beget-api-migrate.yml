@@ -40,15 +40,18 @@ jobs:
           USER: ${{ secrets.BEGET_SITE_SSH_USER }}
           SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
           DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
+          SETUP_TOKEN: ${{ secrets.EFT_SETUP_TOKEN }}
         run: |
           : "${HOST:?Missing BEGET_SSH_HOST}"
           : "${USER:?Missing BEGET_SITE_SSH_USER}"
           : "${SSHPASS:?Missing BEGET_SITE_SSH_PASSWORD}"
           : "${DEPLOY_PATH:?Missing BEGET_SITE_DEPLOY_PATH}"
+          : "${SETUP_TOKEN:?Missing EFT_SETUP_TOKEN}"
           SSH_COMMAND="ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes"
           API_DIR="${DEPLOY_PATH%/}/api"
           sshpass -e $SSH_COMMAND "${USER}@${HOST}" "mkdir -p '${API_DIR}'"
           sshpass -e rsync -az --checksum --omit-dir-times --no-perms --no-owner --no-group \
             --exclude='/config.local.php' --exclude='/config.local.php.pending-*' \
             -e "$SSH_COMMAND" server/beget-api/ "${USER}@${HOST}:${API_DIR}/"
-          sshpass -e $SSH_COMMAND "${USER}@${HOST}" "cd '${API_DIR}' && php migrate.php"
+          RESPONSE="$(curl --fail --silent --show-error --max-time 45 -X POST -H "X-EFT-Setup-Token: ${SETUP_TOKEN}" 'https://eftsip.ru/api/migrate.php')"
+          printf '%s' "$RESPONSE" | jq -e '.ok == true' > /dev/null

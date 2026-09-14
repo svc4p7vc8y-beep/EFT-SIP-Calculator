@@ -1,8 +1,18 @@
 <?php
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require __DIR__ . '/bootstrap.php';
+$isCli = PHP_SAPI === 'cli';
+if (!$isCli) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { http_response_code(404); exit; }
+    $provided = (string)($_SERVER['HTTP_X_EFT_SETUP_TOKEN'] ?? '');
+    if ($provided === '' || !hash_equals((string)(eft_config()['setup_token'] ?? ''), $provided)) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'message' => 'Forbidden']);
+        exit;
+    }
+}
 $pdo = eft_db();
 $schema = file_get_contents(__DIR__ . '/schema.sql');
 foreach (preg_split('/;\s*(?:\r?\n|$)/', (string)$schema) as $statement) {
@@ -19,4 +29,8 @@ foreach ($rows as $row) {
 }
 $statement = $pdo->prepare("UPDATE eft_counters SET next_value = GREATEST(next_value, ?) WHERE counter_key = 'project'");
 $statement->execute([$maximum + 1]);
-echo "EFT database migration complete\n";
+if ($isCli) echo "EFT database migration complete\n";
+else {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => true, 'message' => 'EFT database migration complete']);
+}
