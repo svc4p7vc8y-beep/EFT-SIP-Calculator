@@ -1,0 +1,36 @@
+name: Check Beget public site access (read only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/beget-site-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check SSH home without changing server files
+        env:
+          HOST: ${{ secrets.BEGET_SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.BEGET_SITE_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
+          KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${HOST:?Missing host}"
+          : "${DEPLOY_USER:?Missing site user}"
+          : "${SSHPASS:?Missing site password}"
+          : "${KNOWN_HOSTS:?Missing known hosts}"
+          sudo apt-get update -qq
+          sudo apt-get install --yes sshpass
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          sshpass -e ssh -p 22 -o ConnectTimeout=20 -o StrictHostKeyChecking=yes \
+            -o PreferredAuthentications=password -o PubkeyAuthentication=no \
+            "$DEPLOY_USER@$HOST" 'set -eu; test -f ./index.php; test -d ./administrator; test -d ./components; test -d ./templates; test -w .; command -v rsync >/dev/null; printf "SITE_ROOT_VERIFIED: SSH home contains the existing Joomla site; candidate deploy path is dot. No files changed.\n"'
