@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { roofOutline } from '../planner/roof-outline.js';
+import { platformRoofFrame } from '../planner/platform-roof-frame.js';
+import { lRoofFrame } from '../planner/l-roof-frame.js';
 import { isInteriorDoor } from '../calculations/opening-types.js';
 import {
   AlertTriangle,
@@ -597,22 +599,53 @@ function DraftPolygonEdge({ points, hoverPoint, p }) {
   );
 }
 
-function PlatformRoofOverlay({ platform, house, p }) {
-  const roof = platform.roof;
-  if (!roof || roof.mode === 'none') return null;
-  const side = calculateTerraceRoof(platform, house).side;
-  const overhang = Number(roof.sideOverhang) || 0;
-  const front = Number(roof.frontOverhang) || 0;
-  const horizontal = side === 'top' || side === 'bottom';
-  const a = p(platform.x - (horizontal ? overhang : side === 'left' ? front : 0), platform.y - (horizontal ? side === 'top' ? front : 0 : overhang));
-  const b = p(platform.x + platform.w + (horizontal ? overhang : side === 'right' ? front : 0), platform.y + platform.h + (horizontal ? side === 'bottom' ? front : 0 : overhang));
+function PlatformRoofOverlay({ platform, house, p, mainRoof }) {
+  const frame = platformRoofFrame(platform, house, platform.roof?.rafterStep ?? mainRoof?.rafterStep);
+  if (!frame) return null;
+  const { x1, y1, x2, y2 } = frame.bounds;
+  const a = p(x1, y1), b = p(x2, y2);
+  const line = ([start, end], index) => {
+    const u = p(start.x, start.y), v = p(end.x, end.y);
+    return <line key={index} x1={u.x} y1={u.y} x2={v.x} y2={v.y} />;
+  };
   return <g pointerEvents="none" aria-label={`Кровля ${platform.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
+    <title>Схема стропил, шаг не более {frame.step} м. Сечения и узлы требуют проверки конструктора.</title>
     <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill="#7da096" fillOpacity="0.22" stroke="#476f62" strokeWidth="2" strokeDasharray="7 4" />
-    {roof.shape === 'gable' ? <path d={horizontal ? `M ${(a.x+b.x)/2} ${a.y} V ${b.y}` : `M ${a.x} ${(a.y+b.y)/2} H ${b.x}`} stroke="#476f62" strokeWidth="3" /> : <path d={horizontal ? `M ${(a.x+b.x)/2} ${a.y+8} V ${b.y-8}` : `M ${a.x+8} ${(a.y+b.y)/2} H ${b.x-8}`} fill="none" stroke="#476f62" strokeWidth="2" />}
+    {mainRoof?.showRafters !== false ? <g stroke="#745230" strokeWidth="2" data-platform-rafters={frame.rafters.length}>
+      {frame.rafters.map(line)}
+      {frame.ridge ? <g stroke="#476f62" strokeWidth="3">{line(frame.ridge, 'ridge')}</g> : null}
+    </g> : null}
   </g>;
 }
 
 function RoofPlanOverlay({ plan, roof, p }) {
+  const contour = houseContourPoints(plan);
+  const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
+  const bounds = boundsOf(contour);
+  const missing = [[bounds.x,bounds.y],[bounds.x2,bounds.y],[bounds.x,bounds.y2],[bounds.x2,bounds.y2]].find(([x,y])=>!contour.some(a=>Math.abs(a.x-x)<1e-7&&Math.abs(a.y-y)<1e-7));
+  const edgeOffsets = missing && roof.shape !== 'hip' ? contour.map((a,i)=> {
+    const b=contour[(i+1)%contour.length];
+    const gable = Math.abs(a.x-missing[0])<1e-7&&Math.abs(b.x-missing[0])<1e-7 || Math.abs(a.y-missing[1])<1e-7&&Math.abs(b.y-missing[1])<1e-7;
+    return gable ? Math.max(0, Number(roof.gableOverhang)||0) : overhang;
+  }) : undefined;
+  const outline = roofOutline(contour, overhang, overhang, edgeOffsets);
+  const complex = lRoofFrame(outline, roof.shape || 'gable', roof.rafterStep, roof.lathStep);
+  if (!complex) return <RectangularRoofPlanOverlay plan={plan} roof={roof} p={p} />;
+  const points = poly => poly.map(a => { const b=p(a.x,a.y);return `${b.x},${b.y}`; }).join(' ');
+  const segment = (pair,key,props={}) => {const a=p(pair[0].x,pair[0].y),b=p(pair[1].x,pair[1].y);return <line key={key} x1={a.x} y1={a.y} x2={b.x} y2={b.y} {...props} />;};
+  return <g className="roof-plan-overlay" pointerEvents="none" aria-label="Г-образная кровля: схема скатов и стропил">
+    <title>Равный уклон скатов. Ендовы — оранжевые пунктирные линии. Схема не является расчётом несущей способности.</title>
+    {roof.showRoofCover !== false ? <polygon className="roof-cover-plane" points={points(outline)} /> : null}
+    {roof.showMauerlat !== false ? <polygon className="roof-mauerlat" points={points(contour)} /> : null}
+    {roof.showLath !== false ? <g className="roof-lath">{complex.laths.map((pair,i)=>segment(pair,i))}</g> : null}
+    {roof.showRafters !== false ? <>
+      <g className="roof-rafters">{complex.rafters.map((pair,i)=>segment(pair,i))}</g>
+      {complex.creases.map((edge,i)=>segment(edge.points,i,{className:'roof-ridge',style:{stroke:edge.kind==='valley'?'#b45e22':'#476f62',strokeDasharray:edge.kind==='valley'?'6 3':undefined},'data-roof-edge':edge.kind}))}
+    </> : null}
+  </g>;
+}
+
+function RectangularRoofPlanOverlay({ plan, roof, p }) {
   const clipId = useId().replace(/:/g, '');
   const contour = houseContourPoints(plan);
   const bounds = boundsOf(contour);
@@ -1075,7 +1108,8 @@ function RoofPlanCaption({ plan, roof, p }) {
   const bounds = boundsOf(houseContourPoints(plan));
   const shape = ["flat", "hip"].includes(roof.shape) ? roof.shape : "gable";
   const caption = p(bounds.x + bounds.w / 2, bounds.y + 0.55);
-  const label =
+  const complex = lRoofFrame(houseContourPoints(plan), roof.shape || 'gable');
+  const label = complex ? 'Г-кровля · схема скатов' :
     shape === "hip"
       ? "Вальмовая кровля"
       : shape === "flat"
@@ -1931,7 +1965,7 @@ function PlanCanvas({
                   {formatNumber(platform.w * platform.h)} м²
                 </text>
                 <TerraceStairs platform={platform} p={p} />
-                {(visibleLayers.plan || visibleLayers.roof) ? <PlatformRoofOverlay platform={platform} house={shownPlan} p={p} /> : null}
+                {(visibleLayers.plan || visibleLayers.roof) ? <PlatformRoofOverlay platform={platform} house={shownPlan.house} p={p} mainRoof={roof} /> : null}
                 {visibleLayers.binding && platform.binding?.mode !== "none" ? (
                   <rect
                     className="binding-guide"
@@ -2974,6 +3008,7 @@ function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSel
 }
 
 function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
+  const { project } = useProject();
   const get = (key) =>
     (plan[key] || []).find((item) => item.id === selected?.id);
   const update = (key, mutate) =>
@@ -3364,6 +3399,16 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
         />
         {platform.roof.mode !== "none" ? (
           <>
+            <NumberField
+              label="Шаг стропил на схеме"
+              value={platform.roof.rafterStep ?? project.settings.roof.rafterStep ?? 0.6}
+              suffix="м"
+              min={0.3}
+              max={1.2}
+              step={0.05}
+              onChange={(value) => change((item) => { item.roof.rafterStep = value; })}
+            />
+            <p className="inspector-note">Шаг задаёт рисунок стропил и не меняет смету. Сечения, опирание и крепления проверяет конструктор.</p>
             <SelectField
               label="Форма кровли"
               value={platform.roof.shape}
