@@ -13,4 +13,5 @@ if (!$state['configured'] || !$state['imapAvailable']) eft_json(['ok' => false, 
 $stream = eft_mailbox(true);
 $status = imap_status($stream, '{' . (eft_mail_config()['imap_host'] ?? 'imap.mail.ru') . ':' . (int)(eft_mail_config()['imap_port'] ?? 993) . '/imap/ssl}INBOX', SA_MESSAGES | SA_UNSEEN);
 imap_close($stream);
-eft_json(['ok' => true, 'mail' => $state, 'messages' => (int)($status->messages ?? 0), 'unseen' => (int)($status->unseen ?? 0)]);
+eft_smtp_connection_check();
+eft_json(['ok' => true, 'mail' => $state, 'imap' => true, 'smtp' => true, 'messages' => (int)($status->messages ?? 0), 'unseen' => (int)($status->unseen ?? 0)]);

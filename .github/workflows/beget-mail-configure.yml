@@ -55,4 +55,4 @@ jobs:
         run: |
           : "${SETUP_TOKEN:?Missing EFT_SETUP_TOKEN}"
           RESPONSE="$(curl --fail --silent --show-error --max-time 45 -X POST -H "X-EFT-Setup-Token: ${SETUP_TOKEN}" 'https://eftsip.ru/api/mail-check.php')"
-          printf '%s' "$RESPONSE" | jq -e '.ok == true and .mail.configured == true and .mail.imapAvailable == true' > /dev/null
+          printf '%s' "$RESPONSE" | jq -e '.ok == true and .mail.configured == true and .mail.imapAvailable == true and .imap == true and .smtp == true' > /dev/null

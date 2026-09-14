@@ -181,8 +181,7 @@ function eft_smtp_command($socket, string $command, array $accepted): void {
     if (!in_array((int)substr($response, 0, 3), $accepted, true)) throw new RuntimeException('SMTP rejected command: ' . substr($response, 0, 160));
 }
 
-function eft_send_smtp(string $to, string $subject, string $body): void {
-    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $to . $subject)) eft_json(['ok' => false, 'code' => 'invalid_recipient', 'message' => 'Проверьте адрес получателя и тему.'], 422);
+function eft_smtp_authenticated_socket() {
     $config = eft_mail_config();
     if (empty($config['configured'])) eft_json(['ok' => false, 'code' => 'mail_not_configured', 'message' => 'Почта ещё не подключена.'], 503);
     $host = (string)($config['smtp_host'] ?? 'smtp.mail.ru');
@@ -195,6 +194,19 @@ function eft_send_smtp(string $to, string $subject, string $body): void {
     eft_smtp_command($socket, 'AUTH LOGIN', [334]);
     eft_smtp_command($socket, base64_encode((string)$config['username']), [334]);
     eft_smtp_command($socket, base64_encode((string)$config['password']), [235]);
+    return $socket;
+}
+
+function eft_smtp_connection_check(): void {
+    $socket = eft_smtp_authenticated_socket();
+    eft_smtp_command($socket, 'QUIT', [221]);
+    fclose($socket);
+}
+
+function eft_send_smtp(string $to, string $subject, string $body): void {
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $to . $subject)) eft_json(['ok' => false, 'code' => 'invalid_recipient', 'message' => 'Проверьте адрес получателя и тему.'], 422);
+    $config = eft_mail_config();
+    $socket = eft_smtp_authenticated_socket();
     eft_smtp_command($socket, 'MAIL FROM:<' . $config['username'] . '>', [250]);
     eft_smtp_command($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
     eft_smtp_command($socket, 'DATA', [354]);
