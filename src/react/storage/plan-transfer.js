@@ -7,6 +7,8 @@ export function createPlanTransfer(project) {
     appVersion: REACT_PROJECT_VERSION,
     savedAt: new Date().toISOString(),
     sourceProject: project.meta?.projectNum || '',
+    meta: structuredClone(project.meta || {}),
+    clientBrief: project.clientBrief ? structuredClone(project.clientBrief) : null,
     plan: structuredClone(project.plan),
     floors: Math.max(1, Math.min(2, Number(project.meta?.floors) || 1)),
     upperFloors: structuredClone(project.upperFloors || []),
@@ -29,6 +31,8 @@ export function validatePlanTransfer(raw) {
     nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
     settings: raw.settings || {},
     services: raw.services || {},
+    meta: raw.meta && typeof raw.meta === 'object' ? raw.meta : {},
+    clientBrief: raw.clientBrief || null,
     sourceProject: raw.sourceProject || raw.meta?.projectNum || ''
   };
 }
@@ -37,6 +41,10 @@ export function applyPlanTransfer(project, raw) {
   const incoming = validatePlanTransfer(raw);
   const next = structuredClone(project);
   next.plan = incoming.plan;
+  for (const key of ['customer', 'address', 'buildingType', 'phone', 'email']) {
+    if (incoming.meta[key] !== undefined) next.meta[key] = incoming.meta[key];
+  }
+  if (incoming.clientBrief) next.clientBrief = structuredClone(incoming.clientBrief);
   next.meta.floors = incoming.floors;
   next.upperFloors = incoming.upperFloors;
   next.construction = structuredClone(incoming.construction);

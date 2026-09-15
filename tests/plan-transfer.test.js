@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import { createDefaultProject, ensureProjectFloorCount } from '../src/react/state/project-model.js';
 import { applyPlanTransfer, createPlanTransfer, validatePlanTransfer } from '../src/react/storage/plan-transfer.js';
 
+test('plan round trip preserves questionnaire header and attachments without replacing destination number', () => {
+  const source = createDefaultProject();
+  Object.assign(source.meta, { customer: 'Заказчик', address: 'Участок 15', phone: '9000000000', email: 'client@example.org' });
+  source.clientBrief = { customer: { name: 'Заказчик' }, serverAttachments: [{ id: 'attachment-1' }] };
+  const target = createDefaultProject();
+  target.meta.projectNum = '0099';
+  const restored = applyPlanTransfer(target, JSON.parse(JSON.stringify(createPlanTransfer(source))));
+  assert.equal(restored.meta.customer, source.meta.customer);
+  assert.equal(restored.meta.phone, source.meta.phone);
+  assert.equal(restored.meta.address, source.meta.address);
+  assert.equal(restored.meta.projectNum, '0099');
+  assert.deepEqual(restored.clientBrief, source.clientBrief);
+});
+
 test('shared plan file keeps full geometry and construction settings without prices', () => {
   const source = createDefaultProject();
   source.plan.rooms[0].name = 'План коллеги';
@@ -17,7 +31,7 @@ test('shared plan file keeps full geometry and construction settings without pri
   assert.equal(payload.plan.rooms[0].name, 'План коллеги');
   assert.equal(payload.settings.roof.eaveOverhang, 0.75);
   assert.equal(payload.priceMat, undefined);
-  assert.equal(payload.meta, undefined);
+  assert.deepEqual(payload.meta, source.meta);
 });
 
 test('opening a shared plan replaces geometry but preserves colleague prices and estimate edits', () => {

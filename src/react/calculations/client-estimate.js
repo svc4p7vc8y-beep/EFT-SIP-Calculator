@@ -29,11 +29,15 @@ export function isEstimateAccessory(line = {}) {
   );
 }
 
+export function isEstimateCutting(line = {}) {
+  return /раскрой/iu.test(String(line.name || '')) || /(?:^|:)cut-|sip-cut/.test(String(line.id || ''));
+}
+
 // Validate final project prices before grouping, and only for rows sent to the client.
 export function unpricedClientLines(calculation, options = {}) {
   return (calculation.lines || []).filter((line) =>
     Number(line.qty) > 0 &&
-    (options.includeLabor !== false || line.kind !== 'labor') &&
+    (options.includeLabor !== false || line.kind !== 'labor' || isEstimateCutting(line)) &&
     (options.includeAccessories !== false || !isEstimateAccessory(line)) &&
     (!Number.isFinite(Number(line.price)) || Number(line.price) <= 0)
   );
@@ -71,7 +75,7 @@ function aggregateLines(lines, { id, name, unit = "компл.", kind = "materia
 
 function compactRoof(lines, section) {
   const groups = {
-    labor: lines.filter((line) => line.kind === "labor"),
+    labor: lines.filter((line) => line.kind === "labor" && !isEstimateCutting(line)),
     lumber: lines.filter(
       (line) =>
         line.kind === "material" &&
@@ -157,7 +161,7 @@ export function buildClientEstimate(calculation, options = {}) {
   const sections = (calculation.sections || []).map((section) => {
     const visible = section.lines.filter(
       (line) =>
-        (includeLabor || line.kind !== "labor") &&
+        (includeLabor || line.kind !== "labor" || isEstimateCutting(line)) &&
         (includeAccessories || !isEstimateAccessory(line)),
     );
     if (maximumCompact && section.key === "roof") {

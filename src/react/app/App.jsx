@@ -45,6 +45,7 @@ import {
   summarizePriceCatalogChanges,
 } from "../state/project-model.js";
 import { applyResidentialPreset } from "../state/residential-preset.js";
+import { reserveLocalProjectNumber } from "../storage/project-number.js";
 import { formatMoney } from "../utils/format.js";
 import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
 import ResidentialPresetDialog from "../components/ResidentialPresetDialog.jsx";
@@ -248,13 +249,22 @@ export function App() {
     }
   };
 
-  const applyClientBrief = () => {
+  const applyClientBrief = async () => {
     if (!briefPreview) return;
     checkpoint();
     const nextProject = createProjectFromClientBrief(
       project,
       briefPreview.brief,
     );
+    try {
+      if (!briefPreview.intakeId) nextProject.meta.projectNum = team.user
+        ? await team.reserveProjectNumber()
+        : await reserveLocalProjectNumber(project.meta.projectNum);
+      if (nextProject.request) nextProject.request.number = `КП-${nextProject.meta.projectNum}`;
+    } catch (error) {
+      setNotice(`Не удалось получить номер проекта: ${error.message}`);
+      return;
+    }
     team.detachProject();
     replace(nextProject);
     setActive("parameters");
@@ -283,12 +293,11 @@ export function App() {
 
   const createNewProject = async (useResidentialPreset) => {
     checkpoint();
-    team.detachProject();
     const next = createProjectWithCurrentPrices(project);
     try {
       const number = team.user
         ? await team.reserveProjectNumber()
-        : String(Math.max(1, Number.parseInt(project.meta.projectNum, 10) + 1 || 1)).padStart(4, "0");
+        : await reserveLocalProjectNumber(project.meta.projectNum);
       next.meta.projectNum = number;
       if (next.request) next.request.number = `КП-${number}`;
     } catch (error) {
@@ -296,6 +305,7 @@ export function App() {
       setNewProjectOpen(false);
       return;
     }
+    team.detachProject();
     replace(useResidentialPreset ? applyResidentialPreset(next) : next);
     setActive("plan");
     setNotice(

@@ -17,7 +17,7 @@ import {
 } from "../calculations/price-adjustments.js";
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 
-export const REACT_PROJECT_VERSION = 135;
+export const REACT_PROJECT_VERSION = 136;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -530,7 +530,7 @@ export function createDefaultProject() {
     settings: {
       piles: {
         spacing: 2.5,
-        autoLayoutMode: "nodes",
+        autoLayoutMode: "uniform",
         autoRowSpacing: 2.5,
         autoIncludeInteriorWalls: true,
         includePlatforms: true,
@@ -558,7 +558,7 @@ export function createDefaultProject() {
         secondFloorPanelFamily: "pps",
         secondFloorPanelWidth: "1.25",
         ceilingPanelWidth: "1.25",
-        connectorType: "thermal",
+        connectorType: "board-pack",
         wastePercent: 5,
         consumablesMode: "node",
         foamScope: "joints-and-edges",
@@ -906,9 +906,10 @@ export function migrateProject(raw) {
     settings: {
       ...base.settings,
       ...(raw.settings || {}),
-      piles: { ...base.settings.piles, ...(raw.settings?.piles || {}) },
+      piles: { ...base.settings.piles, autoLayoutMode: 'nodes', ...(raw.settings?.piles || {}) },
       sip: {
         ...base.settings.sip,
+        connectorType: 'thermal',
         ...(raw.settings?.sip || {}),
         ...(preserveLegacyConsumables ? { consumablesMode: "quick" } : {}),
         ...(preserveLegacyPartitionCalculation

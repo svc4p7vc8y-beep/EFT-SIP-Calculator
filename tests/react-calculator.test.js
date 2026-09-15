@@ -544,7 +544,8 @@ test('client estimate can exclude labor or accessories without changing manager 
   const calculation = calculateProject(createDefaultProject());
   const noLabor = buildClientEstimate(calculation, { includeLabor: false });
   const noAccessories = buildClientEstimate(calculation, { includeAccessories: false });
-  assert.equal(noLabor.totals.labor, 0);
+  assert.ok(noLabor.totals.labor > 0);
+  assert.ok(noLabor.sections.flatMap(section => section.lines).filter(line => line.kind === 'labor').every(line => /раскрой/i.test(line.name)));
   assert.ok(noLabor.totals.total < calculation.totals.total);
   assert.ok(noAccessories.sections.every((section) =>
     section.lines.every((line) => !line.id.startsWith('client-kit:')),
@@ -973,6 +974,7 @@ test('terrace and porch roof materials are listed separately in the roof estimat
 
 test('SIP joinery switches between thermobeam, board pack and solid beam', () => {
   const project = createDefaultProject();
+  project.settings.sip.connectorType = 'thermal';
   [['MAT-186', 'MAT-015'], ['MAT-187', 'MAT-013'], ['MAT-188', 'MAT-014']].forEach(([packageId, thermalId]) => {
     const packagePrice = project.priceMat.find((item) => item.id === packageId).price;
     const thermalPrice = project.priceMat.find((item) => item.id === thermalId).price;

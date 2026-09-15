@@ -4567,7 +4567,7 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
 }
 
 const DEFAULT_FOUNDATION_DRAFT = {
-  autoLayoutMode: "nodes",
+  autoLayoutMode: "uniform",
   spacing: 2.5,
   autoRowSpacing: 2.5,
   autoIncludeInteriorWalls: true,
@@ -5016,7 +5016,7 @@ export default function PlanScreen({ onNavigate }) {
   const saveSketch = () => {
     const existing = libraryPlans.find((item) => item.id === editingLibraryId);
     const name = existing?.name || window
-      .prompt("Название плана:", `План ${libraryPlans.length + 1}`)
+      .prompt("Название плана:", [project.meta.customer || project.clientBrief?.customer?.name, project.meta.buildingType, project.meta.projectNum ? `№ ${project.meta.projectNum}` : '', project.meta.address].filter(Boolean).join(' · ') || `План ${libraryPlans.length + 1}`)
       ?.trim();
     if (!name) return;
     const entry = createPlanLibraryEntry(project, name, projectCalculation, existing);

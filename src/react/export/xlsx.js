@@ -1,5 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
 import { requestFileName, requestTotals } from '../state/request-model.js';
+import { buildClientEstimate } from '../calculations/client-estimate.js';
 
 const escapeXml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -30,6 +31,7 @@ function worksheet(rows, widths = []) {
 }
 
 export function createEstimateWorkbook(project, calculation) {
+  const clientEstimate = buildClientEstimate(calculation, project.settings?.print || {});
   const estimateRows = [
     ['ЭФТ — смета проекта'],
     ['Номер проекта', project.meta.projectNum], ['Заказчик', project.meta.customer], ['Адрес', project.meta.address], ['Дата', new Date().toLocaleDateString('ru-RU')],
@@ -38,10 +40,10 @@ export function createEstimateWorkbook(project, calculation) {
     ['Горизонтальный СИП-потолок, м²', calculation.metrics.ceilingArea], ['Второй свет, м²', calculation.metrics.openCeilingArea],
     [], ['Раздел', 'Группа', 'Номенклатура', 'Вид', 'Ед.', 'Количество', 'Цена, ₽', 'Сумма, ₽']
   ];
-  calculation.sections.forEach((section) => section.lines.forEach((line) => estimateRows.push([
+  clientEstimate.sections.forEach((section) => section.lines.forEach((line) => estimateRows.push([
     section.title, line.estimateGroup || '', line.name, line.kind === 'labor' ? 'Работа' : 'Материал', line.unit, line.qty, line.price, line.qty * line.price
   ])));
-  estimateRows.push([], ['ИТОГО МАТЕРИАЛЫ', calculation.totals.materials], ['ИТОГО РАБОТЫ', calculation.totals.labor], ['ИТОГО ПО СМЕТЕ', calculation.totals.total]);
+  estimateRows.push([], ['ИТОГО МАТЕРИАЛЫ', clientEstimate.totals.materials], ['ИТОГО РАБОТЫ', clientEstimate.totals.labor], ['ИТОГО ПО СМЕТЕ', clientEstimate.totals.total]);
   const catalogRows = (items) => [['Код', 'Категория', 'Наименование', 'Ед.', 'Цена, ₽'], ...items.map((item) => [item.id, item.cat, item.name, item.unit, item.price])];
   const files = {
     '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'),

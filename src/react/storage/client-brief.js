@@ -97,6 +97,8 @@ export function createProjectFromClientBrief(currentProject, raw) {
   if (wallHeight) next.plan.wallHeight = wallHeight;
 
   next.meta.customer = String(brief.customer?.name || "").trim();
+  next.meta.phone = String(brief.customer?.phone || "").trim();
+  next.meta.email = String(brief.customer?.email || "").trim();
   next.meta.address = String(project.address || "").trim();
   next.meta.buildingType = String(project.buildingType || "Жилой дом");
   ensureProjectFloorCount(next, [1, 2].includes(Number(project.floors)) ? Number(project.floors) : 1);

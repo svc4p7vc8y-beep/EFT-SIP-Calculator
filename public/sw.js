@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v135-mail-client-1';
+const CACHE_NAME = 'eft-calculator-react-v136-estimate-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
@@ -15,11 +15,15 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin || url.pathname.includes('/api/')) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
         const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok && !/no-store|private/i.test(response.headers.get('Cache-Control') || '')) {
+          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {}));
+        }
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => cached || (event.request.mode === 'navigate' ? caches.match('./react.html') : Response.error())))

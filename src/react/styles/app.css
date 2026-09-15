@@ -3296,14 +3296,15 @@ select,
   font-size: 10px;
 }
 .print-diagram-options {
-  display: flex;
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
   align-items: center;
   flex-wrap: wrap;
   gap: 12px 16px;
   margin-bottom: 12px;
-  padding: 12px 14px;
+  padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 18px;
   background: var(--panel);
 }
 
@@ -3338,7 +3339,7 @@ select,
   gap: 3px;
 }
 .print-diagram-options strong {
-  font-size: 11px;
+  font-size: 14px;
 }
 .print-diagram-options span {
   color: var(--muted);
@@ -3352,9 +3353,9 @@ select,
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
   cursor: pointer;
 }
 
@@ -3410,6 +3411,21 @@ select,
   color: var(--muted);
   font-size: 9px;
   font-weight: 800;
+}
+
+.print-diagram-options > .print-option-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+.print-diagram-options label { min-height: 44px; transition: background .15s, border-color .15s; }
+.print-diagram-options label:has(input:checked) { border-color: #91b979; background: #f0f7eb; color: #27452b; }
+.print-diagram-options input { width: 17px; height: 17px; flex-shrink: 0; accent-color: #568637; }
+.print-diagram-options > .plan-layers { grid-column: 1 / -1; padding-top: 16px; }
+.print-diagram-options .plan-layers > span { grid-column: 1 / -1; font-size: 12px; }
+@media (max-width: 700px) {
+  .print-diagram-options { grid-template-columns: minmax(0, 1fr); padding: 16px; }
 }
 .print-diagrams {
   display: grid;

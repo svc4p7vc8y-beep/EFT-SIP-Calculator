@@ -214,9 +214,9 @@ export function TeamProvider({ children }) {
   const saveProject = useCallback(
     async (payload, checkpoint = false) => {
       if (!currentRef.current) return null;
+      const target = currentRef.current;
       const run = async () => {
-        const target = currentRef.current;
-        setSyncState({
+        if (currentRef.current === target) setSyncState({
           status: "saving",
           message: checkpoint ? "Создаём версию…" : "Сохраняем в общую базу…",
         });
@@ -231,19 +231,17 @@ export function TeamProvider({ children }) {
               checkpoint,
             },
           });
-          currentRef.current = {
-            ...target,
-            revision: result.revision,
-            name: result.name,
-          };
-          setCurrent(currentRef.current);
-          setSyncState({
-            status: "saved",
-            message: `Общая база · ревизия ${result.revision}`,
-          });
+          Object.assign(target, { revision: result.revision, name: result.name });
+          if (currentRef.current === target) {
+            setCurrent({ ...target });
+            setSyncState({
+              status: "saved",
+              message: `Общая база · ревизия ${result.revision}`,
+            });
+          }
           return result;
         } catch (error) {
-          setSyncState({
+          if (currentRef.current === target) setSyncState({
             status: "error",
             message:
               error.code === "revision_conflict"

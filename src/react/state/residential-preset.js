@@ -5,7 +5,7 @@ export const RESIDENTIAL_PRESET = Object.freeze({
     'SIP-пол и межэтажное перекрытие 224 мм, усиленная раскладка 625 мм',
     'SIP-стены 174 мм и SIP-потолок 174 мм',
     'Двускатная холодная крыша, автоматическая стропильная система',
-    'Термобрус, узловой расчёт расходников и нормативные запасы',
+    'Клеёный пакет досок, равномерная сетка свай и обвязки',
   ],
 });
 
@@ -29,13 +29,14 @@ export function applyResidentialPreset(project) {
     ceilingThickness: '174',
     ceilingPanelFamily: 'pps',
     ceilingPanelWidth: '1.25',
-    connectorType: 'thermal',
+    connectorType: 'board-pack',
     wastePercent: 5,
     consumablesMode: 'node',
     foamScope: 'joints-and-edges',
   });
 
   project.plan.wallThickness = 0.174;
+  Object.assign(project.settings.piles, { autoLayoutMode: 'uniform', autoSyncBinding: true });
   (project.upperFloors || []).forEach((floorPlan) => {
     floorPlan.wallThickness = 0.174;
   });
