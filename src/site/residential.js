@@ -23,6 +23,7 @@ export const residentialProjects = plans.map((plan, index) => ({
   id: index ? 'horizon-100' : 'quiet-78',
   name: index ? 'Горизонт 100' : 'Тихий 78',
   image: index ? 'horizon-100.png' : 'quiet-78.png',
+  planImage: index ? 'horizon-100-plan.jpg' : 'quiet-78-plan.jpg',
   mood: index ? 'Личное пространство для каждого' : 'Компактный дом, просторная жизнь',
   description: index
     ? 'Одноэтажный дом для семьи с детьми. Три спальни расположены в отдельном крыле вдоль заднего фасада. Кухня-гостиная с широким остеклением обращена в сад, а санузел и постирочная собраны рядом. Боковой вход ведёт в холл — все помещения доступны без прохода через спальни.'
@@ -33,6 +34,7 @@ export const residentialProjects = plans.map((plan, index) => ({
   netArea: +plan.rooms.reduce((total, item) => total + item.area, 0).toFixed(2),
   dimensions: `${plan.width.toLocaleString('ru-RU')} × ${plan.depth.toLocaleString('ru-RU')} м`,
   rooms: plan.rooms.map((item) => item.name), plan,
+  planNote: 'Объёмная концепция сохраняет утверждённую геометрию и состав помещений. Это не строительный чертёж: толщины конструкций, проёмы и инженерные решения уточняются в рабочем проекте.',
   highlights: index
     ? ['Три спальни примерно по 12,2 м²', 'Кухня-гостиная 24,8 м²', 'Отдельная постирочная 5,9 м²', 'Санузел и постирочная с окнами']
     : ['Кухня-гостиная 30,1 м²', 'Две спальни примерно по 11,2 м²', 'Санузел 6 м² между спальнями', 'Место под технический шкаф в холле'],

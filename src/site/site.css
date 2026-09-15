@@ -219,3 +219,37 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .reference-plan-scroll{overflow:auto;min-height:0;flex:1;overscroll-behavior:contain}.reference-plan-scroll img{width:100%;height:100%;object-fit:contain;object-position:top center}.reference-plan-scroll.is-zoomed img{width:1400px;height:auto;max-width:none}
 .reference-plan figcaption{font-size:10px;line-height:1.6;color:#6e796f}
 @media(max-width:600px){.dialog-visual:has(.reference-plan){min-height:720px}.reference-plan{padding:72px 12px 16px}.reference-plan-scroll{max-height:510px}}
+
+/* Readability and rendered-plan presentation */
+.btn{font-size:14px}
+.section-number{font-size:11px}
+.section-heading>p{font-size:14px}
+.filters button{font-size:12px}
+.house-caption span{font-size:13px}
+.house-caption .house-tag{font-size:11px}
+.house-meta,.catalog-note{font-size:12px}
+.approach-strip>div,.approach-strip .text-link{font-size:13px}
+.panel-config>p,.technology-details p,.contact-content>p{font-size:14px}
+.panel-config legend,.field,.feedback{font-size:12px}
+.panel-config>small,.sample-note{font-size:11px}
+.accessories-head>p,.accessory-card p,.locations-intro>p,.location-copy p{font-size:14px}
+.catalog-list-card em{font-size:11px}
+.catalog-dialog-note{font-size:12px}
+.site-footer p,.site-footer nav,.footer-note{font-size:12px}
+.footer-note small,.footer-bottom{font-size:11px}
+.dialog-info>p{font-size:14px}
+.dialog-info>span,.spec-row,.project-price span{font-size:12px}
+.project-highlights{font-size:13px}
+.collection-count{font-size:12px}
+.collection-open{min-height:52px;padding:14px 21px;border:1px solid var(--green);border-radius:28px;background:var(--green);color:#fff;font-size:15px;box-shadow:0 10px 26px #244b3b22;transition:background .25s,transform .25s,box-shadow .25s}
+.collection-open:hover{background:#173c2c;color:#fff;transform:translateY(-2px);box-shadow:0 14px 32px #244b3b30}
+.collection-close-bottom{min-height:50px;padding:14px 22px;border:1px solid #9eafa2;border-radius:26px;background:#fff;font-size:14px}
+.reference-plan-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:0 2px}
+.reference-plan-heading>div{display:flex;flex-direction:column;gap:4px}
+.reference-plan-heading span{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.reference-plan-heading strong{font-family:Georgia,serif;font-size:20px;font-weight:400;color:#244b3b}
+.reference-plan-heading small{font-size:11px;color:var(--muted);white-space:nowrap}
+.reference-room-list{display:flex;gap:7px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
+.reference-room-list li{padding:7px 10px;border:1px solid #dce2da;border-radius:18px;background:#fff;font-size:10px;color:#526057}
+.reference-plan figcaption{font-size:11px}
+@media(max-width:700px){.collection-open{width:100%;justify-content:center;font-size:14px}.catalog-toolbar{display:block}.reference-plan-heading{align-items:flex-start;flex-direction:column;gap:7px}.reference-plan-heading small{white-space:normal}.reference-room-list li{font-size:9px}.section-number{font-size:10px}.house-meta{font-size:11px}.site-footer p,.site-footer nav,.footer-note{font-size:13px}}

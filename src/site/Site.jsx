@@ -23,6 +23,19 @@ const nav = [
   ["contact", "Контакты"],
 ];
 
+function projectCountLabel(count) {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  const noun = lastTwo >= 11 && lastTwo <= 14
+    ? "проектов"
+    : last === 1
+      ? "проект"
+      : last >= 2 && last <= 4
+        ? "проекта"
+        : "проектов";
+  return `${count} ${noun} в подборке`;
+}
+
 function ProjectCard({ project, onOpen, index = 0 }) {
   return (
     <button
@@ -91,7 +104,7 @@ function ProjectCollection({ category, expanded, onOpen, onToggle }) {
       </div>
       <div className="catalog-toolbar">
         <span className="collection-count">
-          {category.projects.length} проекта в подборке
+          {projectCountLabel(category.projects.length)}
         </span>
         <button
           className="collection-open"
@@ -99,7 +112,7 @@ function ProjectCollection({ category, expanded, onOpen, onToggle }) {
           aria-controls={extraId}
           onClick={() => onToggle(category.id)}
         >
-          {expanded ? "Свернуть коллекцию" : "Вся коллекция"}
+          {expanded ? "Свернуть каталог" : "Показать весь каталог"}
           {expanded ? (
             <ArrowDown className="turn-up" size={17} />
           ) : (
@@ -476,7 +489,7 @@ export default function Site() {
             </div>
             <div className="technology-details">
               {[
-                ["01", "Наружная обшивка", "Плита OSB — наружный слой панели."],
+                ["01", "Наружная обшивка", "Плита ОСП — наружный слой панели."],
                 [
                   "02",
                   "Сердцевина",
@@ -485,7 +498,7 @@ export default function Site() {
                 [
                   "03",
                   "Внутренняя обшивка",
-                  "Вторая плита OSB завершает конструкцию панели.",
+                  "Вторая плита ОСП завершает конструкцию панели.",
                 ],
               ].map(([number, title, text]) => (
                 <details key={number} open={number === "01"}>
@@ -526,7 +539,7 @@ export default function Site() {
           <a href="https://calc.eftsip.ru" rel="nofollow">Вход для сотрудников</a>
         </nav>
         <div className="footer-note">
-          ЭнергоЭффективные Технологии
+          Энергоэффективные технологии
           <small>
             Офис: Наро-Фоминск
             <br />

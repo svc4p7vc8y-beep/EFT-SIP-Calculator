@@ -1,6 +1,6 @@
 export const cabinProjects = [
   {
-    id: 'cabin-studio', name: 'Лесная студия', image: 'cabin-studio-glass-sage.png', planImage: 'cabin-studio-plan.svg',
+    id: 'cabin-studio', name: 'Лесная студия', image: 'cabin-studio-glass-sage.png', planImage: 'cabin-studio-plan.jpg',
     mood: 'Небольшой дом для больших выходных.', type: 'compact', tag: 'Дом-студия',
     meta: ['30 м² по контуру', 'Терраса 7,5 м²', '5 × 6 м'],
     areaLabel: 'Дом 30 м² · 5 × 6 м',
@@ -10,7 +10,7 @@ export const cabinProjects = [
     planNote: 'Концептуальная схема с мебелью. 30 м² — площадь по наружному контуру дома; терраса 7,5 м² показана отдельно. Полезная площадь, конструкция, фундамент и инженерия уточняются в проекте.',
   },
   {
-    id: 'cabin-comfort', name: 'Лесной комфорт', image: 'cabin-comfort.png', planImage: 'cabin-comfort-plan.svg',
+    id: 'cabin-comfort', name: 'Лесной комфорт', image: 'cabin-comfort.png', planImage: 'cabin-comfort-plan.jpg',
     mood: 'Своя спальня. Своя терраса.', type: 'compact', tag: '1 спальня',
     meta: ['37,5 м² по контуру', 'Терраса 7,5 м²', '5 × 7,5 м'],
     areaLabel: 'Дом 37,5 м² · 5 × 7,5 м',
