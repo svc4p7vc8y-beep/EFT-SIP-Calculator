@@ -159,3 +159,10 @@ function eft_send_intake_email(array $payload, string $number): bool {
         return false;
     }
 }
+
+function eft_normalize_phone(string $value): ?string {
+    $digits = preg_replace('/\D+/', '', $value) ?? '';
+    if (strlen($digits) === 11 && ($digits[0] === '7' || $digits[0] === '8')) $digits = substr($digits, 1);
+    if (!preg_match('/^[3-9]\d{9}$/', $digits)) return null;
+    return '+7 (' . substr($digits, 0, 3) . ') ' . substr($digits, 3, 3) . '-' . substr($digits, 6, 2) . '-' . substr($digits, 8, 2);
+}

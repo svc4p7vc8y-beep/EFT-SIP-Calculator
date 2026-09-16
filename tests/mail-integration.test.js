@@ -33,8 +33,9 @@ test("mail links are persisted without copying mailbox contents", async () => {
 });
 
 test("public applications use authenticated SMTP and expose notification failures", async () => {
-  const [bootstrap, site, questionnaire] = await Promise.all([
+  const [bootstrap, api, site, questionnaire] = await Promise.all([
     read("server/beget-api/bootstrap.php"),
+    read("server/beget-api/api.php"),
     read("src/site/Site.jsx"),
     read("src/questionnaire/main.jsx"),
   ]);
@@ -42,4 +43,8 @@ test("public applications use authenticated SMTP and expose notification failure
   assert.doesNotMatch(bootstrap, /@mail\(/);
   assert.match(site, /result\.mailAccepted/);
   assert.match(questionnaire, /result\.mailAccepted/);
+  assert.match(api, /eft_normalize_phone/);
+  assert.match(api, /\$name === '' \|\| \$phone === null/);
+  assert.match(api, /\$input\['customer'\]\['phone'\] = \$phone/);
+  assert.match(api, /\$input\['phone'\] = \$phone/);
 });

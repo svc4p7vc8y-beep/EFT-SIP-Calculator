@@ -26,6 +26,7 @@ import {
   QUESTIONNAIRE_STORAGE_KEY,
 } from "./brief.js";
 import { submitPublicIntake } from "../shared/team-api.js";
+import { formatRussianPhone, isValidRussianPhone } from "../shared/phone.js";
 import "./questionnaire.css";
 
 const STEPS = [
@@ -75,6 +76,10 @@ function Field({
   min,
   max,
   step,
+  inputMode,
+  maxLength,
+  pattern,
+  title,
 }) {
   return (
     <label className="q-field">
@@ -93,6 +98,10 @@ function Field({
           max={max}
           step={step}
           required={required}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          pattern={pattern}
+          title={title}
         />
         {unit ? <em>{unit}</em> : null}
       </div>
@@ -169,13 +178,6 @@ function StepHeader({ number, title, description }) {
 }
 
 function ProjectStep({ answers, onChange, setValue }) {
-  const contactLabel =
-    {
-      WhatsApp: "Номер WhatsApp",
-      Telegram: "Телефон или @имя в Telegram",
-      Max: "Номер телефона в Max",
-      Звонок: "Номер телефона",
-    }[answers.contactMethod] || "Номер телефона";
   return (
     <>
       <StepHeader
@@ -229,6 +231,19 @@ function ProjectStep({ answers, onChange, setValue }) {
         />
       </div>
       <div className="q-grid two">
+        <Field
+          label="Номер телефона"
+          name="phone"
+          answers={answers}
+          onChange={onChange}
+          type="tel"
+          inputMode="tel"
+          maxLength="18"
+          pattern="\+7 \([3-9]\d{2}\) \d{3}-\d{2}-\d{2}"
+          title="Введите полный российский номер: +7 (___) ___-__-__"
+          placeholder="+7 (___) ___-__-__"
+          required
+        />
         {answers.contactMethod === "Почта" ? (
           <Field
             label="Электронная почта"
@@ -239,21 +254,7 @@ function ProjectStep({ answers, onChange, setValue }) {
             placeholder="name@example.ru"
             required
           />
-        ) : (
-          <Field
-            label={contactLabel}
-            name="phone"
-            answers={answers}
-            onChange={onChange}
-            type={answers.contactMethod === "Telegram" ? "text" : "tel"}
-            placeholder={
-              answers.contactMethod === "Telegram"
-                ? "+7 900 000-00-00 или @username"
-                : "+7 900 000-00-00"
-            }
-            required
-          />
-        )}
+        ) : null}
       </div>
       <div className="q-section-gap">
         <Choices
@@ -1436,6 +1437,7 @@ function App() {
       return {
         ...initialAnswers,
         ...saved,
+        phone: formatRussianPhone(saved.phone || initialAnswers.phone),
         basement: "Нет",
         attic: "Нет",
         balcony: false,
@@ -1463,16 +1465,16 @@ function App() {
   }, [answers]);
   const setValue = (name, value) =>
     setAnswers((current) => ({ ...current, [name]: value }));
-  const onChange = (event) => setValue(event.target.name, event.target.value);
+  const onChange = (event) => setValue(
+    event.target.name,
+    event.target.name === "phone" ? formatRussianPhone(event.target.value) : event.target.value,
+  );
   const validateStep = () => {
     if (step === 0) {
-      const contact =
-        answers.contactMethod === "Почта"
-          ? answers.email.trim()
-          : answers.phone.trim();
-      if (!answers.customerName.trim() || !answers.region.trim() || !contact) {
+      const emailMissing = answers.contactMethod === "Почта" && !answers.email.trim();
+      if (!answers.customerName.trim() || !answers.region.trim() || !isValidRussianPhone(answers.phone) || emailMissing) {
         setNotice(
-          "Укажите имя, регион и контакт для выбранного способа связи.",
+          "Укажите имя, регион и полный номер телефона в формате +7 (___) ___-__-__. Для связи по почте также укажите email.",
         );
         return false;
       }
@@ -1531,8 +1533,8 @@ function App() {
       setNotice("Подтвердите согласие на обработку данных.");
       return;
     }
-    if (!answers.customerName.trim() || (!answers.phone.trim() && !answers.email.trim())) {
-      setNotice("Укажите имя и телефон или электронную почту.");
+    if (!answers.customerName.trim() || !isValidRussianPhone(answers.phone)) {
+      setNotice("Укажите имя и полный номер телефона в формате +7 (___) ___-__-__.");
       return;
     }
     setSubmitting(true);

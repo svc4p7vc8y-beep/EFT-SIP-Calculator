@@ -49,10 +49,12 @@ if ($action === 'intake' && $method === 'POST') {
     if ((int)$rate->fetchColumn() >= 8) eft_json(['ok' => false, 'code' => 'rate_limited', 'message' => 'Слишком много отправок. Попробуйте позже.'], 429);
     $customer = $format === 'eft-client-brief' ? ($input['customer'] ?? []) : $input;
     $name = mb_substr(trim((string)($customer['name'] ?? '')), 0, 180);
-    $phone = mb_substr(trim((string)($customer['phone'] ?? '')), 0, 80);
+    $phone = eft_normalize_phone(mb_substr(trim((string)($customer['phone'] ?? '')), 0, 80));
     $email = mb_substr(trim((string)($customer['email'] ?? '')), 0, 190);
-    if ($name === '' || ($phone === '' && $email === '')) eft_json(['ok' => false, 'code' => 'missing_contact', 'message' => 'Укажите имя и телефон или почту.'], 422);
+    if ($name === '' || $phone === null) eft_json(['ok' => false, 'code' => 'invalid_phone', 'message' => 'Укажите имя и полный российский номер телефона в формате +7 (___) ___-__-__.'], 422);
     if ($format === 'eft-client-brief' && empty($customer['consent'])) eft_json(['ok' => false, 'code' => 'consent_required', 'message' => 'Необходимо согласие на обработку данных.'], 422);
+    if ($format === 'eft-client-brief') $input['customer']['phone'] = $phone;
+    else $input['phone'] = $phone;
     $id = eft_uuid();
     $number = 'EFT-' . date('ymd') . '-' . strtoupper(substr(str_replace('-', '', $id), 0, 6));
     $attachmentFiles = is_array($input['attachmentFiles'] ?? null) ? $input['attachmentFiles'] : [];

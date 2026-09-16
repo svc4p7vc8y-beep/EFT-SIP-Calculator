@@ -53,6 +53,7 @@ test("questionnaire builds a calculator-compatible brief with complete construct
   assert.equal(brief.schemaVersion, 1);
   assert.equal(brief.questionnaireVersion, 5);
   assert.equal(brief.customer.preferredContact, "WhatsApp");
+  assert.equal(brief.customer.phone, "+7 900 123-45-67");
   assert.equal(brief.customer.consent, true);
   assert.equal(brief.project.buildingType, "Гараж");
   assert.equal(brief.project.floors, 2);
@@ -113,7 +114,7 @@ test("flat roof brief keeps its one-side slope direction and value", () => {
 
 test("questionnaire completion reflects the important calculator inputs", () => {
   assert.ok(completionPercent(initialAnswers) < 100);
-  assert.equal(completionPercent({ ...initialAnswers, customerName: "Иван", phone: "+7", region: "Москва" }), 100);
-  assert.equal(completionPercent({ ...initialAnswers, customerName: "Иван", contactMethod: "Почта", email: "ivan@example.ru", region: "Москва" }), 100);
-  assert.ok(completionPercent({ ...initialAnswers, customerName: "Иван", contactMethod: "Почта", phone: "+7", region: "Москва" }) < 100);
+  assert.equal(completionPercent({ ...initialAnswers, customerName: "Иван", phone: "+7 (900) 123-45-67", region: "Москва" }), 100);
+  assert.equal(completionPercent({ ...initialAnswers, customerName: "Иван", contactMethod: "Почта", phone: "+7 (900) 123-45-67", email: "ivan@example.ru", region: "Москва" }), 100);
+  assert.ok(completionPercent({ ...initialAnswers, customerName: "Иван", contactMethod: "Почта", email: "ivan@example.ru", region: "Москва" }) < 100);
 });

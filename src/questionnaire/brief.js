@@ -1,3 +1,5 @@
+import { isValidRussianPhone } from "../shared/phone.js";
+
 export const QUESTIONNAIRE_STORAGE_KEY = "eft-house-questionnaire-v2";
 export const PENDING_CLIENT_BRIEF_KEY = "eft-pending-client-brief-v1";
 
@@ -148,7 +150,7 @@ export function automationReadiness(answers, attachments = []) {
 }
 
 export function completionPercent(answers) {
-  const contact = answers.contactMethod === "Почта" ? answers.email : answers.phone;
+  const contact = isValidRussianPhone(answers.phone) && (answers.contactMethod !== "Почта" || answers.email);
   const engineering = answers.scope.includes("Инженерия") ? answers.electricStage || answers.waterStage || answers.heating : true;
   const important = [answers.customerName, contact, answers.region || answers.address, answers.buildingType, answers.length, answers.width, answers.floors, answers.wallHeight, answers.scope.length, answers.wallThickness, answers.roofShape, engineering, answers.exteriorFinish, answers.decisionStatus];
   return Math.round((important.filter(Boolean).length / important.length) * 100);

@@ -13,6 +13,7 @@ import HeroIntro from "./HeroIntro.jsx";
 import Locations from "./Locations.jsx";
 import { AnimatedLogo, ScrollProgress, useSiteMotion } from "./Motion.jsx";
 import { submitPublicIntake } from "../shared/team-api.js";
+import { formatRussianPhone, isValidRussianPhone } from "../shared/phone.js";
 
 const ProjectDialog = lazy(() => import("./ProjectDialog.jsx"));
 const nav = [
@@ -175,7 +176,7 @@ function Contact({ cart, selection, setSelection }) {
       version: 1,
       createdAt: new Date().toISOString(),
       name: values.get("name").trim(),
-      phone: values.get("phone").trim(),
+      phone: formatRussianPhone(values.get("phone")),
       project: selection,
       products: cart,
       comment: values.get("comment").trim(),
@@ -263,9 +264,17 @@ function Contact({ cart, selection, setSelection }) {
                 type="tel"
                 autoComplete="tel"
                 required
-                minLength="6"
-                maxLength="30"
+                inputMode="tel"
+                maxLength="18"
+                pattern="\+7 \([3-9]\d{2}\) \d{3}-\d{2}-\d{2}"
+                title="Введите полный российский номер: +7 (___) ___-__-__"
                 placeholder="+7 (___) ___-__-__"
+                onInput={(event) => {
+                  event.currentTarget.value = formatRussianPhone(event.currentTarget.value);
+                  event.currentTarget.setCustomValidity(
+                    isValidRussianPhone(event.currentTarget.value) ? "" : "Введите полный российский номер",
+                  );
+                }}
               />
             </label>
           </div>
