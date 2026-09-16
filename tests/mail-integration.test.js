@@ -47,4 +47,6 @@ test("public applications use authenticated SMTP and expose notification failure
   assert.match(api, /\$name === '' \|\| \$phone === null/);
   assert.match(api, /\$input\['customer'\]\['phone'\] = \$phone/);
   assert.match(api, /\$input\['phone'\] = \$phone/);
+  assert.doesNotMatch(api, /!empty\(\$input\['website'\]\)/);
+  assert.doesNotMatch(site, /name="website"/);
 });

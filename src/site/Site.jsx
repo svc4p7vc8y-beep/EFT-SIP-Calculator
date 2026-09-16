@@ -180,7 +180,6 @@ function Contact({ cart, selection, setSelection }) {
       project: selection,
       products: cart,
       comment: values.get("comment").trim(),
-      website: values.get("website"),
     };
     setSubmission({ status: "sending", message: "Отправляем заявку…" });
     try {
@@ -226,7 +225,6 @@ function Contact({ cart, selection, setSelection }) {
           Сохраните пожелания и выбранные товары в одну заявку.
         </p>
         <form onSubmit={submit} onChange={() => submission.status !== "idle" && setSubmission({ status: "idle", message: "" })}>
-          <input className="visually-hidden" name="website" tabIndex="-1" autoComplete="off" aria-hidden="true" />
           <label className="field">
             Интересующий проект
             <select

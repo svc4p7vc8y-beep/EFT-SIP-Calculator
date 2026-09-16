@@ -38,7 +38,6 @@ if ($action === 'login' && $method === 'POST') {
 if ($action === 'intake' && $method === 'POST') {
     eft_require_allowed_origin();
     $input = eft_input(16777216);
-    if (!empty($input['website'])) eft_json(['ok' => true, 'number' => 'EFT-' . date('ymd')]);
     $format = (string)($input['format'] ?? '');
     if (!in_array($format, ['eft-client-brief', 'eft-site-inquiry'], true)) eft_json(['ok' => false, 'code' => 'invalid_intake', 'message' => 'Формат анкеты не поддерживается.'], 422);
     $config = eft_config();
