@@ -252,4 +252,5 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .reference-room-list{display:flex;gap:7px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
 .reference-room-list li{padding:7px 10px;border:1px solid #dce2da;border-radius:18px;background:#fff;font-size:10px;color:#526057}
 .reference-plan figcaption{font-size:11px}
+.feedback.warning,.feedback.error{color:#a44338}
 @media(max-width:700px){.collection-open{width:100%;justify-content:center;font-size:14px}.catalog-toolbar{display:block}.reference-plan-heading{align-items:flex-start;flex-direction:column;gap:7px}.reference-plan-heading small{white-space:normal}.reference-room-list li{font-size:9px}.section-number{font-size:10px}.house-meta{font-size:11px}.site-footer p,.site-footer nav,.footer-note{font-size:13px}}

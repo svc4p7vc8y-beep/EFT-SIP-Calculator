@@ -1542,8 +1542,10 @@ function App() {
       payload.attachmentFiles = await encodeAttachments();
       const result = await submitPublicIntake(payload);
       setSubmittedNumber(result.number);
-      setNotice(`Заявка ${result.number} отправлена. Менеджер увидит её во внутреннем калькуляторе.`);
-      localStorage.removeItem(QUESTIONNAIRE_STORAGE_KEY);
+      setNotice(result.mailAccepted
+        ? `Заявка ${result.number} отправлена. Менеджер увидит её в калькуляторе и получит письмо на info@eftsip.ru.`
+        : `Заявка ${result.number} сохранена в калькуляторе, но уведомление на почту не отправлено.`);
+      if (result.mailAccepted) localStorage.removeItem(QUESTIONNAIRE_STORAGE_KEY);
     } catch (error) {
       setNotice(`Не удалось отправить заявку: ${error.message}. Анкету можно скачать и передать менеджеру файлом.`);
     } finally {

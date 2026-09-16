@@ -184,7 +184,9 @@ function Contact({ cart, selection, setSelection }) {
     setSubmission({ status: "sending", message: "Отправляем заявку…" });
     try {
       const result = await submitPublicIntake(request);
-      setSubmission({ status: "sent", message: `Заявка ${result.number} отправлена менеджеру.` });
+      setSubmission(result.mailAccepted
+        ? { status: "sent", message: `Заявка ${result.number} отправлена менеджеру и на почту info@eftsip.ru.` }
+        : { status: "warning", message: `Заявка ${result.number} сохранена, но уведомление на почту не отправлено. Менеджер увидит её в калькуляторе.` });
       form.reset();
       setSelection("");
     } catch (error) {

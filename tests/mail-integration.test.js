@@ -31,3 +31,15 @@ test("mail links are persisted without copying mailbox contents", async () => {
   assert.match(schema, /CREATE TABLE IF NOT EXISTS eft_mail_links/);
   assert.doesNotMatch(schema, /CREATE TABLE IF NOT EXISTS eft_mail_(?:messages|attachments)/);
 });
+
+test("public applications use authenticated SMTP and expose notification failures", async () => {
+  const [bootstrap, site, questionnaire] = await Promise.all([
+    read("server/beget-api/bootstrap.php"),
+    read("src/site/Site.jsx"),
+    read("src/questionnaire/main.jsx"),
+  ]);
+  assert.match(bootstrap, /eft_send_smtp\(\$recipient, \$subject/);
+  assert.doesNotMatch(bootstrap, /@mail\(/);
+  assert.match(site, /result\.mailAccepted/);
+  assert.match(questionnaire, /result\.mailAccepted/);
+});

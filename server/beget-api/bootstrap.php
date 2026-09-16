@@ -139,8 +139,7 @@ function eft_send_intake_email(array $payload, string $number): bool {
     $recipient = (string)($config['notification_email'] ?? 'info@eftsip.ru');
     $customer = $payload['format'] === 'eft-client-brief' ? ($payload['customer'] ?? []) : $payload;
     $project = $payload['format'] === 'eft-client-brief' ? ($payload['project'] ?? []) : [];
-    $subjectText = 'Новая заявка EFT ' . $number;
-    $subject = '=?UTF-8?B?' . base64_encode($subjectText) . '?=';
+    $subject = 'Новая заявка EFT ' . $number;
     $lines = [
         'Получена новая заявка ' . $number,
         'Источник: ' . ($payload['format'] === 'eft-client-brief' ? 'анкета будущего дома' : 'форма на сайте'),
@@ -152,9 +151,11 @@ function eft_send_intake_email(array $payload, string $number): bool {
         '',
         'Откройте раздел «Общие проекты → Анкеты» в калькуляторе.',
     ];
-    $from = (string)($config['mail_from'] ?? 'no-reply@eftsip.ru');
-    $headers = "From: EFT <{$from}>\r\nContent-Type: text/plain; charset=UTF-8\r\n";
-    $sent = @mail($recipient, $subject, implode("\n", $lines), $headers);
-    if (!$sent) error_log('EFT intake mail was not accepted for ' . $number);
-    return $sent;
+    try {
+        eft_send_smtp($recipient, $subject, implode("\n", $lines));
+        return true;
+    } catch (Throwable $error) {
+        error_log('EFT intake SMTP notification failed for ' . $number . ': ' . $error->getMessage());
+        return false;
+    }
 }

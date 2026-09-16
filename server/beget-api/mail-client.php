@@ -183,7 +183,7 @@ function eft_smtp_command($socket, string $command, array $accepted): void {
 
 function eft_smtp_authenticated_socket() {
     $config = eft_mail_config();
-    if (empty($config['configured'])) eft_json(['ok' => false, 'code' => 'mail_not_configured', 'message' => 'Почта ещё не подключена.'], 503);
+    if (empty($config['configured'])) throw new RuntimeException('Почта ещё не подключена.');
     $host = (string)($config['smtp_host'] ?? 'smtp.mail.ru');
     $port = (int)($config['smtp_port'] ?? 465);
     $socket = @stream_socket_client("ssl://{$host}:{$port}", $errorNumber, $errorText, 20, STREAM_CLIENT_CONNECT);
