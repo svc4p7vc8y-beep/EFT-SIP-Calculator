@@ -5155,6 +5155,27 @@ select,
 .node-map g.selected text { fill: #fff; }
 .node-map-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--muted); font-size: 11px; }
 .node-map-legend b { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 4px; border-radius: 50%; background: var(--green-soft); color: var(--green-dark); }
+.node-map-controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.node-map-controls label { display: grid; gap: 6px; font-size: 12px; min-width: 0; flex: 1 1 140px; }
+.node-map-controls select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); padding: 8px; }
+.node-map-controls .node-map-disabled { display: flex; align-items: center; flex-basis: 100%; }
+.node-map-help { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.node-map > polygon { stroke-width: 2px; }
+.node-map > .node-map-room { fill: transparent; stroke: #a8b3a5; stroke-width: 1px; pointer-events: none; }
+.node-map .node-map-point circle { stroke-width: 2px; }
+.node-map .node-map-point line { stroke: var(--muted); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.node-map .review-node circle { stroke: #ae670e; }
+.node-map .disabled-node circle { stroke: #788079; stroke-dasharray: 3 2; }
+.node-map .node-map-point.selected circle { stroke-width: 3px; stroke: var(--green-dark); }
+.node-map .node-map-point:focus-visible circle, .node-map .node-map-point:hover circle { stroke: #145a9c; stroke-width: 4px; }
+.node-map-selection { padding: 12px; border-radius: 10px; background: var(--green-soft); font-size: 13px; line-height: 1.5; }
+.node-map-list { display: grid; gap: 6px; max-height: 290px; overflow: auto; padding: 3px; }
+.node-map-list button { display: flex; align-items: center; gap: 12px; text-align: left; min-height: 58px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--surface); }
+.node-map-list button[aria-pressed="true"] { border-color: var(--green); background: var(--green-soft); box-shadow: inset 3px 0 var(--green); }
+.node-map-list button b { flex: 0 0 32px; text-align: center; color: var(--green-dark); }
+.node-map-list button span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.node-map-list button strong { font-size: 13px; }
+.node-map-list button small { font-size: 11px; color: var(--muted); }
 .node-detail-card { display: grid; align-content: start; gap: 12px; }
 .node-detail-heading { display: flex; align-items: center; gap: 10px; }
 .node-detail-heading > div { display: grid; gap: 3px; }

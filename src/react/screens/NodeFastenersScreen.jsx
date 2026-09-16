@@ -30,34 +30,78 @@ function SourceLabel({ source }) {
   return <>{type}{source.pages ? ` · стр. ${source.pages}` : ''}</>;
 }
 
-function NodeMap({ project, nodes, selectedId, onSelect }) {
-  const points = planPoints(project.plan);
+function NodeMap({ project, floorPlans, nodes, selectedId, onSelect }) {
+  const [floor, setFloor] = useState('1');
+  const [type, setType] = useState('all');
+  const [showDisabled, setShowDisabled] = useState(false);
+  const plan = floorPlans?.[Number(floor) - 1]?.plan || project.plan;
+  const points = planPoints(plan);
   const xs = points.map((point) => Number(point.x) || 0);
   const ys = points.map((point) => Number(point.y) || 0);
   const minX = Math.min(...xs);
   const minY = Math.min(...ys);
   const width = Math.max(1, Math.max(...xs) - minX);
   const height = Math.max(1, Math.max(...ys) - minY);
-  const pad = Math.max(width, height) * 0.08;
-  const markerRadius = Math.max(width, height) * 0.022;
-  const visible = nodes.filter((node) => node.enabled !== false && Number(node.floor || 1) === 1).slice(0, 160);
+  const markerRadius = Math.max(width, height) * 0.038;
+  const floorNodes = nodes.map((node, index) => ({ ...node, number: index + 1 }))
+    .filter(node => String(node.floor || 1) === floor && (showDisabled || node.enabled !== false));
+  const visible = floorNodes.filter(node => type === 'all' || node.type === type);
+  const placed = [];
+  const markers = visible.map(node => {
+    const anchorX = Number(node.x) || 0;
+    const anchorY = Number(node.y) || 0;
+    let x = anchorX, y = anchorY;
+    for (let attempt = 0; placed.some(p => Math.hypot(p.x - x, p.y - y) < markerRadius * 2.5); attempt++) {
+      const angle = attempt * 2.4;
+      const radius = markerRadius * 2.6 * Math.sqrt(attempt + 1);
+      x = anchorX + Math.cos(angle) * radius;
+      y = anchorY + Math.sin(angle) * radius;
+    }
+    const marker = { ...node, x, y, anchorX, anchorY };
+    placed.push(marker);
+    return marker;
+  });
+  const allXs = [...xs, ...markers.flatMap(n => [n.x, n.anchorX])];
+  const allYs = [...ys, ...markers.flatMap(n => [n.y, n.anchorY])];
+  const pad = markerRadius * 1.8;
+  const left = Math.min(...allXs) - pad, top = Math.min(...allYs) - pad;
+  const selected = markers.find(node => node.id === selectedId);
   return (
     <div className="node-map-wrap">
-      <svg className="node-map" viewBox={`${minX - pad} ${minY - pad} ${width + pad * 2} ${height + pad * 2}`} role="img" aria-label="План с маркерами строительных узлов">
+      <div className="node-map-controls">
+        <label>Этаж<select aria-label="Этаж" value={floor} onChange={event => { setFloor(event.target.value); setType('all'); }}>
+          {[...new Set(['1', ...nodes.map(node => String(node.floor || 1))])].sort().map(value => <option key={value} value={value}>{value} этаж</option>)}
+        </select></label>
+        <label>Показать узлы<select aria-label="Показать узлы" value={type} onChange={event => setType(event.target.value)}>
+          <option value="all">Все типы ({floorNodes.length})</option>
+          {EFT_NODE_TYPES.filter(item => floorNodes.some(node => node.type === item.value)).map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+        </select></label>
+        <label className="node-map-disabled"><input type="checkbox" checked={showDisabled} onChange={event => setShowDisabled(event.target.checked)} />Показать отключённые</label>
+      </div>
+      <p className="node-map-help">Номер на схеме соответствует списку ниже. Линия соединяет сдвинутый маркер с его точкой на плане. Группы крепежа обозначены условно.</p>
+      <svg className="node-map" viewBox={`${left} ${top} ${Math.max(...allXs) + pad - left} ${Math.max(...allYs) + pad - top}`} role="group" aria-label="План с маркерами строительных узлов">
         <polygon points={points.map((point) => `${point.x},${point.y}`).join(' ')} />
-        {visible.map((node, index) => {
-          const jitter = (index % 5) * markerRadius * 0.35;
-          const x = Number(node.x) + jitter;
-          const y = Number(node.y) + (Math.floor(index / 5) % 3) * markerRadius * 0.35;
+        {(plan.rooms || []).map(room => <polygon key={room.id} className="node-map-room" points={(room.points?.length ? room.points : [{ x: room.x, y: room.y }, { x: room.x + room.w, y: room.y }, { x: room.x + room.w, y: room.y + room.h }, { x: room.x, y: room.y + room.h }]).map(point => `${point.x},${point.y}`).join(' ')}><title>{room.name}</title></polygon>)}
+        {markers.map(node => {
+          const { x, y } = node;
           return (
-            <g key={node.id} className={node.id === selectedId ? 'selected' : ''} role="button" tabIndex="0" aria-label={`${node.marker}: ${node.name}`} onClick={() => onSelect(node.id)} onKeyDown={(event) => event.key === 'Enter' && onSelect(node.id)}>
+            <g key={node.id} className={`node-map-point ${node.id === selectedId ? 'selected' : ''} ${node.enabled === false ? 'disabled-node' : node.requiresEngineeringReview ? 'review-node' : ''}`} role="button" tabIndex="0" aria-pressed={node.id === selectedId} aria-label={`Узел ${node.number}: ${node.name}`} onClick={() => onSelect(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(node.id); } }}>
+              <title>{`№ ${node.number} · ${node.name}\n${node.calculatedQty} шт. крепежа${node.requiresEngineeringReview ? ' · Требует проверки' : ''}`}</title>
+              <line x1={node.anchorX} y1={node.anchorY} x2={x} y2={y} />
               <circle cx={x} cy={y} r={markerRadius} />
-              <text x={x} y={y} dy="0.34em" textAnchor="middle" fontSize={markerRadius * 1.25}>{node.marker}</text>
+              <text x={x} y={y} dy="0.34em" textAnchor="middle" fontSize={markerRadius * 0.95}>{node.number}</text>
             </g>
           );
         })}
       </svg>
-      <div className="node-map-legend"><span><b>C</b> угол</span><span><b>T</b> примыкание</span><span><b>S</b> старт/шов</span><span><b>R</b> стропила</span><span><b>O</b> проём</span></div>
+      <div className="node-map-legend"><span>Зелёный — выбран</span><span>Оранжевый контур — требует проверки</span><span>Пунктир — отключён</span></div>
+      <div className="node-map-selection" aria-live="polite">{selected ? `Выбран № ${selected.number}: ${selected.name}. Крепёж: ${selected.fastener?.size || 'не назначен'}, ${selected.calculatedQty} шт.` : 'Выберите номер на схеме или строку в списке, чтобы открыть карточку узла.'}</div>
+      <div className="node-map-list" aria-label="Список узлов на плане">
+        {visible.map(node => <button type="button" key={node.id} aria-pressed={node.id === selectedId} onClick={() => onSelect(node.id)}>
+          <b>{node.number}</b><span><strong>{node.name}</strong><small>{node.enabled === false ? 'Отключён' : node.requiresEngineeringReview ? 'Требует проверки' : 'Учитывается'} · {node.fastener?.size || 'Крепёж не назначен'} · {node.calculatedQty} шт.</small></span>
+        </button>)}
+        {!visible.length ? <p>Нет узлов для выбранного фильтра.</p> : null}
+      </div>
     </div>
   );
 }
@@ -130,11 +174,11 @@ export default function NodeFastenersScreen({ calculation }) {
       </div>
 
       <div className="node-layout-grid">
-        <section className="panel-card"><div className="node-card-title"><div><h2>Узлы на плане</h2><p>Первый этаж · нажмите маркер для подробностей</p></div><button className="button secondary" onClick={addManualNode}><Plus size={16} /> Добавить узел</button></div><NodeMap project={project} nodes={report.nodes} selectedId={selected?.id} onSelect={setSelectedId} /></section>
+        <section className="panel-card"><div className="node-card-title"><div><h2>Узлы на плане</h2><p>Выберите номер на схеме или название в списке</p></div><button className="button secondary" onClick={addManualNode}><Plus size={16} /> Добавить узел</button></div><NodeMap project={project} floorPlans={calculation.metrics?.floorPlans} nodes={report.nodes} selectedId={selected?.id} onSelect={setSelectedId} /></section>
         <section className="panel-card node-detail-card">
           <h2>Карточка узла</h2>
           {selected ? <>
-            <div className="node-detail-heading"><span className="node-marker">{selected.marker}</span><div><strong>{selected.name}</strong><small>{selected.id}</small></div></div>
+            <div className="node-detail-heading"><span className="node-marker">{report.nodes.findIndex(node => node.id === selected.id) + 1}</span><div><strong>{selected.name}</strong><small>{selected.floor || 1} этаж · {selected.source === 'manual' ? 'Добавлен вручную' : 'Из расчёта конструкций'}</small></div></div>
             <label>Тип узла<select value={selected.type} onChange={(event) => updateNode(selected, { type: event.target.value })}>{EFT_NODE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.value} — {type.label}</option>)}</select></label>
             <label className="node-check"><input type="checkbox" checked={selected.enabled !== false} onChange={(event) => updateNode(selected, { enabled: event.target.checked })} /> Учитывать узел</label>
             <dl><div><dt>Элементы</dt><dd>{selected.elements.join(' + ') || 'Не описаны'}</dd></div><div><dt>Крепёж</dt><dd>{selected.fastener?.type || 'Не назначен'} {selected.fastener?.size || ''}</dd></div><div><dt>Длина / узлов</dt><dd>{formatNumber(selected.length, 2)} м / {selected.nodeCount}</dd></div><div><dt>Шаг</dt><dd>{selected.spacing ? `${formatNumber(selected.spacing, 3)} м` : 'Не задан'}</dd></div><div><dt>Количество</dt><dd>{selected.calculatedQty} шт.</dd></div><div><dt>Источник</dt><dd><SourceLabel source={selected.sourceReference} /></dd></div></dl>
