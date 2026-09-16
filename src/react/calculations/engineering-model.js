@@ -15,6 +15,13 @@ export const VENTILATION_SOLUTIONS = [
   { value: 'supply', label: 'Компактная · общий приток с подогревом + вытяжка' },
 ];
 
+export const HEATING_BOILERS = [
+  { value: 'electric', label: 'Электрический котёл' },
+  { value: 'gas', label: 'Газовый котёл' },
+];
+export const ELECTRIC_BOILER_POWERS = [6, 9, 12, 15, 18, 24].map(value => ({ value: String(value), label: `${value} кВт` }));
+export const GAS_BOILER_POWERS = [12, 18, 24, 30, 35].map(value => ({ value: String(value), label: `${value} кВт` }));
+
 export const DEFAULT_ENGINEERING = {
   assemblyVersion: 1,
   reserve: 1.1,
@@ -58,6 +65,18 @@ export const DEFAULT_ENGINEERING = {
   extractFans: 2,
   roofPassages: 2,
   transferGrilles: 3,
+  heatingStage: 'complete',
+  heatingAuto: true,
+  heatingArea: 90,
+  underfloorHeating: true,
+  heatingPipeStepMm: 150,
+  heatingMaxLoopLength: 80,
+  screedThicknessMm: 70,
+  heatingBoilerType: 'electric',
+  heatingBoilerPowerKw: 12,
+  heatingWaterproofing: true,
+  heatingMesh: true,
+  heatingRoomThermostats: 6,
 };
 
 function descriptor(catalogId, qty, group, key, extra = {}) {
@@ -102,7 +121,58 @@ export function normalizeEngineering(settings = {}, inputs = {}, metrics = {}) {
     septicRings: Math.max(1, ceil(s.septicRings)),
     wellRoute: Math.max(0, n(s.wellRoute)),
     externalSewerLength: Math.max(0, n(s.externalSewerLength)),
+    heatingArea: s.heatingAuto && hasRoomArea ? Math.max(0, roomArea) : Math.max(0, n(s.heatingArea)),
+    heatingPipeStepMm: Math.max(100, Math.min(300, ceil(s.heatingPipeStepMm) || 150)),
+    heatingMaxLoopLength: Math.max(50, Math.min(120, ceil(s.heatingMaxLoopLength) || 80)),
+    screedThicknessMm: Math.max(50, Math.min(150, ceil(s.screedThicknessMm) || 70)),
+    heatingBoilerPowerKw: Math.max(3, Math.min(60, n(s.heatingBoilerPowerKw, 12))),
+    heatingRoomThermostats: Math.max(0, ceil(s.heatingRoomThermostats)),
   };
+}
+
+function heatingBoilerCatalogId(s) {
+  if (s.heatingBoilerType === 'gas') return 'ENG-MAT-HEAT-BOILER-GAS';
+  const powers = [6, 9, 12, 15, 18, 24];
+  const power = powers.find(value => value >= s.heatingBoilerPowerKw) || 24;
+  return `ENG-MAT-HEAT-BOILER-E${power}`;
+}
+
+function heatingLines(s) {
+  const stageName = ENGINEERING_STAGES.find(item => item.value === s.heatingStage)?.label.split(' · ')[0] || '';
+  const group = `Отопление · ${stageName}`;
+  const area = s.heatingArea;
+  if (!(area > 0)) return [];
+  const pipePerSquareMeter = (1000 / s.heatingPipeStepMm) * 1.05;
+  const pipeLength = reserve(area * pipePerSquareMeter, s.reserve);
+  const loops = Math.max(1, ceil(pipeLength / s.heatingMaxLoopLength));
+  const extraScreedLayers = Math.max(0, (s.screedThicknessMm - 50) / 10);
+  const lines = [];
+  if (s.includeDesign) lines.push(descriptor('ENG-LAB-HEAT-DESIGN', 1, group, 'heating-design'));
+  if (s.underfloorHeating) {
+    if (s.heatingWaterproofing) lines.push(descriptor('ENG-MAT-HEAT-WATERPROOFING', reserve(area, s.reserve), group, 'heating-waterproofing'));
+    if (s.heatingMesh) lines.push(descriptor('ENG-MAT-HEAT-MESH', reserve(area, s.reserve), group, 'heating-mesh'));
+    lines.push(
+      descriptor('ENG-MAT-HEAT-PEX16', pipeLength, group, 'heating-pex'),
+      descriptor('ENG-MAT-HEAT-TIES', ceil(pipeLength * 2.5), group, 'heating-ties'),
+      descriptor('ENG-MAT-HEAT-MANIFOLD', loops, group, 'heating-manifold'),
+      descriptor('ENG-MAT-HEAT-DAMPER', reserve(Math.sqrt(area) * 4, s.reserve), group, 'heating-damper'),
+      descriptor('ENG-LAB-HEAT-FLOOR', area, group, 'heating-floor-work'),
+      descriptor('ENG-LAB-HEAT-PRESSURE', 1, group, 'heating-pressure-test'),
+    );
+    if (rank[s.heatingStage] >= 1) lines.push(
+      descriptor('ENG-MAT-HEAT-SCREED-BASE', area, `${group} · стяжка ${s.screedThicknessMm} мм`, 'heating-screed-base-material'),
+      descriptor('ENG-LAB-HEAT-SCREED-BASE', area, `${group} · стяжка ${s.screedThicknessMm} мм`, 'heating-screed-base-work'),
+      descriptor('ENG-MAT-HEAT-SCREED-EXTRA', area * extraScreedLayers, `${group} · стяжка ${s.screedThicknessMm} мм`, 'heating-screed-extra'),
+    );
+  }
+  if (rank[s.heatingStage] >= 1) lines.push(
+    descriptor(heatingBoilerCatalogId(s), 1, group, 'heating-boiler'),
+    descriptor('ENG-MAT-HEAT-SAFETY', 1, group, 'heating-safety'),
+    descriptor('ENG-MAT-HEAT-THERMOSTAT', s.heatingRoomThermostats, group, 'heating-thermostats'),
+    descriptor('ENG-LAB-HEAT-BOILER', 1, group, 'heating-boiler-work'),
+  );
+  if (rank[s.heatingStage] >= 2) lines.push(descriptor('ENG-LAB-HEAT-COMMISSION', 1, group, 'heating-commission'));
+  return lines;
 }
 
 function electricLines(s) {
@@ -303,11 +373,13 @@ export function calculateEngineering(project, inputs, metrics) {
     ...(project.services?.engineeringPlumbing ? waterLines(s) : []),
     ...(project.services?.engineeringSewerage ? sewerLines(s) : []),
     ...(project.services?.engineeringVentilation ? ventilationLines(s) : []),
+    ...(project.services?.engineeringHeating ? heatingLines(s) : []),
   ].filter(Boolean);
   const warnings = [];
   if (project.services?.engineeringVentilation) warnings.push('Расходы воздуха, баланс притока/вытяжки, шум и защиту от обмерзания нужно подтвердить схемой по СП 60.13330.2020. Котельная рассчитывается отдельно по паспорту оборудования.');
   if (project.services?.engineeringPlumbing && s.waterSource === 'well') warnings.push('Глубину колодца и модель насоса подтвердите по пробному бурению, дебиту, уровню воды, глубине промерзания и анализу воды.');
   if (project.services?.engineeringSewerage && s.sewerSystem === 'rings') warnings.push('Септик из колец применяйте только после проверки грунта, уровня грунтовых вод, санитарных расстояний и требуемой герметичности камер.');
   if (project.services?.engineeringElectric) warnings.push('Сечения кабелей, защита групп и заземление проверяются по выделенной мощности и однолинейной схеме; в SIP трассы не должны нарушать силовые узлы.');
+  if (project.services?.engineeringHeating) warnings.push('Мощность котла, теплопотери, длины и гидравлическое сопротивление контуров подтверждаются теплотехническим и гидравлическим расчётом. Стяжку над трубой выполняют по проекту пола и требованиям выбранной смеси.');
   return { mode: 'detailed', settings: s, lines, warnings };
 }

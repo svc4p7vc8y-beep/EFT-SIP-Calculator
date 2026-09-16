@@ -20,6 +20,11 @@ test('knowledge library contains client-ready engineering, SIP and checklist mat
   assert.ok(wetPoints.table.rows.length >= 10);
   assert.match(wetPoints.content.join(' '), /СП 30\.13330\.2020/);
   await access(new URL('../public/knowledge/wet-points-layout.svg', import.meta.url));
+  const heating = BUILTIN_KNOWLEDGE_ARTICLES.find(article => article.id === 'builtin-heating-layout');
+  assert.equal(heating.category, 'engineering');
+  assert.match(heating.content.join(' '), /опрессован/);
+  assert.ok(heating.steps.length >= 5);
+  await access(new URL('../public/knowledge/heating-layout-plan.svg', import.meta.url));
 
   const managerGuide = BUILTIN_KNOWLEDGE_ARTICLES.find(article => article.id === 'builtin-manager-guide');
   assert.equal(managerGuide.title, 'Полная инструкция менеджера');

@@ -5176,6 +5176,28 @@ select,
 .node-map-list button span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .node-map-list button strong { font-size: 13px; }
 .node-map-list button small { font-size: 11px; color: var(--muted); }
+
+.heating-assembly-note { display: grid; gap: 7px; padding: 14px; border: 1px solid #d7c398; border-radius: 12px; background: #fff8e8; color: #4f3a13; }
+.heating-assembly-note span { line-height: 1.55; }
+.heating-assembly-note small { color: #735d34; }
+.room-label-object { cursor: move; }
+.room-label-hit { fill: transparent; stroke: transparent; pointer-events: all; }
+.room-label-object:hover .room-label-hit, .room-label-object.selected .room-label-hit { fill: rgba(91, 145, 51, .08); stroke: #5b9133; stroke-width: 1.5px; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.room-label-object text { pointer-events: none; paint-order: stroke; stroke: rgba(255,255,255,.9); stroke-width: 3px; stroke-linejoin: round; }
+.room-label-object.selected text { stroke: #dff1d5; stroke-width: 5px; }
+.planner-annotation { cursor: move; }
+.planner-annotation line { stroke: #305d28; stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.planner-annotation text { fill: #20391c; font-weight: 750; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+.planner-annotation.selected text { fill: #145a9c; }
+.annotation-target-handle { fill: #fff; stroke: #4f8b32; stroke-width: 3px; vector-effect: non-scaling-stroke; }
+.print-plan-svg .print-wall-gap { stroke: #fff; stroke-width: 12px; vector-effect: non-scaling-stroke; }
+.print-plan-svg .print-annotation line { stroke: #31592a; stroke-width: 1.5px; }
+.print-plan-svg .print-annotation text { fill: #20391c; font-weight: 750; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+
+@media print {
+  .print-diagrams .print-diagram-sheet { grid-column: 1 / -1; break-before: page; page-break-before: always; break-after: page; page-break-after: always; min-height: 245mm; display: flex; flex-direction: column; justify-content: center; }
+  .print-diagrams .print-diagram-sheet svg { max-height: 205mm; }
+}
 .node-detail-card { display: grid; align-content: start; gap: 12px; }
 .node-detail-heading { display: flex; align-items: center; gap: 10px; }
 .node-detail-heading > div { display: grid; gap: 3px; }

@@ -70,6 +70,7 @@ const serviceGroups = [
       ["engineeringPlumbing", "Водоснабжение"],
       ["engineeringSewerage", "Канализация"],
       ["engineeringVentilation", "Вентиляция"],
+      ["engineeringHeating", "Отопление и тёплый пол"],
     ],
   ],
   [
@@ -317,6 +318,7 @@ export default function ParametersScreen() {
     "engineeringPlumbing",
     "engineeringSewerage",
     "engineeringVentilation",
+    "engineeringHeating",
   ].some((key) => project.services[key]);
   const checklist = [
     {

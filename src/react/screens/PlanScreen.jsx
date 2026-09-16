@@ -14,6 +14,7 @@ import {
   Layers3,
   ListTree,
   MoreHorizontal,
+  MessageSquareText,
   MousePointer2,
   PanelsTopLeft,
   Pentagon,
@@ -153,6 +154,7 @@ const TOOLS = [
   ["door", "Дверь / ворота", DoorOpen],
   ["stairOpening", "Лестничный проём", Grid3X3],
   ["dimension", "Размер", Ruler],
+  ["annotation", "Надпись со стрелкой", MessageSquareText],
   ["pile", "Отдельная свая", CircleDot],
   ["pileRow", "Ряд свай", ListTree],
   ["bindingLine", "Обвязка", Layers3],
@@ -175,7 +177,17 @@ function layoutFor(plan) {
     },
     { ...sides.bounds },
   );
-  const bounds = roomBounds;
+  const extraPoints = [
+    ...(plan.dimensions || []).flatMap(item => [{ x: item.x1, y: item.y1 }, { x: item.x2, y: item.y2 }]),
+    ...(plan.annotations || []).flatMap(item => [{ x: item.x, y: item.y }, { x: item.targetX, y: item.targetY }]),
+    ...(plan.rooms || []).filter(room => Number.isFinite(Number(room.labelX)) && Number.isFinite(Number(room.labelY))).map(room => ({ x: Number(room.labelX), y: Number(room.labelY) })),
+  ];
+  const bounds = extraPoints.reduce((result, point) => ({
+    minX: Math.min(result.minX, Number(point.x) || 0),
+    minY: Math.min(result.minY, Number(point.y) || 0),
+    maxX: Math.max(result.maxX, Number(point.x) || 0),
+    maxY: Math.max(result.maxY, Number(point.y) || 0),
+  }), roomBounds);
   const margin = 1.5;
   const minX = Math.min(0, bounds.minX) - margin;
   const minY = Math.min(0, bounds.minY) - margin;
@@ -244,6 +256,24 @@ function previewPlan(source, gesture) {
     const room = itemFor("rooms");
     room.points = movePoints(roomPoints(room), dx, dy, plan, axes);
     Object.assign(room, boundsOf(room.points));
+  } else if (gesture.type === "roomLabel") {
+    const room = itemFor("rooms");
+    if (room) {
+      const bounds = boundsOf(roomPoints(room));
+      room.labelX = roundCoord((Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : bounds.x + bounds.w / 2) + dx);
+      room.labelY = roundCoord((Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : bounds.y + bounds.h / 2) + dy);
+    }
+  } else if (gesture.type === "annotation") {
+    const item = itemFor("annotations");
+    if (item) {
+      if (gesture.kind === "annotationTarget") {
+        item.targetX = roundCoord(end.x);
+        item.targetY = roundCoord(end.y);
+      } else {
+        item.x = roundCoord(item.x + dx);
+        item.y = roundCoord(item.y + dy);
+      }
+    }
   } else if (gesture.type === "platform") {
     const item = itemFor("platforms");
     const origin = snapPoint({ x: item.x + dx, y: item.y + dy }, axes);
@@ -1324,6 +1354,11 @@ function PlanCanvas({
         return;
       }
       if (type === "houseContour" || type === "outerDimensions") return;
+      if (type === "roomLabel") {
+        const room = (next.rooms || []).find(item => item.id === id);
+        if (room) { delete room.labelX; delete room.labelY; }
+        return;
+      }
       const key =
         type === "room"
           ? "rooms"
@@ -1340,7 +1375,9 @@ function PlanCanvas({
                     : type === "bindingLine"
                       ? "bindingLines"
                       : type === "gap"
-                        ? "wallGaps"
+                      ? "wallGaps"
+                      : type === "annotation"
+                        ? "annotations"
                         : "piles";
       next[key] = (next[key] || []).filter((item) => item.id !== id);
     });
@@ -1383,7 +1420,7 @@ function PlanCanvas({
       };
       return;
     }
-    if (type === "room" && !isSamePlanSelection(selected, type, id)) {
+    if (["room", "roomLabel", "annotation"].includes(type) && !isSamePlanSelection(selected, type, id)) {
       event.stopPropagation();
       selectExisting({ type, id });
       return;
@@ -1509,19 +1546,35 @@ function PlanCanvas({
       );
       if (distance >= 0.03) {
         const id = uid("dimension");
-        commitPlan((next) =>
-          next.dimensions.push({
+        commitPlan((next) => {
+          const horizontal = Math.abs(point.x - dimensionStart.x) >= Math.abs(point.y - dimensionStart.y);
+          const sameSideCount = (next.dimensions || []).filter(item => {
+            const itemHorizontal = Math.abs(item.x2 - item.x1) >= Math.abs(item.y2 - item.y1);
+            if (itemHorizontal !== horizontal) return false;
+            return horizontal ? ((item.y1 < 0) === (dimensionStart.y < next.house.h / 2)) : ((item.x1 < 0) === (dimensionStart.x < next.house.w / 2));
+          }).length;
+          next.dimensions.push(dimensionOutsideHouse({
             id,
             x1: dimensionStart.x,
             y1: dimensionStart.y,
             x2: point.x,
             y2: point.y,
-          }),
-        );
+            fontSize: 16,
+          }, next.house, 0.8 + sameSideCount * 0.35));
+        });
         selectCreated({ type: "dimension", id });
       }
       setDimensionStart(null);
       setDimensionHover(null);
+      return;
+    }
+    if (tool === "annotation") {
+      const id = uid("annotation");
+      commitPlan(next => {
+        next.annotations ||= [];
+        next.annotations.push({ id, text: "Примечание", x: point.x, y: point.y, targetX: point.x + 1, targetY: point.y, fontSize: 18, showArrow: true });
+      });
+      selectCreated({ type: "annotation", id });
       return;
     }
     if (DRAW_TOOLS.has(tool)) begin(event, { kind: "draw", type: tool });
@@ -1899,6 +1952,9 @@ function PlanCanvas({
         >
           <path d="M0 0L10 5L0 10Z" fill="currentColor" />
         </marker>
+        <marker id="planner-note-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10Z" />
+        </marker>
         <pattern
           id="planner-wall-texture"
           width="8"
@@ -1999,10 +2055,17 @@ function PlanCanvas({
             const screen = points.map((point) => p(point.x, point.y));
             const bounds = boundsOf(points);
             const center = p(bounds.x + bounds.w / 2, bounds.y + bounds.h / 2);
+            const labelCenter = p(
+              Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : bounds.x + bounds.w / 2,
+              Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : bounds.y + bounds.h / 2,
+            );
             const labelWidth = Math.max(1, bounds.w * layout.scale - 18);
             const labelHeight = Math.max(1, bounds.h * layout.scale - 18);
             const fittedNameSize = Math.min(roomNameSize, labelWidth / Math.max(1, String(room.name).length * 0.62), labelHeight / 5);
             const fittedMetaSize = Math.min(roomMetaSize, labelWidth / 15, labelHeight / 5);
+            const roomLabelNameSize = Number(room.labelFontSize) || fittedNameSize;
+            const roomLabelHitWidth = Math.max(70, Math.min(labelWidth, String(room.name).length * roomLabelNameSize * .7));
+            const roomLabelHitHeight = Math.max(54, fittedMetaSize * (room.ceilingMode === "open-rafter" ? 4.2 : 3.1));
             const selectedNow =
               selected?.type === "room" && selected.id === room.id;
             return (
@@ -2023,40 +2086,13 @@ function PlanCanvas({
                     <polygon className="outer-wall outer-wall-texture extension-wall" points={screen.map((point) => `${point.x},${point.y}`).join(" ")} style={{ strokeWidth: outerWallWidth }} />
                   </>
                 ) : null}
-                <text
-                  className="room-name"
-                  style={{ fontSize: fittedNameSize }}
-                  x={center.x}
-                  y={center.y - fittedMetaSize * 0.8}
-                >
-                  {room.name}
-                </text>
-                <text
-                  className="room-dimensions"
-                  style={{ fontSize: fittedMetaSize }}
-                  x={center.x}
-                  y={center.y + fittedMetaSize * 0.55}
-                >
-                  {formatNumber(bounds.w)} × {formatNumber(bounds.h)} м
-                </text>
-                <text
-                  className="room-area"
-                  style={{ fontSize: fittedMetaSize }}
-                  x={center.x}
-                  y={center.y + fittedMetaSize * 1.8}
-                >
-                  {formatNumber(polygonArea(points))} м²
-                </text>
-                {room.ceilingMode === "open-rafter" ? (
-                  <text
-                    className="room-ceiling-mode"
-                    style={{ fontSize: fittedMetaSize }}
-                    x={center.x}
-                    y={center.y + fittedMetaSize * 3}
-                  >
-                    Второй свет
-                  </text>
-                ) : null}
+                <g className={`room-label-object ${selected?.type === "roomLabel" && selected.id === room.id ? "selected" : ""}`} onPointerDown={(event) => objectDown(event, "roomLabel", room.id)}>
+                  <rect className="room-label-hit" x={labelCenter.x - roomLabelHitWidth / 2} y={labelCenter.y - roomLabelHitHeight / 2} width={roomLabelHitWidth} height={roomLabelHitHeight} rx="7" />
+                  <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 0.8}>{room.name}</text>
+                  <text className="room-dimensions" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 0.55}>{formatNumber(bounds.w)} × {formatNumber(bounds.h)} м</text>
+                  <text className="room-area" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 1.8}>{formatNumber(polygonArea(points))} м²</text>
+                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 3}>Второй свет</text> : null}
+                </g>
                 {selectedNow
                   ? screen.map((point, index) => (
                       <circle
@@ -2078,6 +2114,16 @@ function PlanCanvas({
             );
           })
         : null}
+      {visibleLayers.plan ? (shownPlan.annotations || []).map(annotation => {
+        const label = p(annotation.x, annotation.y);
+        const target = p(annotation.targetX, annotation.targetY);
+        const selectedNow = selected?.type === "annotation" && selected.id === annotation.id;
+        return <g key={annotation.id} className={`planner-annotation planner-object ${selectedNow ? "selected" : ""}`} onPointerDown={event => objectDown(event, "annotation", annotation.id)}>
+          {annotation.showArrow !== false ? <line x1={label.x} y1={label.y + 5} x2={target.x} y2={target.y} markerEnd="url(#planner-note-arrow)" /> : null}
+          <text x={label.x} y={label.y} style={{ fontSize: Number(annotation.fontSize) || 18 }}>{annotation.text}</text>
+          {selectedNow && annotation.showArrow !== false ? <circle className="annotation-target-handle" cx={target.x} cy={target.y} r="7" onPointerDown={event => objectDown(event, "annotation", annotation.id, { kind: "annotationTarget" })} /> : null}
+        </g>;
+      }) : null}
       {visibleLayers.plan &&
       shownFloorOpening.width > 0 &&
       shownFloorOpening.length > 0 ? (
@@ -2514,7 +2560,7 @@ function PlanCanvas({
                 />
                 <text
                   className="dimension-text"
-                  style={{ fontSize: dimensionTextSize }}
+                  style={{ fontSize: Number(dimension.fontSize) || dimensionTextSize }}
                   x={(q.a.x + q.b.x) / 2}
                   y={(q.a.y + q.b.y) / 2 - 8}
                 >
@@ -3022,6 +3068,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
     const key =
       selected.type === "room"
         ? "rooms"
+        : selected.type === "annotation"
+          ? "annotations"
         : selected.type === "platform"
           ? "platforms"
           : selected.type === "opening"
@@ -3044,7 +3092,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
   };
   if (!selected)
     return <RoomList plan={plan} issues={issues} onSelect={setSelected} />;
-  const room = selected.type === "room" ? get("rooms") : null;
+  const room = ["room", "roomLabel"].includes(selected.type) ? get("rooms") : null;
+  const annotation = selected.type === "annotation" ? get("annotations") : null;
   const platform = selected.type === "platform" ? get("platforms") : null;
   const opening = selected.type === "opening" ? get("openings") : null;
   const pileRow = selected.type === "pileRow" ? get("pileRows") : null;
@@ -3160,6 +3209,24 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
         </button>
       </div>
     );
+  if (selected.type === "roomLabel" && room) {
+    const roomBounds = boundsOf(roomPoints(room));
+    return <div className="inspector-form">
+      <h3>Надпись комнаты</h3>
+      <RoomNameField value={room.name} onChange={(name) => update("rooms", item => { item.name = name; })} />
+      <NumberField label="Размер названия" value={room.labelFontSize || 22} suffix="px" min={10} max={64} step={1} onChange={value => update("rooms", item => { item.labelFontSize = value; })} />
+      <p className="inspector-note">Надпись двигается отдельно от комнаты. Первое нажатие выбирает её, следующее перетаскивание меняет положение.</p>
+      <button className="button secondary" onClick={() => update("rooms", item => { item.labelX = roundCoord(roomBounds.x + roomBounds.w / 2); item.labelY = roundCoord(roomBounds.y + roomBounds.h / 2); })}>Вернуть в центр комнаты</button>
+    </div>;
+  }
+  if (annotation) return <div className="inspector-form">
+    <h3>Своя надпись</h3>
+    <Field label="Текст"><textarea rows="3" value={annotation.text || ""} onChange={event => update("annotations", item => { item.text = event.target.value; })} /></Field>
+    <NumberField label="Размер шрифта" value={annotation.fontSize || 18} suffix="px" min={10} max={64} step={1} onChange={value => update("annotations", item => { item.fontSize = value; })} />
+    <Toggle label="Показывать стрелку" checked={annotation.showArrow !== false} onChange={value => update("annotations", item => { item.showArrow = value; })} />
+    <p className="inspector-note">Перетащите надпись отдельно. Зелёную точку на конце стрелки можно поставить на нужный узел.</p>
+    <button className="button danger-button" onClick={remove}><Trash2 />Удалить надпись</button>
+  </div>;
   if (room) {
     const bounds = boundsOf(roomPoints(room));
     const area = polygonArea(roomPoints(room));
@@ -3178,6 +3245,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
       <div className="inspector-form">
         <h3>{room.name}</h3>
         <RoomNameField value={room.name} onChange={(name) => update("rooms", (item) => { item.name = name; })} />
+        <NumberField label="Размер названия на плане" value={room.labelFontSize || 22} suffix="px" min={10} max={64} step={1} onChange={(value) => update("rooms", item => { item.labelFontSize = value; })} />
         <div className="form-grid">
           <NumberField
             label="Размер X"
@@ -3765,6 +3833,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
             {formatNumber(Math.hypot(item.x2 - item.x1, item.y2 - item.y1))} м
           </strong>
         </div>
+        {dimension ? <NumberField label="Размер шрифта" value={dimension.fontSize || 16} suffix="px" min={10} max={48} step={1} onChange={value => update("dimensions", item => { item.fontSize = value; })} /> : null}
         <p className="inspector-note">
           {wall
             ? "Тяните перегородку целиком поперёк её оси — примыкающие перегородки подтянутся и сохранят общий узел. Зелёные концы изменяют длину вручную."
@@ -3900,6 +3969,7 @@ const MOBILE_TOOLS = [
   ["door", "Дверь", DoorOpen],
   ["stairOpening", "Проём лестницы", Grid3X3],
   ["dimension", "Размер", Ruler],
+  ["annotation", "Надпись", MessageSquareText],
   ["pile", "Свая", PileIcon],
   ["pileRow", "Ряд свай", PileRowIcon],
   ["bindingLine", "Обвязка", Layers3],
@@ -3961,7 +4031,8 @@ function MobileSelectionAdjuster({
       );
       if (item) mutate(item);
     });
-  const room = selected?.type === "room" ? get("rooms") : null;
+  const room = ["room", "roomLabel"].includes(selected?.type) ? get("rooms") : null;
+  const annotation = selected?.type === "annotation" ? get("annotations") : null;
   const opening = selected?.type === "opening" ? get("openings") : null;
   const platform = selected?.type === "platform" ? get("platforms") : null;
   const wall = selected?.type === "wall" ? get("walls") : null;
@@ -3976,6 +4047,10 @@ function MobileSelectionAdjuster({
   const keyForSelection = () =>
     selected?.type === "room"
       ? "rooms"
+      : selected?.type === "roomLabel"
+        ? "rooms"
+        : selected?.type === "annotation"
+          ? "annotations"
       : selected?.type === "platform"
         ? "platforms"
         : selected?.type === "opening"
@@ -3995,6 +4070,12 @@ function MobileSelectionAdjuster({
     if (!selected) return;
     if (selected.type === "floorOpening") {
       commitFloorOpening({ x: 0, y: 0, width: 0, length: 0 });
+      setSelected(null);
+      setSheetMode("peek");
+      return;
+    }
+    if (selected.type === "roomLabel") {
+      update("rooms", item => { delete item.labelX; delete item.labelY; });
       setSelected(null);
       setSheetMode("peek");
       return;
@@ -4048,7 +4129,15 @@ function MobileSelectionAdjuster({
   let subtitle = `${formatNumber(metrics?.floorArea || plan.house.w * plan.house.h)} м²`;
   let controls = null;
   let detail = null;
-  if (room) {
+  if (selected?.type === "roomLabel" && room) {
+    title = `Надпись · ${room.name}`;
+    subtitle = "Двигается отдельно от комнаты";
+    controls = <><RoomNameField value={room.name} onChange={(name) => update("rooms", item => { item.name = name; })} /><MobileStepper label="Шрифт" value={room.labelFontSize || 22} suffix="px" onMinus={() => update("rooms", item => { item.labelFontSize = Math.max(10, (item.labelFontSize || 22) - 1); })} onPlus={() => update("rooms", item => { item.labelFontSize = Math.min(64, (item.labelFontSize || 22) + 1); })} /></>;
+  } else if (annotation) {
+    title = "Своя надпись";
+    subtitle = annotation.text || "Примечание";
+    controls = <Field label="Текст"><input value={annotation.text || ""} onChange={event => update("annotations", item => { item.text = event.target.value; })} /></Field>;
+  } else if (room) {
     const b = boundsOf(roomPoints(room));
     const area = polygonArea(roomPoints(room));
     title = room.name || "Комната";
@@ -4249,6 +4338,7 @@ function MobileSelectionAdjuster({
       platform ||
       pile ||
       gap ||
+      annotation ||
       stairOpening),
   );
   const beginSwipe = (event) => {
@@ -5194,9 +5284,19 @@ export default function PlanScreen({ onNavigate }) {
           return;
         }
         if (["houseContour", "outerDimensions"].includes(selected.type)) return;
+        if (selected.type === "roomLabel") {
+          commitPlan(next => {
+            const room = (next.rooms || []).find(item => item.id === selected.id);
+            if (room) { delete room.labelX; delete room.labelY; }
+          });
+          setSelected(null);
+          return;
+        }
         const key =
           selected.type === "room"
             ? "rooms"
+            : selected.type === "annotation"
+              ? "annotations"
             : selected.type === "platform"
               ? "platforms"
               : selected.type === "opening"
@@ -5267,7 +5367,9 @@ export default function PlanScreen({ onNavigate }) {
         : tool === "houseContour"
           ? "Нарисуйте замкнутый внешний контур дома: эркер, выступ или дом неправильной формы."
           : tool === "dimension"
-            ? "Нажмите первую точку, затем вторую. Размер появится между ними и привяжется к узлам/сетке."
+            ? "Нажмите первую точку, затем вторую. Размер автоматически вынесется за контур дома и займёт свободный уровень."
+            : tool === "annotation"
+              ? "Щёлкните на плане, введите свой текст и перетащите зелёную точку стрелки к нужному месту."
             : tool === "stairOpening"
               ? "Протяните общий лестничный проём. Он появится в том же месте на первом и втором этажах."
             : tool === "pileRow"

@@ -456,7 +456,7 @@ test('ceiling panel selection changes catalog price and ignores an override from
 test('print plan and roof layers default independently and survive migration', () => {
   const project = createDefaultProject();
   assert.deepEqual(project.settings.print, {
-    includePlan: true, includeRoof: false, showContour: true, showRooms: true,
+    includePlan: true, includeRoof: false, separatePileSheet: false, separateRoofSheet: true, showContour: true, showRooms: true,
     showOpenings: true, showPlatforms: true, showPiles: true, showBinding: true, showDimensions: true,
     compactAccessories: true, maximumCompact: false, includeLabor: true, includeAccessories: true
   });

@@ -22,6 +22,28 @@ test('keyboard arrows move platforms freely and openings along their wall', () =
   assert.deepEqual({ x: plan.openings[0].x, y: plan.openings[0].y }, { x: 2.1, y: 0 });
 });
 
+test('room labels and custom annotations move without changing room geometry', () => {
+  const labelRoom = room('a', 'Спальня', 1, 1, 4, 3);
+  const originalPoints = structuredClone(labelRoom.points);
+  const plan = {
+    house: { w: 8, h: 6 }, wallThickness: 0.174,
+    rooms: [labelRoom], annotations: [{ id: 'note', x: 2, y: 2, targetX: 3, targetY: 3 }],
+  };
+  assert.equal(nudgePlanSelection(plan, { type: 'roomLabel', id: 'a' }, .2, -.1), true);
+  assert.deepEqual(plan.rooms[0].points, originalPoints);
+  assert.deepEqual({ x: plan.rooms[0].labelX, y: plan.rooms[0].labelY }, { x: 2.7, y: 1.9 });
+  assert.equal(nudgePlanSelection(plan, { type: 'annotation', id: 'note' }, -.1, .3), true);
+  assert.deepEqual({ x: plan.annotations[0].x, y: plan.annotations[0].y }, { x: 1.9, y: 2.3 });
+  assert.deepEqual({ x: plan.annotations[0].targetX, y: plan.annotations[0].targetY }, { x: 3, y: 3 });
+});
+
+test('dimensions are placed outside the house on the requested level', () => {
+  const horizontal = dimensionOutsideHouse({ x1: 1, y1: 2, x2: 5, y2: 2 }, { w: 8, h: 6 }, 1.15);
+  assert.deepEqual(horizontal, { x1: 1, y1: -1.15, x2: 5, y2: -1.15 });
+  const vertical = dimensionOutsideHouse({ x1: 6, y1: 1, x2: 6, y2: 5 }, { w: 8, h: 6 }, 1.5);
+  assert.deepEqual(vertical, { x1: 9.5, y1: 1, x2: 9.5, y2: 5 });
+});
+
 test('adjacent room walls are merged into one shared wall', () => {
   const plan = {
     house: { w: 10, h: 8 }, wallThickness: 0.174,

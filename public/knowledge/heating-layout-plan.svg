@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Пример плана разводки водяного тёплого пола</title>
+  <desc id="desc">Котёл и коллектор соединены с четырьмя отдельными контурами в кухне-гостиной, спальнях и санузле.</desc>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8faf6"/><stop offset="1" stop-color="#edf3ea"/></linearGradient>
+    <marker id="flow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5 0 9Z" fill="#d75a45"/></marker>
+    <style>
+      .wall{fill:#fff;stroke:#34433d;stroke-width:10}.part{stroke:#7b8a84;stroke-width:6}.room{font:700 23px Arial,sans-serif;fill:#23312c}.note{font:18px Arial,sans-serif;fill:#52635c}.small{font:16px Arial,sans-serif;fill:#64746d}.supply{fill:none;stroke:#d75a45;stroke-width:8;stroke-linecap:round}.return{fill:none;stroke:#467cab;stroke-width:8;stroke-linecap:round}.loop{fill:none;stroke:#d75a45;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}.tag{fill:#fff;stroke:#9aaba3;stroke-width:2}.tagtext{font:700 17px Arial,sans-serif;fill:#30413a}
+    </style>
+  </defs>
+  <rect width="1200" height="760" rx="32" fill="url(#paper)"/>
+  <text x="70" y="67" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="#24322d">План разводки водяного тёплого пола</text>
+  <text x="70" y="102" class="note">Пример компоновки — длины и шаг контуров подтверждаются теплотехническим и гидравлическим расчётом</text>
+  <rect x="70" y="145" width="820" height="520" rx="8" class="wall"/>
+  <path d="M490 145V665M490 405H890M700 405V665" class="part" fill="none"/>
+  <text x="110" y="190" class="room">Кухня-гостиная · контур 1</text>
+  <text x="530" y="190" class="room">Спальня · контур 2</text>
+  <text x="530" y="450" class="room">Спальня · контур 3</text>
+  <text x="730" y="450" class="room">Санузел · контур 4</text>
+  <path d="M450 235H135V365H425V260H165V335H395V290H195V310H365" class="loop"/>
+  <path d="M530 235H845V365H555V260H815V335H585V290H785V310H615" class="loop"/>
+  <path d="M530 485H665V625H555V510H640V600H580V535H615V575" class="loop"/>
+  <path d="M740 485H850V625H765V510H825V600H790V535H810V575" class="loop"/>
+  <rect x="405" y="370" width="170" height="72" rx="12" fill="#fff" stroke="#4b6259" stroke-width="4"/>
+  <text x="490" y="400" text-anchor="middle" class="tagtext">Коллектор</text>
+  <text x="490" y="424" text-anchor="middle" class="small">4 выхода</text>
+  <path d="M930 247H1070V365H930Z" fill="#fff" stroke="#4b6259" stroke-width="5"/>
+  <text x="1000" y="295" text-anchor="middle" class="tagtext">Котёл</text>
+  <text x="1000" y="323" text-anchor="middle" class="small">электрический</text>
+  <text x="1000" y="346" text-anchor="middle" class="small">или газовый</text>
+  <path d="M930 285H875V390H575" class="supply" marker-end="url(#flow)"/>
+  <path d="M575 420H900V330H930" class="return"/>
+  <rect x="930" y="405" width="220" height="178" rx="16" class="tag"/>
+  <circle cx="958" cy="444" r="8" fill="#d75a45"/><text x="980" y="451" class="note">Подача</text>
+  <circle cx="958" cy="480" r="8" fill="#467cab"/><text x="980" y="487" class="note">Обратка</text>
+  <text x="950" y="527" class="small">На плане фиксируют:</text>
+  <text x="950" y="553" class="small">№ · помещение · шаг</text>
+  <text x="950" y="577" class="small">длину · подачу · обратку</text>
+  <text x="70" y="715" class="note">Контуры выполняются цельной трубой PEX без соединений в стяжке; перед заливкой — опрессовка и фотофиксация.</text>
+</svg>

@@ -188,6 +188,10 @@ export function createProjectFromClientBrief(currentProject, raw) {
     next.services.engineeringPlumbing = enabled.has("Инженерия") && brief.engineering?.waterSource !== "Не нужен";
     next.services.engineeringSewerage = enabled.has("Инженерия") && brief.engineering?.sewer !== "Не нужна";
     next.services.engineeringVentilation = enabled.has("Инженерия") && Boolean(brief.engineering?.ventilation);
+    next.services.engineeringHeating = enabled.has("Инженерия") && Boolean(brief.engineering?.heating) && brief.engineering.heating !== "Не нужно";
+    if (next.services.engineeringHeating) {
+      next.settings.engineering.heatingBoilerType = String(brief.engineering.heating).toLowerCase().includes("газ") ? "gas" : "electric";
+    }
     next.services.internalFinish = enabled.has("Внутренняя отделка");
     next.services.externalFinish = enabled.has("Внешняя отделка");
   }

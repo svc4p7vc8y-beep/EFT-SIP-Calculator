@@ -16,6 +16,36 @@ function engineeringProject() {
   return project;
 }
 
+test('heating assembly includes every warm-floor layer and scales screed thickness', () => {
+  const project = engineeringProject();
+  project.services.engineeringHeating = true;
+  project.settings.engineering.heatingAuto = false;
+  project.settings.engineering.heatingArea = 100;
+  project.settings.engineering.screedThicknessMm = 70;
+  project.settings.engineering.heatingBoilerType = 'electric';
+  project.settings.engineering.heatingBoilerPowerKw = 12;
+  const result = calculateProject(project);
+  const lines = result.sections.find(section => section.key === 'engineering').lines;
+  for (const id of ['ENG-MAT-HEAT-WATERPROOFING', 'ENG-MAT-HEAT-MESH', 'ENG-MAT-HEAT-PEX16', 'ENG-MAT-HEAT-TIES', 'ENG-MAT-HEAT-SCREED-BASE', 'ENG-LAB-HEAT-SCREED-BASE', 'ENG-MAT-HEAT-BOILER-E12']) {
+    assert.ok(lines.some(line => line.catalogId === id), id);
+  }
+  assert.equal(lines.find(line => line.catalogId === 'ENG-MAT-HEAT-SCREED-EXTRA').qty, 200);
+  assert.match(result.engineering.warnings.join(' '), /гидравлическим расчётом/);
+});
+
+test('heating boiler selection supports gas and electric power ranges', () => {
+  const project = engineeringProject();
+  project.services.engineeringHeating = true;
+  project.settings.engineering.heatingAuto = false;
+  project.settings.engineering.heatingBoilerType = 'gas';
+  let lines = calculateProject(project).sections.find(section => section.key === 'engineering').lines;
+  assert.ok(lines.some(line => line.catalogId === 'ENG-MAT-HEAT-BOILER-GAS'));
+  project.settings.engineering.heatingBoilerType = 'electric';
+  project.settings.engineering.heatingBoilerPowerKw = 15;
+  lines = calculateProject(project).sections.find(section => section.key === 'engineering').lines;
+  assert.ok(lines.some(line => line.catalogId === 'ENG-MAT-HEAT-BOILER-E15'));
+});
+
 test('prefinish electrical work prepares socket points without supplying mechanisms', () => {
   const project = engineeringProject();
   project.settings.engineering.electricStage = 'prefinish';

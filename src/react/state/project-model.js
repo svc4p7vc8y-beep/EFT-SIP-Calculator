@@ -17,7 +17,7 @@ import {
 } from "../calculations/price-adjustments.js";
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 
-export const REACT_PROJECT_VERSION = 137;
+export const REACT_PROJECT_VERSION = 138;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -187,6 +187,7 @@ export function createDefaultPlan() {
       },
     ],
     dimensions: [],
+    annotations: [],
     platforms: [
       normalizeTerracePlatform({
         id: "terrace-main",
@@ -294,6 +295,7 @@ export function createEmptyPlan() {
     wallGaps: [],
     openings: [],
     dimensions: [],
+    annotations: [],
     platforms: [],
     piles: [],
     pileRows: [
@@ -367,6 +369,7 @@ export function createUpperFloorPlan(basePlan = createEmptyPlan()) {
     wallGaps: [],
     openings: [],
     dimensions: [],
+    annotations: [],
     platforms: [],
     piles: [],
     pileRows: [],
@@ -524,6 +527,7 @@ export function createDefaultProject() {
       engineeringPlumbing: false,
       engineeringSewerage: false,
       engineeringVentilation: false,
+      engineeringHeating: false,
       internalFinish: false,
       externalFinish: false,
     },
@@ -627,6 +631,8 @@ export function createDefaultProject() {
       print: {
         includePlan: true,
         includeRoof: false,
+        separatePileSheet: false,
+        separateRoofSheet: true,
         showContour: true,
         showRooms: true,
         showOpenings: true,
@@ -728,6 +734,7 @@ export function normalizePlan(plan) {
       ? plan.bindingLines
       : bindingLinesFromPileRows(normalizedPileRows),
     piles: plan.piles || [],
+    annotations: Array.isArray(plan.annotations) ? plan.annotations : [],
     floorOpening: {
       x: Math.max(0, Math.min(floorOpeningX, Math.max(0, house.w - floorOpeningWidth))),
       y: Math.max(0, Math.min(floorOpeningY, Math.max(0, house.h - floorOpeningLength))),

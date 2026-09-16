@@ -1,5 +1,5 @@
-import { Cable, Droplets, Fan, Layers3, Waves } from 'lucide-react';
-import { DEFAULT_ENGINEERING, ENGINEERING_STAGES, VENTILATION_SOLUTIONS } from '../calculations/engineering-model.js';
+import { Cable, Droplets, Fan, Flame, Layers3, Waves } from 'lucide-react';
+import { DEFAULT_ENGINEERING, ELECTRIC_BOILER_POWERS, ENGINEERING_STAGES, GAS_BOILER_POWERS, HEATING_BOILERS, VENTILATION_SOLUTIONS } from '../calculations/engineering-model.js';
 import { NumberField, SelectField, Stat, Toggle } from './ui.jsx';
 import { formatMoney } from '../utils/format.js';
 
@@ -41,6 +41,7 @@ export function EngineeringEditor({ project, calculation, commit }) {
       <Stat label="Водоснабжение" value={project.services.engineeringPlumbing ? formatMoney(subsystemTotal(lines, 'Водоснабжение')) : 'не включено'}/>
       <Stat label="Канализация" value={project.services.engineeringSewerage ? formatMoney(subsystemTotal(lines, 'Канализация')) : 'не включена'}/>
       <Stat label="Вентиляция" value={project.services.engineeringVentilation ? formatMoney(subsystemTotal(lines, 'Вентиляция')) : 'не включена'}/>
+      <Stat label="Отопление" value={project.services.engineeringHeating ? formatMoney(subsystemTotal(lines, 'Отопление')) : 'не включено'}/>
     </section>
     <details className="internal-global" open><summary>Общие параметры</summary><div className="form-grid"><NumberField label="Запас линейных материалов" value={Math.round((effective.reserve - 1) * 100)} suffix="%" step={1} onChange={value => set('reserve', 1 + value / 100)}/><Toggle label="Схемы и разметка" checked={effective.includeDesign !== false} onChange={value => set('includeDesign', value)}/></div><p>Каждая система имеет свою стадию. Предчистовая комплектация оставляет готовые точки, но не добавляет финальные приборы.</p></details>
 
@@ -62,6 +63,25 @@ export function EngineeringEditor({ project, calculation, commit }) {
     <section className={`engineering-block ${project.services.engineeringVentilation ? 'enabled' : ''}`}>
       <header><div><Fan/><span><strong>Вентиляция SIP-дома</strong><small>Постоянный приток, вытяжка мокрых зон и переток между комнатами</small></span></div><Toggle label="Включить" checked={project.services.engineeringVentilation} onChange={value => service('engineeringVentilation', value)}/></header>
       {project.services.engineeringVentilation ? <><div className="form-grid"><SelectField label="Стадия готовности" value={effective.ventilationStage} options={ENGINEERING_STAGES} onChange={value => set('ventilationStage', value)}/><SelectField label="Решение" value={effective.ventilationSolution} options={VENTILATION_SOLUTIONS} onChange={value => set('ventilationSolution', value)}/></div><StageNote stage={effective.ventilationStage} subject="клапаны, вентиляторы или рекуператоры"/><Toggle label="Количества из площади и мокрых комнат" checked={effective.ventilationAuto} onChange={value => set('ventilationAuto', value)}/><div className="form-grid four"><NumberField label="Воздуховоды" value={effective.ventDuct} suffix="м" onChange={value => set('ventDuct', value, 'ventilation')}/><NumberField label="Приточные точки" value={effective.supplyDevices} suffix="шт" step={1} onChange={value => set('supplyDevices', value, 'ventilation')}/><NumberField label="Вытяжные вентиляторы" value={effective.extractFans} suffix="шт" step={1} onChange={value => set('extractFans', value, 'ventilation')}/><NumberField label="Обычные решётки" value={effective.ventGrilles} suffix="шт" step={1} onChange={value => set('ventGrilles', value, 'ventilation')}/><NumberField label="Проходки на кровле" value={effective.roofPassages} suffix="шт" step={1} onChange={value => set('roofPassages', value, 'ventilation')}/><NumberField label="Переточные решётки" value={effective.transferGrilles} suffix="шт" step={1} onChange={value => set('transferGrilles', value, 'ventilation')}/></div><div className="ventilation-options"><article><strong>КИВ + вытяжка</strong><span>Самый доступный вариант. Даёт приток в жилые комнаты и принудительную вытяжку из санузлов.</span></article><article><strong>Комнатные рекуператоры</strong><span>Меньше теплопотерь, нет большой сети воздуховодов. Вытяжка мокрых зон остаётся.</span></article><article><strong>Общий приток</strong><span>Одна установка с фильтром и подогревом, разводка по комнатам и отдельная вытяжка.</span></article></div></> : null}
+    </section>
+    <section className={`engineering-block ${project.services.engineeringHeating ? 'enabled' : ''}`}>
+      <header><div><Flame/><span><strong>Отопление и водяной тёплый пол</strong><small>Гидроизоляция → сетка → PEX на хомутах → опрессовка → полусухая стяжка</small></span></div><Toggle label="Включить" checked={project.services.engineeringHeating === true} onChange={value => service('engineeringHeating', value)}/></header>
+      {project.services.engineeringHeating ? <>
+        <div className="form-grid"><SelectField label="Стадия готовности" value={effective.heatingStage} options={ENGINEERING_STAGES} onChange={value => set('heatingStage', value)}/><SelectField label="Тип котла" value={effective.heatingBoilerType} options={HEATING_BOILERS} onChange={value => set('heatingBoilerType', value)}/></div>
+        <StageNote stage={effective.heatingStage} subject="котёл, автоматика, коллекторы и пусконаладка"/>
+        <Toggle label="Площадь тёплого пола из плана" checked={effective.heatingAuto} onChange={value => set('heatingAuto', value)}/>
+        <div className="form-grid four">
+          <NumberField label="Площадь укладки" value={effective.heatingArea} suffix="м²" min={0} step={1} onChange={value => set('heatingArea', value, 'heating')}/>
+          <NumberField label="Шаг трубы" value={effective.heatingPipeStepMm} suffix="мм" min={100} max={300} step={25} onChange={value => set('heatingPipeStepMm', value)}/>
+          <NumberField label="Максимальная длина контура" value={effective.heatingMaxLoopLength} suffix="м" min={50} max={120} step={5} onChange={value => set('heatingMaxLoopLength', value)}/>
+          <NumberField label="Толщина полусухой стяжки" value={effective.screedThicknessMm} suffix="мм" min={50} max={150} step={10} onChange={value => set('screedThicknessMm', value)}/>
+          <SelectField label="Мощность котла" value={String(effective.heatingBoilerPowerKw)} options={effective.heatingBoilerType === 'gas' ? GAS_BOILER_POWERS : ELECTRIC_BOILER_POWERS} onChange={value => set('heatingBoilerPowerKw', Number(value))}/>
+          <NumberField label="Комнатные термостаты" value={effective.heatingRoomThermostats} suffix="шт" min={0} step={1} onChange={value => set('heatingRoomThermostats', value)}/>
+        </div>
+        <div className="engineering-toggles"><Toggle label="Водяной тёплый пол" checked={effective.underfloorHeating !== false} onChange={value => set('underfloorHeating', value)}/><Toggle label="Гидроизоляция под сеткой" checked={effective.heatingWaterproofing !== false} onChange={value => set('heatingWaterproofing', value)}/><Toggle label="Сварная сетка" checked={effective.heatingMesh !== false} onChange={value => set('heatingMesh', value)}/></div>
+        <div className="heating-assembly-note"><strong>Состав слоя</strong><span>Плёнка с нахлёстом и заводом на стены → сварная сетка → труба из сшитого полиэтилена, закреплённая хомутами → опрессовка → полусухая стяжка {effective.screedThicknessMm} мм.</span><small>Толщина задаётся как общая толщина слоя. Покрытие, утеплитель и несущая способность основания проверяются отдельно.</small></div>
+        <p className="internal-source-note">Цена стяжки — предварительный ориентир Московской области на 16.09.2026: база 840 ₽/м² при 50 мм и площади 101–150 м², плюс 55 ₽/м² за каждые следующие 10 мм. Для небольших площадей действует минимальный заказ, а точная цена подтверждается замером.</p>
+      </> : null}
     </section>
     {calculation.engineering?.warnings?.length ? <aside className="engineering-warnings">{calculation.engineering.warnings.map(item => <p key={item}>{item}</p>)}</aside> : null}
     <p className="internal-source-note">Бюджетные цены помечены в прайс-листе как ориентировочные. Конкретные модели, трассы, расходы воздуха и защита подтверждаются проектом.</p>

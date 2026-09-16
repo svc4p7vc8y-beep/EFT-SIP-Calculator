@@ -106,6 +106,7 @@ export default function ProjectSummarySidebar({
     project.services.engineeringPlumbing && "Водоснабжение",
     project.services.engineeringSewerage && "Канализация",
     project.services.engineeringVentilation && "Вентиляция",
+    project.services.engineeringHeating && "Отопление",
   ].filter(Boolean);
   const activeScope = [
     project.services.foundation && "фундамент",

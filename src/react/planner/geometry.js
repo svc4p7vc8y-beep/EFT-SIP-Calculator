@@ -407,6 +407,21 @@ export function nudgePlanSelection(plan, selected, dx, dy) {
     Object.assign(room, boundsOf(room.points));
     return true;
   }
+  if (selected.type === 'roomLabel') {
+    const room = byId('rooms');
+    if (!room) return false;
+    const bounds = boundsOf(roomPoints(room));
+    room.labelX = roundCoord((Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : bounds.x + bounds.w / 2) + dx);
+    room.labelY = roundCoord((Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : bounds.y + bounds.h / 2) + dy);
+    return true;
+  }
+  if (selected.type === 'annotation') {
+    const annotation = byId('annotations');
+    if (!annotation) return false;
+    annotation.x = roundCoord(annotation.x + dx);
+    annotation.y = roundCoord(annotation.y + dy);
+    return true;
+  }
   if (selected.type === 'platform') {
     const platform = byId('platforms');
     if (!platform) return false;
