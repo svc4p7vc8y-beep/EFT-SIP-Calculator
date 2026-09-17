@@ -115,7 +115,7 @@ function scopeDescription(key, project, calculation, lineCount) {
       project.services.engineeringPlumbing && `водоснабжение: ${stage(s.waterStage)}${s.waterSource === 'well' ? `, колодец ${s.wellRings || 0} колец` : ''}`,
       project.services.engineeringSewerage && `канализация: ${stage(s.sewerStage)}`,
       project.services.engineeringVentilation && `вентиляция: ${stage(s.ventilationStage)}${ventilation ? `, ${ventilation}` : ''}`,
-      project.services.engineeringHeating && `отопление: ${stage(s.heatingStage)}, ${s.heatingBoilerType === 'gas' ? 'газовый' : 'электрический'} котёл ${s.heatingBoilerPowerKw || 0} кВт, тёплый пол ${formatNumber(s.heatingArea)} м², стяжка ${s.screedThicknessMm || 0} мм`,
+      project.services.engineeringHeating && `отопление: ${stage(s.heatingStage)}, ${s.heatingBoilerType === 'none' ? 'без котла' : `${s.heatingBoilerType === 'gas' ? 'газовый' : 'электрический'} котёл ${s.heatingBoilerPowerKw || 0} кВт`}, тёплый пол ${formatNumber(s.heatingArea)} м², стяжка ${s.screedThicknessMm || 0} мм`,
     ].filter(Boolean);
     return { summary: systems.join(', '), details: 'Каждая система учитывает выбранную стадию; в предчистовой комплектации финальные приборы не входят' };
   }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v138-heating-plan-1';
+const CACHE_NAME = 'eft-calculator-react-v139-heating-team-tables-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

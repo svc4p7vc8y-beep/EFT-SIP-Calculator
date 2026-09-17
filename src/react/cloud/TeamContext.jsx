@@ -283,6 +283,14 @@ export function TeamProvider({ children }) {
     }
     await refresh();
   }, [session.csrf, refresh]);
+  const deleteIntake = useCallback(async (id, password) => {
+    await eftApi("intake-delete", {
+      method: "POST",
+      csrf: session.csrf,
+      body: { id, password },
+    });
+    await refresh();
+  }, [session.csrf, refresh]);
   const markIntakeRead = useCallback(async (id) => {
     await eftApi("intake-read", {
       method: "POST",
@@ -339,6 +347,7 @@ export function TeamProvider({ children }) {
       createUser,
       reserveProjectNumber,
       deleteProject,
+      deleteIntake,
       markIntakeRead,
       refreshMailStatus,
       createFromIntake,
@@ -363,6 +372,7 @@ export function TeamProvider({ children }) {
       createUser,
       reserveProjectNumber,
       deleteProject,
+      deleteIntake,
       markIntakeRead,
       refreshMailStatus,
       createFromIntake,

@@ -268,6 +268,22 @@ if ($action === 'intake-read' && $method === 'POST') {
     eft_json(['ok' => true]);
 }
 
+if ($action === 'intake-delete' && $method === 'POST') {
+    $admin = eft_require_role(['admin']);
+    $input = eft_input(65536);
+    $id = (string)($input['id'] ?? '');
+    $password = (string)($input['password'] ?? '');
+    $statement = $pdo->prepare('SELECT password_hash FROM eft_users WHERE id = ? LIMIT 1');
+    $statement->execute([(int)$admin['id']]);
+    $hash = (string)$statement->fetchColumn();
+    if ($password === '' || !password_verify($password, $hash)) eft_json(['ok' => false, 'code' => 'invalid_password', 'message' => 'Неверный пароль. Анкета не удалена.'], 403);
+    $statement = $pdo->prepare("UPDATE eft_questionnaires SET status = 'archived', updated_at = NOW() WHERE id = ? AND status <> 'archived'");
+    $statement->execute([$id]);
+    if (!$statement->rowCount()) eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Анкета не найдена.'], 404);
+    eft_audit((int)$admin['id'], 'intake_archived', 'questionnaire', $id);
+    eft_json(['ok' => true]);
+}
+
 if ($action === 'attachment' && $method === 'GET') {
     $id = (string)($_GET['id'] ?? '');
     $statement = $pdo->prepare('SELECT original_name, mime_type, size_bytes, content FROM eft_questionnaire_attachments WHERE id = ? LIMIT 1');

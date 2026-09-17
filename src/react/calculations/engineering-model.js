@@ -16,6 +16,7 @@ export const VENTILATION_SOLUTIONS = [
 ];
 
 export const HEATING_BOILERS = [
+  { value: 'none', label: 'Без котла · только тёплый пол' },
   { value: 'electric', label: 'Электрический котёл' },
   { value: 'gas', label: 'Газовый котёл' },
 ];
@@ -131,6 +132,7 @@ export function normalizeEngineering(settings = {}, inputs = {}, metrics = {}) {
 }
 
 function heatingBoilerCatalogId(s) {
+  if (s.heatingBoilerType === 'none') return null;
   if (s.heatingBoilerType === 'gas') return 'ENG-MAT-HEAT-BOILER-GAS';
   const powers = [6, 9, 12, 15, 18, 24];
   const power = powers.find(value => value >= s.heatingBoilerPowerKw) || 24;
@@ -159,19 +161,19 @@ function heatingLines(s) {
       descriptor('ENG-LAB-HEAT-FLOOR', area, group, 'heating-floor-work'),
       descriptor('ENG-LAB-HEAT-PRESSURE', 1, group, 'heating-pressure-test'),
     );
-    if (rank[s.heatingStage] >= 1) lines.push(
+    lines.push(
       descriptor('ENG-MAT-HEAT-SCREED-BASE', area, `${group} · стяжка ${s.screedThicknessMm} мм`, 'heating-screed-base-material'),
       descriptor('ENG-LAB-HEAT-SCREED-BASE', area, `${group} · стяжка ${s.screedThicknessMm} мм`, 'heating-screed-base-work'),
       descriptor('ENG-MAT-HEAT-SCREED-EXTRA', area * extraScreedLayers, `${group} · стяжка ${s.screedThicknessMm} мм`, 'heating-screed-extra'),
     );
   }
-  if (rank[s.heatingStage] >= 1) lines.push(
+  if (rank[s.heatingStage] >= 1) lines.push(descriptor('ENG-MAT-HEAT-THERMOSTAT', s.heatingRoomThermostats, group, 'heating-thermostats'));
+  if (rank[s.heatingStage] >= 1 && s.heatingBoilerType !== 'none') lines.push(
     descriptor(heatingBoilerCatalogId(s), 1, group, 'heating-boiler'),
     descriptor('ENG-MAT-HEAT-SAFETY', 1, group, 'heating-safety'),
-    descriptor('ENG-MAT-HEAT-THERMOSTAT', s.heatingRoomThermostats, group, 'heating-thermostats'),
     descriptor('ENG-LAB-HEAT-BOILER', 1, group, 'heating-boiler-work'),
   );
-  if (rank[s.heatingStage] >= 2) lines.push(descriptor('ENG-LAB-HEAT-COMMISSION', 1, group, 'heating-commission'));
+  if (rank[s.heatingStage] >= 2 && s.heatingBoilerType !== 'none') lines.push(descriptor('ENG-LAB-HEAT-COMMISSION', 1, group, 'heating-commission'));
   return lines;
 }
 

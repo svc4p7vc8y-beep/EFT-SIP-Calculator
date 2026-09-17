@@ -1,10 +1,44 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { isPriceEditorUnlocked } from '../security/price-access.js';
 
 export function Field({ label, hint, children, className = '' }) {
   return <label className={`field ${className}`}><span>{label}</span>{children}{hint ? <small>{hint}</small> : null}</label>;
+}
+
+export function PasswordInput({ ariaLabel = 'Пароль', ...props }) {
+  const [visible, setVisible] = useState(false);
+  return <div className="password-input">
+    <input {...props} aria-label={ariaLabel} type={visible ? 'text' : 'password'} />
+    <button type="button" onClick={() => setVisible(value => !value)} aria-label={visible ? 'Скрыть пароль' : 'Показать пароль'} title={visible ? 'Скрыть пароль' : 'Показать пароль'}>
+      {visible ? <EyeOff /> : <Eye />}
+    </button>
+  </div>;
+}
+
+export function ResizableHeader({ children, className = '', minWidth = 78 }) {
+  const [width, setWidth] = useState(null);
+  const resize = (event) => {
+    const cell = event.currentTarget;
+    const cellRect = cell.getBoundingClientRect();
+    if (event.clientX < cellRect.right - 14) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = cellRect.width;
+    const move = (moveEvent) => setWidth(Math.max(minWidth, Math.round(startWidth + moveEvent.clientX - startX)));
+    const stop = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop, { once: true });
+  };
+  const style = width ? { width, minWidth: width, maxWidth: width } : undefined;
+  return <th className={className} style={style} title="Потяните правую границу, чтобы изменить ширину" onPointerDown={resize}>
+    {children}
+    <span className="column-resize-handle no-print" role="separator" aria-orientation="vertical" aria-label={`Изменить ширину колонки ${children}`} onPointerDown={resize} />
+  </th>;
 }
 
 function numericText(value) {
@@ -155,8 +189,8 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
       <div><button className="button secondary compact-button" onClick={onAddLine}><Plus />Добавить позицию</button>{changed ? <button className="button secondary compact-button" onClick={onResetSection}><RotateCcw />Сбросить правки{hiddenCount ? ` · скрыто ${hiddenCount}` : ''}</button> : null}</div>
     </div>
     {!lines?.length ? <div className="empty-state">{empty}</div> : <div className="table-wrap">
-      <table className="data-table editable-estimate-table">
-        <thead><tr><th>Номенклатура</th><th>Вид</th><th>Ед.</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th className="no-print">Действия</th></tr></thead>
+      <table className="data-table editable-estimate-table resizable-table">
+        <thead><tr><ResizableHeader minWidth={180}>Номенклатура</ResizableHeader><ResizableHeader>Вид</ResizableHeader><ResizableHeader>Ед.</ResizableHeader><ResizableHeader>Кол-во</ResizableHeader><ResizableHeader>Цена</ResizableHeader><ResizableHeader>Сумма</ResizableHeader><th className="no-print">Действия</th></tr></thead>
         <tbody>{lines.flatMap((line, index) => {
           const group = line.estimateGroup || 'Дополнительные позиции';
           const previousGroup = index ? (lines[index - 1].estimateGroup || 'Дополнительные позиции') : null;
@@ -164,7 +198,7 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
           <td><input className="estimate-cell-input no-print" aria-label={`Наименование: ${line.name}`} value={line.name} onChange={(event) => onChangeLine(line, { name: event.target.value })} /><span className="print-only">{line.name}</span></td>
           <td><select className="estimate-cell-input no-print" aria-label={`Вид: ${line.name}`} value={line.kind} onChange={(event) => onChangeLine(line, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select><span className={`kind ${line.kind} print-only`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td>
           <td><input className="estimate-cell-input unit-input no-print" aria-label={`Единица: ${line.name}`} value={line.unit} onChange={(event) => onChangeLine(line, { unit: event.target.value })} /><span className="print-only">{line.unit}</span></td>
-          <td><NumericInput className="estimate-number-input no-print" min={0} step={0.01} ariaLabel={`Количество: ${line.name}`} value={line.qty} onChange={(qty) => onChangeLine(line, { qty })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
+          <td><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Количество: ${line.name}`} value={line.qty} onChange={(qty) => onChangeLine(line, { qty })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
           <td><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Цена: ${line.name}`} title={priceUnlocked ? 'Цена только для текущего проекта' : 'Разблокируйте цены в разделе «Прайс-лист»'} disabled={!priceUnlocked} value={line.price} onChange={(price) => onChangeLine(line, { price })} /><span className="print-only">{formatMoney(line.price)}</span></td>
           <td>{formatMoney(line.qty * line.price)}</td>
           <td className="estimate-row-actions no-print">{line.projectOverride ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>

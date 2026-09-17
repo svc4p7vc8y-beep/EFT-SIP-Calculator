@@ -26,6 +26,15 @@ test("mail API requires employee session and CSRF for writes", async () => {
   assert.ok(api.indexOf("eft_csrf();") < api.indexOf("$action === 'mail-link'"));
 });
 
+test("questionnaire deletion is admin-only, password-confirmed and recoverable", async () => {
+  const api = await read("server/beget-api/api.php");
+  assert.match(api, /\$action === 'intake-delete'/);
+  assert.match(api, /eft_require_role\(\['admin'\]\)/);
+  assert.match(api, /password_verify\(\$password, \$hash\)/);
+  assert.match(api, /UPDATE eft_questionnaires SET status = 'archived'/);
+  assert.match(api, /'intake_archived'/);
+});
+
 test("mail links are persisted without copying mailbox contents", async () => {
   const schema = await read("server/beget-api/schema.sql");
   assert.match(schema, /CREATE TABLE IF NOT EXISTS eft_mail_links/);

@@ -68,14 +68,14 @@ export function EngineeringEditor({ project, calculation, commit }) {
       <header><div><Flame/><span><strong>Отопление и водяной тёплый пол</strong><small>Гидроизоляция → сетка → PEX на хомутах → опрессовка → полусухая стяжка</small></span></div><Toggle label="Включить" checked={project.services.engineeringHeating === true} onChange={value => service('engineeringHeating', value)}/></header>
       {project.services.engineeringHeating ? <>
         <div className="form-grid"><SelectField label="Стадия готовности" value={effective.heatingStage} options={ENGINEERING_STAGES} onChange={value => set('heatingStage', value)}/><SelectField label="Тип котла" value={effective.heatingBoilerType} options={HEATING_BOILERS} onChange={value => set('heatingBoilerType', value)}/></div>
-        <StageNote stage={effective.heatingStage} subject="котёл, автоматика, коллекторы и пусконаладка"/>
+        <StageNote stage={effective.heatingStage} subject={effective.heatingBoilerType === 'none' ? "термостаты и автоматика контуров" : "котёл, автоматика, коллекторы и пусконаладка"}/>
         <Toggle label="Площадь тёплого пола из плана" checked={effective.heatingAuto} onChange={value => set('heatingAuto', value)}/>
         <div className="form-grid four">
           <NumberField label="Площадь укладки" value={effective.heatingArea} suffix="м²" min={0} step={1} onChange={value => set('heatingArea', value, 'heating')}/>
           <NumberField label="Шаг трубы" value={effective.heatingPipeStepMm} suffix="мм" min={100} max={300} step={25} onChange={value => set('heatingPipeStepMm', value)}/>
           <NumberField label="Максимальная длина контура" value={effective.heatingMaxLoopLength} suffix="м" min={50} max={120} step={5} onChange={value => set('heatingMaxLoopLength', value)}/>
           <NumberField label="Толщина полусухой стяжки" value={effective.screedThicknessMm} suffix="мм" min={50} max={150} step={10} onChange={value => set('screedThicknessMm', value)}/>
-          <SelectField label="Мощность котла" value={String(effective.heatingBoilerPowerKw)} options={effective.heatingBoilerType === 'gas' ? GAS_BOILER_POWERS : ELECTRIC_BOILER_POWERS} onChange={value => set('heatingBoilerPowerKw', Number(value))}/>
+          {effective.heatingBoilerType !== 'none' ? <SelectField label="Мощность котла" value={String(effective.heatingBoilerPowerKw)} options={effective.heatingBoilerType === 'gas' ? GAS_BOILER_POWERS : ELECTRIC_BOILER_POWERS} onChange={value => set('heatingBoilerPowerKw', Number(value))}/> : null}
           <NumberField label="Комнатные термостаты" value={effective.heatingRoomThermostats} suffix="шт" min={0} step={1} onChange={value => set('heatingRoomThermostats', value)}/>
         </div>
         <div className="engineering-toggles"><Toggle label="Водяной тёплый пол" checked={effective.underfloorHeating !== false} onChange={value => set('underfloorHeating', value)}/><Toggle label="Гидроизоляция под сеткой" checked={effective.heatingWaterproofing !== false} onChange={value => set('heatingWaterproofing', value)}/><Toggle label="Сварная сетка" checked={effective.heatingMesh !== false} onChange={value => set('heatingMesh', value)}/></div>

@@ -12,6 +12,7 @@ import {
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { clientBriefSummary } from "../storage/client-brief.js";
 import { resolveEftApiUrl } from "../../shared/team-api.js";
+import { PasswordInput } from "../components/ui.jsx";
 
 const roleNames = {
   admin: "Администратор",
@@ -62,12 +63,17 @@ export default function TeamWorkspaceScreen({
       setNotice(error.message);
     }
   };
-  const removeProject = async (event) => {
+  const removeItem = async (event) => {
     event.preventDefault();
     setDeleting(true);
     try {
-      await team.deleteProject(deleteTarget.id, deletePassword);
-      setNotice(`Проект «${deleteTarget.name}» перемещён в архив`);
+      if (deleteTarget.kind === 'intake') {
+        await team.deleteIntake(deleteTarget.item.id, deletePassword);
+        setNotice(`Анкета ${deleteTarget.item.public_number} перемещена в архив`);
+      } else {
+        await team.deleteProject(deleteTarget.item.id, deletePassword);
+        setNotice(`Проект «${deleteTarget.item.name}» перемещён в архив`);
+      }
       setDeleteTarget(null);
       setDeletePassword("");
     } catch (error) {
@@ -159,7 +165,7 @@ export default function TeamWorkspaceScreen({
                 <em>рев. {item.revision}</em>
                 <div className="team-row-actions">
                   <button className="button secondary" onClick={() => onOpenProject(item.id)}>Открыть</button>
-                  {team.user?.role === "admin" ? <button className="button secondary danger" onClick={() => setDeleteTarget(item)} aria-label={`Удалить проект ${item.name}`}><Trash2 /></button> : null}
+                  {team.user?.role === "admin" ? <button className="button secondary danger" onClick={() => setDeleteTarget({ kind: 'project', item })} aria-label={`Удалить проект ${item.name}`}><Trash2 /></button> : null}
                 </div>
               </article>
             ))}
@@ -216,6 +222,7 @@ export default function TeamWorkspaceScreen({
                   <div className="team-row-actions">
                     {!item.is_read ? <button className="button secondary" onClick={() => team.markIntakeRead(item.id)}>Просмотрено</button> : null}
                     {summary ? <button className="button secondary" onClick={() => { team.markIntakeRead(item.id).catch(() => {}); onImportIntake(item); }}>Создать черновик</button> : null}
+                    {team.user?.role === "admin" ? <button className="button secondary danger" onClick={() => setDeleteTarget({ kind: 'intake', item })} aria-label={`Удалить анкету ${item.public_number}`}><Trash2 /></button> : null}
                   </div>
                 </article>
               );
@@ -268,8 +275,8 @@ export default function TeamWorkspaceScreen({
               }
               required
             />
-            <input
-              type="password"
+            <PasswordInput
+              ariaLabel="Временный пароль сотрудника"
               minLength="12"
               placeholder="Временный пароль, от 12 символов"
               value={newUser.password}
@@ -294,10 +301,10 @@ export default function TeamWorkspaceScreen({
         </div>
       ) : null}
       {deleteTarget ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteTarget(null)}>
-        <form className="modal delete-project-dialog" role="dialog" aria-modal="true" onSubmit={removeProject} onMouseDown={(event) => event.stopPropagation()}>
-          <header><div><h2>Удалить проект?</h2><p>«{deleteTarget.name}» исчезнет из общего списка, но останется в архиве и журнале действий.</p></div></header>
-          <label><span>Пароль администратора</span><input autoFocus type="password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} required /></label>
-          <footer><button type="button" className="button secondary" onClick={() => setDeleteTarget(null)}>Отмена</button><button className="button danger" disabled={deleting}>{deleting ? "Удаляем…" : "Удалить проект"}</button></footer>
+        <form className="modal delete-project-dialog" role="dialog" aria-modal="true" onSubmit={removeItem} onMouseDown={(event) => event.stopPropagation()}>
+          <header><div><h2>{deleteTarget.kind === 'intake' ? 'Удалить анкету?' : 'Удалить проект?'}</h2><p>{deleteTarget.kind === 'intake' ? `Анкета ${deleteTarget.item.public_number} исчезнет из входящих, но останется в архиве и журнале действий.` : `«${deleteTarget.item.name}» исчезнет из общего списка, но останется в архиве и журнале действий.`}</p></div></header>
+          <label><span>Пароль администратора</span><PasswordInput autoFocus autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} ariaLabel="Пароль администратора" required /></label>
+          <footer><button type="button" className="button secondary" onClick={() => setDeleteTarget(null)}>Отмена</button><button className="button danger" disabled={deleting}>{deleting ? "Удаляем…" : deleteTarget.kind === 'intake' ? "Удалить анкету" : "Удалить проект"}</button></footer>
         </form>
       </div> : null}
     </section>

@@ -1,4 +1,4 @@
-import { ROOM_NAME_GROUPS } from '../data/room-names.js';
+import { ROOM_NAMES_ALPHABETICAL } from '../data/room-names.js';
 
 export function RoomNameField({ value, onChange }) {
   return <div className="room-name-field">
@@ -10,9 +10,7 @@ export function RoomNameField({ value, onChange }) {
       <span>Типовое название</span>
       <select aria-label="Выбрать название комнаты" value="" onChange={event => { if (event.target.value) onChange(event.target.value); }}>
         <option value="" disabled>Выбрать из списка…</option>
-        {ROOM_NAME_GROUPS.map(group => <optgroup key={group.label} label={group.label}>
-          {group.names.map(name => <option key={name} value={name}>{name}</option>)}
-        </optgroup>)}
+        {ROOM_NAMES_ALPHABETICAL.map(name => <option key={name} value={name}>{name}</option>)}
       </select>
     </label>
   </div>;

@@ -46,6 +46,20 @@ test('heating boiler selection supports gas and electric power ranges', () => {
   assert.ok(lines.some(line => line.catalogId === 'ENG-MAT-HEAT-BOILER-E15'));
 });
 
+test('warm floor always includes screed and can be calculated without a boiler', () => {
+  const project = engineeringProject();
+  project.services.engineeringHeating = true;
+  project.settings.engineering.heatingAuto = false;
+  project.settings.engineering.heatingArea = 80;
+  project.settings.engineering.heatingStage = 'rough';
+  project.settings.engineering.heatingBoilerType = 'none';
+  const lines = calculateProject(project).sections.find(section => section.key === 'engineering').lines;
+  assert.ok(lines.some(line => line.catalogId === 'ENG-MAT-HEAT-SCREED-BASE'));
+  assert.ok(lines.some(line => line.catalogId === 'ENG-LAB-HEAT-SCREED-BASE'));
+  assert.ok(!lines.some(line => line.catalogId?.includes('HEAT-BOILER')));
+  assert.ok(!lines.some(line => line.catalogId === 'ENG-LAB-HEAT-COMMISSION'));
+});
+
 test('prefinish electrical work prepares socket points without supplying mechanisms', () => {
   const project = engineeringProject();
   project.settings.engineering.electricStage = 'prefinish';

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { LockKeyhole, LogIn } from "lucide-react";
 import { useTeam } from "../cloud/TeamContext.jsx";
+import { PasswordInput } from "./ui.jsx";
 
 export default function TeamLogin() {
   const team = useTeam();
@@ -59,8 +60,8 @@ export default function TeamLogin() {
         </label>
         <label>
           Пароль
-          <input
-            type="password"
+          <PasswordInput
+            ariaLabel="Пароль сотрудника"
             autoComplete="current-password"
             value={form.password}
             onChange={(event) =>
