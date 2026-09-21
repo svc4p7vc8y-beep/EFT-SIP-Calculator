@@ -87,7 +87,25 @@ function eft_uuid(): string {
 
 function eft_user(): array {
     eft_start_session();
-    if (empty($_SESSION['user'])) eft_json(['ok' => false, 'code' => 'authentication_required', 'message' => 'Требуется вход сотрудника.'], 401);
+    $user = eft_session_user();
+    if (!$user) eft_json(['ok' => false, 'code' => 'authentication_required', 'message' => 'Требуется повторный вход сотрудника.'], 401);
+    return $user;
+}
+
+function eft_session_tag(array $row): string {
+    return hash_hmac('sha256', (string)$row['password_hash'] . '|' . (string)$row['role'] . '|' . (string)$row['active'], (string)eft_config()['app_secret']);
+}
+
+function eft_session_user(): ?array {
+    if (empty($_SESSION['user']['id']) || empty($_SESSION['auth_tag'])) return null;
+    $statement = eft_db()->prepare('SELECT id, username, display_name, password_hash, role, active FROM eft_users WHERE id = ? LIMIT 1');
+    $statement->execute([(int)$_SESSION['user']['id']]);
+    $row = $statement->fetch();
+    if (!$row || !(int)$row['active'] || !hash_equals(eft_session_tag($row), (string)$_SESSION['auth_tag'])) {
+        unset($_SESSION['user'], $_SESSION['auth_tag'], $_SESSION['csrf']);
+        return null;
+    }
+    $_SESSION['user'] = ['id' => (int)$row['id'], 'username' => $row['username'], 'displayName' => $row['display_name'], 'role' => $row['role']];
     return $_SESSION['user'];
 }
 

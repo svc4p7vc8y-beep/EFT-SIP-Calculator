@@ -322,11 +322,11 @@ export function App() {
     setNotice("Проект сохранён на компьютер и в резервные копии");
   };
 
-  const openTeamProject = async (id) => {
+  const openTeamProject = async (id, destination = 'plan') => {
     try {
       const result = await team.openProject(id);
       replace(result.payload);
-      setActive("plan");
+      setActive(destination);
       setNotice(`Открыт общий проект «${result.name}»`);
     } catch (error) {
       setNotice(`Не удалось открыть общий проект: ${error.message}`);
@@ -610,6 +610,7 @@ export function App() {
               teamProps={{
                 project,
                 onOpenProject: openTeamProject,
+                onEditProject: (id) => openTeamProject(id, 'parameters'),
                 onImportIntake: importTeamIntake,
                 focusTab: teamFocus,
               }}

@@ -35,6 +35,22 @@ test("questionnaire deletion is admin-only, password-confirmed and recoverable",
   assert.match(api, /'intake_archived'/);
 });
 
+test("employee edits require administrator reauthentication and invalidate changed sessions", async () => {
+  const [api, bootstrap] = await Promise.all([read('server/beget-api/api.php'), read('server/beget-api/bootstrap.php')]);
+  const start = api.indexOf("$action === 'user-update'");
+  assert.ok(start > api.indexOf('$user = eft_user();'));
+  const update = api.slice(start);
+  assert.match(update, /eft_require_role\(\['admin'\]\)/);
+  assert.match(update, /password_verify\(\$adminPassword/);
+  assert.match(update, /password_hash\(\$newPassword, PASSWORD_DEFAULT\)/);
+  assert.match(update, /self_lockout/);
+  assert.match(update, /last_admin/);
+  assert.match(update, /'user_updated'/);
+  assert.doesNotMatch(update, /'newPassword'\s*=>\s*\$newPassword/);
+  assert.match(bootstrap, /function eft_session_user/);
+  assert.match(bootstrap, /hash_equals\(eft_session_tag\(\$row\)/);
+});
+
 test("mail links are persisted without copying mailbox contents", async () => {
   const schema = await read("server/beget-api/schema.sql");
   assert.match(schema, /CREATE TABLE IF NOT EXISTS eft_mail_links/);

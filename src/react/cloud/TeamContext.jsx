@@ -45,8 +45,17 @@ export function TeamProvider({ children }) {
     if (!session.user) return;
     const requests = [eftApi("projects"), eftApi("intakes")];
     if (session.user.role === "admin") requests.push(eftApi("users"));
-    const [projectResult, intakeResult, userResult] =
-      await Promise.all(requests);
+    let projectResult, intakeResult, userResult;
+    try {
+      [projectResult, intakeResult, userResult] = await Promise.all(requests);
+    } catch (error) {
+      if (error.code === 'authentication_required') {
+        currentRef.current = null;
+        setCurrent(null);
+        setSession({ ready: true, user: null, csrf: '', error: 'Сеанс завершён. Войдите с новым паролем.' });
+      }
+      throw error;
+    }
     setProjects(projectResult.projects || []);
     setIntakes(intakeResult.intakes || []);
     setUnreadIntakes(Number(intakeResult.unread || 0));
@@ -263,6 +272,15 @@ export function TeamProvider({ children }) {
     },
     [session.csrf, refresh],
   );
+  const updateUser = useCallback(async (data) => {
+    const result = await eftApi('user-update', { method: 'POST', csrf: session.csrf, body: data });
+    if (result.loggedOut) {
+      setSession({ ready: true, user: null, csrf: '', error: '' });
+      currentRef.current = null;
+      setCurrent(null);
+    } else await refresh();
+    return result;
+  }, [session.csrf, refresh]);
   const reserveProjectNumber = useCallback(async () => {
     const result = await eftApi("project-number", {
       method: "POST",
@@ -345,6 +363,7 @@ export function TeamProvider({ children }) {
       openProject,
       saveProject,
       createUser,
+      updateUser,
       reserveProjectNumber,
       deleteProject,
       deleteIntake,
@@ -370,6 +389,7 @@ export function TeamProvider({ children }) {
       openProject,
       saveProject,
       createUser,
+      updateUser,
       reserveProjectNumber,
       deleteProject,
       deleteIntake,

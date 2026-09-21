@@ -16,8 +16,9 @@ import {
   normalizePriceAdjustments,
 } from "../calculations/price-adjustments.js";
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
+import { normalizeEstimateImages } from './estimate-images.js';
 
-export const REACT_PROJECT_VERSION = 140;
+export const REACT_PROJECT_VERSION = 141;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -498,6 +499,7 @@ export function createDefaultProject() {
     },
     plan,
     upperFloors: [],
+    estimateImages: [],
     construction: {
       floorPanels: [],
       wallPanels: [],
@@ -901,6 +903,7 @@ export function migrateProject(raw) {
     meta: { ...base.meta, ...meta, floors: requestedFloorCount },
     plan,
     upperFloors,
+    estimateImages: normalizeEstimateImages(raw.estimateImages),
     construction: Object.fromEntries(
       Object.keys(base.construction).map((key) => [
         key,

@@ -12,7 +12,7 @@ $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $pdo = eft_db();
 
 if ($action === 'session' && $method === 'GET') {
-    $user = $_SESSION['user'] ?? null;
+    $user = eft_session_user();
     eft_json(['ok' => true, 'user' => $user, 'csrf' => $user ? ($_SESSION['csrf'] ?? '') : '']);
 }
 
@@ -30,6 +30,7 @@ if ($action === 'login' && $method === 'POST') {
     session_regenerate_id(true);
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
     $_SESSION['user'] = ['id' => (int)$row['id'], 'username' => $row['username'], 'displayName' => $row['display_name'], 'role' => $row['role']];
+    $_SESSION['auth_tag'] = eft_session_tag($row);
     $pdo->prepare('UPDATE eft_users SET last_login_at = NOW() WHERE id = ?')->execute([(int)$row['id']]);
     eft_audit((int)$row['id'], 'login', 'session');
     eft_json(['ok' => true, 'user' => $_SESSION['user'], 'csrf' => $_SESSION['csrf']]);
@@ -352,6 +353,52 @@ if ($action === 'users' && $method === 'POST') {
     }
     eft_audit((int)$admin['id'], 'user_created', 'user', (string)$pdo->lastInsertId(), ['username' => $username, 'role' => $role]);
     eft_json(['ok' => true], 201);
+}
+
+if ($action === 'user-update' && $method === 'POST') {
+    $admin = eft_require_role(['admin']);
+    $input = eft_input(65536);
+    $id = (int)($input['id'] ?? 0);
+    $username = mb_strtolower(trim((string)($input['username'] ?? '')));
+    $displayName = mb_substr(trim((string)($input['displayName'] ?? '')), 0, 160);
+    $role = (string)($input['role'] ?? '');
+    $active = ($input['active'] ?? false) === true;
+    $newPassword = (string)($input['newPassword'] ?? '');
+    $adminPassword = (string)($input['adminPassword'] ?? '');
+    if ($id < 1 || !preg_match('/^[a-z0-9._-]{3,80}$/', $username) || $displayName === '' || !in_array($role, ['admin', 'manager', 'estimator', 'viewer'], true) || ($newPassword !== '' && strlen($newPassword) < 12)) {
+        eft_json(['ok' => false, 'code' => 'invalid_user', 'message' => 'Проверьте логин, имя, роль и новый пароль (не короче 12 символов).'], 422);
+    }
+    $statement = $pdo->prepare('SELECT password_hash FROM eft_users WHERE id = ? LIMIT 1');
+    $statement->execute([(int)$admin['id']]);
+    if ($adminPassword === '' || !password_verify($adminPassword, (string)$statement->fetchColumn())) {
+        eft_json(['ok' => false, 'code' => 'invalid_password', 'message' => 'Неверный пароль администратора. Изменения не сохранены.'], 403);
+    }
+    $pdo->beginTransaction();
+    try {
+        $activeAdmins = $pdo->query("SELECT id FROM eft_users WHERE role = 'admin' AND active = 1 FOR UPDATE")->fetchAll();
+        $statement = $pdo->prepare('SELECT id, username, role, active FROM eft_users WHERE id = ? FOR UPDATE');
+        $statement->execute([$id]);
+        $existing = $statement->fetch();
+        if (!$existing) { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Сотрудник не найден.'], 404); }
+        if ((int)$admin['id'] === $id && (!$active || $role !== 'admin')) { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'self_lockout', 'message' => 'Нельзя отключить или понизить собственную учётную запись администратора.'], 422); }
+        if ($existing['role'] === 'admin' && (int)$existing['active'] === 1 && (!$active || $role !== 'admin')) {
+            if (count($activeAdmins) <= 1) { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'last_admin', 'message' => 'Последнего активного администратора нельзя отключить.'], 422); }
+        }
+        $hash = $newPassword === '' ? null : password_hash($newPassword, PASSWORD_DEFAULT);
+        $pdo->prepare('UPDATE eft_users SET username = ?, display_name = ?, role = ?, active = ?, password_hash = COALESCE(?, password_hash) WHERE id = ?')->execute([$username, $displayName, $role, $active ? 1 : 0, $hash, $id]);
+        $pdo->commit();
+    } catch (PDOException $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ((string)$error->getCode() === '23000') eft_json(['ok' => false, 'code' => 'duplicate_user', 'message' => 'Такой логин уже существует.'], 409);
+        throw $error;
+    }
+    eft_audit((int)$admin['id'], 'user_updated', 'user', (string)$id, ['username' => $username, 'role' => $role, 'active' => $active, 'passwordChanged' => $newPassword !== '']);
+    if ((int)$admin['id'] === $id) {
+        $_SESSION = [];
+        session_destroy();
+        eft_json(['ok' => true, 'loggedOut' => true]);
+    }
+    eft_json(['ok' => true]);
 }
 
 eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Метод API не найден.'], 404);

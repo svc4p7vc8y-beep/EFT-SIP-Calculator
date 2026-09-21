@@ -4,6 +4,7 @@ import {
   FilePlus2,
   Inbox,
   LogOut,
+  Pencil,
   RefreshCw,
   Trash2,
   UserPlus,
@@ -24,6 +25,7 @@ const roleNames = {
 export default function TeamWorkspaceScreen({
   project,
   onOpenProject,
+  onEditProject,
   onImportIntake,
   focusTab,
 }) {
@@ -33,6 +35,8 @@ export default function TeamWorkspaceScreen({
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [savingUser, setSavingUser] = useState(false);
   useEffect(() => { if (focusTab) setTab(focusTab); }, [focusTab]);
   const [newUser, setNewUser] = useState({
     username: "",
@@ -79,6 +83,16 @@ export default function TeamWorkspaceScreen({
     } catch (error) {
       setNotice(error.message);
     } finally { setDeleting(false); }
+  };
+  const editEmployee = async (event) => {
+    event.preventDefault();
+    setSavingUser(true);
+    try {
+      const result = await team.updateUser(editingUser);
+      setEditingUser(null);
+      setNotice(result.loggedOut ? 'Ваши данные изменены. Войдите повторно.' : 'Данные сотрудника сохранены. При смене пароля прежние сеансы завершатся.');
+    } catch (error) { setNotice(error.message); }
+    finally { setSavingUser(false); }
   };
   const attachmentUrl = (id) => `${resolveEftApiUrl()}?action=attachment&id=${encodeURIComponent(id)}`;
   return (
@@ -165,6 +179,7 @@ export default function TeamWorkspaceScreen({
                 <em>рев. {item.revision}</em>
                 <div className="team-row-actions">
                   <button className="button secondary" onClick={() => onOpenProject(item.id)}>Открыть</button>
+                  {team.user?.role === 'admin' ? <button className="button secondary" onClick={() => onEditProject(item.id)}><Pencil /> Редактировать данные</button> : null}
                   {team.user?.role === "admin" ? <button className="button secondary danger" onClick={() => setDeleteTarget({ kind: 'project', item })} aria-label={`Удалить проект ${item.name}`}><Trash2 /></button> : null}
                 </div>
               </article>
@@ -251,6 +266,7 @@ export default function TeamWorkspaceScreen({
                   </span>
                 </div>
                 <em>{item.active ? "активен" : "отключён"}</em>
+                <button type="button" className="button secondary" onClick={() => { setEditingUser({ id: item.id, username: item.username, displayName: item.display_name, role: item.role, active: Boolean(Number(item.active)), newPassword: '', adminPassword: '' }); setNotice(''); }} aria-label={`Изменить сотрудника ${item.display_name}`}><Pencil /> Изменить</button>
               </article>
             ))}
           </div>
@@ -300,6 +316,18 @@ export default function TeamWorkspaceScreen({
           </form>
         </div>
       ) : null}
+      {editingUser ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setEditingUser(null)}>
+        <form className="modal team-user-edit-dialog" role="dialog" aria-modal="true" aria-label="Редактирование сотрудника" onSubmit={editEmployee} onMouseDown={(event) => event.stopPropagation()}>
+          <header><h2>Редактирование сотрудника</h2><p>Пароль нельзя посмотреть: можно только задать новый. После смены пароля прежние сеансы сотрудника завершатся.</p></header>
+          <label><span>Логин латиницей</span><input value={editingUser.username} required minLength={3} maxLength={80} autoCapitalize="none" onChange={(event) => setEditingUser({ ...editingUser, username: event.target.value })} /></label>
+          <label><span>Имя сотрудника</span><input value={editingUser.displayName} required maxLength={160} onChange={(event) => setEditingUser({ ...editingUser, displayName: event.target.value })} /></label>
+          <label><span>Роль</span><select value={editingUser.role} onChange={(event) => setEditingUser({ ...editingUser, role: event.target.value })}><option value="manager">Менеджер</option><option value="estimator">Сметчик</option><option value="viewer">Просмотр</option><option value="admin">Администратор</option></select></label>
+          <label className="team-user-active"><input type="checkbox" checked={editingUser.active} onChange={(event) => setEditingUser({ ...editingUser, active: event.target.checked })} /> Учётная запись активна</label>
+          <label><span>Новый пароль (если нужно изменить)</span><PasswordInput ariaLabel="Новый пароль сотрудника" value={editingUser.newPassword} minLength={12} autoComplete="new-password" placeholder="Не менее 12 символов" onChange={(event) => setEditingUser({ ...editingUser, newPassword: event.target.value })} /></label>
+          <label><span>Текущий пароль администратора для подтверждения</span><PasswordInput ariaLabel="Пароль администратора для подтверждения" value={editingUser.adminPassword} autoComplete="current-password" required onChange={(event) => setEditingUser({ ...editingUser, adminPassword: event.target.value })} /></label>
+          <footer><button type="button" className="button secondary" onClick={() => setEditingUser(null)}>Отмена</button><button className="button" disabled={savingUser}>{savingUser ? 'Сохраняем…' : 'Сохранить изменения'}</button></footer>
+        </form>
+      </div> : null}
       {deleteTarget ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteTarget(null)}>
         <form className="modal delete-project-dialog" role="dialog" aria-modal="true" onSubmit={removeItem} onMouseDown={(event) => event.stopPropagation()}>
           <header><div><h2>{deleteTarget.kind === 'intake' ? 'Удалить анкету?' : 'Удалить проект?'}</h2><p>{deleteTarget.kind === 'intake' ? `Анкета ${deleteTarget.item.public_number} исчезнет из входящих, но останется в архиве и журнале действий.` : `«${deleteTarget.item.name}» исчезнет из общего списка, но останется в архиве и журнале действий.`}</p></div></header>

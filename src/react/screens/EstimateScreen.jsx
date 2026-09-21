@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { AlertTriangle, FileSpreadsheet, Printer } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
@@ -10,6 +10,7 @@ import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../comp
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { addEstimateLine, changeEstimateLine, removeEstimateLine, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
+import { MAX_ESTIMATE_IMAGES, MAX_ESTIMATE_IMAGE_DATA, prepareEstimateImage } from '../state/estimate-images.js';
 
 function EstimateSectionEditor({ section, project, commit }) {
   const hiddenCount = (project.estimateOverrides || []).filter((item) => item.section === section.key && item.excluded).length;
@@ -34,6 +35,36 @@ export default function EstimateScreen() {
     return () => window.removeEventListener('beforeprint', refreshDate);
   }, []);
   const { project, commit } = useProject();
+  const fileInput = useRef(null);
+  const [imageError, setImageError] = useState('');
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const estimateImages = project.estimateImages || [];
+  const addImages = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    setImageError('');
+    setUploadingImages(true);
+    try {
+      if (estimateImages.length + files.length > MAX_ESTIMATE_IMAGES) throw new Error(`В смету можно добавить не более ${MAX_ESTIMATE_IMAGES} изображений.`);
+      const added = [];
+      let total = estimateImages.reduce((sum, image) => sum + image.data.length, 0);
+      for (const file of files) {
+        const image = await prepareEstimateImage(file);
+        total += image.data.length;
+        if (total > MAX_ESTIMATE_IMAGE_DATA) throw new Error('Общий размер изображений для сметы превышает 2,8 МБ. Удалите часть изображений или выберите другие.');
+        added.push(image);
+      }
+      commit((next) => { next.estimateImages = [...(next.estimateImages || []), ...added]; return next; });
+    } catch (error) {
+      setImageError(error.message);
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+  const updateImage = (id, changes) => commit((next) => { next.estimateImages = (next.estimateImages || []).map(image => image.id === id ? { ...image, ...changes } : image); return next; });
+  const removeImage = (id) => commit((next) => { next.estimateImages = (next.estimateImages || []).filter(image => image.id !== id); return next; });
+  const moveImage = (index, direction) => commit((next) => { const images = [...(next.estimateImages || [])]; const target = index + direction; if (target < 0 || target >= images.length) return next; [images[index], images[target]] = [images[target], images[index]]; next.estimateImages = images; return next; });
   const calculation = useMemo(() => calculateProject(project), [project]);
   const commercialScope = useMemo(() => buildCommercialScope(project, calculation), [project, calculation]);
   const setPrintOption = (key, value) => commit((next) => { next.settings.print = { ...(next.settings.print || {}), [key]: value }; return next; });
@@ -83,6 +114,11 @@ export default function EstimateScreen() {
       </div>
       <div className="estimate-totals"><Stat label="Материалы" value={formatMoney(clientEstimate.totals.materials)} /><Stat label="Работы" value={formatMoney(clientEstimate.totals.labor)} /><Stat label="Итого по предложению" value={formatMoney(clientEstimate.totals.total)} tone="accent" /></div>
       <PrintProjectDiagrams project={project} calculation={calculation} />
+      <section className="estimate-images" aria-label="Изображения проекта в смете">
+        <header className="no-print"><div><h2>Свои изображения в смете</h2><p>Планы, эскизы и фотографии сохраняются вместе с проектом и печатаются в PDF.</p></div><button type="button" className="button secondary" disabled={uploadingImages || estimateImages.length >= MAX_ESTIMATE_IMAGES} onClick={() => fileInput.current?.click()}><ImagePlus />{uploadingImages ? 'Обработка…' : 'Добавить изображения'}</button><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addImages} /></header>
+        {imageError ? <p className="estimate-image-error no-print" role="alert">{imageError}</p> : null}
+        {estimateImages.length ? <div className="estimate-images-grid">{estimateImages.map((image, index) => <figure key={image.id}><img src={image.data} alt={image.caption || `Изображение проекта ${index + 1}`} /><figcaption><span className="print-only">{image.caption || `Изображение ${index + 1}`}</span><input className="no-print" aria-label={`Подпись изображения ${index + 1}`} value={image.caption} maxLength={160} placeholder="Подпись к изображению" onChange={(event) => updateImage(image.id, { caption: event.target.value })} /></figcaption><div className="estimate-image-actions no-print"><button type="button" aria-label={`Переместить изображение ${index + 1} влево`} disabled={index === 0} onClick={() => moveImage(index, -1)}><ArrowLeft /></button><button type="button" aria-label={`Переместить изображение ${index + 1} вправо`} disabled={index === estimateImages.length - 1} onClick={() => moveImage(index, 1)}><ArrowRight /></button><button type="button" aria-label={`Удалить изображение ${index + 1}`} onClick={() => removeImage(image.id)}><Trash2 /></button></div></figure>)}</div> : <p className="estimate-images-empty no-print">Пока без дополнительных изображений.</p>}
+      </section>
       <section className="commercial-scope" aria-labelledby="commercial-scope-title">
         <header><div><span>Комплектация проекта</span><h2 id="commercial-scope-title">Что посчитано и входит в предложение</h2></div><p>Перечень сформирован из активных разделов текущей сметы</p></header>
         <div className="commercial-scope-grid">{commercialScope.map((item) => <article key={item.key} className="commercial-scope-item"><div className="commercial-scope-heading"><h3>{item.title}</h3><strong>{item.total}</strong></div><p>{item.summary}</p><small>{item.details}</small><div className="commercial-scope-tags">{item.coverage.map((label) => <span key={label}>{label}</span>)}</div></article>)}</div>
