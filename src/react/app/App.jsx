@@ -257,32 +257,35 @@ export function App() {
       briefPreview.brief,
     );
     try {
-      if (!briefPreview.intakeId) nextProject.meta.projectNum = team.user
-        ? await team.reserveProjectNumber()
-        : await reserveLocalProjectNumber(project.meta.projectNum);
+      if (!team.user) nextProject.meta.projectNum = await reserveLocalProjectNumber(project.meta.projectNum);
       if (nextProject.request) nextProject.request.number = `КП-${nextProject.meta.projectNum}`;
     } catch (error) {
       setNotice(`Не удалось получить номер проекта: ${error.message}`);
       return;
     }
-    team.detachProject();
-    replace(nextProject);
-    setActive("parameters");
-    setNotice(`Создан черновик по заявке: ${briefPreview.fileName}`);
-    if (briefPreview.intakeId && team.user) {
-      team
-        .createFromIntake(nextProject, briefPreview.intakeId)
+    if (team.user) {
+      (briefPreview.intakeId
+        ? team.createFromIntake(nextProject, briefPreview.intakeId)
+        : team.createProject(nextProject))
         .then((created) => {
           replace(created.payload);
+          setActive("parameters");
           setNotice(
-            `Заявка ${briefPreview.fileName} импортирована в общий проект`,
+            created.intakeLinkWarning
+              ? `Проект создан, но связь с анкетой не установлена: ${created.intakeLinkWarning}`
+              : `Заявка ${briefPreview.fileName} импортирована в общий проект`,
           );
         })
         .catch((error) =>
           setNotice(
-            `Черновик создан локально, но общая база не сохранила его: ${error.message}`,
+            `Проект не создан: ${error.message}`,
           ),
         );
+    } else {
+      team.detachProject();
+      replace(nextProject);
+      setActive("parameters");
+      setNotice(`Создан черновик по заявке: ${briefPreview.fileName}`);
     }
     setBriefPreview(null);
   };
@@ -292,25 +295,29 @@ export function App() {
   };
 
   const createNewProject = async (useResidentialPreset) => {
-    checkpoint();
-    const next = createProjectWithCurrentPrices(project);
+    const next = useResidentialPreset
+      ? applyResidentialPreset(createProjectWithCurrentPrices(project))
+      : createProjectWithCurrentPrices(project);
     try {
-      const number = team.user
-        ? await team.reserveProjectNumber()
-        : await reserveLocalProjectNumber(project.meta.projectNum);
-      next.meta.projectNum = number;
-      if (next.request) next.request.number = `КП-${number}`;
+      if (team.user) {
+        const created = await team.createProject(next);
+        replace(created.payload);
+      } else {
+        const number = await reserveLocalProjectNumber(project.meta.projectNum);
+        next.meta.projectNum = number;
+        if (next.request) next.request.number = `КП-${number}`;
+        team.detachProject();
+        replace(next);
+      }
     } catch (error) {
-      setNotice(`Проект не создан: не удалось получить следующий номер — ${error.message}`);
+      setNotice(`Проект не создан: ${error.message}`);
       setNewProjectOpen(false);
       return;
     }
-    team.detachProject();
-    replace(useResidentialPreset ? applyResidentialPreset(next) : next);
     setActive("plan");
     setNotice(
       useResidentialPreset
-        ? "Создан новый проект по стандарту жилого дома"
+        ? "Создан новый проект по стандарту жилого дома" + (team.user ? " и сохранён в общей истории" : "")
         : "Создан новый проект без шаблона",
     );
     setNewProjectOpen(false);
@@ -611,6 +618,7 @@ export function App() {
                 project,
                 onOpenProject: openTeamProject,
                 onEditProject: (id) => openTeamProject(id, 'parameters'),
+                onCreatedProject: (created) => replace(created.payload),
                 onImportIntake: importTeamIntake,
                 focusTab: teamFocus,
               }}

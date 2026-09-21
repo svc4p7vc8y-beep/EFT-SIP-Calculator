@@ -328,20 +328,20 @@ export function TeamProvider({ children }) {
   }, []);
   const createFromIntake = useCallback(
     async (payload, intakeId) => {
-      const number = await reserveProjectNumber();
-      const numberedPayload = structuredClone(payload);
-      numberedPayload.meta.projectNum = number;
-      if (numberedPayload.request) numberedPayload.request.number = `КП-${number}`;
-      const created = await createProject(numberedPayload);
-      await eftApi("intake-status", {
-        method: "POST",
-        csrf: session.csrf,
-        body: { id: intakeId, status: "imported", projectId: created.id },
-      });
-      await refresh();
-      return { ...created, payload: numberedPayload };
+      const created = await createProject(payload);
+      try {
+        await eftApi("intake-status", {
+          method: "POST",
+          csrf: session.csrf,
+          body: { id: intakeId, status: "imported", projectId: created.id },
+        });
+        await refresh();
+        return created;
+      } catch (error) {
+        return { ...created, intakeLinkWarning: error.message };
+      }
     },
-    [createProject, reserveProjectNumber, session.csrf, refresh],
+    [createProject, session.csrf, refresh],
   );
 
   const value = useMemo(

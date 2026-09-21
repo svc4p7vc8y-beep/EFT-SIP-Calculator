@@ -18,14 +18,18 @@ import {
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 
-export const REACT_PROJECT_VERSION = 141;
+export const REACT_PROJECT_VERSION = 142;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
 export const REACT_BACKUPS_KEY = "eft-react-backups-v46";
 
 const clone = (value) => structuredClone(value);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const date = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
 const DEFAULT_PRICE_MATERIALS = [...catalog.priceMat, ...EXTERIOR_MATERIALS, ...INTERNAL_MATERIALS, ...ENGINEERING_MATERIALS];
 const DEFAULT_PRICE_LABOR = [...catalog.priceLab, ...EXTERIOR_LABOR, ...INTERNAL_LABOR, ...ENGINEERING_LABOR];
 

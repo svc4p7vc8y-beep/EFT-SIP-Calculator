@@ -29,6 +29,13 @@ foreach ($rows as $row) {
 }
 $statement = $pdo->prepare("UPDATE eft_counters SET next_value = GREATEST(next_value, ?) WHERE counter_key = 'project'");
 $statement->execute([$maximum + 1]);
+$pdo->exec("INSERT IGNORE INTO eft_counters (counter_key, next_value) VALUES ('application', 1)");
+$existingApplications = (int)$pdo->query('SELECT COUNT(*) FROM eft_questionnaires')->fetchColumn();
+$rows = $pdo->query("SELECT public_number FROM eft_questionnaires WHERE public_number REGEXP '^EFT-[0-9]{6}$'")->fetchAll();
+$maximumApplication = 0;
+foreach ($rows as $row) $maximumApplication = max($maximumApplication, (int)substr((string)$row['public_number'], 4));
+$statement = $pdo->prepare("UPDATE eft_counters SET next_value = GREATEST(next_value, ?) WHERE counter_key = 'application'");
+$statement->execute([max($existingApplications, $maximumApplication) + 1]);
 if ($isCli) echo "EFT database migration complete\n";
 else {
     header('Content-Type: application/json; charset=utf-8');

@@ -26,6 +26,7 @@ export default function TeamWorkspaceScreen({
   project,
   onOpenProject,
   onEditProject,
+  onCreatedProject,
   onImportIntake,
   focusTab,
 }) {
@@ -47,6 +48,7 @@ export default function TeamWorkspaceScreen({
   const create = async () => {
     try {
       const result = await team.createProject(project);
+      onCreatedProject?.(result);
       setNotice(`Создан общий проект «${result.name}»`);
     } catch (error) {
       setNotice(error.message);

@@ -56,7 +56,6 @@ if ($action === 'intake' && $method === 'POST') {
     if ($format === 'eft-client-brief') $input['customer']['phone'] = $phone;
     else $input['phone'] = $phone;
     $id = eft_uuid();
-    $number = 'EFT-' . date('ymd') . '-' . strtoupper(substr(str_replace('-', '', $id), 0, 6));
     $attachmentFiles = is_array($input['attachmentFiles'] ?? null) ? $input['attachmentFiles'] : [];
     unset($input['attachmentFiles']);
     if (count($attachmentFiles) > 8) eft_json(['ok' => false, 'code' => 'too_many_attachments', 'message' => 'Можно приложить не более 8 файлов.'], 422);
@@ -72,6 +71,7 @@ if ($action === 'intake' && $method === 'POST') {
         $decodedAttachments[] = ['id' => eft_uuid(), 'name' => mb_substr(basename((string)($file['name'] ?? 'file')), 0, 255), 'type' => $mime, 'content' => $content];
     }
     $pdo->beginTransaction();
+    $number = 'EFT-' . str_pad((string)eft_next_counter('application'), 6, '0', STR_PAD_LEFT);
     $statement = $pdo->prepare('INSERT INTO eft_questionnaires (id, public_number, customer_name, phone, email, payload, source_ip_hash, consent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $statement->execute([$id, $number, $name, $phone, $email, json_encode($input, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $ipHash, !empty($customer['consent']) ? date('Y-m-d H:i:s') : null]);
     $attachmentStatement = $pdo->prepare('INSERT INTO eft_questionnaire_attachments (id, questionnaire_id, original_name, mime_type, size_bytes, content) VALUES (?, ?, ?, ?, ?, ?)');
@@ -177,9 +177,14 @@ if ($action === 'projects' && $method === 'POST') {
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
     if (!$payload) eft_json(['ok' => false, 'code' => 'missing_project', 'message' => 'Нет данных проекта.'], 422);
     $id = eft_uuid();
-    $name = mb_substr(trim((string)($input['name'] ?? eft_project_name($payload))), 0, 255) ?: 'Новый проект';
-    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $pdo->beginTransaction();
+    $number = eft_next_project_number();
+    $payload['meta'] = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+    $payload['meta']['projectNum'] = $number;
+    $payload['meta']['date'] = (new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow')))->format('Y-m-d');
+    if (is_array($payload['request'] ?? null)) $payload['request']['number'] = 'КП-' . $number;
+    $name = mb_substr(trim(eft_project_name($payload)), 0, 255) ?: 'Новый проект';
+    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     $pdo->prepare('INSERT INTO eft_projects (id, name, payload, owner_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)')->execute([$id, $name, $encoded, (int)$user['id'], (int)$user['id'], (int)$user['id']]);
     $pdo->prepare('INSERT INTO eft_project_versions (project_id, revision, payload, saved_by, reason) VALUES (?, 1, ?, ?, ?)')->execute([$id, $encoded, (int)$user['id'], 'created']);
     $pdo->commit();
@@ -198,6 +203,12 @@ if ($action === 'project' && $method === 'PUT') {
     $current = $statement->fetch();
     if (!$current) { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Проект не найден.'], 404); }
     if ((int)$current['revision'] !== $revision) { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'revision_conflict', 'message' => 'Проект уже изменён другим сотрудником.', 'currentRevision' => (int)$current['revision'], 'updatedAt' => $current['updated_at']], 409); }
+    $savedPayload = json_decode((string)$current['payload'], true);
+    if (is_array($savedPayload['meta'] ?? null)) {
+        $payload['meta'] = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+        $payload['meta']['projectNum'] = $savedPayload['meta']['projectNum'] ?? $payload['meta']['projectNum'] ?? '';
+        if (is_array($payload['request'] ?? null)) $payload['request']['number'] = 'КП-' . $payload['meta']['projectNum'];
+    }
     $nextRevision = $revision + 1;
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $name = eft_project_name($payload);

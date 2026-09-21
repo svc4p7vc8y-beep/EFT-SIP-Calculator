@@ -135,21 +135,27 @@ function eft_project_name(array $payload): string {
     return 'Новый проект';
 }
 
-function eft_next_project_number(): string {
+function eft_next_counter(string $key): int {
     $pdo = eft_db();
-    $pdo->beginTransaction();
+    $ownTransaction = !$pdo->inTransaction();
+    if ($ownTransaction) $pdo->beginTransaction();
     try {
-        $pdo->exec("INSERT IGNORE INTO eft_counters (counter_key, next_value) VALUES ('project', 1)");
-        $row = $pdo->query("SELECT next_value FROM eft_counters WHERE counter_key = 'project' FOR UPDATE")->fetch();
+        $pdo->prepare('INSERT IGNORE INTO eft_counters (counter_key, next_value) VALUES (?, 1)')->execute([$key]);
+        $statement = $pdo->prepare('SELECT next_value FROM eft_counters WHERE counter_key = ? FOR UPDATE');
+        $statement->execute([$key]);
+        $row = $statement->fetch();
         $number = max(1, (int)($row['next_value'] ?? 1));
-        $statement = $pdo->prepare("UPDATE eft_counters SET next_value = ? WHERE counter_key = 'project'");
-        $statement->execute([$number + 1]);
-        $pdo->commit();
-        return str_pad((string)$number, 4, '0', STR_PAD_LEFT);
+        $pdo->prepare('UPDATE eft_counters SET next_value = ? WHERE counter_key = ?')->execute([$number + 1, $key]);
+        if ($ownTransaction) $pdo->commit();
+        return $number;
     } catch (Throwable $error) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($ownTransaction && $pdo->inTransaction()) $pdo->rollBack();
         throw $error;
     }
+}
+
+function eft_next_project_number(): string {
+    return str_pad((string)eft_next_counter('project'), 4, '0', STR_PAD_LEFT);
 }
 
 function eft_send_intake_email(array $payload, string $number): bool {
