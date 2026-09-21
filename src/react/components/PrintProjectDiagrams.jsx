@@ -1,6 +1,7 @@
 import { polygonArea } from '../../calculations/plan-metrics.js';
 import { resolveRoofAxes } from '../../calculations/roof-orientation.js';
 import { calculateFoundation } from '../calculations/foundation-model.js';
+import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { boundsOf, houseContourPoints, lineEndpoints, roomPoints, unifiedWallSegments } from '../planner/geometry.js';
 import { formatNumber } from '../utils/format.js';
 
@@ -151,7 +152,23 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
   const floorOpeningStart = p(Number(sharedFloorOpening.x) || 0, Number(sharedFloorOpening.y) || 0);
   return <svg className="print-plan-svg" viewBox={`0 0 ${PLAN_VIEW.width} ${PLAN_VIEW.height}`} role="img" aria-label="План дома для печати">
     <defs><marker id="print-plan-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" /></marker><marker id="print-note-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" /></marker></defs>
-    {showPlatforms ? (plan.platforms || []).map((item) => { const q = p(item.x, item.y); return <g key={item.id} className="print-platform"><rect x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} /><text className="print-platform-title" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 - 9}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text><text className="print-platform-area" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + 19}>{formatNumber(item.w * item.h)} м²</text></g>; }) : null}
+    {showPlatforms ? (plan.platforms || []).map((item) => {
+      const q = p(item.x, item.y);
+      const frame = platformRoofFrame(item, plan.house, item.roof?.rafterStep ?? roofSettings?.rafterStep);
+      const roofA = frame ? p(frame.bounds.x1, frame.bounds.y1) : null;
+      const roofB = frame ? p(frame.bounds.x2, frame.bounds.y2) : null;
+      const segment = ([start, end], key, className) => { const a = p(start.x, start.y); const b = p(end.x, end.y); return <line key={key} className={className} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; };
+      return <g key={item.id} className="print-platform">
+        <rect x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />
+        <text className="print-platform-title" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 - 9}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text>
+        <text className="print-platform-area" x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + 19}>{formatNumber(item.w * item.h)} м²</text>
+        {frame ? <g className="print-platform-roof" aria-label={`Кровля ${item.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
+          <rect x={roofA.x} y={roofA.y} width={roofB.x - roofA.x} height={roofB.y - roofA.y} />
+          {frame.rafters.map((pair, index) => segment(pair, index))}
+          {frame.ridge ? segment(frame.ridge, 'ridge', 'ridge') : null}
+        </g> : null}
+      </g>;
+    }) : null}
     {showContour || showRooms || options.showRoof ? <polygon className="print-house-fill" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
     {options.showRoof ? <PrintRoofTopLayer plan={plan} roof={roofSettings} p={p} /> : null}
     {showRooms ? (plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : roomBounds.x + roomBounds.w / 2, Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : roomBounds.y + roomBounds.h / 2); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" style={{ fontSize: Math.max(8, (Number(room.labelFontSize) || 22) * .55) }} x={center.x} y={center.y - 7}>{room.name}</text><text x={center.x} y={center.y + 9}>{formatNumber(polygonArea(points))} м²</text></g>; }) : null}
@@ -233,7 +250,7 @@ export function PrintProjectDiagrams({ project, calculation }) {
   if (!includePlan && !includeRoof && !separatePileSheet) return null;
   const diagramCount = (includePlan ? floorPlans.length : 0) + (includeRoof ? 1 : 0) + (separatePileSheet ? 1 : 0);
   return <section className={`print-diagrams ${diagramCount > 1 ? 'two' : 'one'}`} aria-label="Иллюстрации проекта">
-    {includePlan ? floorPlans.map((floorPlan, floorIndex) => <article key={`floor-${floorIndex + 1}`}><h2>План {floorIndex + 1} этажа</h2><PrintPlanDiagram plan={floorPlan} floorOpening={floorCount > 1 ? project.upperFloors?.[0]?.floorOpening : null} pileSettings={project.settings.piles} options={{ ...options, showPiles: !separatePileSheet && floorIndex === 0 && options.showPiles !== false, showBinding: !separatePileSheet && floorIndex === 0 && options.showBinding !== false, showPlatforms: floorIndex === 0 && options.showPlatforms !== false }} /></article>) : null}
+    {includePlan ? floorPlans.map((floorPlan, floorIndex) => <article className={options.separatePlanSheets !== false ? 'print-diagram-sheet floor-sheet' : ''} key={`floor-${floorIndex + 1}`}><h2>План {floorIndex + 1} этажа</h2><PrintPlanDiagram plan={floorPlan} floorOpening={floorCount > 1 ? project.upperFloors?.[0]?.floorOpening : null} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={{ ...options, showPiles: !separatePileSheet && floorIndex === 0 && options.showPiles !== false, showBinding: !separatePileSheet && floorIndex === 0 && options.showBinding !== false, showPlatforms: floorIndex === 0 && options.showPlatforms !== false }} /></article>) : null}
     {separatePileSheet ? <article className="print-diagram-sheet pile-sheet"><h2>Свайное поле и обвязка</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} options={{ showContour: true, showRooms: false, showOpenings: false, showPlatforms: true, showPiles: true, showBinding: options.showBinding !== false, showDimensions: true, showLegend: true }} /></article> : null}
     {includeRoof ? <article className={separateRoofSheet ? "print-diagram-sheet roof-sheet" : ""}><h2>Крыша на контуре дома</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={{ showRoof: true, showContour: true, showRooms: false, showOpenings: false, showPlatforms: false, showPiles: false, showBinding: false, showDimensions: false, showLegend: false }} /></article> : null}
   </section>;

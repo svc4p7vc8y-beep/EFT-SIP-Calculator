@@ -3487,6 +3487,13 @@ select,
   color: #376929;
   font-size: 12px;
 }
+.print-diagrams .floor-sheet { grid-column: 1 / -1; }
+.print-diagrams .floor-sheet svg { max-height: 550px; }
+.print-diagram-options small { display: block; color: var(--muted); margin-top: 4px; font-size: 11px; }
+@media (max-width: 700px) {
+  .print-diagrams article { overflow-x: auto; }
+  .print-diagrams .floor-sheet svg { width: 650px; max-width: none; max-height: none; }
+}
 .print-diagrams svg {
   display: block;
   width: 100%;
@@ -3509,6 +3516,9 @@ select,
   stroke-dasharray: 7 5;
 }
 .print-plan-svg .print-platform text { font-size: 20px; }
+.print-plan-svg .print-platform .print-platform-roof rect { fill: #7da096; fill-opacity: .2; stroke: #476f62; stroke-width: 2; stroke-dasharray: 7 4; }
+.print-plan-svg .print-platform-roof line { stroke: #745230; stroke-width: 2; }
+.print-plan-svg .print-platform-roof .ridge { stroke: #476f62; stroke-width: 3; }
 .print-plan-svg .print-platform-title { font-weight: 800; }
 .print-plan-svg .print-room polygon {
   fill: #fffdf2;

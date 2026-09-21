@@ -17,7 +17,7 @@ import {
 } from "../calculations/price-adjustments.js";
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 
-export const REACT_PROJECT_VERSION = 139;
+export const REACT_PROJECT_VERSION = 140;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -630,6 +630,7 @@ export function createDefaultProject() {
       },
       print: {
         includePlan: true,
+        separatePlanSheets: true,
         includeRoof: false,
         separatePileSheet: false,
         separateRoofSheet: true,

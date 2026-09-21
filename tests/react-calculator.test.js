@@ -456,13 +456,15 @@ test('ceiling panel selection changes catalog price and ignores an override from
 test('print plan and roof layers default independently and survive migration', () => {
   const project = createDefaultProject();
   assert.deepEqual(project.settings.print, {
-    includePlan: true, includeRoof: false, separatePileSheet: false, separateRoofSheet: true, showContour: true, showRooms: true,
+    includePlan: true, separatePlanSheets: true, includeRoof: false, separatePileSheet: false, separateRoofSheet: true, showContour: true, showRooms: true,
     showOpenings: true, showPlatforms: true, showPiles: true, showBinding: true, showDimensions: true,
     compactAccessories: true, maximumCompact: false, includeLabor: true, includeAccessories: true
   });
   project.settings.print.showPiles = false;
   project.settings.print.showDimensions = false;
+  project.settings.print.separatePlanSheets = false;
   const restored = migrateProject(project);
+  assert.equal(restored.settings.print.separatePlanSheets, false);
   assert.equal(restored.settings.print.showPiles, false);
   assert.equal(restored.settings.print.showBinding, true);
   assert.equal(restored.settings.print.showDimensions, false);
