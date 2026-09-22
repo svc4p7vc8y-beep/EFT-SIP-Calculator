@@ -4729,6 +4729,7 @@ export default function PlanScreen({ onNavigate }) {
   const [sheetMode, setSheetMode] = useState("peek");
   const [transferStatus, setTransferStatus] = useState("");
   const planFileRef = useRef(null);
+  const inspectorRef = useRef(null);
   const [libraryPlans, setLibraryPlans] = useState(readPlanLibrary);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [editingLibraryId, setEditingLibraryId] = useState(null);
@@ -4994,6 +4995,11 @@ export default function PlanScreen({ onNavigate }) {
       setSelected(null);
       setTool("select");
       setPolygonDraft([]);
+    }
+    if (id === "roof" && window.matchMedia("(max-width: 820px)").matches) {
+      window.requestAnimationFrame(() => {
+        inspectorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     }
   };
   const handleCreated = useCallback((selection) => {
@@ -6091,7 +6097,7 @@ export default function PlanScreen({ onNavigate }) {
               : toolHint}
           </div>
         </div>
-        <aside className="planner-inspector">
+        <aside className="planner-inspector" ref={inspectorRef}>
           {tool === "houseContour" && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">
               <h3>Новый контур</h3>

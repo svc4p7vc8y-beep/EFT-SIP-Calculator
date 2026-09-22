@@ -4277,6 +4277,9 @@ select,
   }
 }
 @media (max-width: 820px) {
+  .planner-inspector {
+    scroll-margin-top: 76px;
+  }
   .app-header {
     height: 64px;
     padding: 0 12px;
@@ -4480,6 +4483,9 @@ select,
   }
 }
 @media (max-width: 560px) {
+  .planner-canvas .canvas-history-controls {
+    top: 66px;
+  }
   .header-totals {
     display: flex;
   }

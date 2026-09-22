@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v142-shared-numbering-1';
+const CACHE_NAME = 'eft-calculator-react-v143-roof-controls-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
