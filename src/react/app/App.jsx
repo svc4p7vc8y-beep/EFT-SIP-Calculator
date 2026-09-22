@@ -48,6 +48,7 @@ import { applyResidentialPreset } from "../state/residential-preset.js";
 import { reserveLocalProjectNumber } from "../storage/project-number.js";
 import { formatMoney } from "../utils/format.js";
 import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
+import ScreenErrorBoundary from "../components/ScreenErrorBoundary.jsx";
 import ResidentialPresetDialog from "../components/ResidentialPresetDialog.jsx";
 import TeamLogin from "../components/TeamLogin.jsx";
 import { useTeam } from "../cloud/TeamContext.jsx";
@@ -608,22 +609,24 @@ export function App() {
               ))}</div>
             </aside>
           ) : null}
-          <Suspense
-            fallback={<div className="screen-loader">Загружаю раздел…</div>}
-          >
-            <Screen
-              active={active}
-              calculation={calculation}
-              teamProps={{
-                project,
-                onOpenProject: openTeamProject,
-                onEditProject: (id) => openTeamProject(id, 'parameters'),
-                onCreatedProject: (created) => replace(created.payload),
-                onImportIntake: importTeamIntake,
-                focusTab: teamFocus,
-              }}
-            />
-          </Suspense>
+          <ScreenErrorBoundary key={active} onBack={() => setActive("plan")}>
+            <Suspense
+              fallback={<div className="screen-loader">Загружаю раздел…</div>}
+            >
+              <Screen
+                active={active}
+                calculation={calculation}
+                teamProps={{
+                  project,
+                  onOpenProject: openTeamProject,
+                  onEditProject: (id) => openTeamProject(id, 'parameters'),
+                  onCreatedProject: (created) => replace(created.payload),
+                  onImportIntake: importTeamIntake,
+                  focusTab: teamFocus,
+                }}
+              />
+            </Suspense>
+          </ScreenErrorBoundary>
         </main>
         <ProjectSummarySidebar
           project={project}

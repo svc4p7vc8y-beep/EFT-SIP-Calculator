@@ -604,6 +604,29 @@ button:disabled {
   color: var(--muted);
   text-align: center;
 }
+.screen-load-error {
+  max-width: 560px;
+  margin: 28px auto;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 12px 36px rgba(20, 45, 30, 0.08);
+}
+.screen-load-error h1 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+.screen-load-error p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.screen-load-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .screen-header {
   min-height: 60px;
   display: flex;
