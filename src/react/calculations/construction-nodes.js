@@ -38,6 +38,19 @@ const meaningfulCorners = (plan) => contourPoints(plan).filter((point, index, po
 const formulaValue = (formulas, key, fallback = 0) => Number(formulas?.[key]) || fallback;
 const safeId = (value) => String(value).replace(/[^a-zA-Z0-9_-]+/g, '-');
 const displaySize = (value) => value ? String(value).replace('x', '×') : null;
+const fastenerKgEach = (size, formulas) => {
+  const normalized = displaySize(size);
+  const weights = {
+    '3.8×41': formulaValue(formulas, 'sipSeamScrewKgEach', 0.003),
+    '4.2×75': formulaValue(formulas, 'sipEdgeScrewKgEach', 0.006),
+    '6×120': formulaValue(formulas, 'sipUniversalScrewKgEach', 0.02),
+    '8×180': formulaValue(formulas, 'sipStructuralScrewKg124', 0.055),
+    '8×220': formulaValue(formulas, 'sipStructuralScrewKg174', 0.068),
+    '8×280': formulaValue(formulas, 'sipStructuralScrewKg224', 0.086),
+    '8×320': formulaValue(formulas, 'sipStructuralScrewKg320', 0.1),
+  };
+  return weights[normalized] || null;
+};
 
 function resolveFastener(rule, context, formulas) {
   const template = rule?.fasteners?.[0];
@@ -66,7 +79,7 @@ function resolveFastener(rule, context, formulas) {
     size: displaySize(size),
     diameterMm: template.diameterMm ?? (sizeNumbers ? Number(sizeNumbers[1]) : null),
     lengthMm: template.lengthMm ?? (sizeNumbers ? Number(sizeNumbers[2]) : null),
-    kgEach,
+    kgEach: kgEach || fastenerKgEach(size, formulas),
   };
 }
 
@@ -386,6 +399,7 @@ function groupRows(nodes, settings) {
       calculatedQty: 0,
       reservePercent: node.reservePercent ?? reserveDefault,
       packSize: node.packSize || Number(packSizes[fastenerKey]) || null,
+      kgEach: Number(node.fastener?.kgEach) || null,
       source: node.sourceReference,
       requiresEngineeringReview: false,
       formulas: [],
@@ -407,6 +421,11 @@ function groupRows(nodes, settings) {
       withReserve,
       purchasePacks,
       purchaseQty: purchasePacks === null ? withReserve : purchasePacks * row.packSize,
+      calculatedKg: row.kgEach ? round(calculatedQty * row.kgEach) : null,
+      withReserveKg: row.kgEach ? round(withReserve * row.kgEach) : null,
+      purchaseKg: row.kgEach
+        ? round((purchasePacks === null ? withReserve : purchasePacks * row.packSize) * row.kgEach)
+        : null,
       formula: row.formulas.join(' + '),
     };
   });
@@ -428,12 +447,15 @@ export function calculateConstructionNodes(project, calculation) {
     const key = `${row.fastenerType}|${row.size}`;
     if (!order.has(key)) {
       order.set(key, purchase.length);
-      purchase.push({ key, fastenerType: row.fastenerType, size: row.size, calculatedQty: 0, withReserve: 0, purchaseQty: 0, purchasePacks: 0, packSize: row.packSize });
+      purchase.push({ key, fastenerType: row.fastenerType, size: row.size, calculatedQty: 0, withReserve: 0, purchaseQty: 0, purchasePacks: 0, packSize: row.packSize, kgEach: row.kgEach, calculatedKg: 0, withReserveKg: 0, purchaseKg: 0 });
     }
     const item = purchase[order.get(key)];
     item.calculatedQty += row.calculatedQty;
     item.withReserve += row.withReserve;
     item.purchaseQty += row.purchaseQty;
+    item.calculatedKg = round(item.calculatedKg + (row.calculatedKg || 0));
+    item.withReserveKg = round(item.withReserveKg + (row.withReserveKg || 0));
+    item.purchaseKg = round(item.purchaseKg + (row.purchaseKg || 0));
     if (row.purchasePacks !== null) item.purchasePacks += row.purchasePacks;
     else item.purchasePacks = null;
   });

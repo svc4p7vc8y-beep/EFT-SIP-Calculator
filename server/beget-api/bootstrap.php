@@ -159,8 +159,8 @@ function eft_next_project_number(): string {
 }
 
 function eft_send_intake_email(array $payload, string $number): bool {
-    $config = eft_config();
-    $recipient = (string)($config['notification_email'] ?? 'info@eftsip.ru');
+    $mailConfig = eft_mail_config();
+    $recipient = (string)($mailConfig['username'] ?? 'sale@eftsip.ru');
     $customer = $payload['format'] === 'eft-client-brief' ? ($payload['customer'] ?? []) : $payload;
     $project = $payload['format'] === 'eft-client-brief' ? ($payload['project'] ?? []) : [];
     $subject = 'Новая заявка EFT ' . $number;

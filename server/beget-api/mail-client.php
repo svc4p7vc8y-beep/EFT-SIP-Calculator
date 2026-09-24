@@ -13,7 +13,7 @@ function eft_mail_ready(): array {
     return [
         'configured' => !empty($config['configured']) && !empty($config['username']) && !empty($config['password']),
         'imapAvailable' => function_exists('imap_open'),
-        'address' => (string)($config['username'] ?? 'info@eftsip.ru'),
+        'address' => (string)($config['username'] ?? 'sale@eftsip.ru'),
     ];
 }
 
@@ -51,7 +51,9 @@ function eft_extract_email(string $address): string {
 }
 
 function eft_message_key(string $mailbox, int $uid): string {
-    return hash('sha256', $mailbox . ':' . $uid);
+    $address = strtolower((string)(eft_mail_config()['username'] ?? ''));
+    if ($address === 'info@eftsip.ru') return hash('sha256', $mailbox . ':' . $uid);
+    return hash('sha256', $address . ':' . $mailbox . ':' . $uid);
 }
 
 function eft_mail_overview(int $limit = 50, int $offset = 0, string $query = ''): array {

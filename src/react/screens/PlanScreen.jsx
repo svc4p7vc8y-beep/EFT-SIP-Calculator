@@ -13,6 +13,7 @@ import {
   HousePlus,
   Layers3,
   ListTree,
+  Maximize2,
   MoreHorizontal,
   MessageSquareText,
   MousePointer2,
@@ -41,6 +42,7 @@ import {
   Home,
   Check,
   Minus,
+  Minimize2,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -1180,6 +1182,8 @@ function PlanCanvas({
   onViewportZoom,
   viewportPan = { x: 0, y: 0 },
   onViewportPan,
+  wheelZoomEnabled = false,
+  middlePanEnabled = false,
   onCreated,
   onSelected,
 }) {
@@ -1194,11 +1198,26 @@ function PlanCanvas({
   const [hoverSnap, setHoverSnap] = useState(null);
   const [dimensionStart, setDimensionStart] = useState(null);
   const [dimensionHover, setDimensionHover] = useState(null);
+  const [isViewportPanning, setIsViewportPanning] = useState(false);
   const setGesture = (value) => {
     gestureRef.current =
       typeof value === "function" ? value(gestureRef.current) : value;
     setGestureState(gestureRef.current);
   };
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!wheelZoomEnabled || !svg) return undefined;
+    const handleWheel = (event) => {
+      event.preventDefault();
+      const currentZoom = viewportZoom ?? plan.zoom ?? 100;
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      onViewportZoom?.(
+        Math.max(35, Math.min(2000, Math.round(currentZoom * factor))),
+      );
+    };
+    svg.addEventListener("wheel", handleWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", handleWheel);
+  }, [wheelZoomEnabled, viewportZoom, plan.zoom, onViewportZoom]);
   const shownPlan = useMemo(() => previewPlan(plan, gesture), [plan, gesture]);
   const shownFloorOpening = useMemo(() => {
     const current = fitFloorOpening(floorOpening, plan.house);
@@ -1471,6 +1490,20 @@ function PlanCanvas({
     }
   };
   const pointerDownCapture = (event) => {
+    if (middlePanEnabled && event.button === 1) {
+      event.preventDefault();
+      event.stopPropagation();
+      svgRef.current?.setPointerCapture?.(event.pointerId);
+      panGestureRef.current = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        start: { ...(viewportPan || { x: 0, y: 0 }) },
+        moved: true,
+      };
+      setIsViewportPanning(true);
+      return;
+    }
     activePointersRef.current.set(event.pointerId, {
       x: event.clientX,
       y: event.clientY,
@@ -1631,8 +1664,11 @@ function PlanCanvas({
     setGesture((current) => ({ ...current, end: resolved.point }));
   };
   const pointerUp = (event) => {
-    if (panGestureRef.current?.pointerId === event.pointerId)
+    if (panGestureRef.current?.pointerId === event.pointerId) {
       panGestureRef.current = null;
+      setIsViewportPanning(false);
+      svgRef.current?.releasePointerCapture?.(event.pointerId);
+    }
     if (pinchRef.current || pinchConsumedRef.current) {
       pendingTouchSelectionRef.current = null;
       finishPointer(event);
@@ -1907,7 +1943,7 @@ function PlanCanvas({
   return (
     <svg
       ref={svgRef}
-      className={`plan-svg tool-${tool}`}
+      className={`plan-svg tool-${tool}${middlePanEnabled ? " viewport-pan-enabled" : ""}${isViewportPanning ? " is-viewport-panning" : ""}`}
       viewBox={`0 0 ${VIEW.width} ${VIEW.height}`}
       role="img"
       aria-label="Редактор плана дома"
@@ -1920,6 +1956,7 @@ function PlanCanvas({
       }}
       onPointerCancel={(event) => {
         panGestureRef.current = null;
+        setIsViewportPanning(false);
         finishPointer(event);
         setGesture(null);
       }}
@@ -4720,6 +4757,7 @@ export default function PlanScreen({ onNavigate }) {
     Math.max(35, Math.min(2000, Number(project?.plan?.zoom) || 100)),
   );
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
+  const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
   const [foundationDraft, setFoundationDraft] = useState(() => ({
     ...DEFAULT_FOUNDATION_DRAFT,
@@ -4857,6 +4895,14 @@ export default function PlanScreen({ onNavigate }) {
   useEffect(() => {
     if (activeFloor > floorCount) setActiveFloor(floorCount);
   }, [activeFloor, floorCount]);
+  useEffect(() => {
+    if (!isPlanFullscreen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isPlanFullscreen]);
   const addSecondFloor = () => {
     commit((next) => {
       ensureProjectFloorCount(next, 2);
@@ -5266,6 +5312,10 @@ export default function PlanScreen({ onNavigate }) {
         return;
       }
       if (event.key === "Escape") {
+        if (isPlanFullscreen) {
+          setIsPlanFullscreen(false);
+          return;
+        }
         setPolygonDraft([]);
         setTool("select");
         setSelected(null);
@@ -5364,7 +5414,7 @@ export default function PlanScreen({ onNavigate }) {
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [selected, commitPlan, commitFloorOpening, floorOpening, undo, redo]);
+  }, [selected, commitPlan, commitFloorOpening, floorOpening, undo, redo, isPlanFullscreen]);
   const toolHint =
     tool === "select"
       ? "Первый щелчок выбирает комнату, следующий — перемещает. Пробел — «Выбор», Ctrl+Z — отмена."
@@ -5948,31 +5998,8 @@ export default function PlanScreen({ onNavigate }) {
             Крыша: {roofAxisLabel(project.settings.roof.ridgeAxis)}
           </button>
         </div>
-        <div className="zoom-controls">
-          <button
-            className="icon-button"
-            onClick={() =>
-              commitPlan((next) => {
-                next.zoom = Math.max(65, (next.zoom || 100) - 10);
-              })
-            }
-          >
-            <ZoomOut />
-          </button>
-          <strong>{plan.zoom || 100}%</strong>
-          <button
-            className="icon-button"
-            onClick={() =>
-              commitPlan((next) => {
-                next.zoom = Math.min(180, (next.zoom || 100) + 10);
-              })
-            }
-          >
-            <ZoomIn />
-          </button>
-        </div>
       </div>
-      <div className="planner-shell">
+      <div className={`planner-shell${isPlanFullscreen ? " is-fullscreen" : ""}`}>
         <aside className="planner-tools">
           {TOOLS.filter(([id]) => id === "select").map(([id, label, Icon]) => (
             <div className="planner-tools-fixed" key={id}>
@@ -6074,6 +6101,41 @@ export default function PlanScreen({ onNavigate }) {
             <button title="Повторить" onClick={redo} disabled={!canRedo}>
               <Redo2 />
             </button>
+            <span className="canvas-control-divider" aria-hidden="true" />
+            <button
+              title="Уменьшить масштаб"
+              aria-label="Уменьшить масштаб"
+              onClick={() => setViewportZoom((zoom) => Math.max(35, zoom - 10))}
+            >
+              <ZoomOut />
+            </button>
+            <button
+              className="canvas-zoom-value"
+              title="Сбросить масштаб и положение"
+              aria-label={`Масштаб ${viewportZoom}%. Сбросить масштаб и положение`}
+              onClick={() => {
+                setViewportZoom(100);
+                setViewportPan({ x: 0, y: 0 });
+              }}
+            >
+              {viewportZoom}%
+            </button>
+            <button
+              title="Увеличить масштаб"
+              aria-label="Увеличить масштаб"
+              onClick={() => setViewportZoom((zoom) => Math.min(2000, zoom + 10))}
+            >
+              <ZoomIn />
+            </button>
+            <span className="canvas-control-divider" aria-hidden="true" />
+            <button
+              title={isPlanFullscreen ? "Свернуть поле плана" : "Развернуть поле плана на весь экран"}
+              aria-label={isPlanFullscreen ? "Свернуть поле плана" : "Развернуть поле плана на весь экран"}
+              aria-pressed={isPlanFullscreen}
+              onClick={() => setIsPlanFullscreen((value) => !value)}
+            >
+              {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
+            </button>
           </div>
           <PlanCanvas
             plan={plan}
@@ -6090,11 +6152,19 @@ export default function PlanScreen({ onNavigate }) {
             setPolygonDraft={setPolygonDraft}
             finishPolygon={finishPolygon}
             issues={issues}
+            viewportZoom={viewportZoom}
+            onViewportZoom={setViewportZoom}
+            viewportPan={viewportPan}
+            onViewportPan={setViewportPan}
+            wheelZoomEnabled={isPlanFullscreen}
+            middlePanEnabled={isPlanFullscreen}
           />
           <div className="planner-hint">
             {activeLayer === "roof"
               ? "Настройте кровлю справа. Слои покрытия, мауэрлата, стропил и обрешётки можно включать отдельно."
-              : toolHint}
+              : isPlanFullscreen
+                ? `${toolHint} Колесо мыши — масштаб, зажатое колесо — перемещение плана, Esc — выход.`
+                : toolHint}
           </div>
         </div>
         <aside className="planner-inspector" ref={inspectorRef}>

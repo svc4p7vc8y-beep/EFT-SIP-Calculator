@@ -2063,6 +2063,45 @@ select,
   width: 17px;
   height: 17px;
 }
+.canvas-history-controls .canvas-control-divider {
+  width: 1px;
+  margin: 4px 2px;
+  background: #d6e0d4;
+}
+.canvas-history-controls button.canvas-zoom-value {
+  width: 50px;
+  padding: 0 4px;
+  color: #315d27;
+  font-size: 9px;
+  font-weight: 800;
+}
+.plan-svg.viewport-pan-enabled.is-viewport-panning {
+  cursor: grabbing !important;
+}
+.planner-shell.is-fullscreen {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  grid-template-columns: 112px minmax(0, 1fr) 380px;
+  grid-template-rows: 1fr;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.planner-shell.is-fullscreen .planner-canvas {
+  min-height: 0;
+}
+.planner-shell.is-fullscreen .planner-inspector {
+  min-height: 0;
+  overflow-y: auto;
+}
+.planner-shell.is-fullscreen .planner-hint {
+  max-width: min(720px, calc(100% - 24px));
+}
 .planner-hint {
   position: absolute;
   left: 12px;
@@ -5295,6 +5334,48 @@ select,
 @media print {
   .print-diagrams .print-diagram-sheet { grid-column: 1 / -1; break-before: page; page-break-before: always; break-after: page; page-break-after: always; min-height: 245mm; display: flex; flex-direction: column; justify-content: center; }
   .print-diagrams .print-diagram-sheet svg { max-height: 205mm; }
+}
+
+@media (max-width: 1180px) {
+  .planner-shell.is-fullscreen {
+    grid-template-columns: 82px minmax(0, 1fr) minmax(280px, 34vw);
+    grid-template-rows: 1fr;
+  }
+  .planner-shell.is-fullscreen .planner-tools {
+    min-height: 0;
+    padding: 8px 6px;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid #dce4dc;
+    border-bottom: 0;
+  }
+  .planner-shell.is-fullscreen .planner-tools button {
+    width: 100%;
+    min-height: 43px;
+    margin-bottom: 4px;
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 760px) {
+  .planner-shell.is-fullscreen {
+    grid-template-columns: 70px minmax(0, 1fr);
+  }
+  .planner-shell.is-fullscreen .planner-inspector {
+    display: none;
+  }
+  .planner-shell.is-fullscreen .plan-layer-tabs {
+    grid-template-columns: repeat(4, 58px);
+  }
+  .planner-shell.is-fullscreen .canvas-history-controls {
+    top: 64px;
+    right: 8px;
+    flex-wrap: wrap;
+    max-width: 160px;
+  }
 }
 .node-detail-card { display: grid; align-content: start; gap: 12px; }
 .node-detail-heading { display: flex; align-items: center; gap: 10px; }

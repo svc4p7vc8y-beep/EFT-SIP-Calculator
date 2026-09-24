@@ -1545,7 +1545,7 @@ function App() {
       const result = await submitPublicIntake(payload);
       setSubmittedNumber(result.number);
       setNotice(result.mailAccepted
-        ? `Заявка ${result.number} отправлена. Менеджер увидит её в калькуляторе и получит письмо на info@eftsip.ru.`
+        ? `Заявка ${result.number} отправлена. Менеджер увидит её в калькуляторе и получит уведомление на рабочую почту.`
         : `Заявка ${result.number} сохранена в калькуляторе, но уведомление на почту не отправлено.`);
       if (result.mailAccepted) localStorage.removeItem(QUESTIONNAIRE_STORAGE_KEY);
     } catch (error) {

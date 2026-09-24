@@ -44,6 +44,8 @@ test('node report exposes geometry formulas, reserve and a consolidated purchase
   assert.equal(starter.withReserve, Math.ceil(starter.calculatedQty * 1.1));
   assert.equal(starter.purchasePacks, Math.ceil(starter.withReserve / 50));
   assert.equal(starter.purchaseQty, starter.purchasePacks * 50);
+  assert.equal(starter.kgEach, project.settings.formulas.sipStructuralScrewKg320);
+  assert.equal(starter.purchaseKg, starter.purchaseQty * starter.kgEach);
   assert.ok(report.purchase.some((item) => item.size === '8×320'));
 });
 
@@ -55,6 +57,7 @@ test('T junctions use 6x120 while unknown terrace and counterlath rules stay und
   const tNodes = report.nodes.filter((node) => node.type === 'SIP_WALL_T');
   assert.ok(tNodes.length > 0);
   assert.ok(tNodes.every((node) => node.fastener.size === '6×120' && node.calculatedQty === project.settings.formulas.sipUniversalScrewsPerTNode));
+  assert.ok(tNodes.every((node) => node.fastener.kgEach === project.settings.formulas.sipUniversalScrewKgEach));
   const counterLath = report.nodes.find((node) => node.type === 'ROOF_COUNTERLATH');
   assert.equal(counterLath.calculatedQty, 0);
   assert.equal(counterLath.requiresEngineeringReview, true);
@@ -94,4 +97,3 @@ test('plan schema 4 round-trips construction and node overrides while schema 3 r
   assert.deepEqual(legacyOpened.construction, {});
   assert.equal(migrateProject(legacyOpened).nodes.length, 0);
 });
-

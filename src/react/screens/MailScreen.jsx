@@ -15,6 +15,7 @@ export default function MailScreen() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [compose, setCompose] = useState(null);
+  const mailboxAddress = status?.address || "sale@eftsip.ru";
 
   const load = useCallback(async (search = "") => {
     setLoading(true);
@@ -58,7 +59,7 @@ export default function MailScreen() {
     try {
       await eftApi("mail-send", { method: "POST", csrf: team.csrf, body: compose });
       setCompose(null);
-      setNotice("Письмо отправлено с адреса info@eftsip.ru");
+      setNotice(`Письмо отправлено с адреса ${mailboxAddress}`);
     } catch (error) { setNotice(error.message); }
   };
   const linkProject = async (projectId) => {
@@ -75,14 +76,14 @@ export default function MailScreen() {
 
   if (!loading && status && (!status.configured || !status.imapAvailable)) return (
     <section className="screen mail-screen">
-      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта info@eftsip.ru</h1></div></header>
-      <div className="mail-setup-card"><Mail /><div><h2>Подключение почти готово</h2><p>{status.configured ? "На Beget нужно включить PHP IMAP." : "Создайте пароль приложения VK WorkSpace и сохраните его в секрете EFT_MAIL_APP_PASSWORD."}</p><small>Пароль хранится только на сервере и никогда не передаётся в браузер.</small></div></div>
+      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта {mailboxAddress}</h1></div></header>
+      <div className="mail-setup-card"><Mail /><div><h2>Подключение почти готово</h2><p>{status.configured ? "На Beget нужно включить PHP IMAP." : "Создайте пароль приложения VK WorkSpace и сохраните его в секрете EFT_SALE_MAIL_APP_PASSWORD."}</p><small>Пароль хранится только на сервере и никогда не передаётся в браузер.</small></div></div>
     </section>
   );
 
   return (
     <section className="screen mail-screen">
-      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта info@eftsip.ru</h1><p>Письма доступны сотрудникам внутри калькулятора.</p></div><button className="button secondary" onClick={() => load(query)}><RefreshCw />Обновить</button></header>
+      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта {mailboxAddress}</h1><p>Письма доступны сотрудникам внутри калькулятора.</p></div><button className="button secondary" onClick={() => load(query)}><RefreshCw />Обновить</button></header>
       {notice ? <div className="notice">{notice}</div> : null}
       <div className="mail-layout">
         <aside className="mail-list-panel">
@@ -105,7 +106,7 @@ export default function MailScreen() {
           </> : <div className="mail-reader-empty"><Mail /><h2>Выберите письмо</h2><p>Здесь появятся текст, вложения и связь с проектом.</p></div>}
         </article>
       </div>
-      {compose ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setCompose(null)}><form className="modal mail-compose" role="dialog" aria-modal="true" onSubmit={send} onMouseDown={(event) => event.stopPropagation()}><header><div><h2>Новое письмо</h2><p>Отправитель: info@eftsip.ru</p></div><button type="button" className="icon-button" onClick={() => setCompose(null)}><X /></button></header><label>Кому<input type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} required /></label><label>Тема<input value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} required /></label><label>Сообщение<textarea value={compose.body} onChange={(event) => setCompose({ ...compose, body: event.target.value })} required /></label><footer><button type="button" className="button secondary" onClick={() => setCompose(null)}>Отмена</button><button className="button"><Send />Отправить</button></footer></form></div> : null}
+      {compose ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setCompose(null)}><form className="modal mail-compose" role="dialog" aria-modal="true" onSubmit={send} onMouseDown={(event) => event.stopPropagation()}><header><div><h2>Новое письмо</h2><p>Отправитель: {mailboxAddress}</p></div><button type="button" className="icon-button" onClick={() => setCompose(null)}><X /></button></header><label>Кому<input type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} required /></label><label>Тема<input value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} required /></label><label>Сообщение<textarea value={compose.body} onChange={(event) => setCompose({ ...compose, body: event.target.value })} required /></label><footer><button type="button" className="button secondary" onClick={() => setCompose(null)}>Отмена</button><button className="button"><Send />Отправить</button></footer></form></div> : null}
     </section>
   );
 }

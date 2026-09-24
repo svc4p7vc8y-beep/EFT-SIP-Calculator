@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 return [
-    'username' => 'info@eftsip.ru',
+    'username' => 'sale@eftsip.ru',
     'password' => 'use-an-app-password-here',
     'imap_host' => 'imap.mail.ru',
     'imap_port' => 993,

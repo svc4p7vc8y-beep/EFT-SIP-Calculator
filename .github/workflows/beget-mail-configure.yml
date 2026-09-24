@@ -14,9 +14,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate and prepare private mail configuration
         env:
-          MAIL_PASSWORD: ${{ secrets.EFT_MAIL_APP_PASSWORD }}
+          MAIL_PASSWORD: ${{ secrets.EFT_SALE_MAIL_APP_PASSWORD }}
         run: |
-          : "${MAIL_PASSWORD:?Missing EFT_MAIL_APP_PASSWORD}"
+          : "${MAIL_PASSWORD:?Missing EFT_SALE_MAIL_APP_PASSWORD}"
           MAIL_PASSWORD_B64="$(printf '%s' "$MAIL_PASSWORD" | base64 -w0)"
           mkdir -p .deploy-private
           chmod 700 .deploy-private
@@ -24,7 +24,7 @@ jobs:
           <?php
           declare(strict_types=1);
           return [
-              'username' => 'info@eftsip.ru',
+              'username' => 'sale@eftsip.ru',
               'password' => base64_decode('${MAIL_PASSWORD_B64}'),
               'imap_host' => 'imap.mail.ru',
               'imap_port' => 993,
@@ -36,6 +36,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes php-cli sshpass
           php -l .deploy-private/mail.local.php
+      - name: Verify new mailbox credentials before replacing the active configuration
+        env:
+          MAIL_PASSWORD: ${{ secrets.EFT_SALE_MAIL_APP_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import imaplib
+          import os
+          import smtplib
+
+          address = 'sale@eftsip.ru'
+          password = os.environ['MAIL_PASSWORD']
+          with imaplib.IMAP4_SSL('imap.mail.ru', 993, timeout=20) as inbox:
+              inbox.login(address, password)
+          with smtplib.SMTP_SSL('smtp.mail.ru', 465, timeout=20) as smtp:
+              smtp.login(address, password)
+          print('New mailbox IMAP and SMTP authentication succeeded; no mail was sent.')
+          PY
       - name: Configure SSH host verification
         env:
           BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
@@ -69,4 +86,4 @@ jobs:
           printf 'Mail check HTTP status: %s\n' "$STATUS"
           printf '%s' "$RESPONSE" | jq '{ok, code, message, mail}'
           test "$STATUS" = "200"
-          printf '%s' "$RESPONSE" | jq -e '.ok == true and .mail.configured == true and .mail.imapAvailable == true and .imap == true and .smtp == true' > /dev/null
+          printf '%s' "$RESPONSE" | jq -e '.ok == true and .mail.configured == true and .mail.imapAvailable == true and .mail.address == "sale@eftsip.ru" and .imap == true and .smtp == true' > /dev/null

@@ -11,7 +11,11 @@ test("mail credentials stay in an ignored server-only file", async () => {
     read("server/beget-api/.htaccess"),
   ]);
   assert.match(client, /mail\.local\.php/);
-  assert.match(workflow, /secrets\.EFT_MAIL_APP_PASSWORD/);
+  assert.match(workflow, /secrets\.EFT_SALE_MAIL_APP_PASSWORD/);
+  assert.match(workflow, /'username' => 'sale@eftsip\.ru'/);
+  assert.ok(workflow.indexOf("Verify new mailbox credentials") < workflow.indexOf("Upload private configuration"));
+  assert.match(workflow, /inbox\.login\(address, password\)/);
+  assert.match(workflow, /smtp\.login\(address, password\)/);
   assert.doesNotMatch(workflow, /password'\s*=>\s*'[^']{4,}'/);
   assert.match(htaccess, /mail\(\?:\\\.local\|\\\.example\)\?/);
 });
@@ -24,6 +28,13 @@ test("mail API requires employee session and CSRF for writes", async () => {
   }
   assert.ok(api.indexOf("eft_csrf();") < api.indexOf("$action === 'mail-send'"));
   assert.ok(api.indexOf("eft_csrf();") < api.indexOf("$action === 'mail-link'"));
+});
+
+test("mail screen displays the mailbox returned by the server", async () => {
+  const screen = await read("src/react/screens/MailScreen.jsx");
+  assert.match(screen, /status\?\.address \|\| "sale@eftsip\.ru"/);
+  assert.match(screen, /Почта \{mailboxAddress\}/);
+  assert.doesNotMatch(screen, /info@eftsip\.ru/);
 });
 
 test("questionnaire deletion is admin-only, password-confirmed and recoverable", async () => {
@@ -52,9 +63,14 @@ test("employee edits require administrator reauthentication and invalidate chang
 });
 
 test("mail links are persisted without copying mailbox contents", async () => {
-  const schema = await read("server/beget-api/schema.sql");
+  const [schema, client] = await Promise.all([
+    read("server/beget-api/schema.sql"),
+    read("server/beget-api/mail-client.php"),
+  ]);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS eft_mail_links/);
   assert.doesNotMatch(schema, /CREATE TABLE IF NOT EXISTS eft_mail_(?:messages|attachments)/);
+  assert.match(client, /\$address \. ':' \. \$mailbox \. ':' \. \$uid/);
+  assert.match(client, /if \(\$address === 'info@eftsip\.ru'\)/);
 });
 
 test("public applications use authenticated SMTP and expose notification failures", async () => {
@@ -65,6 +81,7 @@ test("public applications use authenticated SMTP and expose notification failure
     read("src/questionnaire/main.jsx"),
   ]);
   assert.match(bootstrap, /eft_send_smtp\(\$recipient, \$subject/);
+  assert.match(bootstrap, /\$mailConfig\['username'\] \?\? 'sale@eftsip\.ru'/);
   assert.doesNotMatch(bootstrap, /@mail\(/);
   assert.match(site, /result\.mailAccepted/);
   assert.match(questionnaire, /result\.mailAccepted/);
