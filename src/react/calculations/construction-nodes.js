@@ -128,9 +128,18 @@ function applyStoredOverrides(autoNodes, storedNodes, formulas) {
     return {
       ...node,
       type,
-      name: rule?.name || node.name,
-      section: rule?.section || node.section,
-      marker: rule?.marker || node.marker,
+      name: saved.nameOverride || rule?.name || node.name,
+      section: saved.sectionOverride || rule?.section || node.section,
+      marker: saved.markerOverride || rule?.marker || node.marker,
+      floor: Number.isFinite(Number(saved.floorOverride)) ? Math.max(1, Math.round(Number(saved.floorOverride))) : node.floor,
+      x: Number.isFinite(Number(saved.xOverride)) ? Number(saved.xOverride) : node.x,
+      y: Number.isFinite(Number(saved.yOverride)) ? Number(saved.yOverride) : node.y,
+      length: Number.isFinite(Number(saved.lengthOverride)) ? Math.max(0, Number(saved.lengthOverride)) : node.length,
+      nodeCount: Number.isFinite(Number(saved.nodeCountOverride)) ? Math.max(1, Math.round(Number(saved.nodeCountOverride))) : node.nodeCount,
+      panelThickness: Number.isFinite(Number(saved.panelThicknessOverride)) ? Math.max(0, Number(saved.panelThicknessOverride)) : node.panelThickness,
+      formula: saved.formulaOverride || node.formula,
+      sourceReference: saved.sourceReferenceOverride || rule?.source || node.sourceReference,
+      elements: Array.isArray(saved.elementsOverride) ? saved.elementsOverride : node.elements,
       enabled: saved.enabled !== false,
       spacing: Number.isFinite(Number(saved.spacingOverride)) ? Math.max(0, Number(saved.spacingOverride)) : node.spacing,
       qtyPerNode: Number.isFinite(Number(saved.qtyPerNodeOverride)) ? Math.max(0, Number(saved.qtyPerNodeOverride)) : node.qtyPerNode,
@@ -139,7 +148,6 @@ function applyStoredOverrides(autoNodes, storedNodes, formulas) {
       packSize: Number.isFinite(Number(saved.packSize)) ? Math.max(0, Number(saved.packSize)) : node.packSize,
       fastener,
       requiresEngineeringReview: saved.requiresEngineeringReview ?? rule?.requiresEngineeringReview ?? node.requiresEngineeringReview,
-      sourceReference: rule?.source || node.sourceReference,
       override: saved,
     };
   });
@@ -150,11 +158,12 @@ function applyStoredOverrides(autoNodes, storedNodes, formulas) {
       ...makeNode(rule.code, node.id || `manual-${index + 1}`, { panelThickness: node.panelThickness }, formulas, node.calculatedQtyOverride || node.calculatedQty || 0, node),
       ...node,
       source: 'manual',
-      name: rule.name,
-      section: rule.section,
-      marker: rule.marker,
+      name: node.nameOverride || node.name || rule.name,
+      section: node.sectionOverride || node.section || rule.section,
+      marker: node.markerOverride || node.marker || rule.marker,
       fastener: node.fastenerOverride || resolveFastener(rule, node, formulas),
       enabled: node.enabled !== false,
+      override: node,
     };
   });
   return [...merged, ...manual];
@@ -231,9 +240,25 @@ function wallNodes(project, calculation, formulas) {
           formula: `${base} шт по периметру × ${multiplier} усиление`,
         }));
       });
-    } else if (['floor', 'secondFloor', 'ceiling'].includes(row.key) && row.structuralCount > 0) {
+    } else if (['floor', 'secondFloor', 'ceiling'].includes(row.key)) {
+      const supportSpacing = formulaValue(formulas, 'sipSupportBoardScrewSpacingM', 1.25);
+      const supportQty = Math.ceil(Math.max(0, Number(row.endBoardLength) || 0) / supportSpacing);
+      const supportType = row.key === 'ceiling' ? 'SIP_CEILING_SUPPORT_BOARD' : 'SIP_FLOOR_SUPPORT_BOARD';
+      if (supportQty > 0) nodes.push(makeNode(supportType, `${floor}-${row.key}-support-board`, { floor, ...center, panelThickness: row.panelThickness }, formulas, supportQty, {
+        length: row.endBoardLength,
+        nodeCount: contourRuns(plan).length,
+        spacing: supportSpacing,
+        formula: `ceil(${round(row.endBoardLength, 2)} м ÷ ${supportSpacing} м)`,
+      }));
+      const wallStarterRow = row.key === 'floor'
+        ? rows.find((item) => item.key === 'walls')
+        : row.key === 'secondFloor'
+          ? rows.find((item) => item.key === 'wallsSecondFloor')
+          : null;
+      const structuralQty = Math.max(0, Math.round((row.structuralCount || 0) - (wallStarterRow?.bottomBindingCount || 0)));
+      if (!structuralQty) return;
       const type = row.key === 'floor' ? 'SIP_FLOOR_SUPPORT' : row.key === 'ceiling' ? 'SIP_WALL_TO_CEILING' : 'SIP_WALL_TO_FLOOR';
-      nodes.push(makeNode(type, `${floor}-${row.key}-support`, { floor, ...center, panelThickness: row.supportPanelThickness || row.panelThickness }, formulas, row.structuralCount, {
+      nodes.push(makeNode(type, `${floor}-${row.key}-support`, { floor, ...center, panelThickness: row.supportPanelThickness || row.panelThickness }, formulas, structuralQty, {
         length: row.endBoardLength,
         nodeCount: contourRuns(plan).length,
         formula: `${round(row.endBoardLength, 2)} м опорного контура; расчёт каждой стороны с шагом ${formulaValue(formulas, 'sipBindingScrewSpacingM', 1.5)} м`,
@@ -323,6 +348,18 @@ function foundationAndExtensionNodes(project, calculation, formulas) {
       formula: `${calculation.foundation.totalPiles} свай × ${perPile} шт`,
     }));
   }
+  if (calculation.foundation?.bindingLength > 0 && calculation.foundation?.bindingLayers > 1) {
+    const spacing = formulaValue(formulas, 'bindingPackScrewSpacingM', 0.5);
+    const interfaces = Math.max(1, calculation.foundation.bindingLayers - 1);
+    const quantity = Math.ceil(calculation.foundation.bindingLength / spacing) * interfaces;
+    nodes.push(makeNode('BINDING_BOARD_PACK', 'foundation-binding-board-pack', center, formulas, quantity, {
+      nodeCount: interfaces,
+      length: calculation.foundation.bindingLength,
+      spacing,
+      qtyPerNode: Math.ceil(calculation.foundation.bindingLength / spacing),
+      formula: `ceil(${calculation.foundation.bindingLength} м ÷ ${spacing} м) × ${interfaces} соединяемых слоя`,
+    }));
+  }
   (project.plan.platforms || []).filter((platform) => platform.include !== false).forEach((platform, index) => {
     const isPorch = platform.kind === 'porch' || platform.type === 'porch' || /крыл/i.test(platform.name || '');
     const type = isPorch ? 'PORCH_FRAME' : 'TERRACE_LEDGER';
@@ -385,7 +422,7 @@ function groupRows(nodes, settings) {
   const grouped = new Map();
   nodes.filter((node) => node.enabled !== false).forEach((node) => {
     const fastenerKey = node.fastener?.size || node.fastener?.type || 'UNASSIGNED';
-    const key = [node.section, node.type, fastenerKey, node.spacing ?? '', node.qtyPerNode ?? ''].join('|');
+    const key = [node.section, node.type, fastenerKey, node.spacing ?? '', node.qtyPerNode ?? '', node.reservePercent ?? reserveDefault, node.packSize ?? ''].join('|');
     const current = grouped.get(key) || {
       key,
       section: node.section,

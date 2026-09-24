@@ -116,13 +116,23 @@
     },
     {
       "code": "SIP_FLOOR_SUPPORT",
-      "name": "Опорный контур SIP-пола",
+      "name": "SIP-пол → ростверк через стартовую доску",
       "section": "Перекрытия",
       "marker": "F",
       "elements": ["SIP_FLOOR", "TIMBER_BINDING"],
       "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
-      "source": { "type": "EFT_BOOK", "indexId": "floor-ceiling-supports", "pages": "34–64", "note": "Считается по фактическим сторонам опорного контура." },
+      "source": { "type": "REFERENCE", "indexId": "floor-to-rostverk", "pages": null, "url": "https://www.sipwall.ru/vopros-otvet/rekomendatsii-po-sborke-domokomplekta/ustroystvo-paneley-perekrytiya-na-otmetke-0-000/", "note": "Силовой саморез проходит через стартовую доску стены и SIP-пол к ростверку. При наличии стен считается единым узлом стартовой доски, без повторного начисления." },
       "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_FLOOR_SUPPORT_BOARD",
+      "name": "Опорный брус/доска SIP-пола",
+      "section": "Перекрытия",
+      "marker": "F",
+      "elements": ["SIP_FLOOR", "SUPPORT_BOARD"],
+      "fasteners": [{ "type": "structural-screw", "size": "6x120", "diameterMm": 6, "lengthMm": 120, "quantityMode": "length-step", "stepFormulaKey": "sipSupportBoardScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "floor-support-board", "pages": null, "url": "https://www.sipwall.ru/vopros-otvet/rekomendatsii-po-sborke-domokomplekta/prilozhenie-3/", "note": "6×120 для крепления опорного бруса. Шаг 1,25 м принят как редактируемая норма проекта EFT и должен быть сверен с КР." },
+      "requiresEngineeringReview": true
     },
     {
       "code": "SIP_CEILING_SUPPORT",
@@ -133,6 +143,16 @@
       "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "length-step", "stepFormulaKey": "sipBindingScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
       "source": { "type": "EFT_BOOK", "indexId": "floor-ceiling-supports", "pages": "34–64", "note": "Считается по фактическим сторонам опорного контура." },
       "requiresEngineeringReview": false
+    },
+    {
+      "code": "SIP_CEILING_SUPPORT_BOARD",
+      "name": "Опорный брус/доска SIP-потолка",
+      "section": "Перекрытия",
+      "marker": "F",
+      "elements": ["SIP_CEILING", "SUPPORT_BOARD"],
+      "fasteners": [{ "type": "structural-screw", "size": "6x120", "diameterMm": 6, "lengthMm": 120, "quantityMode": "length-step", "stepFormulaKey": "sipSupportBoardScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "ceiling-support-board", "pages": null, "url": "https://www.sipwall.ru/vopros-otvet/rekomendatsii-po-sborke-domokomplekta/prilozhenie-3/", "note": "6×120 для крепления опорного бруса. Шаг 1,25 м принят как редактируемая норма проекта EFT и должен быть сверен с КР." },
+      "requiresEngineeringReview": true
     },
     {
       "code": "SIP_WALL_TO_FLOOR",
@@ -223,6 +243,16 @@
       "fasteners": [{ "type": "structural-screw", "size": "NEXT_SIZE_BY_SIP_THICKNESS", "diameterMm": 8, "lengthMm": null, "quantityMode": "per-panel", "qtyFormulaKey": "sipRoofSupportPointsPerPanel", "rows": 1, "edgeOffsetMm": null, "staggered": false, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
       "source": { "type": "EFT_BOOK", "indexId": "sip-roof", "pages": "134–144, 161–164", "note": "Опорные точки панелей считаются отдельно от коньковых пластин." },
       "requiresEngineeringReview": false
+    },
+    {
+      "code": "BINDING_BOARD_PACK",
+      "name": "Сборка пакета досок обвязки",
+      "section": "Фундамент",
+      "marker": "B",
+      "elements": ["TIMBER_BINDING", "TIMBER_BINDING"],
+      "fasteners": [{ "type": "structural-screw", "size": "6x120", "diameterMm": 6, "lengthMm": 120, "quantityMode": "length-step-interfaces", "stepFormulaKey": "bindingPackScrewSpacingM", "rows": 1, "edgeOffsetMm": null, "staggered": true, "washer": false, "metalConnector": false, "packSize": null, "alternatives": [] }],
+      "source": { "type": "EFT_PROJECT_RULE", "indexId": "binding-board-pack", "pages": null, "note": "Три доски образуют два соединяемых слоя. Шаг 0,5 м принят как редактируемая норма проекта EFT; схема должна быть подтверждена в КР." },
+      "requiresEngineeringReview": true
     },
     {
       "code": "PILE_BINDING",

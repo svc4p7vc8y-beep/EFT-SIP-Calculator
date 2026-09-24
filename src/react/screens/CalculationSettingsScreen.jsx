@@ -39,6 +39,7 @@ const FORMULA_GROUPS = [
     ['foamUnitsPerJointMeter', 'Пеноклея на 1 м шва', 'баллона'], ['sipSeamScrewSpacingM', 'Шаг саморезов 3,8×41', 'м'],
     ['sipPanelSupportScrews', 'Саморезов 3,8×41 на панель к основанию', 'шт'], ['sipEdgeScrewSpacingM', 'Шаг саморезов 4,2×75', 'м'],
     ['sipBindingScrewSpacingM', 'Шаг конструкционных саморезов нижней/верхней обвязки', 'м'], ['sipCornerScrewSpacingM', 'Шаг конструкционных саморезов вертикальных углов', 'м'],
+    ['sipSupportBoardScrewSpacingM', 'Шаг саморезов 6×120 опорного бруса пола/потолка', 'м'],
     ['sipEntranceOpeningFastenerMultiplier', 'Усиление крепежа входного проёма', 'коэф.'], ['sipGarageOpeningFastenerMultiplier', 'Усиление крепежа ворот', 'коэф.'],
     ['sipUniversalScrewsPerTNode', 'Саморезов 6×120 на Т-узел', 'шт'], ['sipUniversalScrewKgEach', 'Масса одного самореза 6×120', 'кг'],
     ['sipSealStaplesPerMeter', 'Скоб T53 на 1 м уплотнителя', 'шт'], ['sipSealStaplesPerPack', 'Скоб T53 в упаковке', 'шт'],
@@ -52,6 +53,7 @@ const FORMULA_GROUPS = [
   ['Фундамент, кровля, терраса', [
     ['pileConcreteM3', 'Пескобетона на сваю', 'м³'], ['pileScrewKg', 'Саморезов обвязки на сваю', 'кг'],
     ['pileLagScrews', 'Глухарей на сваю', 'шт'], ['hangingRafterReserve', 'Коэффициент висячей системы', 'коэф.'], ['layeredRafterReserve', 'Коэффициент наслонной системы', 'коэф.'], ['trussRafterReserve', 'Коэффициент стропильной фермы', 'коэф.'],
+    ['bindingPackScrewSpacingM', 'Шаг 6×120 для сборки пакета досок обвязки', 'м'],
     ['gableBoardM3PerM2', 'Доски каркаса на 1 м² фронтона', 'м³'], ['lathM3PerM2', 'Обрешётки на 1 м² кровли', 'м³'], ['roofScrewsPerM2', 'Кровельных саморезов на 1 м²', 'шт'],
     ['roofFramingNailKgEach', 'Масса гвоздя стропильного узла', 'кг'], ['roofLathNailKgEach', 'Масса крепежа обрешётки', 'кг'],
     ['roofRafterSupportNails', 'Гвоздей на опору стропила', 'шт'], ['roofRafterRidgeNails', 'Гвоздей на соединение у конька', 'шт'], ['roofRafterTieNails', 'Гвоздей на узел затяжки', 'шт'],

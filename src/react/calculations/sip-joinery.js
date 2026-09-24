@@ -350,6 +350,10 @@ export function calculateSipConsumables(
     0,
     Math.round(nonnegative(formulas.sipUniversalScrewsPerTNode, 2)),
   );
+  const supportBoardSpacing = positive(
+    formulas.sipSupportBoardScrewSpacingM,
+    1.25,
+  );
   const staplesPerSealMeter = nonnegative(
     formulas.sipSealStaplesPerMeter,
     16,
@@ -389,10 +393,21 @@ export function calculateSipConsumables(
       Math.ceil((joineryRow.jointLength * 2) / seamSpacing) +
       cutting.panels * supportPerPanel;
     const edgeCount = Math.ceil(joineryRow.endBoardLength / edgeSpacing);
-    const structuralCount = Math.max(0, Math.round(joineryRow.structuralCount || 0));
+    const wallStarterRow = joineryRow.key === "floor"
+      ? (joinery.rows || []).find((item) => item.key === "walls")
+      : joineryRow.key === "secondFloor"
+        ? (joinery.rows || []).find((item) => item.key === "wallsSecondFloor")
+        : null;
+    const structuralCount = Math.max(
+      0,
+      Math.round((joineryRow.structuralCount || 0) - (wallStarterRow?.bottomBindingCount || 0)),
+    );
+    const supportBoardScrewCount = ["floor", "secondFloor", "ceiling"].includes(joineryRow.key)
+      ? Math.ceil(Math.max(0, Number(joineryRow.endBoardLength) || 0) / supportBoardSpacing)
+      : 0;
     const universalScrewCount = Math.max(
       0,
-      Math.round((joineryRow.tNodeCount || 0) * universalPerTNode),
+      Math.round((joineryRow.tNodeCount || 0) * universalPerTNode) + supportBoardScrewCount,
     );
     const sealLength = round(joineryRow.sealLength || 0);
     const stapleCount = Math.ceil(sealLength * staplesPerSealMeter);
@@ -452,6 +467,7 @@ export function calculateSipConsumables(
       structuralKg: resolvedStructuralKg,
       structuralBreakdown,
       universalScrewCount,
+      supportBoardScrewCount,
       sealLength,
       stapleCount,
       spiralPacks: 0,

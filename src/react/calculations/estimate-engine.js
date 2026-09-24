@@ -843,6 +843,10 @@ function foundationSection(project, index, inputs) {
   const foundation = calculateFoundation(project.plan, project.settings.piles);
   if (!project.services.foundation) return { lines: [], foundation };
   const count = foundation.totalPiles;
+  const bindingPackSpacing = Math.max(0.05, Number(inputs.formulas.bindingPackScrewSpacingM) || 0.5);
+  const bindingPackInterfaces = Math.max(0, foundation.bindingLayers - 1);
+  const bindingPackScrewCount = Math.ceil(foundation.bindingLength / bindingPackSpacing) * bindingPackInterfaces;
+  const bindingPackScrewKg = bindingPackScrewCount * Math.max(0, Number(inputs.formulas.sipUniversalScrewKgEach) || 0.02);
   return {
     foundation,
     lines: compact([
@@ -894,8 +898,13 @@ function foundationSection(project, index, inputs) {
         index,
         "foundation",
         "Саморезы 6х120",
-        count * inputs.formulas.pileScrewKg,
-        { key: "binding-screws", unit: "кг" },
+        bindingPackScrewKg,
+        {
+          key: "binding-screws",
+          unit: "кг",
+          digits: 3,
+          name: `Саморезы 6×120 для сборки ${foundation.bindingLayers}-слойной обвязки · ${bindingPackScrewCount} шт`,
+        },
       ),
       makeLine(
         index,

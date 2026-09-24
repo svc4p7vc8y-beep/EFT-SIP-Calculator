@@ -10,7 +10,7 @@ test('EFT node library has unique manufacturer-independent rules and traceable s
   const codes = library.nodes.map((node) => node.code);
   assert.equal(library.manufacturerIndependent, true);
   assert.equal(new Set(codes).size, codes.length);
-  for (const code of ['SIP_SPLINE', 'SIP_EDGE_BOARD', 'SIP_START_BOARD_THROUGH_224', 'SIP_WALL_CORNER', 'SIP_WALL_T', 'SIP_FLOOR_SUPPORT', 'SIP_CEILING_SUPPORT', 'MAUERLAT', 'RAFTER_TO_MAUERLAT', 'RAFTER_TO_RIDGE', 'ROOF_LATH', 'ROOF_COUNTERLATH', 'TERRACE_LEDGER', 'PORCH_FRAME']) {
+  for (const code of ['SIP_SPLINE', 'SIP_EDGE_BOARD', 'SIP_START_BOARD_THROUGH_224', 'SIP_WALL_CORNER', 'SIP_WALL_T', 'SIP_FLOOR_SUPPORT', 'SIP_FLOOR_SUPPORT_BOARD', 'SIP_CEILING_SUPPORT', 'SIP_CEILING_SUPPORT_BOARD', 'BINDING_BOARD_PACK', 'MAUERLAT', 'RAFTER_TO_MAUERLAT', 'RAFTER_TO_RIDGE', 'ROOF_LATH', 'ROOF_COUNTERLATH', 'TERRACE_LEDGER', 'PORCH_FRAME']) {
     const node = library.nodes.find((item) => item.code === code);
     assert.ok(node, `${code} is present`);
     assert.ok(node.source?.type, `${code} has a source status`);
@@ -30,6 +30,24 @@ test('224 mm floor separates 8x320 starter fasteners from 8x220 wall fasteners',
   assert.ok(starter.calculatedQty > 0);
   assert.ok(result.lines.some((line) => line.id.startsWith('sip:fasteners-walls-') && line.name.includes('8×320')));
   assert.ok(result.lines.some((line) => line.id === 'sip:fasteners-walls' && line.name.includes('8×220')));
+  assert.equal(result.nodeFasteners.rows.some((row) => row.type === 'SIP_FLOOR_SUPPORT' && row.size === '8×320'), false);
+  const floorSupport = result.nodeFasteners.rows.find((row) => row.type === 'SIP_FLOOR_SUPPORT_BOARD');
+  assert.equal(floorSupport.size, '6×120');
+  assert.ok(floorSupport.calculatedQty > 0);
+});
+
+test('three-board binding counts editable 6x120 assembly screws in nodes and estimate', () => {
+  const project = createDefaultProject();
+  project.settings.piles.bindingLayers = 3;
+  project.settings.formulas.bindingPackScrewSpacingM = 0.5;
+  const result = calculateProject(project);
+  const row = result.nodeFasteners.rows.find((item) => item.type === 'BINDING_BOARD_PACK');
+  const expected = Math.ceil(result.foundation.bindingLength / 0.5) * 2;
+  assert.equal(row.size, '6×120');
+  assert.equal(row.calculatedQty, expected);
+  const estimate = result.lines.find((line) => line.id === 'foundation:binding-screws');
+  assert.ok(Math.abs(estimate.qty - expected * project.settings.formulas.sipUniversalScrewKgEach) < 1e-9);
+  assert.match(estimate.name, new RegExp(`${expected} шт`));
 });
 
 test('node report exposes geometry formulas, reserve and a consolidated purchase order', () => {
@@ -96,4 +114,48 @@ test('plan schema 4 round-trips construction and node overrides while schema 3 r
   assert.deepEqual(legacyOpened.nodes, []);
   assert.deepEqual(legacyOpened.construction, {});
   assert.equal(migrateProject(legacyOpened).nodes.length, 0);
+});
+
+test('all editable node fields survive shared project migration', () => {
+  const source = createDefaultProject();
+  const initial = calculateProject(source).nodeFasteners.nodes.find((node) => node.type === 'SIP_FLOOR_SUPPORT_BOARD');
+  source.nodes = [{
+    id: initial.id,
+    type: initial.type,
+    source: 'auto',
+    nameOverride: 'Опорный брус по КР-7',
+    sectionOverride: 'Спецузлы',
+    markerOverride: 'КР',
+    floorOverride: 2,
+    xOverride: 1.25,
+    yOverride: 2.5,
+    lengthOverride: 12.4,
+    nodeCountOverride: 7,
+    panelThicknessOverride: 224,
+    calculatedQtyOverride: 44,
+    spacingOverride: 0.4,
+    qtyPerNodeOverride: 3,
+    reservePercent: 12,
+    packSize: 50,
+    formulaOverride: '44 шт по КР-7',
+    fastenerOverride: { type: 'structural-screw', size: '6×140', diameterMm: 6, lengthMm: 140, kgEach: 0.024 },
+    requiresEngineeringReview: false,
+  }];
+  const reopened = migrateProject(JSON.parse(JSON.stringify(source)));
+  const node = calculateProject(reopened).nodeFasteners.nodes.find((item) => item.id === initial.id);
+  assert.equal(node.name, 'Опорный брус по КР-7');
+  assert.equal(node.section, 'Спецузлы');
+  assert.equal(node.marker, 'КР');
+  assert.equal(node.floor, 2);
+  assert.equal(node.x, 1.25);
+  assert.equal(node.y, 2.5);
+  assert.equal(node.length, 12.4);
+  assert.equal(node.nodeCount, 7);
+  assert.equal(node.calculatedQty, 44);
+  assert.equal(node.spacing, 0.4);
+  assert.equal(node.qtyPerNode, 3);
+  assert.equal(node.fastener.size, '6×140');
+  assert.equal(node.fastener.kgEach, 0.024);
+  assert.equal(node.formula, '44 шт по КР-7');
+  assert.equal(node.requiresEngineeringReview, false);
 });

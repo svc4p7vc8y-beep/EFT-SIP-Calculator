@@ -1418,7 +1418,8 @@ test('new SIP projects calculate adhesive and fasteners from joints and nodes', 
     assert.equal(row.foamUnits, Math.ceil((joinery.jointLength + joinery.endBoardLength) * project.settings.formulas.foamUnitsPerJointMeter));
     assert.ok(row.seamCount > 0);
     assert.ok(row.edgeCount > 0);
-    assert.ok(row.structuralCount > 0);
+    if (row.key === 'floor') assert.equal(row.structuralCount, 0, 'floor-to-rostverk screws are represented once by the wall starter node');
+    else assert.ok(row.structuralCount > 0);
     assert.match(row.structuralSize, /^8×(180|220|280)$/);
     assert.equal(row.stapleCount, Math.ceil(row.sealLength * project.settings.formulas.sipSealStaplesPerMeter));
   });
@@ -1468,7 +1469,10 @@ test('node SIP fasteners cover floor, ceiling and strengthened exterior openings
   const withoutOpenings = calculateProject(project);
   const wallWithoutOpenings = withoutOpenings.sip.consumables.rows.find((row) => row.key === 'walls');
   assert.ok(wallWithEntrance.structuralCount > wallWithoutOpenings.structuralCount);
-  assert.ok(withEntrance.sip.consumables.rows.find((row) => row.key === 'floor').structuralCount > 0);
+  const floor = withEntrance.sip.consumables.rows.find((row) => row.key === 'floor');
+  assert.equal(floor.structuralCount, 0, '8x320 is not duplicated between the floor and starter-board rows');
+  assert.ok(floor.supportBoardScrewCount > 0);
+  assert.equal(floor.universalScrewCount, floor.supportBoardScrewCount);
   assert.ok(withEntrance.sip.consumables.rows.find((row) => row.key === 'ceiling').structuralCount > 0);
   withEntrance.lines.filter((line) => /^sip:fasteners-/.test(line.id)).forEach((line) => {
     assert.equal(line.unit, 'шт');
