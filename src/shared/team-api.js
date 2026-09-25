@@ -28,15 +28,16 @@ export async function eftApi(
   const endpoint = resolveEftApiUrl();
   const separator = endpoint.includes("?") ? "&" : "?";
   const parameters = new URLSearchParams({ action, ...query });
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const response = await fetch(`${endpoint}${separator}${parameters}`, {
     method,
     credentials: "include",
     headers: {
       Accept: "application/json",
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...(body === undefined || isFormData ? {} : { "Content-Type": "application/json" }),
       ...(csrf ? { "X-CSRF-Token": csrf } : {}),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : (isFormData ? body : JSON.stringify(body)),
     signal,
   });
   let result;

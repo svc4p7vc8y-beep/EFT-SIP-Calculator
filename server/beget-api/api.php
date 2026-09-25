@@ -11,6 +11,39 @@ $action = (string)($_GET['action'] ?? 'session');
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $pdo = eft_db();
 
+function eft_collect_uploaded_files(string $field, int $maxFiles = 10, int $maxFileBytes = 8388608, int $maxTotalBytes = 20971520): array {
+    if (!isset($_FILES[$field])) return [];
+    $upload = $_FILES[$field];
+    $names = is_array($upload['name'] ?? null) ? $upload['name'] : [$upload['name'] ?? ''];
+    $types = is_array($upload['type'] ?? null) ? $upload['type'] : [$upload['type'] ?? ''];
+    $paths = is_array($upload['tmp_name'] ?? null) ? $upload['tmp_name'] : [$upload['tmp_name'] ?? ''];
+    $errors = is_array($upload['error'] ?? null) ? $upload['error'] : [$upload['error'] ?? UPLOAD_ERR_NO_FILE];
+    $sizes = is_array($upload['size'] ?? null) ? $upload['size'] : [$upload['size'] ?? 0];
+    if (count($names) > $maxFiles) eft_json(['ok' => false, 'code' => 'too_many_files', 'message' => "Можно приложить не более {$maxFiles} файлов."], 422);
+    $allowedExtensions = ['pdf','jpg','jpeg','png','webp','gif','doc','docx','xls','xlsx','csv','txt','ppt','pptx','zip','rar','7z','dwg','dxf','json'];
+    $files = [];
+    $total = 0;
+    foreach ($names as $index => $rawName) {
+        $error = (int)($errors[$index] ?? UPLOAD_ERR_NO_FILE);
+        if ($error === UPLOAD_ERR_NO_FILE) continue;
+        if ($error !== UPLOAD_ERR_OK) eft_json(['ok' => false, 'code' => 'upload_failed', 'message' => 'Не удалось загрузить один из файлов.'], 422);
+        $name = mb_substr(basename((string)$rawName), 0, 255);
+        $extension = mb_strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $size = (int)($sizes[$index] ?? 0);
+        if ($name === '' || !in_array($extension, $allowedExtensions, true)) eft_json(['ok' => false, 'code' => 'invalid_file_type', 'message' => 'Этот тип файла не поддерживается. Используйте документы, изображения, архивы, DWG или DXF.'], 422);
+        if ($size < 1 || $size > $maxFileBytes) eft_json(['ok' => false, 'code' => 'file_too_large', 'message' => 'Размер одного файла не должен превышать 8 МБ.'], 413);
+        $total += $size;
+        if ($total > $maxTotalBytes) eft_json(['ok' => false, 'code' => 'files_too_large', 'message' => 'Общий размер одной загрузки не должен превышать 20 МБ.'], 413);
+        $path = (string)($paths[$index] ?? '');
+        if (!is_uploaded_file($path)) eft_json(['ok' => false, 'code' => 'invalid_upload', 'message' => 'Сервер не подтвердил загрузку файла.'], 422);
+        $content = file_get_contents($path);
+        if ($content === false) eft_json(['ok' => false, 'code' => 'upload_read_failed', 'message' => 'Не удалось прочитать загруженный файл.'], 500);
+        $detected = function_exists('finfo_open') ? (new finfo(FILEINFO_MIME_TYPE))->file($path) : '';
+        $files[] = ['name' => $name, 'type' => $detected ?: ((string)($types[$index] ?? '') ?: 'application/octet-stream'), 'size' => $size, 'content' => $content];
+    }
+    return $files;
+}
+
 if ($action === 'session' && $method === 'GET') {
     $user = eft_session_user();
     eft_json(['ok' => true, 'user' => $user, 'csrf' => $user ? ($_SESSION['csrf'] ?? '') : '']);
@@ -95,6 +128,95 @@ if ($action === 'logout' && $method === 'POST') {
     eft_json(['ok' => true]);
 }
 
+if ($action === 'files' && $method === 'GET') {
+    $folderId = trim((string)($_GET['folder'] ?? ''));
+    if ($folderId === 'questionnaires') {
+        $rows = $pdo->query("SELECT a.id, a.original_name, a.mime_type, a.size_bytes, a.created_at, q.public_number, q.customer_name FROM eft_questionnaire_attachments a JOIN eft_questionnaires q ON q.id = a.questionnaire_id ORDER BY a.created_at DESC LIMIT 500")->fetchAll();
+        foreach ($rows as &$row) { $row['source'] = 'questionnaire'; $row['downloadAction'] = 'attachment'; }
+        eft_json(['ok' => true, 'folder' => ['id' => 'questionnaires', 'name' => 'Файлы из анкет', 'virtual' => true], 'breadcrumbs' => [['id' => '', 'name' => 'Файлы'], ['id' => 'questionnaires', 'name' => 'Файлы из анкет']], 'folders' => [], 'files' => $rows]);
+    }
+    $folder = null;
+    if ($folderId !== '') {
+        if (!preg_match('/^[a-f0-9-]{36}$/i', $folderId)) eft_json(['ok' => false, 'code' => 'invalid_folder', 'message' => 'Папка не найдена.'], 404);
+        $statement = $pdo->prepare('SELECT id, parent_id, name FROM eft_file_folders WHERE id = ? LIMIT 1');
+        $statement->execute([$folderId]);
+        $folder = $statement->fetch();
+        if (!$folder) eft_json(['ok' => false, 'code' => 'folder_not_found', 'message' => 'Папка не найдена.'], 404);
+    }
+    $folderStatement = $pdo->prepare($folderId === '' ? 'SELECT f.id, f.parent_id, f.name, f.created_at, u.display_name AS created_by FROM eft_file_folders f JOIN eft_users u ON u.id = f.created_by WHERE f.parent_id IS NULL ORDER BY f.name' : 'SELECT f.id, f.parent_id, f.name, f.created_at, u.display_name AS created_by FROM eft_file_folders f JOIN eft_users u ON u.id = f.created_by WHERE f.parent_id = ? ORDER BY f.name');
+    $folderStatement->execute($folderId === '' ? [] : [$folderId]);
+    $fileStatement = $pdo->prepare($folderId === '' ? 'SELECT f.id, f.original_name, f.mime_type, f.size_bytes, f.created_at, u.display_name AS created_by FROM eft_files f JOIN eft_users u ON u.id = f.created_by WHERE f.folder_id IS NULL ORDER BY f.created_at DESC' : 'SELECT f.id, f.original_name, f.mime_type, f.size_bytes, f.created_at, u.display_name AS created_by FROM eft_files f JOIN eft_users u ON u.id = f.created_by WHERE f.folder_id = ? ORDER BY f.created_at DESC');
+    $fileStatement->execute($folderId === '' ? [] : [$folderId]);
+    $files = $fileStatement->fetchAll();
+    foreach ($files as &$file) { $file['source'] = 'shared'; $file['downloadAction'] = 'file-download'; }
+    $parents = [];
+    $cursor = $folder;
+    while ($cursor && count($parents) < 30) {
+        array_unshift($parents, ['id' => $cursor['id'], 'name' => $cursor['name']]);
+        if (!$cursor['parent_id']) break;
+        $parentStatement = $pdo->prepare('SELECT id, parent_id, name FROM eft_file_folders WHERE id = ? LIMIT 1');
+        $parentStatement->execute([$cursor['parent_id']]);
+        $cursor = $parentStatement->fetch();
+    }
+    $questionnaireCount = (int)$pdo->query('SELECT COUNT(*) FROM eft_questionnaire_attachments')->fetchColumn();
+    eft_json(['ok' => true, 'folder' => $folder, 'breadcrumbs' => array_merge([['id' => '', 'name' => 'Файлы']], $parents), 'folders' => $folderStatement->fetchAll(), 'files' => $files, 'questionnaireCount' => $questionnaireCount]);
+}
+
+if ($action === 'file-folder' && $method === 'POST') {
+    $input = eft_input(32768);
+    $name = trim(mb_substr((string)($input['name'] ?? ''), 0, 180));
+    $parentId = trim((string)($input['parentId'] ?? '')) ?: null;
+    if ($name === '' || preg_match('/[\\\\\/<>:"|?*]/u', $name)) eft_json(['ok' => false, 'code' => 'invalid_folder_name', 'message' => 'Введите название папки без служебных символов.'], 422);
+    if ($parentId) {
+        $statement = $pdo->prepare('SELECT COUNT(*) FROM eft_file_folders WHERE id = ?');
+        $statement->execute([$parentId]);
+        if (!(int)$statement->fetchColumn()) eft_json(['ok' => false, 'code' => 'folder_not_found', 'message' => 'Родительская папка не найдена.'], 404);
+    }
+    $duplicate = $pdo->prepare($parentId ? 'SELECT COUNT(*) FROM eft_file_folders WHERE parent_id = ? AND name = ?' : 'SELECT COUNT(*) FROM eft_file_folders WHERE parent_id IS NULL AND name = ?');
+    $duplicate->execute($parentId ? [$parentId, $name] : [$name]);
+    if ((int)$duplicate->fetchColumn()) eft_json(['ok' => false, 'code' => 'folder_exists', 'message' => 'Папка с таким названием уже существует.'], 409);
+    $id = eft_uuid();
+    $pdo->prepare('INSERT INTO eft_file_folders (id, parent_id, name, created_by) VALUES (?, ?, ?, ?)')->execute([$id, $parentId, $name, (int)$user['id']]);
+    eft_audit((int)$user['id'], 'file_folder_created', 'file_folder', $id, ['name' => $name]);
+    eft_json(['ok' => true, 'folder' => ['id' => $id, 'parent_id' => $parentId, 'name' => $name]], 201);
+}
+
+if ($action === 'file-upload' && $method === 'POST') {
+    $folderId = trim((string)($_POST['folderId'] ?? '')) ?: null;
+    if ($folderId) {
+        $statement = $pdo->prepare('SELECT COUNT(*) FROM eft_file_folders WHERE id = ?');
+        $statement->execute([$folderId]);
+        if (!(int)$statement->fetchColumn()) eft_json(['ok' => false, 'code' => 'folder_not_found', 'message' => 'Папка не найдена.'], 404);
+    }
+    $uploads = eft_collect_uploaded_files('files');
+    if (!$uploads) eft_json(['ok' => false, 'code' => 'missing_files', 'message' => 'Выберите хотя бы один файл.'], 422);
+    $statement = $pdo->prepare('INSERT INTO eft_files (id, folder_id, original_name, mime_type, size_bytes, content, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $ids = [];
+    $pdo->beginTransaction();
+    foreach ($uploads as $file) {
+        $id = eft_uuid();
+        $statement->execute([$id, $folderId, $file['name'], $file['type'], $file['size'], $file['content'], (int)$user['id']]);
+        $ids[] = $id;
+    }
+    $pdo->commit();
+    eft_audit((int)$user['id'], 'files_uploaded', 'file_folder', $folderId ?? '', ['count' => count($ids)]);
+    eft_json(['ok' => true, 'ids' => $ids, 'count' => count($ids)], 201);
+}
+
+if ($action === 'file-download' && $method === 'GET') {
+    $id = (string)($_GET['id'] ?? '');
+    $statement = $pdo->prepare('SELECT original_name, mime_type, size_bytes, content FROM eft_files WHERE id = ? LIMIT 1');
+    $statement->execute([$id]);
+    $file = $statement->fetch();
+    if (!$file) eft_json(['ok' => false, 'code' => 'file_not_found', 'message' => 'Файл не найден.'], 404);
+    header('Content-Type: ' . $file['mime_type']);
+    header('Content-Length: ' . (int)$file['size_bytes']);
+    header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($file['original_name']));
+    header('Cache-Control: private, no-store');
+    echo $file['content'];
+    exit;
+}
+
 if ($action === 'projects' && $method === 'GET') {
     $rows = $pdo->query("SELECT p.id, p.name, p.status, p.revision, p.payload, p.created_at, p.updated_at, u.display_name AS updated_by FROM eft_projects p JOIN eft_users u ON u.id = p.updated_by WHERE p.status <> 'archived' ORDER BY p.updated_at DESC LIMIT 250")->fetchAll();
     foreach ($rows as &$row) {
@@ -135,13 +257,15 @@ if ($action === 'mail-attachment' && $method === 'GET') {
 }
 
 if ($action === 'mail-send' && $method === 'POST') {
-    $input = eft_input(524288);
+    $multipart = str_starts_with(mb_strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'multipart/form-data');
+    $input = $multipart ? $_POST : eft_input(524288);
     $to = mb_substr(trim((string)($input['to'] ?? '')), 0, 190);
     $subject = mb_substr(trim((string)($input['subject'] ?? '')), 0, 240);
     $body = mb_substr(trim((string)($input['body'] ?? '')), 0, 200000);
     if ($body === '') eft_json(['ok' => false, 'code' => 'empty_message', 'message' => 'Введите текст письма.'], 422);
-    eft_send_smtp($to, $subject ?: '(без темы)', $body);
-    eft_audit((int)$user['id'], 'mail_sent', 'mail', '', ['to' => $to, 'subject' => $subject]);
+    $attachments = $multipart ? eft_collect_uploaded_files('attachments', 8, 8388608, 20971520) : [];
+    eft_send_smtp($to, $subject ?: '(без темы)', $body, $attachments);
+    eft_audit((int)$user['id'], 'mail_sent', 'mail', '', ['to' => $to, 'subject' => $subject, 'attachments' => count($attachments)]);
     eft_json(['ok' => true]);
 }
 

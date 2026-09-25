@@ -11,6 +11,7 @@ import {
   Cloud,
   FilePlus2,
   FileUp,
+  FolderOpen,
   HardHat,
   History,
   Home,
@@ -80,10 +81,12 @@ const TeamWorkspaceScreen = lazy(
   () => import("../screens/TeamWorkspaceScreen.jsx"),
 );
 const MailScreen = lazy(() => import("../screens/MailScreen.jsx"));
+const FilesScreen = lazy(() => import("../screens/FilesScreen.jsx"));
 
 const NAV_ITEMS = [
   { id: "team", label: "Общие проекты", icon: Cloud, group: "team" },
   { id: "mail", label: "Почта", icon: Mail, group: "team" },
+  { id: "files", label: "Файлы", icon: FolderOpen, group: "team" },
   { id: "plan", label: "План дома", icon: Ruler, group: "project" },
   { id: "parameters", label: "Параметры", icon: Settings2, group: "project" },
   { id: "piles", label: "Сваи", icon: HardHat, group: "calculate" },
@@ -138,6 +141,7 @@ function downloadProject(project) {
 function Screen({ active, calculation, teamProps }) {
   if (active === "team") return <TeamWorkspaceScreen {...teamProps} />;
   if (active === "mail") return <MailScreen />;
+  if (active === "files") return <FilesScreen />;
   if (active === "plan") return <PlanScreen />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
@@ -600,14 +604,6 @@ export function App() {
               }
               if (window.confirm('Восстановить базовый прайс? Изменённые цены и добавленные позиции будут сброшены. Действие можно отменить.')) commit(next => ({ ...next, ...createDefaultPriceLists() }));
             }}>Сбросить прайс</button></div>
-          ) : null}
-          {project.clientBrief?.serverAttachments?.length ? (
-            <aside className="project-source-files no-print" aria-label="Файлы клиента">
-              <strong>Файлы из анкеты</strong>
-              <div>{project.clientBrief.serverAttachments.map((file) => (
-                <a key={file.id} href={`${resolveEftApiUrl()}?action=attachment&id=${encodeURIComponent(file.id)}`} target="_blank" rel="noreferrer">{file.original_name}</a>
-              ))}</div>
-            </aside>
           ) : null}
           <ScreenErrorBoundary key={active} onBack={() => setActive("plan")}>
             <Suspense

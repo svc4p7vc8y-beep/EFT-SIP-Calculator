@@ -205,7 +205,7 @@ function eft_smtp_connection_check(): void {
     fclose($socket);
 }
 
-function eft_send_smtp(string $to, string $subject, string $body): void {
+function eft_send_smtp(string $to, string $subject, string $body, array $attachments = []): void {
     if (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $to . $subject)) eft_json(['ok' => false, 'code' => 'invalid_recipient', 'message' => 'Проверьте адрес получателя и тему.'], 422);
     $config = eft_mail_config();
     $socket = eft_smtp_authenticated_socket();
@@ -213,8 +213,24 @@ function eft_send_smtp(string $to, string $subject, string $body): void {
     eft_smtp_command($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
     eft_smtp_command($socket, 'DATA', [354]);
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-    $message = "From: EFT <{$config['username']}>\r\nTo: <{$to}>\r\nSubject: {$encodedSubject}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($body), 76, "\r\n");
-    fwrite($socket, str_replace("\r\n.\r\n", "\r\n..\r\n", $message) . "\r\n.\r\n");
+    $headers = "From: EFT <{$config['username']}>\r\nTo: <{$to}>\r\nSubject: {$encodedSubject}\r\nMIME-Version: 1.0\r\n";
+    if (!$attachments) {
+        $message = $headers . "Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($body), 76, "\r\n");
+    } else {
+        $boundary = 'eft_' . bin2hex(random_bytes(18));
+        $message = $headers . "Content-Type: multipart/mixed; boundary=\"{$boundary}\"\r\n\r\n";
+        $message .= "--{$boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($body), 76, "\r\n");
+        foreach ($attachments as $file) {
+            $safeName = str_replace(["\r", "\n", '"'], ['', '', "'"], (string)$file['name']);
+            $encodedName = rawurlencode($safeName);
+            $message .= "\r\n--{$boundary}\r\nContent-Type: " . (string)$file['type'] . "; name*=UTF-8''{$encodedName}\r\n";
+            $message .= "Content-Disposition: attachment; filename*=UTF-8''{$encodedName}\r\nContent-Transfer-Encoding: base64\r\n\r\n";
+            $message .= chunk_split(base64_encode((string)$file['content']), 76, "\r\n");
+        }
+        $message .= "\r\n--{$boundary}--\r\n";
+    }
+    $message = preg_replace('/(?m)^\./', '..', $message) ?? $message;
+    fwrite($socket, $message . "\r\n.\r\n");
     $response = eft_smtp_read($socket);
     if ((int)substr($response, 0, 3) !== 250) throw new RuntimeException('SMTP did not accept message.');
     eft_smtp_command($socket, 'QUIT', [221]);

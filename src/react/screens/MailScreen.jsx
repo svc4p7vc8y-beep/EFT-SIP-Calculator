@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Inbox, Link2, Mail, Paperclip, RefreshCw, Search, Send, Sparkles, X } from "lucide-react";
+import { File, Inbox, Link2, Mail, Paperclip, RefreshCw, Search, Send, Sparkles, X } from "lucide-react";
 import { eftApi, resolveEftApiUrl } from "../../shared/team-api.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
 
@@ -15,6 +15,8 @@ export default function MailScreen() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [compose, setCompose] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [sending, setSending] = useState(false);
   const mailboxAddress = status?.address || "sale@eftsip.ru";
 
   const load = useCallback(async (search = "") => {
@@ -43,24 +45,43 @@ export default function MailScreen() {
     } catch (error) { setNotice(error.message); }
   };
 
-  const startReply = () => setCompose({
-    to: selected?.fromEmail || "",
-    subject: selected?.subject?.startsWith("Re:") ? selected.subject : `Re: ${selected?.subject || ""}`,
-    body: "",
-  });
-  const makeDraft = () => setCompose({
-    to: selected?.fromEmail || "",
-    subject: selected?.subject?.startsWith("Re:") ? selected.subject : `Re: ${selected?.subject || ""}`,
-    body: `Здравствуйте, ${senderName(selected?.from)}!\n\nСпасибо за обращение в ЭФТ. Мы получили ваше письмо и изучаем информацию по проекту. Уточните, пожалуйста, удобное время для связи — менеджер свяжется с вами и согласует следующие шаги.\n\nС уважением,\nЭнергоЭффективные Технологии`,
-  });
+  const openComposer = (body = "") => {
+    setAttachments([]);
+    setCompose({
+      to: selected?.fromEmail || "",
+      subject: selected?.subject?.startsWith("Re:") ? selected.subject : `Re: ${selected?.subject || ""}`,
+      body,
+    });
+  };
+  const startReply = () => openComposer();
+  const makeDraft = () => openComposer(`Здравствуйте, ${senderName(selected?.from)}!\n\nСпасибо за обращение в ЭФТ. Мы получили ваше письмо и изучаем информацию по проекту. Уточните, пожалуйста, удобное время для связи — менеджер свяжется с вами и согласует следующие шаги.\n\nС уважением,\nЭнергоЭффективные Технологии`);
+  const chooseAttachments = (event) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    event.target.value = "";
+    const next = [...attachments, ...selectedFiles].slice(0, 8);
+    const total = next.reduce((sum, file) => sum + file.size, 0);
+    if (next.some((file) => file.size > 8 * 1024 * 1024) || total > 20 * 1024 * 1024) {
+      setNotice("Один файл — до 8 МБ, все вложения — до 20 МБ.");
+      return;
+    }
+    setAttachments(next);
+  };
   const send = async (event) => {
     event.preventDefault();
     setNotice("Отправляем письмо…");
+    setSending(true);
     try {
-      await eftApi("mail-send", { method: "POST", csrf: team.csrf, body: compose });
+      const form = new FormData();
+      form.append("to", compose.to);
+      form.append("subject", compose.subject);
+      form.append("body", compose.body);
+      attachments.forEach((file) => form.append("attachments[]", file));
+      await eftApi("mail-send", { method: "POST", csrf: team.csrf, body: form });
       setCompose(null);
-      setNotice(`Письмо отправлено с адреса ${mailboxAddress}`);
+      setAttachments([]);
+      setNotice(`Письмо отправлено с адреса ${mailboxAddress}${attachments.length ? ` · вложений: ${attachments.length}` : ""}`);
     } catch (error) { setNotice(error.message); }
+    finally { setSending(false); }
   };
   const linkProject = async (projectId) => {
     if (!selected || !projectId) return;
@@ -106,7 +127,7 @@ export default function MailScreen() {
           </> : <div className="mail-reader-empty"><Mail /><h2>Выберите письмо</h2><p>Здесь появятся текст, вложения и связь с проектом.</p></div>}
         </article>
       </div>
-      {compose ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setCompose(null)}><form className="modal mail-compose" role="dialog" aria-modal="true" onSubmit={send} onMouseDown={(event) => event.stopPropagation()}><header><div><h2>Новое письмо</h2><p>Отправитель: {mailboxAddress}</p></div><button type="button" className="icon-button" onClick={() => setCompose(null)}><X /></button></header><label>Кому<input type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} required /></label><label>Тема<input value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} required /></label><label>Сообщение<textarea value={compose.body} onChange={(event) => setCompose({ ...compose, body: event.target.value })} required /></label><footer><button type="button" className="button secondary" onClick={() => setCompose(null)}>Отмена</button><button className="button"><Send />Отправить</button></footer></form></div> : null}
+      {compose ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setCompose(null)}><form className="modal mail-compose" role="dialog" aria-modal="true" onSubmit={send} onMouseDown={(event) => event.stopPropagation()}><header><div><h2>Новое письмо</h2><p>Отправитель: {mailboxAddress}</p></div><button type="button" className="icon-button" onClick={() => setCompose(null)}><X /></button></header><label>Кому<input type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} required /></label><label>Тема<input value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} required /></label><label>Сообщение<textarea value={compose.body} onChange={(event) => setCompose({ ...compose, body: event.target.value })} required /></label><div className="mail-compose-attachments"><label className="button secondary"><Paperclip />Прикрепить файлы<input className="visually-hidden" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.rar,.7z,.dwg,.dxf,.json" onChange={chooseAttachments} /></label><small>До 8 файлов, один файл до 8 МБ, всего до 20 МБ.</small>{attachments.length ? <div>{attachments.map((file, index) => <span key={`${file.name}-${file.lastModified}`}><File />{file.name}<button type="button" onClick={() => setAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Убрать ${file.name}`}><X /></button></span>)}</div> : null}</div><footer><button type="button" className="button secondary" onClick={() => setCompose(null)}>Отмена</button><button className="button" disabled={sending}><Send />{sending ? "Отправляем…" : "Отправить"}</button></footer></form></div> : null}
     </section>
   );
 }

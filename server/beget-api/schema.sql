@@ -128,3 +128,32 @@ CREATE TABLE IF NOT EXISTS eft_mail_links (
   CONSTRAINT fk_eft_mail_link_project FOREIGN KEY (project_id) REFERENCES eft_projects(id) ON DELETE CASCADE,
   CONSTRAINT fk_eft_mail_link_user FOREIGN KEY (linked_by) REFERENCES eft_users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS eft_file_folders (
+  id CHAR(36) NOT NULL,
+  parent_id CHAR(36) NULL,
+  name VARCHAR(180) NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_eft_file_folders_parent (parent_id, name),
+  CONSTRAINT fk_eft_file_folder_parent FOREIGN KEY (parent_id) REFERENCES eft_file_folders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_eft_file_folder_user FOREIGN KEY (created_by) REFERENCES eft_users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS eft_files (
+  id CHAR(36) NOT NULL,
+  folder_id CHAR(36) NULL,
+  original_name VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(120) NOT NULL,
+  size_bytes INT UNSIGNED NOT NULL,
+  content MEDIUMBLOB NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_eft_files_folder (folder_id, created_at),
+  CONSTRAINT fk_eft_file_folder FOREIGN KEY (folder_id) REFERENCES eft_file_folders(id) ON DELETE SET NULL,
+  CONSTRAINT fk_eft_file_user FOREIGN KEY (created_by) REFERENCES eft_users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

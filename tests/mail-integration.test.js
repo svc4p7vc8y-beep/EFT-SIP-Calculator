@@ -37,6 +37,23 @@ test("mail screen displays the mailbox returned by the server", async () => {
   assert.doesNotMatch(screen, /info@eftsip\.ru/);
 });
 
+test("mail replies support multiple validated attachments", async () => {
+  const [api, client, screen, transport] = await Promise.all([
+    read("server/beget-api/api.php"),
+    read("server/beget-api/mail-client.php"),
+    read("src/react/screens/MailScreen.jsx"),
+    read("src/shared/team-api.js"),
+  ]);
+  assert.match(api, /eft_collect_uploaded_files\('attachments', 8/);
+  assert.match(api, /multipart\/form-data/);
+  assert.match(client, /multipart\/mixed/);
+  assert.match(client, /Content-Disposition: attachment/);
+  assert.match(screen, /attachments\[\]/);
+  assert.match(screen, /Прикрепить файлы/);
+  assert.match(transport, /body instanceof FormData/);
+  assert.match(transport, /isFormData \? body/);
+});
+
 test("questionnaire deletion is admin-only, password-confirmed and recoverable", async () => {
   const api = await read("server/beget-api/api.php");
   assert.match(api, /\$action === 'intake-delete'/);
