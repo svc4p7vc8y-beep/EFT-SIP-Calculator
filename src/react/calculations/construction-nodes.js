@@ -329,7 +329,7 @@ function roofNodes(project, calculation, formulas) {
     length: roof.mainLathRequiredLength,
     formula: `${roof.lathCrossingCount} пересеч. × ${formulaValue(formulas, 'roofLathNailsPerCrossing', 2)} шт`,
   }));
-  if (project.settings.roof.showCounterLath === true) nodes.push(makeNode('ROOF_COUNTERLATH', 'roof-counterlath', center, formulas, 0, {
+  if (project.settings.roof.includeCovering !== false && project.settings.roof.showCounterLath === true) nodes.push(makeNode('ROOF_COUNTERLATH', 'roof-counterlath', center, formulas, 0, {
     length: roof.rafterLegLength,
     formula: 'Геометрия известна, подтверждённая норма крепежа отсутствует',
   }));
@@ -412,7 +412,7 @@ function buildConstructionSnapshot(project, calculation, nodes) {
     rafters: calculation.roof?.rafterStructure ? [{ id: 'rafters-main', source: 'auto', ...calculation.roof.rafterStructure, requiredLength: calculation.roof.rafterRequiredLength }] : [],
     mauerlat: calculation.roof?.mauerlatLength > 0 ? [{ id: 'mauerlat-main', source: 'auto', length: calculation.roof.mauerlatLength, layout: calculation.roof.mauerlatLayout }] : [],
     lath: calculation.roof?.mainLathRequiredLength > 0 ? [{ id: 'lath-main', source: 'auto', length: calculation.roof.mainLathRequiredLength, step: calculation.roof.lathStep }] : [],
-    counterLath: project.settings.roof.showCounterLath === true ? [{ id: 'counterlath-main', source: 'auto', length: calculation.roof?.rafterLegLength || 0, requiresEngineeringReview: true }] : [],
+    counterLath: project.settings.roof.includeCovering !== false && project.settings.roof.showCounterLath === true ? [{ id: 'counterlath-main', source: 'auto', length: calculation.roof?.rafterLegLength || 0, requiresEngineeringReview: true }] : [],
   };
 }
 

@@ -2961,14 +2961,14 @@ function RoofLayerInspector({ roof, commitRoof }) {
           step={0.05}
           onChange={(value) => commitRoof("rafterStep", value)}
         /> : null}
-        <NumberField
+        {roof.includeCovering !== false ? <NumberField
           label="Шаг обрешётки"
           value={roof.lathStep || 0.35}
           suffix="м"
           min={0.1}
           step={0.05}
           onChange={(value) => commitRoof("lathStep", value)}
-        />
+        /> : null}
       </div>
       {visibility.showRafterDimensions ? <SelectField
         label="Стропильная доска"
@@ -2977,6 +2977,15 @@ function RoofLayerInspector({ roof, commitRoof }) {
         options={[
           { value: "50x150", label: "50 × 150 мм" },
           { value: "50x200", label: "50 × 200 мм" },
+        ]}
+      /> : null}
+      {visibility.showSipFrame ? <SelectField
+        label="Каркас SIP-кровли"
+        value={roof.sipFrameMode === "reinforced" ? "reinforced" : "standard"}
+        onChange={(value) => commitRoof("sipFrameMode", value)}
+        options={[
+          { value: "standard", label: "Обычный · шаг 1250 мм" },
+          { value: "reinforced", label: "Усиленный · шаг 625 мм" },
         ]}
       /> : null}
       {visibility.showMauerlat ? <SelectField
@@ -3010,9 +3019,9 @@ function RoofLayerInspector({ roof, commitRoof }) {
       /> : null}
       <div className="roof-layer-toggles">
         <Toggle
-          label="Покрытие"
-          checked={roof.showRoofCover !== false}
-          onChange={(value) => commitRoof("showRoofCover", value)}
+          label="Кровельное покрытие"
+          checked={roof.includeCovering !== false}
+          onChange={(value) => commitRoof("includeCovering", value)}
         />
         {visibility.showMauerlat ? <Toggle
           label="Мауэрлат"
@@ -3024,16 +3033,16 @@ function RoofLayerInspector({ roof, commitRoof }) {
           checked={roof.showRafters !== false}
           onChange={(value) => commitRoof("showRafters", value)}
         /> : null}
-        <Toggle
+        {roof.includeCovering !== false ? <Toggle
           label="Обрешётка"
           checked={roof.showLath !== false}
           onChange={(value) => commitRoof("showLath", value)}
-        />
-        <Toggle
+        /> : null}
+        {roof.includeCovering !== false ? <Toggle
           label="Контробрешётка"
           checked={roof.showCounterLath === true}
           onChange={(value) => commitRoof("showCounterLath", value)}
-        />
+        /> : null}
         <Toggle
           label="Водосточная система"
           checked={roof.includeGutter === true}
@@ -4860,6 +4869,11 @@ export default function PlanScreen({ onNavigate }) {
     (key, value) =>
       commit((next) => {
         next.settings.roof[key] = value;
+        if (key === "includeCovering") {
+          next.settings.roof.showRoofCover = value;
+          next.settings.roof.showLath = value;
+          if (!value) next.settings.roof.showCounterLath = false;
+        }
         if (["rafterSystem", "rafterStep", "rafterSection"].includes(key))
           next.settings.roof.structureMode = "manual";
         if (!key.startsWith("show"))

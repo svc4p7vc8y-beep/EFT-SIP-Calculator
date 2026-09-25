@@ -4,7 +4,7 @@ import { AlertTriangle, FileSpreadsheet, Printer, ImagePlus, Trash2, ArrowLeft, 
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
-import { buildClientEstimate, unpricedClientLines } from '../calculations/client-estimate.js';
+import { buildClientEstimate, isEstimateCutting, unpricedClientLines } from '../calculations/client-estimate.js';
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
 import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../components/ui.jsx';
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
@@ -77,6 +77,17 @@ export default function EstimateScreen() {
     () => unpricedClientLines(calculation, printOptions),
     [calculation, printOptions],
   );
+  const visibleManagerSections = useMemo(
+    () => calculation.sections
+      .map((section) => ({
+        ...section,
+        lines: printOptions.includeLabor === false
+          ? section.lines.filter((line) => line.kind !== 'labor' || isEstimateCutting(line))
+          : section.lines,
+      }))
+      .filter((section) => section.lines.length),
+    [calculation, printOptions.includeLabor],
+  );
   const handlePrint = () => {
     if (pendingClientPrices.length) {
       window.alert(`Заполните цены в прайс-листе: ${pendingClientPrices.map((line) => line.name).join(' · ')}`);
@@ -92,7 +103,7 @@ export default function EstimateScreen() {
   return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}`}><ScreenHeader title="Смета проекта" actions={<><button className="button secondary no-print" onClick={() => downloadEstimateWorkbook(project, calculation)}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={handlePrint}><Printer />Печать / PDF</button></>} />
     {pendingClientPrices.length ? <div className="estimate-price-warning no-print"><AlertTriangle /><div><strong>В предложении есть позиции без цены</strong><span>{pendingClientPrices.map((line) => line.name).join(' · ')}. Укажите цену в прайс-листе или ведомости проекта либо исключите эти позиции из предложения.</span></div></div> : null}
     <section className="print-diagram-options no-print" aria-label="Настройки предложения"><div><strong>Смета для клиента</strong></div><div className="print-option-group"><label className="maximum-compact-option"><input type="checkbox" checked={printOptions.maximumCompact === true} onChange={(event) => setPrintOption('maximumCompact', event.target.checked)} />Максимально компактная смета</label><label><input type="checkbox" checked={printOptions.includeLabor !== false} onChange={(event) => setPrintOption('includeLabor', event.target.checked)} />Включить работы</label><label><input type="checkbox" checked={printOptions.includeAccessories !== false} onChange={(event) => setPrintOption('includeAccessories', event.target.checked)} />Включить крепёж и сопутствующие товары</label><label><input type="checkbox" checked={printOptions.compactAccessories !== false} onChange={(event) => setPrintOption('compactAccessories', event.target.checked)} />Сгруппировать их в монтажные комплекты</label></div><div><strong>Планы из редактора дома</strong><small>Планы этажей формируются из текущего проекта и обновляются вместе с ним.</small></div><div className="print-option-group"><label><input type="checkbox" checked={printOptions.includePlan !== false} onChange={(event) => setPrintOption('includePlan', event.target.checked)} />Планы этажей в смете</label><label><input type="checkbox" checked={printOptions.separatePlanSheets !== false} disabled={printOptions.includePlan === false} onChange={(event) => setPrintOption('separatePlanSheets', event.target.checked)} />Каждый этаж отдельным листом</label><label><input type="checkbox" checked={printOptions.includeRoof === true} onChange={(event) => setPrintOption('includeRoof', event.target.checked)} />Крыша на контуре дома</label><label><input type="checkbox" checked={printOptions.separatePileSheet === true} onChange={(event) => setPrintOption('separatePileSheet', event.target.checked)} />Свайное поле отдельным листом</label><label><input type="checkbox" checked={printOptions.separateRoofSheet !== false} disabled={printOptions.includeRoof !== true} onChange={(event) => setPrintOption('separateRoofSheet', event.target.checked)} />Крыша отдельным листом</label></div>{printOptions.includePlan !== false ? <div className="print-option-group plan-layers"><span>Слои плана:</span>{planLayers.map(([key, label]) => <label key={key}><input type="checkbox" checked={printOptions[key] !== false} onChange={(event) => setPrintOption(key, event.target.checked)} />{label}</label>)}</div> : null}</section>
-    {printOptions.maximumCompact === true ? <section className="compact-estimate-preview no-print"><header><div><strong>Предпросмотр компактной сметы</strong><span>Подробная ведомость менеджера ниже не изменяется</span></div><strong>{clientEstimate.sections.reduce((sum, section) => sum + section.lines.length, 0)} строк</strong></header>{clientEstimate.sections.map((section) => <section className="estimate-section" key={`preview-${section.key}`}><h2>{section.title}</h2><PreviewTable lines={section.lines} /></section>)}</section> : null}
+    {printOptions.maximumCompact === true ? <section className="compact-estimate-preview no-print"><header><div><strong>Предпросмотр компактной сметы</strong><span>Фильтр работ применяется и к подробной ведомости ниже</span></div><strong>{clientEstimate.sections.reduce((sum, section) => sum + section.lines.length, 0)} строк</strong></header>{clientEstimate.sections.map((section) => <section className="estimate-section" key={`preview-${section.key}`}><h2>{section.title}</h2><PreviewTable lines={section.lines} /></section>)}</section> : null}
     <section className="print-sheet"><header className="print-title"><div className="print-brand"><img src="./icons/eft-logo.png" alt="ЭФТ" /><div><strong>ЭнергоЭффективные Технологии</strong><span>Расчёт комплектации дома</span></div></div><div><h1>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1><strong>Проект № {project.meta.projectNum || '—'}</strong></div></header>
       <div className="project-summary">
         <dl>
@@ -124,7 +135,7 @@ export default function EstimateScreen() {
         <div className="commercial-scope-grid">{commercialScope.map((item) => <article key={item.key} className="commercial-scope-item"><div className="commercial-scope-heading"><h3>{item.title}</h3><strong>{item.total}</strong></div><p>{item.summary}</p><small>{item.details}</small><div className="commercial-scope-tags">{item.coverage.map((label) => <span key={label}>{label}</span>)}</div></article>)}</div>
         <footer>В стоимость входят только перечисленные выше разделы. Подробные количества, цены материалов и работ приведены далее в смете.</footer>
       </section>
-      <div className="no-print">{calculation.sections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}</div>
+      <div className="no-print">{visibleManagerSections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}</div>
       <div className="print-only">{clientEstimate.sections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><PreviewTable lines={section.lines} /></section>)}</div>
       <footer className="estimate-footer"><p>Расчёт сформирован в калькуляторе ЭФТ. Итоговая стоимость уточняется после проверки проекта специалистом.</p><strong>Итого: {formatMoney(clientEstimate.totals.total)}</strong></footer>
     </section>

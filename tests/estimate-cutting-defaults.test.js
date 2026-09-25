@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildClientEstimate, unpricedClientLines } from '../src/react/calculations/client-estimate.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 import { applyResidentialPreset } from '../src/react/state/residential-preset.js';
+import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 
 test('roof and SIP cutting remain priced and visible with assembly disabled, including compact mode', () => {
   const cut = { id: 'roof:sip-cut', name: 'Раскрой сип-панелей', kind: 'labor', qty: 10, price: 20 };
@@ -14,6 +15,16 @@ test('roof and SIP cutting remain priced and visible with assembly disabled, inc
     assert.equal(result.totals.total, 200);
   }
   assert.deepEqual(unpricedClientLines({ lines: [{ ...cut, price: 0 }, assembly] }, { includeLabor: false }).map(row => row.id), [cut.id]);
+});
+
+test('assembly-disabled client estimate keeps only cutting from generated labor rows', () => {
+  const project = createDefaultProject();
+  project.settings.roof.type = 'sip';
+  const calculation = calculateProject(project);
+  const result = buildClientEstimate(calculation, { includeLabor: false, compactAccessories: false });
+  const remainingLabor = result.sections.flatMap((section) => section.lines).filter((line) => line.kind === 'labor');
+  assert.ok(remainingLabor.length > 0);
+  assert.ok(remainingLabor.every((line) => /раскрой/iu.test(line.name)));
 });
 
 test('new and residential projects use uniform piles and board pack while saved choices survive migration', () => {

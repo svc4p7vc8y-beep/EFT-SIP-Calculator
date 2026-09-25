@@ -4,6 +4,8 @@ export function roofControlVisibility(roof = {}) {
   const isFlat = shape === "flat";
   const isGable = shape === "gable";
   const hasTimberStructure = type !== "sip";
+  const hasSipStructure = type !== "cold";
+  const includeCovering = roof.includeCovering !== false;
 
   return {
     isFlat,
@@ -11,10 +13,11 @@ export function roofControlVisibility(roof = {}) {
     showRafterStructure: hasTimberStructure,
     showRafterSystem: hasTimberStructure && !isFlat,
     showRafterDimensions: hasTimberStructure,
+    showSipFrame: hasSipStructure,
     showMauerlat: !isFlat,
     showRafterSupport: hasTimberStructure && !isFlat,
     showGableOverhang: shape !== "hip",
-    showMainAccessories: !isFlat,
+    showMainAccessories: !isFlat && includeCovering,
     showVergeTrim: isGable,
   };
 }

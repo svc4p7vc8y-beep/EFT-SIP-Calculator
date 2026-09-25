@@ -18,8 +18,10 @@ import {
   calculateSipConsumables,
   calculateFramePartitionAssembly,
   calculateSipJoinery,
+  gridJointLength,
   resolveSipSupportScrew,
   resolveSipStructuralScrew,
+  sipTimberProfile,
 } from "./sip-joinery.js";
 import { calculateConstructionNodes } from './construction-nodes.js';
 
@@ -946,6 +948,7 @@ function roofSection(project, metrics, index, inputs) {
   const { roof } = project.settings;
   const roofAxes = resolveRoofAxes(project.plan, roof);
   const covering = roofCoveringSpec(roof.covering);
+  const includeCovering = roof.includeCovering !== false;
   const osbSheetArea = 1.25 * 2.5;
   const span = roofAxes.span;
   const mainRoofShape = ["flat", "hip"].includes(roof.shape)
@@ -1039,22 +1042,64 @@ function roofSection(project, metrics, index, inputs) {
   const gableArea = coldGableArea + warmGableArea;
   const totalSlopeArea = coldSlopeArea + warmSlopeArea;
   const totalArea = totalSlopeArea + gableArea;
+  const sipFrameMode = roof.sipFrameMode === "reinforced" ? "reinforced" : "standard";
+  const sipFrameStep = sipFrameMode === "reinforced" ? 0.625 : 1.25;
   const sipCutting = calculateSipRoofCutting(warmSlopeArea, {
     panelArea: inputs.formulas.panelArea,
+    panelWidth: inputs.formulas.panelWidth,
+    panelLength: inputs.formulas.panelLength,
     extraWastePercent: project.settings.sip.wastePercent,
+    layoutWidths: { roof: sipFrameStep },
   });
   const gableSipCutting = calculateSipRoofCutting(warmGableArea, {
     panelArea: inputs.formulas.panelArea,
+    panelWidth: inputs.formulas.panelWidth,
+    panelLength: inputs.formulas.panelLength,
     extraWastePercent: project.settings.sip.wastePercent,
+    layoutWidths: { roof: sipFrameStep },
   });
   const mainSipCutting = calculateSipRoofCutting(mainWarmSlopeArea, {
     panelArea: inputs.formulas.panelArea,
+    panelWidth: inputs.formulas.panelWidth,
+    panelLength: inputs.formulas.panelLength,
     extraWastePercent: project.settings.sip.wastePercent,
+    layoutWidths: { roof: sipFrameStep },
   });
   const mainGableSipCutting = calculateSipRoofCutting(mainWarmGableArea, {
     panelArea: inputs.formulas.panelArea,
+    panelWidth: inputs.formulas.panelWidth,
+    panelLength: inputs.formulas.panelLength,
     extraWastePercent: project.settings.sip.wastePercent,
+    layoutWidths: { roof: sipFrameStep },
   });
+  const mainSipFramePlaneCount = mainRoofShape === "gable" ? 2 : 1;
+  const mainSipFrameWarmShare = mainArea ? mainWarmSlopeArea / mainArea : 0;
+  const mainSipFrameNetLength = mainSipCutting.panels
+    ? gridJointLength(
+        geometry.roofLength,
+        geometry.slopeLength,
+        sipFrameStep,
+        inputs.formulas.panelLength,
+      ) * mainSipFramePlaneCount * mainSipFrameWarmShare
+    : 0;
+  const mainSipFrameRequiredLength =
+    mainSipFrameNetLength *
+    (1 + Math.max(0, Number(inputs.formulas.sipTimberReservePercent) || 5) / 100);
+  const mainSipFrameStockLength = Math.max(
+    0.5,
+    Number(inputs.formulas.sipTimberStockLength) || 6,
+  );
+  const mainSipFramePieces = mainSipFrameRequiredLength
+    ? Math.ceil(mainSipFrameRequiredLength / mainSipFrameStockLength)
+    : 0;
+  const mainSipFramePurchaseLength = mainSipFramePieces * mainSipFrameStockLength;
+  const mainSipFrameProfile = sipTimberProfile(project.settings.sip.ceilingThickness);
+  const mainSipFrameConnectorType = project.settings.sip.connectorType || "thermal";
+  const mainSipFrameCatalogQuery = mainSipFrameConnectorType === "board-pack"
+    ? `Пакет клеёных досок 95×${mainSipFrameProfile.endBoardDepth} мм для СИП ${mainSipFrameProfile.panelThickness} мм`
+    : mainSipFrameConnectorType === "solid"
+      ? `Брус соединительный ест. влажности 100×${mainSipFrameProfile.core} мм`
+      : `Термобрус 95×${mainSipFrameProfile.thermalDepth} мм`;
   const sipRoofSupportPointsPerPanel = Math.max(
     1,
     Math.round(Number(inputs.formulas.sipRoofSupportPointsPerPanel) || 2),
@@ -1186,13 +1231,17 @@ function roofSection(project, metrics, index, inputs) {
         : geometry.roofLength * 2;
   const mainVergeLength =
     mainRoofShape === "gable" ? geometry.slopeLength * 4 : 0;
-  const mainEaveTrimPurchaseLength =
-    mainEaveLength * inputs.formulas.roofTrimReserve;
-  const mainVergeTrimPurchaseLength =
-    mainVergeLength * inputs.formulas.roofTrimReserve;
-  const mainCoverPurchaseArea = mainArea * (1 + roof.wastePercent / 100);
+  const mainEaveTrimPurchaseLength = includeCovering
+    ? mainEaveLength * inputs.formulas.roofTrimReserve
+    : 0;
+  const mainVergeTrimPurchaseLength = includeCovering
+    ? mainVergeLength * inputs.formulas.roofTrimReserve
+    : 0;
+  const mainCoverPurchaseArea = includeCovering
+    ? mainArea * (1 + roof.wastePercent / 100)
+    : 0;
   const mainGablePurchaseArea = mainGableArea * (1 + roof.wastePercent / 100);
-  const mainConstructionArea = mainArea + mainGableArea;
+  const mainConstructionArea = includeCovering ? mainArea + mainGableArea : 0;
   const mainGableBoardRequiredLength =
     (mainColdGableArea * inputs.formulas.gableBoardM3PerM2) / (0.05 * 0.15);
   const mainGableBoardCount = mainGableBoardRequiredLength
@@ -1200,7 +1249,7 @@ function roofSection(project, metrics, index, inputs) {
     : 0;
   const mainGableBoardVolume = mainGableBoardCount * 6 * 0.05 * 0.15;
   const lathStep = Math.min(1.2, Math.max(0.1, Number(roof.lathStep) || 0.35));
-  const mainLathRequiredLength = mainArea
+  const mainLathRequiredLength = includeCovering && mainArea
     ? mainArea / lathStep + mainEaveLength
     : 0;
   const mainLathBoardCount = mainLathRequiredLength
@@ -1286,11 +1335,17 @@ function roofSection(project, metrics, index, inputs) {
       const constructionArea = result.netArea + result.gableArea;
       const slopeSip = calculateSipRoofCutting(warmSlope, {
         panelArea: inputs.formulas.panelArea,
+        panelWidth: inputs.formulas.panelWidth,
+        panelLength: inputs.formulas.panelLength,
         extraWastePercent: project.settings.sip.wastePercent,
+        layoutWidths: { roof: sipFrameStep },
       });
       const gableSip = calculateSipRoofCutting(warmGable, {
         panelArea: inputs.formulas.panelArea,
+        panelWidth: inputs.formulas.panelWidth,
+        panelLength: inputs.formulas.panelLength,
         extraWastePercent: project.settings.sip.wastePercent,
+        layoutWidths: { roof: sipFrameStep },
       });
       const slopeSupportScrew = resolveSipSupportScrew(
         project.settings.sip.ceilingThickness,
@@ -1775,9 +1830,9 @@ function roofSection(project, metrics, index, inputs) {
       ];
     }),
   );
-  const gutterLength = roof.includeGutter === true ? mainEaveLength : 0;
+  const gutterLength = includeCovering && roof.includeGutter === true ? mainEaveLength : 0;
   const mainOsbArea =
-    (covering.osb ? mainCoverPurchaseArea : 0) +
+    (includeCovering && covering.osb ? mainCoverPurchaseArea : 0) +
     (mainColdGableArea ? mainGablePurchaseArea : 0);
   const mainOsbSheets = mainOsbArea ? Math.ceil(mainOsbArea / osbSheetArea) : 0;
   const gutterRunCount =
@@ -1899,7 +1954,7 @@ function roofSection(project, metrics, index, inputs) {
           ? "Монтаж стропильных ферм"
           : "Монтаж стропильной системы",
     }),
-    makeLine(index, "roof", "Монтаж обрешётки и контробрешётки", mainArea, {
+    makeLine(index, "roof", "Монтаж обрешётки и контробрешётки", includeCovering ? mainArea : 0, {
       key: "lath-work",
       kind: "labor",
     }),
@@ -1955,7 +2010,7 @@ function roofSection(project, metrics, index, inputs) {
       index,
       "roof",
       covering.material,
-      mainCoverPurchaseArea + mainGablePurchaseArea,
+      includeCovering ? mainCoverPurchaseArea + mainGablePurchaseArea : 0,
       { key: "cover", unit: "м²", name: covering.label },
     ),
     makeLine(index, "roof", covering.labor, mainConstructionArea, {
@@ -2001,19 +2056,19 @@ function roofSection(project, metrics, index, inputs) {
         exactQuantity: true,
       },
     ),
-    makeLine(
+    includeCovering ? makeLine(
       index,
       "roof",
       "Планка конька",
       ridgeBeamLength * inputs.formulas.ridgeReserve,
       { key: "ridge", unit: "м.п." },
-    ),
-    makeLine(index, "roof", "Монтаж конька", ridgeBeamLength, {
+    ) : null,
+    includeCovering ? makeLine(index, "roof", "Монтаж конька", ridgeBeamLength, {
       key: "ridge-work",
       kind: "labor",
       name: "Монтаж планки конька",
-    }),
-    roof.includeRidgeSeal !== false
+    }) : null,
+    includeCovering && roof.includeRidgeSeal !== false
       ? makeLine(
           index,
           "roof",
@@ -2026,7 +2081,7 @@ function roofSection(project, metrics, index, inputs) {
           },
         )
       : null,
-    roof.includeEaveTrim !== false
+    includeCovering && roof.includeEaveTrim !== false
       ? makeLine(
           index,
           "roof",
@@ -2035,13 +2090,13 @@ function roofSection(project, metrics, index, inputs) {
           { key: "eave-trim", unit: "м.п." },
         )
       : null,
-    roof.includeEaveTrim !== false
+    includeCovering && roof.includeEaveTrim !== false
       ? makeLine(index, "roof", "Монтаж карнизных планок", mainEaveLength, {
           key: "eave-trim-work",
           kind: "labor",
         })
       : null,
-    roof.includeVergeTrim !== false
+    includeCovering && roof.includeVergeTrim !== false
       ? makeLine(
           index,
           "roof",
@@ -2054,7 +2109,7 @@ function roofSection(project, metrics, index, inputs) {
           },
         )
       : null,
-    roof.includeVergeTrim !== false
+    includeCovering && roof.includeVergeTrim !== false
       ? makeLine(index, "roof", "Монтаж торцевых", mainVergeLength, {
           key: "verge-trim-work",
           kind: "labor",
@@ -2154,6 +2209,18 @@ function roofSection(project, metrics, index, inputs) {
       ),
       mainSipCutting.panels,
       { key: "sip-panel", source: "sip-roof" },
+    ),
+    makeLine(
+      index,
+      "roof",
+      mainSipFrameCatalogQuery,
+      mainSipFramePurchaseLength,
+      {
+        key: "sip-frame",
+        unit: "м.п.",
+        name: `${sipFrameMode === "reinforced" ? "Усиленный" : "Обычный"} каркас SIP-кровли · шаг ${Math.round(sipFrameStep * 1000)} мм · ${mainSipFramePieces} шт × ${formatNumberForName(mainSipFrameStockLength)} м`,
+        source: "sip-roof",
+      },
     ),
     makeLine(index, "roof", "Монтаж СИП-кровли", mainSipCutting.area, {
       key: "sip-install",
@@ -2262,6 +2329,13 @@ function roofSection(project, metrics, index, inputs) {
     extensionLines,
     geometry,
     mainRoofShape,
+    includeCovering,
+    sipFrameMode,
+    sipFrameStep,
+    mainSipFrameNetLength: round(mainSipFrameNetLength, 2),
+    mainSipFrameRequiredLength: round(mainSipFrameRequiredLength, 2),
+    mainSipFramePurchaseLength: round(mainSipFramePurchaseLength, 2),
+    mainSipFramePieces,
     ridgeAxis: roofAxes.ridgeAxis,
     flatSlopeMode,
     flatSlopeDirection: roof.flatSlopeDirection || "back",

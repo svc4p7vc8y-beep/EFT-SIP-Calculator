@@ -252,6 +252,11 @@ export default function ParametersScreen() {
         target = target[key];
       });
       target[keys.at(-1)] = value;
+      if (path === "settings.roof.includeCovering") {
+        next.settings.roof.showRoofCover = value;
+        next.settings.roof.showLath = value;
+        if (!value) next.settings.roof.showCounterLath = false;
+      }
       if (path === "settings.sip.partitionFrameSection") {
         const thickness = value === "50x150" ? 0.15 : 0.1;
         next.plan.partitionThickness = thickness;
@@ -898,6 +903,14 @@ export default function ParametersScreen() {
               }
               hint={`Сейчас ${formatNumber(inputs.roof.ridgeLength)} м`}
             />
+            <div className="parameter-auto-link">
+              <Toggle
+                label="Учитывать кровельное покрытие"
+                hint={project.settings.roof.includeCovering !== false ? "Покрытие, обрешётка и контробрешётка входят в смету" : "Остаются SIP-панели, каркас и раскрой"}
+                checked={project.settings.roof.includeCovering !== false}
+                onChange={(value) => write("settings.roof.includeCovering", value)}
+              />
+            </div>
             {fields([
               {
                 path: "settings.roof.shape",
@@ -943,7 +956,7 @@ export default function ParametersScreen() {
                 max: 20,
                 step: 0.5,
               },
-              {
+              project.settings.roof.includeCovering !== false && {
                 path: "settings.roof.covering",
                 label: "Кровельное покрытие",
                 type: "select",
@@ -957,6 +970,15 @@ export default function ParametersScreen() {
                   { value: "cold", label: "Холодная" },
                   { value: "sip", label: "Тёплая SIP" },
                   { value: "combo", label: "Комбинированная" },
+                ],
+              },
+              project.settings.roof.type !== "cold" && {
+                path: "settings.roof.sipFrameMode",
+                label: "Каркас SIP-кровли",
+                type: "select",
+                options: [
+                  { value: "standard", label: "Обычный · шаг 1250 мм" },
+                  { value: "reinforced", label: "Усиленный · шаг 625 мм" },
                 ],
               },
               project.settings.roof.shape === "gable" && {
@@ -1051,7 +1073,7 @@ export default function ParametersScreen() {
                   { value: "50x200", label: "50×200 мм" },
                 ],
               },
-              {
+              project.settings.roof.includeCovering !== false && {
                 path: "settings.roof.lathStep",
                 label: "Шаг обрешётки",
                 suffix: "м",
@@ -1131,7 +1153,7 @@ export default function ParametersScreen() {
               <strong>Слои кровли на плане</strong>
               <div className="toggle-grid">
                 {[
-                  ["showRoofCover", "Покрытие", true],
+                  ["includeCovering", "Кровельное покрытие", true],
                   ["showMauerlat", "Мауэрлат", true],
                   ["showRafters", "Стропила", true],
                   ["showLath", "Обрешётка", true],

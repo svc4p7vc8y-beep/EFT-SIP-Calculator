@@ -14,6 +14,7 @@ import { calculationFlowRows } from '../src/react/calculations/calculation-links
 import { calculateFramePartitionAssembly } from '../src/react/calculations/sip-joinery.js';
 import { SIP_GUIDE_ENTRIES } from '../src/react/data/sip-guide.js';
 import { roofControlVisibility } from '../src/react/calculations/roof-control-visibility.js';
+import { calculateConstructionNodes } from '../src/react/calculations/construction-nodes.js';
 
 test('roof controls only expose parameters that affect the selected construction', () => {
   const gable = roofControlVisibility({ shape: 'gable', type: 'cold' });
@@ -36,6 +37,8 @@ test('roof controls only expose parameters that affect the selected construction
   assert.equal(sip.showRafterSystem, false);
   assert.equal(sip.showRafterDimensions, false);
   assert.equal(sip.showRafterSupport, false);
+  assert.equal(sip.showSipFrame, true);
+  assert.equal(roofControlVisibility({ shape: 'gable', type: 'sip', includeCovering: false }).showMainAccessories, false);
 });
 
 test('new blank plan starts without a contour, piles or binding', () => {
@@ -606,6 +609,40 @@ test('warm roof planes stay in roof while SIP gables also appear in panel cuttin
   assert.ok(result.roof.sipCutting.area > 0);
   assert.ok(result.roof.sipCutting.panels > 0);
   assert.equal(result.lines.filter((line) => line.id === 'roof:sip-panel').length, 1);
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-frame' && line.qty > 0));
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-cut' && line.qty > 0));
+});
+
+test('warm SIP roof switches between ordinary and reinforced frame layouts', () => {
+  const project = createDefaultProject();
+  project.settings.roof.type = 'sip';
+  project.settings.roof.sipFrameMode = 'standard';
+  const standard = calculateProject(project);
+  project.settings.roof.sipFrameMode = 'reinforced';
+  const reinforced = calculateProject(project);
+
+  assert.equal(standard.roof.sipFrameStep, 1.25);
+  assert.equal(reinforced.roof.sipFrameStep, 0.625);
+  assert.ok(reinforced.roof.mainSipFramePurchaseLength > standard.roof.mainSipFramePurchaseLength);
+  assert.ok(reinforced.lines.find((line) => line.id === 'roof:sip-cut').qty > standard.lines.find((line) => line.id === 'roof:sip-cut').qty);
+  assert.match(standard.lines.find((line) => line.id === 'roof:sip-frame').name, /Обычный.*1250/);
+  assert.match(reinforced.lines.find((line) => line.id === 'roof:sip-frame').name, /Усиленный.*625/);
+});
+
+test('disabled roof covering removes covering, lath and related work but keeps SIP cutting', () => {
+  const project = createDefaultProject();
+  project.settings.roof.type = 'sip';
+  project.settings.roof.includeCovering = false;
+  project.settings.roof.showCounterLath = true;
+  const result = calculateProject(project);
+  const removed = ['cover', 'cover-work', 'lath', 'lath-work', 'general-fasteners', 'membrane', 'roof-screws', 'ridge', 'ridge-work', 'eave-trim', 'verge-trim'];
+
+  removed.forEach((key) => assert.equal(result.lines.some((line) => line.id === `roof:${key}`), false, key));
+  assert.equal(result.roof.mainLathBoardCount, 0);
+  assert.equal(calculateConstructionNodes(project, result).construction.counterLath.length, 0);
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-panel'));
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-frame'));
+  assert.ok(result.lines.some((line) => line.id === 'roof:sip-cut'));
 });
 
 test('cold roof defaults to 50x150 rafters and includes cold gables', () => {

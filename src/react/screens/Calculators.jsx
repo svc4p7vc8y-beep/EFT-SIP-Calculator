@@ -376,9 +376,11 @@ function RoofConstructionPanels({
       : roofVisibility.showRafterStructure
         ? "Балки плоской кровли"
         : "Обрешётка"
-    : roofVisibility.showRafterStructure
-      ? "Стропильная система и фронтоны"
-      : "Фронтоны";
+      : roofVisibility.showRafterStructure
+        ? "Стропильная система и фронтоны"
+        : roofVisibility.showSipFrame
+          ? "Каркас SIP-кровли и фронтоны"
+          : "Фронтоны";
   return (
     <>
       <Panel
@@ -418,12 +420,23 @@ function RoofConstructionPanels({
                 ]}
               />
             ) : null}
-            <SelectField
+            <Toggle
+              label="Учитывать кровельное покрытие"
+              hint={project.settings.roof.includeCovering !== false ? "Покрытие, обрешётка и контробрешётка входят в смету" : "Остаются SIP-панели, каркас и раскрой"}
+              checked={project.settings.roof.includeCovering !== false}
+              onChange={(value) => {
+                setSetting("roof", "includeCovering", value);
+                setSetting("roof", "showRoofCover", value);
+                setSetting("roof", "showLath", value);
+                if (!value) setSetting("roof", "showCounterLath", false);
+              }}
+            />
+            {project.settings.roof.includeCovering !== false ? <SelectField
               label="Кровельное покрытие"
               value={project.settings.roof.covering || "profile"}
               onChange={(value) => setSetting("roof", "covering", value)}
               options={ROOF_COVERINGS}
-            />
+            /> : <div className="readout"><span>Кровельное покрытие</span><strong>Не учитывается</strong></div>}
             <SelectField
               label="Тип кровли"
               value={project.settings.roof.type}
@@ -601,7 +614,7 @@ function RoofConstructionPanels({
               { value: "50x200", label: "50×200 мм" },
             ]}
           /> : null}
-          <NumberField
+          {project.settings.roof.includeCovering !== false ? <NumberField
             label="Шаг обрешётки"
             value={project.settings.roof.lathStep ?? 0.35}
             suffix="м"
@@ -609,7 +622,16 @@ function RoofConstructionPanels({
             max={1.2}
             step={0.05}
             onChange={(value) => setSetting("roof", "lathStep", value)}
-          />
+          /> : null}
+          {roofVisibility.showSipFrame ? <SelectField
+            label="Каркас SIP-кровли"
+            value={project.settings.roof.sipFrameMode === "reinforced" ? "reinforced" : "standard"}
+            onChange={(value) => setSetting("roof", "sipFrameMode", value)}
+            options={[
+              { value: "standard", label: "Обычный · шаг 1250 мм" },
+              { value: "reinforced", label: "Усиленный · шаг 625 мм" },
+            ]}
+          /> : null}
           {project.settings.roof.shape === "gable" || hasStructuralFlatGables ? (
             <>
               <SelectField
@@ -661,10 +683,14 @@ function RoofConstructionPanels({
               {formatNumber(calculation.roof.rafterStructure.module, 2)} м
             </strong>
           </div> : null}
-          <div className="readout">
+          {roofVisibility.showSipFrame ? <div className="readout">
+            <span>Каркас SIP-кровли</span>
+            <strong>{calculation.roof.mainSipFramePieces || 0} шт × 6 м · {formatNumber(calculation.roof.mainSipFramePurchaseLength)} м</strong>
+          </div> : null}
+          {project.settings.roof.includeCovering !== false ? <div className="readout">
             <span>Обрешётка</span>
             <strong>{calculation.roof.mainLathBoardCount} досок × 6 м</strong>
-          </div>
+          </div> : null}
         </div>
         {roofVisibility.showRafterStructure ? (
           <RafterSystemPreview calculation={calculation} />

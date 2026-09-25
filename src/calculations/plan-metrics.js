@@ -354,7 +354,7 @@ function calculateCuttingRows(keys, surfaces, options = {}) {
     const purchasedArea = panels * panelArea;
     const requestedLayoutWidth = Number(options.layoutWidths?.[key]);
     const layoutWidth =
-      ["floor", "secondFloor", "ceiling"].includes(key) &&
+      ["floor", "secondFloor", "ceiling", "roof"].includes(key) &&
       requestedLayoutWidth > 0
         ? Math.min(stockPanelWidth, requestedLayoutWidth)
         : stockPanelWidth;
