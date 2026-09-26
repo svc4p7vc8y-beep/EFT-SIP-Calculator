@@ -233,21 +233,29 @@ if ($action === 'mail-status' && $method === 'GET') {
     eft_json(['ok' => true, 'mail' => $state]);
 }
 
+if ($action === 'mail-folders' && $method === 'GET') {
+    $folders = eft_mail_folders();
+    foreach ($folders as &$folder) unset($folder['_raw']);
+    eft_json(['ok' => true, 'folders' => $folders]);
+}
+
 if ($action === 'mail-messages' && $method === 'GET') {
     $limit = max(1, min(100, (int)($_GET['limit'] ?? 50)));
     $offset = max(0, (int)($_GET['offset'] ?? 0));
     $query = mb_substr(trim((string)($_GET['query'] ?? '')), 0, 120);
-    eft_json(array_merge(['ok' => true], eft_mail_overview($limit, $offset, $query)));
+    $folder = mb_substr(trim((string)($_GET['folder'] ?? 'inbox')), 0, 255);
+    eft_json(array_merge(['ok' => true], eft_mail_overview($limit, $offset, $query, $folder)));
 }
 
 if ($action === 'mail-message' && $method === 'GET') {
     $uid = (int)($_GET['uid'] ?? 0);
     if ($uid < 1) eft_json(['ok' => false, 'code' => 'invalid_uid', 'message' => 'Письмо не найдено.'], 422);
-    eft_json(['ok' => true, 'message' => eft_mail_message($uid, true)]);
+    $folder = mb_substr(trim((string)($_GET['folder'] ?? 'inbox')), 0, 255);
+    eft_json(['ok' => true, 'message' => eft_mail_message($uid, true, $folder)]);
 }
 
 if ($action === 'mail-attachment' && $method === 'GET') {
-    $file = eft_mail_attachment((int)($_GET['uid'] ?? 0), (string)($_GET['part'] ?? ''));
+    $file = eft_mail_attachment((int)($_GET['uid'] ?? 0), (string)($_GET['part'] ?? ''), (string)($_GET['folder'] ?? 'inbox'));
     header('Content-Type: ' . $file['mime']);
     header('Content-Length: ' . strlen($file['content']));
     header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($file['name']));
@@ -257,7 +265,7 @@ if ($action === 'mail-attachment' && $method === 'GET') {
 }
 
 if ($action === 'mail-send' && $method === 'POST') {
-    $multipart = str_starts_with(mb_strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'multipart/form-data');
+    $multipart = stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'multipart/form-data') === 0;
     $input = $multipart ? $_POST : eft_input(524288);
     $to = mb_substr(trim((string)($input['to'] ?? '')), 0, 190);
     $subject = mb_substr(trim((string)($input['subject'] ?? '')), 0, 240);
@@ -401,6 +409,19 @@ if ($action === 'intake-read' && $method === 'POST') {
     $input = eft_input(65536);
     $id = (string)($input['id'] ?? '');
     $pdo->prepare('INSERT INTO eft_intake_reads (user_id, questionnaire_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE read_at = NOW()')->execute([(int)$user['id'], $id]);
+    eft_json(['ok' => true]);
+}
+
+if ($action === 'mail-draft' && $method === 'POST') {
+    $multipart = stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'multipart/form-data') === 0;
+    $input = $multipart ? $_POST : eft_input(524288);
+    $to = mb_substr(trim((string)($input['to'] ?? '')), 0, 190);
+    $subject = mb_substr(trim((string)($input['subject'] ?? '')), 0, 240);
+    $body = mb_substr(trim((string)($input['body'] ?? '')), 0, 200000);
+    if ($to === '' && $subject === '' && $body === '') eft_json(['ok' => false, 'code' => 'empty_draft', 'message' => 'Черновик пока пуст.'], 422);
+    $attachments = $multipart ? eft_collect_uploaded_files('attachments', 8, 8388608, 20971520) : [];
+    if (!eft_save_mail_draft($to, $subject, $body, $attachments)) eft_json(['ok' => false, 'code' => 'draft_save_failed', 'message' => 'Не удалось сохранить черновик на почтовом сервере.'], 502);
+    eft_audit((int)$user['id'], 'mail_draft_saved', 'mail', '', ['to' => $to, 'subject' => $subject, 'attachments' => count($attachments)]);
     eft_json(['ok' => true]);
 }
 

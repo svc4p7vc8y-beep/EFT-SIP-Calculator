@@ -17,19 +17,93 @@ function eft_mail_ready(): array {
     ];
 }
 
-function eft_mailbox(bool $readOnly = true) {
-    $state = eft_mail_ready();
-    if (!$state['configured']) eft_json(['ok' => false, 'code' => 'mail_not_configured', 'message' => 'Почта ещё не подключена.'], 503);
-    if (!$state['imapAvailable']) eft_json(['ok' => false, 'code' => 'imap_unavailable', 'message' => 'На сервере Beget не включено расширение PHP IMAP.'], 503);
+function eft_mailbox_root(): string {
     $config = eft_mail_config();
-    $mailbox = '{' . ($config['imap_host'] ?? 'imap.mail.ru') . ':' . (int)($config['imap_port'] ?? 993) . '/imap/ssl}INBOX';
+    return '{' . ($config['imap_host'] ?? 'imap.mail.ru') . ':' . (int)($config['imap_port'] ?? 993) . '/imap/ssl}';
+}
+
+function eft_mailbox(bool $readOnly = true, string $folder = 'INBOX', bool $failHard = true) {
+    $state = eft_mail_ready();
+    if (!$state['configured']) { if ($failHard) eft_json(['ok' => false, 'code' => 'mail_not_configured', 'message' => 'Почта ещё не подключена.'], 503); return false; }
+    if (!$state['imapAvailable']) { if ($failHard) eft_json(['ok' => false, 'code' => 'imap_unavailable', 'message' => 'На сервере Beget не включено расширение PHP IMAP.'], 503); return false; }
+    $config = eft_mail_config();
+    if ($folder === '' || preg_match('/[\x00-\x1f{}]/', $folder)) eft_json(['ok' => false, 'code' => 'invalid_mail_folder', 'message' => 'Папка почты не найдена.'], 404);
+    $mailbox = eft_mailbox_root() . $folder;
     $flags = $readOnly && defined('OP_READONLY') ? OP_READONLY : 0;
     $stream = @imap_open($mailbox, (string)$config['username'], (string)$config['password'], $flags, 1);
     if (!$stream) {
         error_log('EFT IMAP connection failed: ' . (imap_last_error() ?: 'unknown'));
-        eft_json(['ok' => false, 'code' => 'mail_connection_failed', 'message' => 'Не удалось подключиться к почте. Проверьте пароль приложения.'], 503);
+        if ($failHard) eft_json(['ok' => false, 'code' => 'mail_connection_failed', 'message' => 'Не удалось подключиться к почте. Проверьте пароль приложения.'], 503);
+        return false;
     }
     return $stream;
+}
+
+function eft_decode_imap_folder(string $value): string {
+    return preg_replace_callback('/&([^-]*)-/', function (array $match): string {
+        if ($match[1] === '') return '&';
+        $base64 = str_replace(',', '/', $match[1]);
+        $base64 .= str_repeat('=', (4 - strlen($base64) % 4) % 4);
+        $decoded = base64_decode($base64, true);
+        return $decoded === false ? $match[0] : mb_convert_encoding($decoded, 'UTF-8', 'UTF-16BE');
+    }, $value) ?? $value;
+}
+
+function eft_mail_folder_key(string $folder): string {
+    return rtrim(strtr(base64_encode($folder), '+/', '-_'), '=');
+}
+
+function eft_mail_folder_kind(string $name): string {
+    $value = mb_strtolower($name);
+    if ($value === 'inbox' || preg_match('/входящ/u', $value)) return 'inbox';
+    if (preg_match('/sent|отправ/u', $value)) return 'sent';
+    if (preg_match('/draft|чернов/u', $value)) return 'drafts';
+    if (preg_match('/archive|архив/u', $value)) return 'archive';
+    if (preg_match('/spam|спам|нежелат/u', $value)) return 'spam';
+    if (preg_match('/trash|deleted|корзин|удал[её]н/u', $value)) return 'trash';
+    return 'other';
+}
+
+function eft_mail_folders(bool $failHard = true): array {
+    $stream = eft_mailbox(true, 'INBOX', $failHard);
+    if (!$stream) return [];
+    $root = eft_mailbox_root();
+    $listed = imap_getmailboxes($stream, $root, '*') ?: [];
+    $folders = [];
+    foreach ($listed as $mailbox) {
+        if (((int)($mailbox->attributes ?? 0) & LATT_NOSELECT) === LATT_NOSELECT) continue;
+        $fullName = (string)($mailbox->name ?? '');
+        $rawName = strpos($fullName, $root) === 0 ? substr($fullName, strlen($root)) : $fullName;
+        if ($rawName === '') continue;
+        $displayName = eft_decode_imap_folder($rawName);
+        $kind = eft_mail_folder_kind($displayName);
+        $status = @imap_status($stream, $root . $rawName, SA_MESSAGES | SA_UNSEEN);
+        $labels = ['inbox' => 'Входящие', 'sent' => 'Отправленные', 'drafts' => 'Черновики', 'archive' => 'Архив', 'spam' => 'Спам', 'trash' => 'Корзина'];
+        $folders[] = [
+            'key' => eft_mail_folder_key($rawName),
+            'name' => $labels[$kind] ?? $displayName,
+            'kind' => $kind,
+            'total' => (int)($status->messages ?? 0),
+            'unread' => (int)($status->unseen ?? 0),
+            '_raw' => $rawName,
+        ];
+    }
+    imap_close($stream);
+    $priority = ['inbox' => 0, 'sent' => 1, 'drafts' => 2, 'archive' => 3, 'spam' => 4, 'trash' => 5, 'other' => 6];
+    usort($folders, function (array $left, array $right) use ($priority): int {
+        $order = ($priority[$left['kind']] ?? 9) <=> ($priority[$right['kind']] ?? 9);
+        return $order !== 0 ? $order : strcasecmp($left['name'], $right['name']);
+    });
+    return $folders;
+}
+
+function eft_mail_folder(string $key): array {
+    $folders = eft_mail_folders();
+    if ($key === '' || $key === 'inbox') {
+        foreach ($folders as $folder) if ($folder['kind'] === 'inbox') return $folder;
+    }
+    foreach ($folders as $folder) if (hash_equals($folder['key'], $key)) return $folder;
+    eft_json(['ok' => false, 'code' => 'mail_folder_not_found', 'message' => 'Папка почты не найдена.'], 404);
 }
 
 function eft_decode_mail_header(string $value): string {
@@ -56,8 +130,9 @@ function eft_message_key(string $mailbox, int $uid): string {
     return hash('sha256', $address . ':' . $mailbox . ':' . $uid);
 }
 
-function eft_mail_overview(int $limit = 50, int $offset = 0, string $query = ''): array {
-    $stream = eft_mailbox(true);
+function eft_mail_overview(int $limit = 50, int $offset = 0, string $query = '', string $folderKey = 'inbox'): array {
+    $folder = eft_mail_folder($folderKey);
+    $stream = eft_mailbox(true, $folder['_raw']);
     $criteria = $query !== '' ? 'TEXT "' . addcslashes($query, '"\\') . '"' : 'ALL';
     $uids = imap_search($stream, $criteria, SE_UID, 'UTF-8') ?: [];
     rsort($uids, SORT_NUMERIC);
@@ -67,7 +142,7 @@ function eft_mail_overview(int $limit = 50, int $offset = 0, string $query = '')
     foreach ($page as $uid) {
         $overview = imap_fetch_overview($stream, (string)$uid, FT_UID)[0] ?? null;
         if (!$overview) continue;
-        $key = eft_message_key('INBOX', (int)$uid);
+        $key = eft_message_key($folder['_raw'], (int)$uid);
         $messages[] = [
             'uid' => (int)$uid,
             'key' => $key,
@@ -78,6 +153,7 @@ function eft_mail_overview(int $limit = 50, int $offset = 0, string $query = '')
             'seen' => !empty($overview->seen),
             'answered' => !empty($overview->answered),
             'size' => (int)($overview->size ?? 0),
+            'folder' => $folder['key'],
         ];
     }
     imap_close($stream);
@@ -90,7 +166,8 @@ function eft_mail_overview(int $limit = 50, int $offset = 0, string $query = '')
         foreach ($statement->fetchAll() as $row) $links[$row['message_key']] = ['id' => $row['project_id'], 'name' => $row['project_name']];
     }
     foreach ($messages as &$message) $message['project'] = $links[$message['key']] ?? null;
-    return ['messages' => $messages, 'total' => $total];
+    unset($folder['_raw']);
+    return ['messages' => $messages, 'total' => $total, 'folder' => $folder];
 }
 
 function eft_mail_unread_count(): int {
@@ -121,8 +198,9 @@ function eft_decode_mail_part(string $content, int $encoding): string {
     return $content;
 }
 
-function eft_mail_message(int $uid, bool $markSeen = true): array {
-    $stream = eft_mailbox(!$markSeen);
+function eft_mail_message(int $uid, bool $markSeen = true, string $folderKey = 'inbox'): array {
+    $folder = eft_mail_folder($folderKey);
+    $stream = eft_mailbox(!$markSeen, $folder['_raw']);
     $overview = imap_fetch_overview($stream, (string)$uid, FT_UID)[0] ?? null;
     if (!$overview) { imap_close($stream); eft_json(['ok' => false, 'code' => 'mail_not_found', 'message' => 'Письмо не найдено.'], 404); }
     $structure = imap_fetchstructure($stream, $uid, FT_UID);
@@ -145,7 +223,8 @@ function eft_mail_message(int $uid, bool $markSeen = true): array {
     $body = trim($plain !== '' ? $plain : strip_tags($html));
     return [
         'uid' => $uid,
-        'key' => eft_message_key('INBOX', $uid),
+        'key' => eft_message_key($folder['_raw'], $uid),
+        'folder' => $folder['key'],
         'subject' => eft_decode_mail_header((string)($overview->subject ?? '(без темы)')),
         'from' => eft_decode_mail_header((string)($overview->from ?? '')),
         'fromEmail' => eft_extract_email(eft_decode_mail_header((string)($overview->from ?? ''))),
@@ -156,9 +235,10 @@ function eft_mail_message(int $uid, bool $markSeen = true): array {
     ];
 }
 
-function eft_mail_attachment(int $uid, string $partNumber): array {
+function eft_mail_attachment(int $uid, string $partNumber, string $folderKey = 'inbox'): array {
     if (!preg_match('/^\d+(?:\.\d+)*$/', $partNumber)) eft_json(['ok' => false, 'code' => 'invalid_part', 'message' => 'Некорректное вложение.'], 422);
-    $stream = eft_mailbox(true);
+    $folder = eft_mail_folder($folderKey);
+    $stream = eft_mailbox(true, $folder['_raw']);
     $structure = imap_fetchstructure($stream, $uid, FT_UID);
     $parts = eft_mail_structure_parts($structure);
     foreach ($parts as $part) {
@@ -205,15 +285,13 @@ function eft_smtp_connection_check(): void {
     fclose($socket);
 }
 
-function eft_send_smtp(string $to, string $subject, string $body, array $attachments = []): void {
-    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $to . $subject)) eft_json(['ok' => false, 'code' => 'invalid_recipient', 'message' => 'Проверьте адрес получателя и тему.'], 422);
+function eft_build_mail_message(string $to, string $subject, string $body, array $attachments = []): string {
     $config = eft_mail_config();
-    $socket = eft_smtp_authenticated_socket();
-    eft_smtp_command($socket, 'MAIL FROM:<' . $config['username'] . '>', [250]);
-    eft_smtp_command($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
-    eft_smtp_command($socket, 'DATA', [354]);
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-    $headers = "From: EFT <{$config['username']}>\r\nTo: <{$to}>\r\nSubject: {$encodedSubject}\r\nMIME-Version: 1.0\r\n";
+    $messageId = '<' . bin2hex(random_bytes(16)) . '@eftsip.ru>';
+    $headers = "Date: " . date(DATE_RFC2822) . "\r\nMessage-ID: {$messageId}\r\nFrom: EFT <{$config['username']}>\r\n";
+    if ($to !== '') $headers .= "To: <{$to}>\r\n";
+    $headers .= "Subject: {$encodedSubject}\r\nMIME-Version: 1.0\r\n";
     if (!$attachments) {
         $message = $headers . "Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($body), 76, "\r\n");
     } else {
@@ -229,10 +307,51 @@ function eft_send_smtp(string $to, string $subject, string $body, array $attachm
         }
         $message .= "\r\n--{$boundary}--\r\n";
     }
-    $message = preg_replace('/(?m)^\./', '..', $message) ?? $message;
-    fwrite($socket, $message . "\r\n.\r\n");
+    return $message;
+}
+
+function eft_mail_special_folder(string $kind): ?array {
+    foreach (eft_mail_folders(false) as $folder) if ($folder['kind'] === $kind) return $folder;
+    $createName = $kind === 'sent' ? 'Sent' : ($kind === 'drafts' ? 'Drafts' : '');
+    if ($createName === '') return null;
+    $stream = eft_mailbox(false, 'INBOX', false);
+    if (!$stream) return null;
+    @imap_createmailbox($stream, eft_mailbox_root() . $createName);
+    imap_close($stream);
+    foreach (eft_mail_folders(false) as $folder) if ($folder['kind'] === $kind) return $folder;
+    return null;
+}
+
+function eft_append_mail_message(string $kind, string $message, string $flags): bool {
+    $folder = eft_mail_special_folder($kind);
+    if (!$folder) return false;
+    $stream = eft_mailbox(false, 'INBOX', false);
+    if (!$stream) return false;
+    $result = @imap_append($stream, eft_mailbox_root() . $folder['_raw'], $message, $flags);
+    if (!$result) error_log('EFT IMAP append failed (' . $kind . '): ' . (imap_last_error() ?: 'unknown'));
+    imap_close($stream);
+    return (bool)$result;
+}
+
+function eft_save_mail_draft(string $to, string $subject, string $body, array $attachments = []): bool {
+    if ($to !== '' && (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $to))) eft_json(['ok' => false, 'code' => 'invalid_recipient', 'message' => 'Проверьте адрес получателя.'], 422);
+    if (preg_match('/[\r\n]/', $subject)) eft_json(['ok' => false, 'code' => 'invalid_subject', 'message' => 'Проверьте тему письма.'], 422);
+    return eft_append_mail_message('drafts', eft_build_mail_message($to, $subject ?: '(без темы)', $body, $attachments), '\\Draft');
+}
+
+function eft_send_smtp(string $to, string $subject, string $body, array $attachments = []): void {
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $to . $subject)) eft_json(['ok' => false, 'code' => 'invalid_recipient', 'message' => 'Проверьте адрес получателя и тему.'], 422);
+    $config = eft_mail_config();
+    $message = eft_build_mail_message($to, $subject, $body, $attachments);
+    $socket = eft_smtp_authenticated_socket();
+    eft_smtp_command($socket, 'MAIL FROM:<' . $config['username'] . '>', [250]);
+    eft_smtp_command($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
+    eft_smtp_command($socket, 'DATA', [354]);
+    $smtpMessage = preg_replace('/(?m)^\./', '..', $message) ?? $message;
+    fwrite($socket, $smtpMessage . "\r\n.\r\n");
     $response = eft_smtp_read($socket);
     if ((int)substr($response, 0, 3) !== 250) throw new RuntimeException('SMTP did not accept message.');
     eft_smtp_command($socket, 'QUIT', [221]);
     fclose($socket);
+    if (!eft_append_mail_message('sent', $message, '\\Seen')) error_log('EFT sent message was accepted by SMTP but not copied to Sent.');
 }

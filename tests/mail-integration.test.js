@@ -23,11 +23,12 @@ test("mail credentials stay in an ignored server-only file", async () => {
 test("mail API requires employee session and CSRF for writes", async () => {
   const api = await read("server/beget-api/api.php");
   const userGate = api.indexOf("$user = eft_user();");
-  for (const action of ["mail-status", "mail-messages", "mail-message", "mail-attachment", "mail-send", "mail-link"]) {
+  for (const action of ["mail-status", "mail-folders", "mail-messages", "mail-message", "mail-attachment", "mail-send", "mail-draft", "mail-link"]) {
     assert.ok(api.indexOf(`$action === '${action}'`) > userGate, `${action} must be after employee authentication`);
   }
   assert.ok(api.indexOf("eft_csrf();") < api.indexOf("$action === 'mail-send'"));
   assert.ok(api.indexOf("eft_csrf();") < api.indexOf("$action === 'mail-link'"));
+  assert.ok(api.indexOf("eft_csrf();") < api.indexOf("$action === 'mail-draft'"));
 });
 
 test("mail screen displays the mailbox returned by the server", async () => {
@@ -52,6 +53,26 @@ test("mail replies support multiple validated attachments", async () => {
   assert.match(screen, /Прикрепить файлы/);
   assert.match(transport, /body instanceof FormData/);
   assert.match(transport, /isFormData \? body/);
+  assert.match(api, /stripos\(.*multipart\/form-data/);
+  assert.doesNotMatch(api, /str_starts_with/);
+});
+
+test("mail folders, sent copies, drafts and visible send errors use the real mailbox", async () => {
+  const [api, client, screen] = await Promise.all([
+    read("server/beget-api/api.php"),
+    read("server/beget-api/mail-client.php"),
+    read("src/react/screens/MailScreen.jsx"),
+  ]);
+  assert.match(api, /\$action === 'mail-folders'/);
+  assert.match(api, /\$action === 'mail-draft'/);
+  assert.match(client, /imap_getmailboxes/);
+  assert.match(client, /eft_append_mail_message\('sent'/);
+  assert.match(client, /eft_append_mail_message\('drafts'/);
+  assert.match(client, /imap_append/);
+  assert.match(screen, /Сохранить черновик/);
+  assert.match(screen, /mail-compose-error/);
+  assert.match(screen, /setComposeError\(error\.message\)/);
+  assert.match(screen, /mail-folders/);
 });
 
 test("questionnaire deletion is admin-only, password-confirmed and recoverable", async () => {
