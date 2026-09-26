@@ -46,6 +46,7 @@ import {
   summarizePriceCatalogChanges,
 } from "../state/project-model.js";
 import { applyResidentialPreset } from "../state/residential-preset.js";
+import { validateImportedProject } from "../state/project-import.js";
 import { reserveLocalProjectNumber } from "../storage/project-number.js";
 import { formatMoney } from "../utils/format.js";
 import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
@@ -226,7 +227,7 @@ export function App() {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const imported = migrateProject(JSON.parse(await file.text()));
+      const imported = migrateProject(validateImportedProject(JSON.parse(await file.text())));
       checkpoint();
       team.detachProject();
       replace(imported);
@@ -346,6 +347,15 @@ export function App() {
     } catch (error) {
       setNotice(`Не удалось открыть общий проект: ${error.message}`);
     }
+  };
+
+  const restoreTeamVersion = async (projectId, versionId) => {
+    checkpoint();
+    const restored = await team.restoreProjectVersion(projectId, versionId);
+    replace(restored.payload);
+    setActive("plan");
+    setNotice(`Восстановлена версия общего проекта как ревизия ${restored.revision}`);
+    return restored;
   };
 
   const importTeamIntake = (item) => {
@@ -577,6 +587,11 @@ export function App() {
           />
         ) : null}
         <main className="workspace">
+          {team.refreshError || team.mailError ? <div className="notice no-print" role="alert">
+            {team.refreshError ? `Общие проекты и анкеты могут быть неактуальны: ${team.refreshError}. ` : ""}
+            {team.mailError ? `Статус почты может быть неактуален: ${team.mailError}.` : ""}
+            <button className="button secondary" onClick={() => { team.refresh().catch(() => {}); team.refreshMailStatus().catch(() => {}); }}>Повторить</button>
+          </div> : null}
           {priceChanges.total ? (
             <div><button
               className="price-change-banner no-print"
@@ -618,6 +633,7 @@ export function App() {
                 teamProps={{
                   project,
                   onOpenProject: openTeamProject,
+                  onRestoreVersion: restoreTeamVersion,
                   onEditProject: (id) => openTeamProject(id, 'parameters'),
                   onCreatedProject: (created) => {
                     checkpoint();

@@ -25,6 +25,7 @@ const roleNames = {
 export default function TeamWorkspaceScreen({
   project,
   onOpenProject,
+  onRestoreVersion,
   onEditProject,
   onCreatedProject,
   onImportIntake,
@@ -38,6 +39,10 @@ export default function TeamWorkspaceScreen({
   const [deleting, setDeleting] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [savingUser, setSavingUser] = useState(false);
+  const [historyProject, setHistoryProject] = useState(null);
+  const [versions, setVersions] = useState([]);
+  const [versionPreview, setVersionPreview] = useState(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
   useEffect(() => { if (focusTab) setTab(focusTab); }, [focusTab]);
   const [newUser, setNewUser] = useState({
     username: "",
@@ -97,6 +102,31 @@ export default function TeamWorkspaceScreen({
     finally { setSavingUser(false); }
   };
   const attachmentUrl = (id) => `${resolveEftApiUrl()}?action=attachment&id=${encodeURIComponent(id)}`;
+  const openHistory = async (item) => {
+    setHistoryProject(item);
+    setVersions([]);
+    setVersionPreview(null);
+    setHistoryBusy(true);
+    try { setVersions(await team.listProjectVersions(item.id)); }
+    catch (error) { setNotice(`История версий: ${error.message}`); }
+    finally { setHistoryBusy(false); }
+  };
+  const previewVersion = async (item) => {
+    setHistoryBusy(true);
+    try { setVersionPreview({ ...await team.getProjectVersion(historyProject.id, item.id), id: item.id }); }
+    catch (error) { setNotice(`Версия проекта: ${error.message}`); }
+    finally { setHistoryBusy(false); }
+  };
+  const restoreVersion = async () => {
+    if (!versionPreview || !window.confirm(`Восстановить ревизию ${versionPreview.revision} проекта «${historyProject.name}»? Текущее состояние будет сохранено отдельной контрольной версией.`)) return;
+    setHistoryBusy(true);
+    try {
+      const restored = await onRestoreVersion(historyProject.id, versionPreview.id);
+      setNotice(`Версия восстановлена как ревизия ${restored.revision}`);
+      setHistoryProject(null);
+    } catch (error) { setNotice(`Не удалось восстановить версию: ${error.message}`); }
+    finally { setHistoryBusy(false); }
+  };
   return (
     <section className="screen team-workspace">
       <header className="screen-header">
@@ -108,7 +138,7 @@ export default function TeamWorkspaceScreen({
           </p>
         </div>
         <div className="screen-actions">
-          <button className="button secondary" onClick={() => team.refresh()}>
+          <button className="button secondary" onClick={() => team.refresh().catch(() => {})}>
             <RefreshCw />
             Обновить
           </button>
@@ -121,6 +151,8 @@ export default function TeamWorkspaceScreen({
       <div className={`cloud-status ${team.syncState.status}`}>
         {team.syncState.message}
       </div>
+      {team.refreshError ? <div className="notice" role="alert">Не удалось обновить проекты и анкеты: {team.refreshError}</div> : null}
+      {team.mailError ? <div className="notice" role="alert">Не удалось обновить статус почты: {team.mailError}</div> : null}
       <div className="team-tabs">
         <button
           className={tab === "projects" ? "active" : ""}
@@ -181,6 +213,7 @@ export default function TeamWorkspaceScreen({
                 <em>рев. {item.revision}</em>
                 <div className="team-row-actions">
                   <button className="button secondary" onClick={() => onOpenProject(item.id)}>Открыть</button>
+                  <button className="button secondary" onClick={() => openHistory(item)}><FileClock /> Версии</button>
                   {team.user?.role === 'admin' ? <button className="button secondary" onClick={() => onEditProject(item.id)}><Pencil /> Редактировать данные</button> : null}
                   {team.user?.role === "admin" ? <button className="button secondary danger" onClick={() => setDeleteTarget({ kind: 'project', item })} aria-label={`Удалить проект ${item.name}`}><Trash2 /></button> : null}
                 </div>
@@ -190,6 +223,13 @@ export default function TeamWorkspaceScreen({
               <p className="empty-state">Общих проектов пока нет.</p>
             ) : null}
           </div>
+          {historyProject ? <section className="panel-card" aria-label="История версий проекта">
+            <div className="team-panel-head"><div><h2>История: {historyProject.name}</h2><p>Контрольные версии сервера. Восстановление создаёт новую ревизию и сохраняет текущее состояние.</p></div><button className="button secondary" onClick={() => setHistoryProject(null)}>Закрыть</button></div>
+            {historyBusy ? <p>Загружаю историю…</p> : null}
+            <div className="team-list">{versions.map((item) => <article key={item.id}><div><strong>Ревизия {item.revision}</strong><span>{new Date(item.created_at).toLocaleString("ru-RU")} · {item.saved_by} · {item.reason}</span></div><button className="button secondary" disabled={historyBusy} onClick={() => previewVersion(item)}>Посмотреть</button></article>)}</div>
+            {!historyBusy && !versions.length ? <p>Контрольных версий пока нет.</p> : null}
+            {versionPreview ? <div className="notice"><strong>Ревизия {versionPreview.revision}</strong><p>Проект № {versionPreview.payload.meta?.projectNum || "—"} · {versionPreview.payload.meta?.customer || "Заказчик не указан"} · {versionPreview.payload.meta?.address || "Адрес не указан"}</p>{team.user?.role !== "viewer" ? <button className="button" disabled={historyBusy} onClick={restoreVersion}>Восстановить как новую ревизию</button> : null}</div> : null}
+          </section> : null}
         </div>
       ) : null}
       {tab === "intakes" ? (

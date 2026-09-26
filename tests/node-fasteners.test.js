@@ -65,6 +65,8 @@ test('node report exposes geometry formulas, reserve and a consolidated purchase
   assert.equal(starter.kgEach, project.settings.formulas.sipStructuralScrewKg320);
   assert.equal(starter.purchaseKg, starter.purchaseQty * starter.kgEach);
   assert.ok(report.purchase.some((item) => item.size === '8×320'));
+  assert.ok(report.withoutSize.some((item) => item.type === 'PILE_BINDING' && item.calculatedQty > 0));
+  assert.ok(report.withoutSize.every((item) => item.size === '—' && item.calculatedQty > 0));
 });
 
 test('T junctions use 6x120 while unknown terrace and counterlath rules stay under review', () => {

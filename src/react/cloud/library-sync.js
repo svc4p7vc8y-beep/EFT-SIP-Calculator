@@ -4,13 +4,18 @@ function updatedAt(entry) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-export function mergeLibraryEntries(localEntries = [], remoteEntries = []) {
+export function mergeLibraryEntries(localEntries = [], remoteEntries = [], baseEntries = []) {
   const merged = new Map();
+  const localIds = new Set((localEntries || []).map((entry) => entry?.id));
+  const remoteIds = new Set((remoteEntries || []).map((entry) => entry?.id));
+  const deletedIds = new Set((baseEntries || [])
+    .filter((entry) => entry?.id && (!localIds.has(entry.id) || !remoteIds.has(entry.id)))
+    .map((entry) => entry.id));
   for (const entry of remoteEntries || []) {
-    if (entry?.id) merged.set(entry.id, entry);
+    if (entry?.id && !deletedIds.has(entry.id)) merged.set(entry.id, entry);
   }
   for (const entry of localEntries || []) {
-    if (!entry?.id) continue;
+    if (!entry?.id || deletedIds.has(entry.id)) continue;
     const remote = merged.get(entry.id);
     if (!remote || updatedAt(entry) >= updatedAt(remote)) merged.set(entry.id, entry);
   }

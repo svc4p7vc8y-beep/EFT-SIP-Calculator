@@ -14,6 +14,7 @@ import {
 } from "../storage/knowledge-library.js";
 import { readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
 import { mergeLibraryEntries } from "./library-sync.js";
+import { getSavedProjectVersion, restoreSavedProjectVersion } from "./project-versions.js";
 
 const TeamContext = createContext(null);
 const isProductionCalculator = () =>
@@ -32,6 +33,8 @@ export function TeamProvider({ children }) {
   const [unreadIntakes, setUnreadIntakes] = useState(0);
   const [unreadMail, setUnreadMail] = useState(0);
   const [mailStatus, setMailStatus] = useState(null);
+  const [refreshError, setRefreshError] = useState("");
+  const [mailError, setMailError] = useState("");
   const [users, setUsers] = useState([]);
   const [current, setCurrent] = useState(null);
   const currentRef = useRef(null);
@@ -44,6 +47,10 @@ export function TeamProvider({ children }) {
   const libraryRevisions = useRef({
     "plan-library": 0,
     "knowledge-library": 0,
+  });
+  const libraryBases = useRef({
+    "plan-library": [],
+    "knowledge-library": [],
   });
   const libraryEdits = useRef({
     "plan-library": 0,
@@ -63,8 +70,8 @@ export function TeamProvider({ children }) {
 
   const writeLocalLibrary = useCallback(async (key, payload) => {
     if (key === "plan-library")
-      writePlanLibrary(payload || [], localStorage, { notify: false });
-    else await replaceKnowledgeArticles(payload || []);
+      return writePlanLibrary(payload || [], localStorage, { notify: false });
+    return replaceKnowledgeArticles(payload || []);
   }, []);
 
   const saveSharedLibrary = useCallback((key) => {
@@ -80,11 +87,15 @@ export function TeamProvider({ children }) {
           body: { key, revision, payload },
         });
         libraryRevisions.current[key] = Number(result.revision) || revision + 1;
+        libraryBases.current[key] = structuredClone(payload);
       } catch (error) {
         if (error.code !== "revision_conflict") throw error;
         const remote = await eftApi("shared", { query: { key } });
-        payload = mergeLibraryEntries(payload, remote.payload || []);
-        await writeLocalLibrary(key, payload);
+        const submitted = payload;
+        payload = mergeLibraryEntries(submitted, remote.payload || [], libraryBases.current[key]);
+        if (libraryEdits.current[key] !== edit)
+          payload = mergeLibraryEntries(await readLocalLibrary(key), payload, submitted);
+        payload = await writeLocalLibrary(key, payload);
         revision = Number(remote.revision) || 0;
         const result = await eftApi("shared", {
           method: "PUT",
@@ -92,6 +103,7 @@ export function TeamProvider({ children }) {
           body: { key, revision, payload },
         });
         libraryRevisions.current[key] = Number(result.revision) || revision + 1;
+        libraryBases.current[key] = structuredClone(payload);
       }
       if (libraryEdits.current[key] === edit) {
         libraryDirty.current[key] = false;
@@ -115,6 +127,7 @@ export function TeamProvider({ children }) {
     try {
       [projectResult, intakeResult, userResult] = await Promise.all(requests);
     } catch (error) {
+      setRefreshError(error.message);
       if (error.code === 'authentication_required') {
         currentRef.current = null;
         setCurrent(null);
@@ -126,6 +139,7 @@ export function TeamProvider({ children }) {
     setIntakes(intakeResult.intakes || []);
     setUnreadIntakes(Number(intakeResult.unread || 0));
     setUsers(userResult?.users || []);
+    setRefreshError("");
   }, [session.user]);
 
   const syncLibraries = useCallback(async () => {
@@ -151,7 +165,7 @@ export function TeamProvider({ children }) {
           if (libraryDirty.current[key]) {
             await saveSharedLibrary(key);
           } else {
-            await writeLocalLibrary(key, remote.payload || []);
+            libraryBases.current[key] = structuredClone(await writeLocalLibrary(key, remote.payload || []));
             libraryRevisions.current[key] = remoteRevision;
           }
         }
@@ -166,6 +180,7 @@ export function TeamProvider({ children }) {
     const result = await eftApi("mail-status");
     setMailStatus(result.mail || null);
     setUnreadMail(Number(result.mail?.unread || 0));
+    setMailError("");
   }, [session.user]);
 
   useEffect(() => {
@@ -199,13 +214,13 @@ export function TeamProvider({ children }) {
         message: `Библиотеки: ${error.message}`,
       }),
     );
-    refreshMailStatus().catch(() => {});
+    refreshMailStatus().catch((error) => setMailError(error.message));
   }, [session.user, refresh, syncLibraries, refreshMailStatus]);
 
   useEffect(() => {
     if (!session.user) return undefined;
     const timer = window.setInterval(() => {
-      refresh().catch(() => {});
+      refresh().catch((error) => setRefreshError(error.message));
       syncLibraries().catch((error) =>
         setSyncState({ status: "error", message: `Библиотеки: ${error.message}` }),
       );
@@ -215,7 +230,7 @@ export function TeamProvider({ children }) {
 
   useEffect(() => {
     if (!session.user) return undefined;
-    const timer = window.setInterval(() => refreshMailStatus().catch(() => {}), 60000);
+    const timer = window.setInterval(() => refreshMailStatus().catch((error) => setMailError(error.message)), 60000);
     return () => window.clearInterval(timer);
   }, [session.user, refreshMailStatus]);
 
@@ -286,6 +301,20 @@ export function TeamProvider({ children }) {
     });
     return result.project;
   }, []);
+  const listProjectVersions = useCallback(async (id) => {
+    const result = await eftApi("versions", { query: { id } });
+    return result.versions || [];
+  }, []);
+  const getProjectVersion = useCallback(async (projectId, versionId) => {
+    return getSavedProjectVersion(eftApi, projectId, versionId);
+  }, []);
+  const restoreProjectVersion = useCallback(async (projectId, versionId) => {
+    await saveQueue.current.catch(() => {});
+    await restoreSavedProjectVersion(eftApi, projectId, versionId, session.csrf);
+    const restored = await openProject(projectId);
+    await refresh();
+    return restored;
+  }, [openProject, refresh, session.csrf]);
   const saveProject = useCallback(
     async (payload, checkpoint = false) => {
       if (!currentRef.current) return null;
@@ -419,6 +448,8 @@ export function TeamProvider({ children }) {
       unreadIntakes,
       unreadMail,
       mailStatus,
+      refreshError,
+      mailError,
       users,
       current,
       syncState,
@@ -427,6 +458,9 @@ export function TeamProvider({ children }) {
       refresh,
       createProject,
       openProject,
+      listProjectVersions,
+      getProjectVersion,
+      restoreProjectVersion,
       saveProject,
       createUser,
       updateUser,
@@ -445,6 +479,8 @@ export function TeamProvider({ children }) {
       unreadIntakes,
       unreadMail,
       mailStatus,
+      refreshError,
+      mailError,
       users,
       current,
       syncState,
@@ -453,6 +489,9 @@ export function TeamProvider({ children }) {
       refresh,
       createProject,
       openProject,
+      listProjectVersions,
+      getProjectVersion,
+      restoreProjectVersion,
       saveProject,
       createUser,
       updateUser,

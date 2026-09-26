@@ -478,6 +478,7 @@ export function calculateConstructionNodes(project, calculation) {
   const nodes = applyStoredOverrides(autoNodes, project.nodes, formulas).map((node) => ({ ...node, warnings: nodeWarnings(node) }));
   const settings = { reservePercent: 10, packSizes: {}, ...(project.settings?.nodeFasteners || {}) };
   const rows = groupRows(nodes, settings);
+  const withoutSize = rows.filter((row) => row.calculatedQty > 0 && row.size === '—');
   const order = new Map();
   const purchase = [];
   rows.filter((row) => row.calculatedQty > 0 && row.size !== '—').forEach((row) => {
@@ -505,6 +506,7 @@ export function calculateConstructionNodes(project, calculation) {
     nodes,
     rows,
     purchase,
+    withoutSize,
     warnings: nodes.flatMap((node) => node.warnings.map((warning) => ({ ...warning, nodeId: node.id, nodeType: node.type, nodeName: node.name }))),
     stats: Object.fromEntries(Object.entries(nodes.reduce((map, node) => {
       map[node.type] = (map[node.type] || 0) + (node.nodeCount || 1);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v151-audit-fixes-1';
+const CACHE_NAME = 'eft-calculator-react-v152-integrity-fixes-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
