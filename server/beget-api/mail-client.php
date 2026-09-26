@@ -186,9 +186,13 @@ function eft_mail_structure_parts($structure, string $prefix = ''): array {
         $parameters = [];
         foreach (array_merge($part->parameters ?? [], $part->dparameters ?? []) as $parameter) $parameters[strtolower((string)$parameter->attribute)] = eft_decode_mail_header((string)$parameter->value);
         $filename = $parameters['filename'] ?? $parameters['name'] ?? '';
-        $result[] = ['part' => $number, 'type' => (int)$part->type, 'subtype' => strtolower((string)($part->subtype ?? '')), 'encoding' => (int)$part->encoding, 'filename' => $filename, 'bytes' => (int)($part->bytes ?? 0), 'disposition' => strtolower((string)($part->disposition ?? ''))];
+        $result[] = ['part' => $number, 'type' => (int)$part->type, 'subtype' => strtolower((string)($part->subtype ?? '')), 'encoding' => (int)$part->encoding, 'charset' => (string)($parameters['charset'] ?? ''), 'filename' => $filename, 'bytes' => (int)($part->bytes ?? 0), 'disposition' => strtolower((string)($part->disposition ?? ''))];
     }
-    if (!$parts) $result[] = ['part' => '1', 'type' => (int)$structure->type, 'subtype' => strtolower((string)($structure->subtype ?? '')), 'encoding' => (int)$structure->encoding, 'filename' => '', 'bytes' => (int)($structure->bytes ?? 0), 'disposition' => ''];
+    if (!$parts) {
+        $parameters = [];
+        foreach (array_merge($structure->parameters ?? [], $structure->dparameters ?? []) as $parameter) $parameters[strtolower((string)$parameter->attribute)] = eft_decode_mail_header((string)$parameter->value);
+        $result[] = ['part' => '1', 'type' => (int)$structure->type, 'subtype' => strtolower((string)($structure->subtype ?? '')), 'encoding' => (int)$structure->encoding, 'charset' => (string)($parameters['charset'] ?? ''), 'filename' => (string)($parameters['filename'] ?? $parameters['name'] ?? ''), 'bytes' => (int)($structure->bytes ?? 0), 'disposition' => strtolower((string)($structure->disposition ?? ''))];
+    }
     return $result;
 }
 
@@ -210,11 +214,12 @@ function eft_mail_message(int $uid, bool $markSeen = true, string $folderKey = '
     $attachments = [];
     foreach ($parts as $part) {
         if ($part['filename'] !== '' || $part['disposition'] === 'attachment') {
-            $attachments[] = ['part' => $part['part'], 'name' => $part['filename'] ?: 'Вложение', 'mime' => ($part['type'] === 0 ? 'text' : 'application') . '/' . ($part['subtype'] ?: 'octet-stream'), 'size' => $part['bytes']];
+            $attachments[] = ['part' => $part['part'], 'name' => $part['filename'] ?: 'Вложение', 'mime' => eft_mail_part_mime($part), 'size' => $part['bytes']];
             continue;
         }
         if ($part['type'] !== 0) continue;
         $content = eft_decode_mail_part((string)imap_fetchbody($stream, $uid, $part['part'], FT_UID | FT_PEEK), $part['encoding']);
+        $content = eft_decode_mail_body_charset($content, (string)($part['charset'] ?? ''));
         if ($part['subtype'] === 'plain' && $plain === '') $plain = $content;
         if ($part['subtype'] === 'html' && $html === '') $html = $content;
     }
@@ -245,7 +250,7 @@ function eft_mail_attachment(int $uid, string $partNumber, string $folderKey = '
         if ($part['part'] !== $partNumber || ($part['filename'] === '' && $part['disposition'] !== 'attachment')) continue;
         $content = eft_decode_mail_part((string)imap_fetchbody($stream, $uid, $partNumber, FT_UID | FT_PEEK), $part['encoding']);
         imap_close($stream);
-        return ['name' => $part['filename'] ?: 'attachment', 'mime' => ($part['type'] === 0 ? 'text' : 'application') . '/' . ($part['subtype'] ?: 'octet-stream'), 'content' => $content];
+        return ['name' => $part['filename'] ?: 'attachment', 'mime' => eft_mail_part_mime($part), 'content' => $content];
     }
     imap_close($stream);
     eft_json(['ok' => false, 'code' => 'attachment_not_found', 'message' => 'Вложение не найдено.'], 404);
@@ -283,6 +288,20 @@ function eft_smtp_connection_check(): void {
     $socket = eft_smtp_authenticated_socket();
     eft_smtp_command($socket, 'QUIT', [221]);
     fclose($socket);
+}
+
+function eft_decode_mail_body_charset(string $content, string $charset): string {
+    $charset = trim($charset, " \t\n\r\0\x0B\"'");
+    if ($content === '' || $charset === '' || strcasecmp($charset, 'UTF-8') === 0 || strcasecmp($charset, 'US-ASCII') === 0) return $content;
+    $converted = @mb_convert_encoding($content, 'UTF-8', $charset);
+    return is_string($converted) && $converted !== '' ? $converted : $content;
+}
+
+function eft_mail_part_mime(array $part): string {
+    $types = [0 => 'text', 1 => 'multipart', 2 => 'message', 3 => 'application', 4 => 'audio', 5 => 'image', 6 => 'video'];
+    $primary = $types[(int)($part['type'] ?? 7)] ?? 'application';
+    $subtype = preg_replace('/[^a-z0-9.+-]/i', '', (string)($part['subtype'] ?? '')) ?: 'octet-stream';
+    return $primary . '/' . strtolower($subtype);
 }
 
 function eft_build_mail_message(string $to, string $subject, string $body, array $attachments = []): string {

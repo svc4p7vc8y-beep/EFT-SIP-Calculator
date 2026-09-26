@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUpRight, RotateCcw, SkipForward } from 'lucide-react';
 import { asset } from './data.js';
+import HeroPhoto from './HeroPhoto.jsx';
 
 const evening = asset('hero-evening-v1.webp');
 const sketch = asset('hero-pencil-v1.webp');
@@ -9,6 +10,7 @@ export default function HeroIntro() {
   const [phase, setPhase] = useState('loading');
   const [run, setRun] = useState(0);
   const [canAnimate, setCanAnimate] = useState(false);
+  const [mediaFailed, setMediaFailed] = useState(false);
   const ready = useRef(false);
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export default function HeroIntro() {
       if (!active) return;
       window.clearTimeout(fallback);
       ready.current = loaded.every(Boolean);
+      setMediaFailed(!ready.current);
       setPhase(ready.current && !motion.matches && !small.matches ? 'playing' : 'done');
     });
     return () => {
@@ -63,10 +66,10 @@ export default function HeroIntro() {
 
   return <section className="welcome-hero" aria-labelledby="welcome-title" data-phase={phase}
     onPointerMove={moveCamera} onPointerLeave={resetCamera}>
-    <div className="intro-scene" key={run} aria-hidden="true">
+    {mediaFailed ? <HeroPhoto /> : <div className="intro-scene" key={run} aria-hidden="true">
       <img className="intro-evening" fetchPriority="high" src={evening} alt="" width="1536" height="1024" />
       <img className="intro-sketch" src={sketch} alt="" width="1536" height="1024" />
-    </div>
+    </div>}
     <div className="intro-shade" aria-hidden="true" />
     <div className="welcome-copy">
       <h1 id="welcome-title">Домой хочется<br />ещё до переезда.</h1>

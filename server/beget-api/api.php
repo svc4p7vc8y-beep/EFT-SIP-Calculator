@@ -44,6 +44,64 @@ function eft_collect_uploaded_files(string $field, int $maxFiles = 10, int $maxF
     return $files;
 }
 
+function eft_login_rate_keys(string $username): array {
+    $secret = (string)eft_config()['app_secret'];
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    return [
+        ['ip', hash_hmac('sha256', $ip, $secret)],
+        ['account', hash_hmac('sha256', $username, $secret)],
+    ];
+}
+
+function eft_login_rate_blocked(PDO $pdo, array $keys): bool {
+    try {
+        $statement = $pdo->prepare('SELECT blocked_until FROM eft_login_attempts WHERE scope_name = ? AND key_hash = ? LIMIT 1');
+        foreach ($keys as $key) {
+            $statement->execute($key);
+            $blockedUntil = $statement->fetchColumn();
+            if ($blockedUntil && strtotime((string)$blockedUntil) > time()) return true;
+        }
+    } catch (Throwable $error) {
+        error_log('EFT login rate check unavailable: ' . $error->getMessage());
+    }
+    return false;
+}
+
+function eft_login_rate_failure(PDO $pdo, array $keys): void {
+    try {
+        $pdo->beginTransaction();
+        $select = $pdo->prepare('SELECT failures, window_started_at FROM eft_login_attempts WHERE scope_name = ? AND key_hash = ? FOR UPDATE');
+        $insert = $pdo->prepare('INSERT INTO eft_login_attempts (scope_name, key_hash, failures, window_started_at, blocked_until) VALUES (?, ?, 1, NOW(), NULL)');
+        $update = $pdo->prepare('UPDATE eft_login_attempts SET failures = ?, window_started_at = ?, blocked_until = ? WHERE scope_name = ? AND key_hash = ?');
+        foreach ($keys as $key) {
+            $select->execute($key);
+            $row = $select->fetch();
+            if (!$row) {
+                $insert->execute($key);
+                continue;
+            }
+            $expired = strtotime((string)$row['window_started_at']) < time() - 900;
+            $failures = $expired ? 1 : (int)$row['failures'] + 1;
+            $startedAt = $expired ? date('Y-m-d H:i:s') : (string)$row['window_started_at'];
+            $blockedUntil = $failures >= 8 ? date('Y-m-d H:i:s', time() + 900) : null;
+            $update->execute([$failures, $startedAt, $blockedUntil, $key[0], $key[1]]);
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('EFT login rate update unavailable: ' . $error->getMessage());
+    }
+}
+
+function eft_login_rate_clear(PDO $pdo, array $keys): void {
+    try {
+        $statement = $pdo->prepare('DELETE FROM eft_login_attempts WHERE scope_name = ? AND key_hash = ?');
+        foreach ($keys as $key) $statement->execute($key);
+    } catch (Throwable $error) {
+        error_log('EFT login rate cleanup unavailable: ' . $error->getMessage());
+    }
+}
+
 if ($action === 'session' && $method === 'GET') {
     $user = eft_session_user();
     eft_json(['ok' => true, 'user' => $user, 'csrf' => $user ? ($_SESSION['csrf'] ?? '') : '']);
@@ -53,13 +111,17 @@ if ($action === 'login' && $method === 'POST') {
     $input = eft_input(65536);
     $username = mb_strtolower(trim((string)($input['username'] ?? '')));
     $password = (string)($input['password'] ?? '');
+    $rateKeys = eft_login_rate_keys($username);
+    if (eft_login_rate_blocked($pdo, $rateKeys)) eft_json(['ok' => false, 'code' => 'rate_limited', 'message' => 'Слишком много попыток входа. Повторите через 15 минут.'], 429);
     usleep(250000);
     $statement = $pdo->prepare('SELECT id, username, display_name, password_hash, role, active FROM eft_users WHERE username = ? LIMIT 1');
     $statement->execute([$username]);
     $row = $statement->fetch();
     if (!$row || !$row['active'] || !password_verify($password, $row['password_hash'])) {
+        eft_login_rate_failure($pdo, $rateKeys);
         eft_json(['ok' => false, 'code' => 'invalid_credentials', 'message' => 'Неверное имя пользователя или пароль.'], 401);
     }
+    eft_login_rate_clear($pdo, $rateKeys);
     session_regenerate_id(true);
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
     $_SESSION['user'] = ['id' => (int)$row['id'], 'username' => $row['username'], 'displayName' => $row['display_name'], 'role' => $row['role']];
@@ -251,6 +313,14 @@ if ($action === 'mail-message' && $method === 'GET') {
     $uid = (int)($_GET['uid'] ?? 0);
     if ($uid < 1) eft_json(['ok' => false, 'code' => 'invalid_uid', 'message' => 'Письмо не найдено.'], 422);
     $folder = mb_substr(trim((string)($_GET['folder'] ?? 'inbox')), 0, 255);
+    eft_json(['ok' => true, 'message' => eft_mail_message($uid, false, $folder)]);
+}
+
+if ($action === 'mail-message-read' && $method === 'POST') {
+    $input = eft_input(65536);
+    $uid = (int)($input['uid'] ?? 0);
+    if ($uid < 1) eft_json(['ok' => false, 'code' => 'invalid_uid', 'message' => 'Письмо не найдено.'], 422);
+    $folder = mb_substr(trim((string)($input['folder'] ?? 'inbox')), 0, 255);
     eft_json(['ok' => true, 'message' => eft_mail_message($uid, true, $folder)]);
 }
 
@@ -282,6 +352,9 @@ if ($action === 'mail-link' && $method === 'POST') {
     $messageKey = (string)($input['messageKey'] ?? '');
     $projectId = (string)($input['projectId'] ?? '');
     if (!preg_match('/^[a-f0-9]{64}$/', $messageKey) || !preg_match('/^[a-f0-9-]{36}$/i', $projectId)) eft_json(['ok' => false, 'code' => 'invalid_link', 'message' => 'Не удалось связать письмо с проектом.'], 422);
+    $project = $pdo->prepare("SELECT 1 FROM eft_projects WHERE id = ? AND status <> 'archived' LIMIT 1");
+    $project->execute([$projectId]);
+    if (!$project->fetchColumn()) eft_json(['ok' => false, 'code' => 'project_not_found', 'message' => 'Проект для привязки не найден.'], 404);
     $statement = $pdo->prepare('INSERT INTO eft_mail_links (message_key, project_id, linked_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE project_id = VALUES(project_id), linked_by = VALUES(linked_by), created_at = NOW()');
     $statement->execute([$messageKey, $projectId, (int)$user['id']]);
     eft_audit((int)$user['id'], 'mail_linked', 'mail', $messageKey, ['projectId' => $projectId]);
@@ -408,8 +481,13 @@ if ($action === 'intakes' && $method === 'GET') {
 if ($action === 'intake-read' && $method === 'POST') {
     $input = eft_input(65536);
     $id = (string)($input['id'] ?? '');
+    $statement = $pdo->prepare('SELECT q.id, r.questionnaire_id AS read_id FROM eft_questionnaires q LEFT JOIN eft_intake_reads r ON r.questionnaire_id = q.id AND r.user_id = ? WHERE q.id = ? LIMIT 1');
+    $statement->execute([(int)$user['id'], $id]);
+    $intake = $statement->fetch();
+    if (!$intake) eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Анкета не найдена.'], 404);
+    $newlyRead = empty($intake['read_id']);
     $pdo->prepare('INSERT INTO eft_intake_reads (user_id, questionnaire_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE read_at = NOW()')->execute([(int)$user['id'], $id]);
-    eft_json(['ok' => true]);
+    eft_json(['ok' => true, 'newlyRead' => $newlyRead]);
 }
 
 if ($action === 'mail-draft' && $method === 'POST') {
@@ -459,8 +537,17 @@ if ($action === 'intake-status' && $method === 'POST') {
     $input = eft_input(65536);
     $id = (string)($input['id'] ?? '');
     $status = (string)($input['status'] ?? 'reviewed');
-    if (!in_array($status, ['reviewed', 'imported', 'archived'], true)) eft_json(['ok' => false, 'code' => 'invalid_status', 'message' => 'Некорректный статус.'], 422);
+    if (!in_array($status, ['reviewed', 'imported'], true)) eft_json(['ok' => false, 'code' => 'invalid_status', 'message' => 'Архивация доступна только администратору через защищённое удаление.'], 422);
     $projectId = $input['projectId'] ?? null;
+    $statement = $pdo->prepare('SELECT 1 FROM eft_questionnaires WHERE id = ? LIMIT 1');
+    $statement->execute([$id]);
+    if (!$statement->fetchColumn()) eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Анкета не найдена.'], 404);
+    if ($status === 'imported') {
+        if (!is_string($projectId) || !preg_match('/^[a-f0-9-]{36}$/i', $projectId)) eft_json(['ok' => false, 'code' => 'project_required', 'message' => 'Для импорта нужен существующий проект.'], 422);
+        $statement = $pdo->prepare("SELECT 1 FROM eft_projects WHERE id = ? AND status <> 'archived' LIMIT 1");
+        $statement->execute([$projectId]);
+        if (!$statement->fetchColumn()) eft_json(['ok' => false, 'code' => 'project_not_found', 'message' => 'Проект для анкеты не найден.'], 404);
+    } else $projectId = null;
     $pdo->prepare('UPDATE eft_questionnaires SET status = ?, imported_project_id = ?, updated_at = NOW() WHERE id = ?')->execute([$status, $projectId, $id]);
     eft_audit((int)$user['id'], 'intake_status_changed', 'questionnaire', $id, ['status' => $status, 'projectId' => $projectId]);
     eft_json(['ok' => true]);
@@ -480,11 +567,28 @@ if ($action === 'shared' && $method === 'PUT') {
     $key = (string)($input['key'] ?? '');
     if (!in_array($key, ['plan-library', 'knowledge-library'], true)) eft_json(['ok' => false, 'code' => 'invalid_key', 'message' => 'Неизвестная библиотека.'], 422);
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
+    $revision = max(0, (int)($input['revision'] ?? 0));
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $statement = $pdo->prepare('INSERT INTO eft_shared_documents (document_key, revision, payload, updated_by) VALUES (?, 1, ?, ?) ON DUPLICATE KEY UPDATE revision = revision + 1, payload = VALUES(payload), updated_by = VALUES(updated_by), updated_at = NOW()');
-    $statement->execute([$key, $encoded, (int)$user['id']]);
-    eft_audit((int)$user['id'], 'shared_library_saved', 'shared_document', $key, ['count' => count($payload)]);
-    eft_json(['ok' => true]);
+    $pdo->beginTransaction();
+    $statement = $pdo->prepare('SELECT revision FROM eft_shared_documents WHERE document_key = ? FOR UPDATE');
+    $statement->execute([$key]);
+    $current = $statement->fetch();
+    $currentRevision = (int)($current['revision'] ?? 0);
+    if ($currentRevision !== $revision) {
+        $pdo->rollBack();
+        eft_json(['ok' => false, 'code' => 'revision_conflict', 'message' => 'Общая библиотека уже изменена другим сотрудником.', 'currentRevision' => $currentRevision], 409);
+    }
+    $nextRevision = $currentRevision + 1;
+    if ($current) {
+        $statement = $pdo->prepare('UPDATE eft_shared_documents SET revision = ?, payload = ?, updated_by = ?, updated_at = NOW() WHERE document_key = ?');
+        $statement->execute([$nextRevision, $encoded, (int)$user['id'], $key]);
+    } else {
+        $statement = $pdo->prepare('INSERT INTO eft_shared_documents (document_key, revision, payload, updated_by) VALUES (?, ?, ?, ?)');
+        $statement->execute([$key, $nextRevision, $encoded, (int)$user['id']]);
+    }
+    $pdo->commit();
+    eft_audit((int)$user['id'], 'shared_library_saved', 'shared_document', $key, ['count' => count($payload), 'revision' => $nextRevision]);
+    eft_json(['ok' => true, 'revision' => $nextRevision]);
 }
 
 if ($action === 'users' && $method === 'GET') {

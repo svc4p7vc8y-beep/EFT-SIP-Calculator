@@ -5,9 +5,16 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/react/**'
-      - 'src/calculations/**'
-      - 'public/sw.js'
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'react.html'
+      - 'legacy-v45.html'
+      - 'EFT_client_questionnaire.html'
+      - 'vite.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/beget.yml'
 
 permissions:
   contents: read

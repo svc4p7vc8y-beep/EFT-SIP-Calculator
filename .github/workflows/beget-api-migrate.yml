@@ -31,9 +31,7 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
           sudo apt-get update
           sudo apt-get install --yes sshpass php-cli
-          php -l server/beget-api/api.php
-          php -l server/beget-api/bootstrap.php
-          php -l server/beget-api/migrate.php
+          find server/beget-api -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Upload API and run idempotent migration
         env:
           HOST: ${{ secrets.BEGET_SSH_HOST }}

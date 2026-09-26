@@ -227,6 +227,7 @@ export function App() {
     if (!file) return;
     try {
       const imported = migrateProject(JSON.parse(await file.text()));
+      checkpoint();
       team.detachProject();
       replace(imported);
       setNotice(`Открыт проект: ${file.name}`);
@@ -304,6 +305,7 @@ export function App() {
       ? applyResidentialPreset(createProjectWithCurrentPrices(project))
       : createProjectWithCurrentPrices(project);
     try {
+      checkpoint();
       if (team.user) {
         const created = await team.createProject(next);
         replace(created.payload);
@@ -336,6 +338,7 @@ export function App() {
 
   const openTeamProject = async (id, destination = 'plan') => {
     try {
+      checkpoint();
       const result = await team.openProject(id);
       replace(result.payload);
       setActive(destination);
@@ -469,7 +472,7 @@ export function App() {
             <FileUp />
           </button>
           <a
-            className="icon-button"
+            className="icon-button questionnaire-link"
             href="./EFT_client_questionnaire.html"
             target="_blank"
             rel="noreferrer"
@@ -616,7 +619,10 @@ export function App() {
                   project,
                   onOpenProject: openTeamProject,
                   onEditProject: (id) => openTeamProject(id, 'parameters'),
-                  onCreatedProject: (created) => replace(created.payload),
+                  onCreatedProject: (created) => {
+                    checkpoint();
+                    replace(created.payload);
+                  },
                   onImportIntake: importTeamIntake,
                   focusTab: teamFocus,
                 }}
@@ -743,7 +749,7 @@ export function App() {
               <div>
                 <h2 id="backup-title">Резервные копии</h2>
                 <p>
-                  Создаются при нажатии на дискету и перед новым проектом.
+                  Создаются при нажатии на дискету и перед заменой текущего проекта.
                   Хранятся в этом браузере.
                 </p>
               </div>
@@ -761,6 +767,7 @@ export function App() {
                   <button
                     key={backup.backupId || backup.savedAt}
                     onClick={() => {
+                      checkpoint();
                       replace(backup);
                       setBackupOpen(false);
                       setNotice("Восстановлена резервная копия");

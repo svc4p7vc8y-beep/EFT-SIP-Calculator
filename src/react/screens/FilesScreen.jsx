@@ -23,19 +23,24 @@ export default function FilesScreen() {
   const [query, setQuery] = useState("");
   const [newFolder, setNewFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
-  const canWrite = team.user?.role !== "viewer" && folderId !== "questionnaires";
+  const canWrite = Boolean(team.user && team.user.role !== "viewer" && folderId !== "questionnaires");
   const apiBase = useMemo(() => resolveEftApiUrl(), []);
 
   const load = useCallback(async (nextFolder = folderId) => {
     setLoading(true);
     setNotice("");
+    if (!team.user) {
+      setNotice("Файлы доступны после входа в командный режим.");
+      setLoading(false);
+      return;
+    }
     try {
       const result = await eftApi("files", { query: nextFolder ? { folder: nextFolder } : {} });
       setData(result);
       setFolderId(nextFolder);
     } catch (error) { setNotice(error.message); }
     finally { setLoading(false); }
-  }, [folderId]);
+  }, [folderId, team.user]);
 
   useEffect(() => { load(""); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

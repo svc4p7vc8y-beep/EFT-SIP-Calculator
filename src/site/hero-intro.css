@@ -16,6 +16,7 @@
 .welcome-header .header-cta:hover{background:#244b3b}
 .welcome-hero{position:relative;isolation:isolate;min-height:680px;height:calc(100svh - 120px);max-height:1000px;background:#f5f3ed;overflow:hidden;color:#faf8ef;display:flex;flex-direction:column;justify-content:center;padding:80px 3.5% 130px}
 .intro-scene{position:absolute;inset:0;z-index:-3;transform:translate(var(--intro-x,0%),var(--intro-y,0%)) scale(1.025);transition:transform 3s cubic-bezier(.2,.65,.3,1)}
+.welcome-hero>.hero-photo{position:absolute;inset:0;z-index:-3;border-radius:0}.welcome-hero>.hero-photo>img{width:100%;height:100%;object-fit:cover}.welcome-hero>.hero-photo .photo-caption{display:none}
 .intro-scene img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 52%;max-width:none}
 .intro-sketch{opacity:0}
 .intro-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(9,19,15,.8),rgba(9,19,15,.52) 28%,transparent 62%),linear-gradient(0deg,rgba(9,19,15,.45),transparent 24%);pointer-events:none}

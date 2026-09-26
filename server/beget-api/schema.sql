@@ -129,6 +129,17 @@ CREATE TABLE IF NOT EXISTS eft_mail_links (
   CONSTRAINT fk_eft_mail_link_user FOREIGN KEY (linked_by) REFERENCES eft_users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS eft_login_attempts (
+  scope_name ENUM('ip','account') NOT NULL,
+  key_hash CHAR(64) NOT NULL,
+  failures SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  window_started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  blocked_until DATETIME NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (scope_name, key_hash),
+  KEY idx_eft_login_attempts_updated (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS eft_file_folders (
   id CHAR(36) NOT NULL,
   parent_id CHAR(36) NULL,

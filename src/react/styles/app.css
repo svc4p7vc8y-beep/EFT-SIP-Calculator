@@ -4553,9 +4553,15 @@ select,
   }
   .header-totals {
     display: flex;
+    flex: 0 0 auto;
+  }
+  .brand > .version-badge,
+  .header-actions .questionnaire-link {
+    display: none;
   }
   .header-actions {
     margin-left: auto;
+    gap: 4px;
   }
   .price-adjustment-toolbar {
     align-items: stretch;
@@ -5556,6 +5562,16 @@ select,
   color: #285f83;
   background: #e4f3fc;
 }
+.sip-guide-index {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+}
+.sip-guide-index span { color: var(--muted); font-size: 12px; }
 @media screen and (max-width: 820px) {
   .sip-guide-grid {
     grid-template-columns: 1fr;

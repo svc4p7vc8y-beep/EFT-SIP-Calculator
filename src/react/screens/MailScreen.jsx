@@ -21,10 +21,19 @@ export default function MailScreen() {
   const [sending, setSending] = useState(false);
   const [composeError, setComposeError] = useState("");
   const mailboxAddress = status?.address || "sale@eftsip.ru";
+  const canWrite = Boolean(team.user && team.user.role !== "viewer");
 
   const load = useCallback(async (search = "") => {
     setLoading(true);
     setNotice("");
+    if (!team.user) {
+      setStatus(null);
+      setFolders([]);
+      setMessages([]);
+      setNotice("Почта доступна после входа в командный режим.");
+      setLoading(false);
+      return;
+    }
     try {
       const statusResult = await eftApi("mail-status");
       setStatus(statusResult.mail);
@@ -36,14 +45,20 @@ export default function MailScreen() {
       } else setMessages([]);
     } catch (error) { setNotice(error.message); }
     finally { setLoading(false); }
-  }, [folderKey]);
+  }, [folderKey, team.user]);
 
   useEffect(() => { load(); }, [load]);
 
   const openMessage = async (message) => {
     setNotice("");
     try {
-      const result = await eftApi("mail-message", { query: { uid: message.uid, folder: message.folder || folderKey } });
+      const result = team.user?.role === "viewer"
+        ? await eftApi("mail-message", { query: { uid: message.uid, folder: message.folder || folderKey } })
+        : await eftApi("mail-message-read", {
+            method: "POST",
+            csrf: team.csrf,
+            body: { uid: message.uid, folder: message.folder || folderKey },
+          });
       setSelected({ ...result.message, project: message.project });
       setMessages((items) => items.map((item) => item.uid === message.uid ? { ...item, seen: true } : item));
       team.refreshMailStatus?.().catch(() => {});
@@ -127,7 +142,7 @@ export default function MailScreen() {
 
   return (
     <section className="screen mail-screen">
-      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта {mailboxAddress}</h1><p>Письма и папки синхронизируются с почтовым сервером.</p></div><div className="screen-actions"><button className="button secondary" onClick={() => load(query)}><RefreshCw />Обновить</button><button className="button" onClick={startNewMessage}><FileEdit />Новое письмо</button></div></header>
+      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта {mailboxAddress}</h1><p>Письма и папки синхронизируются с почтовым сервером.</p></div><div className="screen-actions"><button className="button secondary" onClick={() => load(query)}><RefreshCw />Обновить</button>{canWrite ? <button className="button" onClick={startNewMessage}><FileEdit />Новое письмо</button> : null}</div></header>
       {notice ? <div className="notice">{notice}</div> : null}
       <div className="mail-layout">
         <aside className="mail-list-panel">
@@ -144,8 +159,8 @@ export default function MailScreen() {
         </aside>
         <article className="mail-reader">
           {selected ? <>
-            <header><div><p>{selected.from}</p><h2>{selected.subject || "Без темы"}</h2><span>{formatDate(selected.date)} · кому {selected.to}</span></div><div className="mail-reader-actions"><button className="button secondary" onClick={startReply}>Ответить</button><button className="button" onClick={makeDraft}><Sparkles />Черновик помощника</button></div></header>
-            <div className="mail-project-link"><Link2 /><span>{selected.project ? `Связано: ${selected.project.name}` : "Связать письмо с проектом"}</span><select value={selected.project?.id || ""} onChange={(event) => linkProject(event.target.value)}><option value="">Выберите проект</option>{team.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
+            <header><div><p>{selected.from}</p><h2>{selected.subject || "Без темы"}</h2><span>{formatDate(selected.date)} · кому {selected.to}</span></div>{canWrite ? <div className="mail-reader-actions"><button className="button secondary" onClick={startReply}>Ответить</button><button className="button" onClick={makeDraft}><Sparkles />Черновик помощника</button></div> : null}</header>
+            <div className="mail-project-link"><Link2 /><span>{selected.project ? `Связано: ${selected.project.name}` : "Связать письмо с проектом"}</span><select value={selected.project?.id || ""} disabled={!canWrite} onChange={(event) => linkProject(event.target.value)}><option value="">Выберите проект</option>{team.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
             <pre className="mail-body">{selected.body || "Пустое письмо"}</pre>
             {selected.attachments?.length ? <div className="mail-attachments"><strong><Paperclip />Вложения</strong>{selected.attachments.map((file) => <a key={file.part} href={`${attachmentBase}?action=mail-attachment&uid=${selected.uid}&part=${encodeURIComponent(file.part)}&folder=${encodeURIComponent(selected.folder || folderKey)}`} target="_blank" rel="noreferrer">{file.name}<small>{Math.ceil(file.size / 1024)} КБ</small></a>)}</div> : null}
           </> : <div className="mail-reader-empty"><Mail /><h2>Выберите письмо</h2><p>Здесь появятся текст, вложения и связь с проектом.</p></div>}

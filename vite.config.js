@@ -5,6 +5,16 @@ import { resolve } from 'node:path';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.VITE_EFT_API_PROXY_TARGET || 'https://eftsip.ru',
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: '',
+      },
+    },
+  },
   build: {
     target: 'es2020',
     sourcemap: true,

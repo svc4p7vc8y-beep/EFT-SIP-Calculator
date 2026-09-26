@@ -442,7 +442,7 @@ export default function ParametersScreen() {
         <Stat label="Проёмы всех этажей" value={`${floorOpenings.length} шт`} />
       </div>
       <div className="parameters-master-layout">
-        <main className="parameters-form-flow">
+        <div className="parameters-form-flow">
           <Section
             id="project"
             number="01"
@@ -1381,7 +1381,7 @@ export default function ParametersScreen() {
               </div>
             </div>
           </Section>
-        </main>
+        </div>
         <Navigator items={checklist} />
       </div>
       {presetOpen ? <ResidentialPresetDialog onClose={() => setPresetOpen(false)} onApply={() => { checkpoint(); commit(applyResidentialPreset); setPresetOpen(false); }} /> : null}

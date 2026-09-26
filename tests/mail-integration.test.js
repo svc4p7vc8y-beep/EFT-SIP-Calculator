@@ -23,7 +23,7 @@ test("mail credentials stay in an ignored server-only file", async () => {
 test("mail API requires employee session and CSRF for writes", async () => {
   const api = await read("server/beget-api/api.php");
   const userGate = api.indexOf("$user = eft_user();");
-  for (const action of ["mail-status", "mail-folders", "mail-messages", "mail-message", "mail-attachment", "mail-send", "mail-draft", "mail-link"]) {
+  for (const action of ["mail-status", "mail-folders", "mail-messages", "mail-message", "mail-message-read", "mail-attachment", "mail-send", "mail-draft", "mail-link"]) {
     assert.ok(api.indexOf(`$action === '${action}'`) > userGate, `${action} must be after employee authentication`);
   }
   assert.ok(api.indexOf("eft_csrf();") < api.indexOf("$action === 'mail-send'"));

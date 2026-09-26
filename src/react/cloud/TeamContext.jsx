@@ -13,6 +13,7 @@ import {
   replaceKnowledgeArticles,
 } from "../storage/knowledge-library.js";
 import { readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
+import { mergeLibraryEntries } from "./library-sync.js";
 
 const TeamContext = createContext(null);
 const isProductionCalculator = () =>
@@ -40,6 +41,71 @@ export function TeamProvider({ children }) {
     message: "Локальное сохранение",
   });
   const syncingLibraries = useRef(false);
+  const libraryRevisions = useRef({
+    "plan-library": 0,
+    "knowledge-library": 0,
+  });
+  const libraryEdits = useRef({
+    "plan-library": 0,
+    "knowledge-library": 0,
+  });
+  const libraryDirty = useRef({
+    "plan-library": false,
+    "knowledge-library": false,
+  });
+  const libraryQueues = useRef({
+    "plan-library": Promise.resolve(),
+    "knowledge-library": Promise.resolve(),
+  });
+
+  const readLocalLibrary = useCallback(async (key) =>
+    key === "plan-library" ? readPlanLibrary() : listKnowledgeArticles(), []);
+
+  const writeLocalLibrary = useCallback(async (key, payload) => {
+    if (key === "plan-library")
+      writePlanLibrary(payload || [], localStorage, { notify: false });
+    else await replaceKnowledgeArticles(payload || []);
+  }, []);
+
+  const saveSharedLibrary = useCallback((key) => {
+    const edit = ++libraryEdits.current[key];
+    libraryDirty.current[key] = true;
+    const run = async () => {
+      let payload = await readLocalLibrary(key);
+      let revision = libraryRevisions.current[key] || 0;
+      try {
+        const result = await eftApi("shared", {
+          method: "PUT",
+          csrf: session.csrf,
+          body: { key, revision, payload },
+        });
+        libraryRevisions.current[key] = Number(result.revision) || revision + 1;
+      } catch (error) {
+        if (error.code !== "revision_conflict") throw error;
+        const remote = await eftApi("shared", { query: { key } });
+        payload = mergeLibraryEntries(payload, remote.payload || []);
+        await writeLocalLibrary(key, payload);
+        revision = Number(remote.revision) || 0;
+        const result = await eftApi("shared", {
+          method: "PUT",
+          csrf: session.csrf,
+          body: { key, revision, payload },
+        });
+        libraryRevisions.current[key] = Number(result.revision) || revision + 1;
+      }
+      if (libraryEdits.current[key] === edit) {
+        libraryDirty.current[key] = false;
+        setSyncState({ status: "saved", message: "Общие библиотеки синхронизированы" });
+      }
+    };
+    setSyncState({ status: "saving", message: "Сохраняем общую библиотеку…" });
+    const queued = libraryQueues.current[key].catch(() => {}).then(run);
+    libraryQueues.current[key] = queued;
+    return queued.catch((error) => {
+      setSyncState({ status: "error", message: `Библиотеки: ${error.message}` });
+      throw error;
+    });
+  }, [readLocalLibrary, session.csrf, writeLocalLibrary]);
 
   const refresh = useCallback(async () => {
     if (!session.user) return;
@@ -66,31 +132,34 @@ export function TeamProvider({ children }) {
     if (!session.user || syncingLibraries.current) return;
     syncingLibraries.current = true;
     try {
-      const [remotePlans, remoteKnowledge, localKnowledge] = await Promise.all([
+      const [remotePlans, remoteKnowledge] = await Promise.all([
         eftApi("shared", { query: { key: "plan-library" } }),
         eftApi("shared", { query: { key: "knowledge-library" } }),
-        listKnowledgeArticles(),
       ]);
-      const localPlans = readPlanLibrary();
-      if (remotePlans.revision > 0) writePlanLibrary(remotePlans.payload || []);
-      else if (localPlans.length)
-        await eftApi("shared", {
-          method: "PUT",
-          csrf: session.csrf,
-          body: { key: "plan-library", payload: localPlans },
-        });
-      if (remoteKnowledge.revision > 0)
-        await replaceKnowledgeArticles(remoteKnowledge.payload || []);
-      else if (localKnowledge.length)
-        await eftApi("shared", {
-          method: "PUT",
-          csrf: session.csrf,
-          body: { key: "knowledge-library", payload: localKnowledge },
-        });
+      for (const [key, remote] of [
+        ["plan-library", remotePlans],
+        ["knowledge-library", remoteKnowledge],
+      ]) {
+        const remoteRevision = Number(remote.revision) || 0;
+        const localRevision = libraryRevisions.current[key] || 0;
+        if (remoteRevision === 0) {
+          const local = await readLocalLibrary(key);
+          if (local.length) await saveSharedLibrary(key);
+          continue;
+        }
+        if (remoteRevision !== localRevision) {
+          if (libraryDirty.current[key]) {
+            await saveSharedLibrary(key);
+          } else {
+            await writeLocalLibrary(key, remote.payload || []);
+            libraryRevisions.current[key] = remoteRevision;
+          }
+        }
+      }
     } finally {
       syncingLibraries.current = false;
     }
-  }, [session.user, session.csrf]);
+  }, [session.user, readLocalLibrary, saveSharedLibrary, writeLocalLibrary]);
 
   const refreshMailStatus = useCallback(async () => {
     if (!session.user) return;
@@ -100,6 +169,10 @@ export function TeamProvider({ children }) {
   }, [session.user]);
 
   useEffect(() => {
+    if (!isProductionCalculator()) {
+      setSession({ ready: true, user: null, csrf: "", error: "" });
+      return undefined;
+    }
     eftApi("session")
       .then((result) =>
         setSession({
@@ -112,6 +185,7 @@ export function TeamProvider({ children }) {
       .catch((error) =>
         setSession({ ready: true, user: null, csrf: "", error: error.message }),
       );
+    return undefined;
   }, []);
 
   useEffect(() => {
@@ -130,9 +204,14 @@ export function TeamProvider({ children }) {
 
   useEffect(() => {
     if (!session.user) return undefined;
-    const timer = window.setInterval(() => refresh().catch(() => {}), 45000);
+    const timer = window.setInterval(() => {
+      refresh().catch(() => {});
+      syncLibraries().catch((error) =>
+        setSyncState({ status: "error", message: `Библиотеки: ${error.message}` }),
+      );
+    }, 45000);
     return () => window.clearInterval(timer);
-  }, [session.user, refresh]);
+  }, [session.user, refresh, syncLibraries]);
 
   useEffect(() => {
     if (!session.user) return undefined;
@@ -142,21 +221,8 @@ export function TeamProvider({ children }) {
 
   useEffect(() => {
     if (!session.user) return undefined;
-    const uploadPlans = () =>
-      eftApi("shared", {
-        method: "PUT",
-        csrf: session.csrf,
-        body: { key: "plan-library", payload: readPlanLibrary() },
-      }).catch(() => {});
-    const uploadKnowledge = async () =>
-      eftApi("shared", {
-        method: "PUT",
-        csrf: session.csrf,
-        body: {
-          key: "knowledge-library",
-          payload: await listKnowledgeArticles(),
-        },
-      }).catch(() => {});
+    const uploadPlans = () => saveSharedLibrary("plan-library").catch(() => {});
+    const uploadKnowledge = () => saveSharedLibrary("knowledge-library").catch(() => {});
     window.addEventListener("eft:plan-library-changed", uploadPlans);
     window.addEventListener("eft:knowledge-library-changed", uploadKnowledge);
     return () => {
@@ -166,7 +232,7 @@ export function TeamProvider({ children }) {
         uploadKnowledge,
       );
     };
-  }, [session.user, session.csrf]);
+  }, [session.user, saveSharedLibrary]);
 
   const login = useCallback(async (username, password) => {
     const result = await eftApi("login", {
@@ -310,13 +376,13 @@ export function TeamProvider({ children }) {
     await refresh();
   }, [session.csrf, refresh]);
   const markIntakeRead = useCallback(async (id) => {
-    await eftApi("intake-read", {
+    const result = await eftApi("intake-read", {
       method: "POST",
       csrf: session.csrf,
       body: { id },
     });
     setIntakes((items) => items.map((item) => item.id === id ? { ...item, is_read: true } : item));
-    setUnreadIntakes((count) => Math.max(0, count - 1));
+    if (result.newlyRead) setUnreadIntakes((count) => Math.max(0, count - 1));
   }, [session.csrf]);
   const detachProject = useCallback(() => {
     currentRef.current = null;
