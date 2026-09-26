@@ -10,7 +10,7 @@
 | --- | --- |
 | Репозиторий | `svc4p7vc8y-beep/EFT-SIP-Calculator` |
 | Основная ветка | `main` |
-| Подготавливаемый релиз | `Release v151 audit fixes` |
+| Релиз кода | `89673d3` — `Release v151 audit fixes` |
 | Версия интерфейса | `151` (`REACT_PROJECT_VERSION`) |
 | Версия npm-пакета | `0.19.0` — техническая версия пакета, не номер релиза UI |
 | Синхронизация Git | локальный `main` и `origin/main`: `0/0` на момент проверки |
@@ -21,7 +21,7 @@
 | Хостинг | Beget, PHP 7.4, MySQL, SSH/rsync из GitHub Actions |
 | Почтовый ящик приложения | `sale@eftsip.ru` через защищённые IMAP/SMTP-настройки сервера |
 | Последняя проверка URL | калькулятор, сайт, анкета и публичная сессия API отвечают HTTP 200 |
-| Последний CI/CD | публикация v151 ожидает commit/push; результат будет проверен после отправки |
+| Последний CI/CD | все четыре workflow commit `89673d3` завершились успешно |
 | Автотесты текущего релиза | 291 тест; итог актуальной локальной проверки см. раздел 18 |
 
 Секреты, пароли, ключи БД и почтовый пароль в репозитории не хранятся. Они
@@ -272,13 +272,12 @@ workflow. Файл `config.local.php` не должен попадать в Git 
 | `beget-site-stage.yml` | безопасная предварительная выкладка публичного сайта | вручную |
 | `beget-site-check.yml` | read-only проверка корня публичного сайта | вручную |
 
-Текущий калькулятор production развернут из `9798a46`. Для этого commit успешны:
+Текущий production развернут из `89673d3`. Для этого commit успешны:
 
-1. `Deploy EFT calculator to Beget`;
-2. `Deploy EFT public site to GitHub Pages`.
-
-Workflow публичного сайта и API для v150 не запускались: изменённые пути не
-затрагивали их области автозапуска.
+1. `Deploy EFT calculator to Beget` — run `36266634996`;
+2. `Deploy EFT public site to Beget` — run `36266634927`;
+3. `Migrate EFT shared database` — run `36266635064`;
+4. `Deploy EFT public site to GitHub Pages` — run `36266635085`.
 
 ## 11. Хронология основной работы этого чата
 
@@ -592,3 +591,12 @@ HTTP 400 из рекламного запроса, но собственные �
 Формулы, количества, геометрия, цены, нормы расхода и `catalogId` в v151 не
 изменялись. Неподтверждённые нормы крепежа по-прежнему остаются явными
 `MISSING_FASTENER_RULE` до технического согласования.
+
+Публикация подтверждена:
+
+- release commit: `89673d30ec1b4a005ebd0405752af31ec9c82e75`;
+- все четыре GitHub Actions workflow завершились `success`;
+- `https://calc.eftsip.ru/`, `https://eftsip.ru/`, анкета и публичный session API
+  отвечают HTTP 200;
+- опубликованный `https://calc.eftsip.ru/sw.js` содержит cache
+  `eft-calculator-react-v151-audit-fixes-1`.
