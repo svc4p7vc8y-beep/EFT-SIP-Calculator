@@ -5,6 +5,7 @@ import { useProject } from '../state/ProjectContext.jsx';
 import { useTeam } from '../cloud/TeamContext.jsx';
 import { nodeRuleKey } from '../cloud/node-rule-scope.js';
 import NodeJointSketch from './NodeJointSketch.jsx';
+import { groupNodesAtAnchors, nextNodeAtAnchor } from './node-house-layers.js';
 
 const NodeHouse3D = lazy(() => import('./NodeHouse3D.jsx'));
 
@@ -55,30 +56,16 @@ function NodeMap({ project, floorPlans, nodes, selectedId, onSelect }) {
   const minY = Math.min(...ys);
   const width = Math.max(1, Math.max(...xs) - minX);
   const height = Math.max(1, Math.max(...ys) - minY);
-  const markerRadius = Math.max(width, height) * 0.038;
+  const markerRadius = Math.max(width, height) * 0.027;
   const floorNodes = nodes.map((node, index) => ({ ...node, number: index + 1 }))
     .filter(node => String(node.floor || 1) === floor && (showDisabled || node.enabled !== false));
   const visible = floorNodes.filter(node => type === 'all' || node.type === type);
-  const placed = [];
-  const markers = visible.map(node => {
-    const anchorX = Number(node.x) || 0;
-    const anchorY = Number(node.y) || 0;
-    let x = anchorX, y = anchorY;
-    for (let attempt = 0; placed.some(p => Math.hypot(p.x - x, p.y - y) < markerRadius * 2.5); attempt++) {
-      const angle = attempt * 2.4;
-      const radius = markerRadius * 2.6 * Math.sqrt(attempt + 1);
-      x = anchorX + Math.cos(angle) * radius;
-      y = anchorY + Math.sin(angle) * radius;
-    }
-    const marker = { ...node, x, y, anchorX, anchorY };
-    placed.push(marker);
-    return marker;
-  });
-  const allXs = [...xs, ...markers.flatMap(n => [n.x, n.anchorX])];
-  const allYs = [...ys, ...markers.flatMap(n => [n.y, n.anchorY])];
+  const markers = groupNodesAtAnchors(visible);
+  const allXs = [...xs, ...markers.map(marker => marker.x)];
+  const allYs = [...ys, ...markers.map(marker => marker.y)];
   const pad = markerRadius * 1.8;
   const left = Math.min(...allXs) - pad, top = Math.min(...allYs) - pad;
-  const selected = markers.find(node => node.id === selectedId);
+  const selected = visible.find(node => node.id === selectedId);
   return (
     <div className="node-map-wrap">
       <div className="node-map-controls">
@@ -91,18 +78,22 @@ function NodeMap({ project, floorPlans, nodes, selectedId, onSelect }) {
         </select></label>
         <label className="node-map-disabled"><input type="checkbox" checked={showDisabled} onChange={event => setShowDisabled(event.target.checked)} />Показать отключённые</label>
       </div>
-      <p className="node-map-help">Номер на схеме соответствует списку ниже. Линия соединяет сдвинутый маркер с его точкой на плане. Группы крепежа обозначены условно.</p>
+      <p className="node-map-help">Точки стоят на координатах узлов. Если в одной точке несколько узлов, повторное нажатие переключает их; каждый также доступен в списке ниже.</p>
       <svg className="node-map" viewBox={`${left} ${top} ${Math.max(...allXs) + pad - left} ${Math.max(...allYs) + pad - top}`} role="group" aria-label="План с маркерами строительных узлов">
         <polygon points={points.map((point) => `${point.x},${point.y}`).join(' ')} />
         {(plan.rooms || []).map(room => <polygon key={room.id} className="node-map-room" points={(room.points?.length ? room.points : [{ x: room.x, y: room.y }, { x: room.x + room.w, y: room.y }, { x: room.x + room.w, y: room.y + room.h }, { x: room.x, y: room.y + room.h }]).map(point => `${point.x},${point.y}`).join(' ')}><title>{room.name}</title></polygon>)}
-        {markers.map(node => {
-          const { x, y } = node;
+        {markers.map(group => {
+          const { x, y } = group;
+          const active = group.nodes.find(node => node.id === selectedId);
+          const shown = active || group.nodes[0];
+          const review = group.nodes.some(node => node.requiresEngineeringReview);
+          const disabled = group.nodes.every(node => node.enabled === false);
+          const select = () => { const next = nextNodeAtAnchor(group, selectedId); if (next) onSelect(next.id); };
           return (
-            <g key={node.id} className={`node-map-point ${node.id === selectedId ? 'selected' : ''} ${node.enabled === false ? 'disabled-node' : node.requiresEngineeringReview ? 'review-node' : ''}`} role="button" tabIndex="0" aria-pressed={node.id === selectedId} aria-label={`Узел ${node.number}: ${node.name}`} onClick={() => onSelect(node.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(node.id); } }}>
-              <title>{`№ ${node.number} · ${node.name}\n${node.calculatedQty} шт.${weightSuffix(node.calculatedQty, node.fastener?.kgEach)} крепежа${node.requiresEngineeringReview ? ' · Требует проверки' : ''}`}</title>
-              <line x1={node.anchorX} y1={node.anchorY} x2={x} y2={y} />
+            <g key={group.key} className={`node-map-point ${active ? 'selected' : ''} ${disabled ? 'disabled-node' : review ? 'review-node' : ''}`} role="button" tabIndex="0" aria-pressed={!!active} aria-label={group.nodes.length > 1 ? `${group.nodes.length} узла в одной точке: ${group.nodes.map(node => node.name).join(', ')}` : `Узел ${shown.number}: ${shown.name}`} onClick={select} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } }}>
+              <title>{group.nodes.map(node => `№ ${node.number} · ${node.name}`).join('\n')}</title>
               <circle cx={x} cy={y} r={markerRadius} />
-              <text x={x} y={y} dy="0.34em" textAnchor="middle" fontSize={markerRadius * 0.95}>{node.number}</text>
+              <text x={x} y={y} dy="0.34em" textAnchor="middle" fontSize={markerRadius * 0.95}>{shown.number}</text>
             </g>
           );
         })}

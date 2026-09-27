@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { NODE_HOUSE_LAYERS as LAYERS, layerForNode } from './node-house-layers.js';
+import { NODE_HOUSE_LAYERS as LAYERS, groupNodesAtAnchors, layerForNode, nextNodeAtAnchor } from './node-house-layers.js';
 
 const addBeam = (group, a, b, thickness, material) => {
   const from = new THREE.Vector3(...a), to = new THREE.Vector3(...b);
@@ -37,10 +37,12 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
   const sceneRef = useRef(null);
   const viewRef = useRef(null);
   const selectRef = useRef(onSelect);
+  const selectedIdRef = useRef(selectedId);
   const [error, setError] = useState('');
   const [mode, setMode] = useState('layers');
   const [layer, setLayer] = useState('walls');
   selectRef.current = onSelect;
+  selectedIdRef.current = selectedId;
 
   useEffect(() => {
     const element = host.current;
@@ -228,25 +230,19 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
       addBeam(groups.roof, [start.x - cx, top, start.y - cy], [end.x - cx, top, end.y - cy], 0.1, timber);
     });
     const markers = [];
-    const anchorCounts = new Map();
-    const markerGeometry = new THREE.SphereGeometry(Math.max(0.13, span * 0.025), 12, 10);
-    nodes.forEach((node, index) => {
-      const floor = Math.max(1, Math.min(heights.length, Number(node.floor) || 1));
+    const markerGeometry = new THREE.SphereGeometry(Math.max(0.09, span * 0.012), 12, 10);
+    groupNodesAtAnchors(nodes, { separateLayers: true }).forEach(group => {
+      const floor = Math.max(1, Math.min(heights.length, group.floor));
       const base = heights.slice(0, floor - 1).reduce((sum, value) => sum + value, 0);
-      const markerLayer = layerForNode(node);
-      const y = markerLayer === 'roof' ? top + 0.25 + (index % 4) * 0.11 : markerLayer === 'foundation' ? 0.15 + (index % 4) * 0.08 : markerLayer === 'floor' ? base + 0.16 + (index % 4) * 0.08 : base + heights[floor - 1] * 0.65 + (index % 4) * 0.11;
-      const anchorX = (Number(node.x) || 0) - cx, anchorZ = (Number(node.y) || 0) - cy;
-      const anchorKey = `${Math.round(anchorX * 10)}:${Math.round(anchorZ * 10)}:${markerLayer}:${floor}`;
-      const collision = anchorCounts.get(anchorKey) || 0;
-      anchorCounts.set(anchorKey, collision + 1);
-      const radius = collision ? Math.max(0.35, span * 0.045) * Math.sqrt(collision) : 0;
-      const marker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: node.id === selectedId ? 0x14a06b : node.requiresEngineeringReview ? 0xe59a43 : 0x267b5f, emissive: node.id === selectedId ? 0x176747 : 0x000000, emissiveIntensity: 0.35 }));
-      marker.userData.review = node.requiresEngineeringReview;
-      marker.userData.layer = markerLayer;
-      marker.position.set(anchorX + Math.cos(collision * 2.4) * radius, y, anchorZ + Math.sin(collision * 2.4) * radius);
-      marker.userData.nodeId = node.id;
+      const y = group.layer === 'roof' ? top + 0.25 : group.layer === 'foundation' ? 0.15 : group.layer === 'floor' ? base + 0.16 : base + heights[floor - 1] * 0.65;
+      const selected = group.nodes.some(node => node.id === selectedId);
+      const review = group.nodes.some(node => node.requiresEngineeringReview);
+      const marker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: selected ? 0x14a06b : review ? 0xe59a43 : 0x267b5f, emissive: selected ? 0x176747 : 0x000000, emissiveIntensity: 0.35 }));
+      marker.userData.review = review;
+      marker.userData.layer = group.layer;
+      marker.userData.group = group;
+      marker.position.set(group.x - cx, y, group.y - cy);
       scene.add(marker);
-      if (collision) scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(anchorX, y, anchorZ), marker.position]), new THREE.LineBasicMaterial({ color: 0x8ea79a })));
       markers.push(marker);
     });
     const raycaster = new THREE.Raycaster();
@@ -258,8 +254,14 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(markers)[0];
-      if (hit) { setMode('layers'); setLayer(hit.object.userData.layer); selectRef.current(hit.object.userData.nodeId); }
+      const hit = raycaster.intersectObjects(markers.filter(marker => marker.visible))[0];
+      if (hit) {
+        const marker = hit.object;
+        const next = nextNodeAtAnchor(marker.userData.group, selectedIdRef.current);
+        setMode('layers');
+        setLayer(marker.userData.layer);
+        if (next) selectRef.current(next.id);
+      }
     };
     renderer.domElement.addEventListener('pointerdown', onDown);
     renderer.domElement.addEventListener('pointerup', onUp);
@@ -299,7 +301,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
     const state = sceneRef.current;
     if (!state) return;
     state.markers.forEach(marker => {
-      const selected = marker.userData.nodeId === selectedId;
+      const selected = marker.userData.group.nodes.some(node => node.id === selectedId);
       marker.material.color.setHex(selected ? 0x14a06b : marker.userData.review ? 0xe59a43 : 0x267b5f);
       marker.scale.setScalar(selected ? 1.55 : 1);
       marker.visible = mode === 'overview' || marker.userData.layer === layer;
@@ -321,7 +323,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
 
   const focus = () => {
     const state = sceneRef.current;
-    const marker = state?.markers.find(item => item.userData.nodeId === selectedId);
+    const marker = state?.markers.find(item => item.userData.group.nodes.some(node => node.id === selectedId));
     if (!marker) return;
     state.controls.target.copy(marker.position);
     state.camera.position.copy(marker.position).add(new THREE.Vector3(Math.max(1, state.span * 0.15), Math.max(1, state.span * 0.12), Math.max(1, state.span * 0.15)));
