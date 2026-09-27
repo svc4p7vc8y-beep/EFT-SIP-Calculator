@@ -4,6 +4,7 @@ import { EFT_NODE_TYPES, getEftNodeRule } from '../data/eft-node-library.js';
 import { useProject } from '../state/ProjectContext.jsx';
 import { useTeam } from '../cloud/TeamContext.jsx';
 import { nodeRuleKey } from '../cloud/node-rule-scope.js';
+import NodeJointSketch from './NodeJointSketch.jsx';
 
 const NodeHouse3D = lazy(() => import('./NodeHouse3D.jsx'));
 
@@ -256,6 +257,7 @@ export default function NodeFastenersScreen({ calculation }) {
           <h2>Карточка узла</h2>
           {selected ? <>
             <div className="node-detail-heading"><span className="node-marker">{report.nodes.findIndex(node => node.id === selected.id) + 1}</span><div><strong>{selected.name}</strong><small>{selected.floor || 1} этаж · {selected.source === 'manual' ? 'Добавлен вручную' : 'Из расчёта конструкций'}</small></div></div>
+            <NodeJointSketch node={selected} />
             <label>Название узла<input type="text" value={selected.override?.nameOverride ?? (selected.source === 'manual' ? selected.name : '')} placeholder={selected.name} onChange={(event) => updateNode(selected, { nameOverride: event.target.value || undefined })} /></label>
             <div className="node-edit-grid"><label>Раздел<input type="text" value={selected.override?.sectionOverride ?? (selected.source === 'manual' ? selected.section : '')} placeholder={selected.section} onChange={(event) => updateNode(selected, { sectionOverride: event.target.value || undefined })} /></label><label>Маркер<input type="text" maxLength="3" value={selected.override?.markerOverride ?? ''} placeholder={selected.marker} onChange={(event) => updateNode(selected, { markerOverride: event.target.value || undefined })} /></label></div>
             <label>Тип узла<select value={selected.type} onChange={(event) => updateNode(selected, { type: event.target.value })}>{EFT_NODE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.value} — {type.label}</option>)}</select></label>

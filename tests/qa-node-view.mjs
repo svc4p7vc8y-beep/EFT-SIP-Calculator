@@ -20,6 +20,7 @@ for (const width of [1280, 768, 390]) {
   await page.getByRole('button', { name: '3D-дом' }).click();
   await page.locator('.node-3d-canvas canvas').waitFor();
   await page.getByRole('button', { name: 'Проверить' }).first().click();
+  await page.locator('.node-detail-card:focus').waitFor();
   const focusedCard = await page.evaluate(() => document.activeElement?.classList.contains('node-detail-card'));
   if (!focusedCard) throw new Error('Проверить did not focus the node card');
   await page.getByLabel('Название узла').fill('Проверка редактирования');
