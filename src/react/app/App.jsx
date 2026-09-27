@@ -181,7 +181,7 @@ export function App() {
   const [notice, setNotice] = useState("Готово");
   const fileRef = useRef(null);
   const briefFileRef = useRef(null);
-  const calculation = useMemo(() => calculateProject(project), [project]);
+  const calculation = useMemo(() => calculateProject(project, { nodeTypeRules: team.nodeTypeRules }), [project, team.nodeTypeRules]);
   const adjustedPrice = useMemo(
     () => calculateAdjustedPrice(project, calculation),
     [project, calculation],

@@ -1,5 +1,6 @@
 import { EFT_NODE_LIBRARY, getEftNodeRule } from '../data/eft-node-library.js';
 import { detectSipTJunctions, resolveSipStructuralScrew, resolveSipSupportScrew } from './sip-joinery.js';
+import { sharedNodeRule } from '../cloud/node-rule-scope.js';
 
 const round = (value, digits = 3) => {
   const factor = 10 ** digits;
@@ -101,6 +102,7 @@ function makeNode(type, id, context, formulas, calculatedQty = 0, extra = {}) {
     length: round(extra.length ?? 0),
     nodeCount: Math.max(1, Math.round(extra.nodeCount || 1)),
     panelThickness: Number(context.panelThickness) || null,
+    fastenerSelection: context.fastenerType || null,
     elements: rule?.elements || [],
     fastenerRule: type,
     fastener,
@@ -116,15 +118,17 @@ function makeNode(type, id, context, formulas, calculatedQty = 0, extra = {}) {
   };
 }
 
-function applyStoredOverrides(autoNodes, storedNodes, formulas) {
+function applyStoredOverrides(autoNodes, storedNodes, formulas, sharedRules = {}) {
   const storedById = new Map((storedNodes || []).filter((item) => item?.id).map((item) => [item.id, item]));
   const merged = autoNodes.map((node) => {
     const saved = storedById.get(node.id);
-    if (!saved) return node;
-    const type = saved.type || node.type;
+    const type = saved?.type || node.type;
     const rule = getEftNodeRule(type);
-    const context = { panelThickness: saved.panelThickness || node.panelThickness, fastenerType: saved.fastenerType };
-    const fastener = saved.fastenerOverride || resolveFastener(rule, context, formulas) || node.fastener;
+    const context = { panelThickness: saved?.panelThicknessOverride ?? saved?.panelThickness ?? node.panelThickness, fastenerType: saved?.fastenerType };
+    const variant = { ...node, type, panelThickness: context.panelThickness, fastenerSelection: context.fastenerType || node.fastenerSelection };
+    const common = sharedNodeRule(variant, sharedRules);
+    const fastener = saved?.fastenerOverride || common?.fastener || resolveFastener(rule, context, formulas) || node.fastener;
+    if (!saved) return { ...node, fastener, fastenerScope: common?.fastener ? 'shared' : 'library' };
     return {
       ...node,
       type,
@@ -147,6 +151,7 @@ function applyStoredOverrides(autoNodes, storedNodes, formulas) {
       reservePercent: Number.isFinite(Number(saved.reservePercent)) ? Math.max(0, Number(saved.reservePercent)) : node.reservePercent,
       packSize: Number.isFinite(Number(saved.packSize)) ? Math.max(0, Number(saved.packSize)) : node.packSize,
       fastener,
+      fastenerScope: saved.fastenerOverride ? 'project' : common?.fastener ? 'shared' : 'library',
       requiresEngineeringReview: saved.requiresEngineeringReview ?? rule?.requiresEngineeringReview ?? node.requiresEngineeringReview,
       override: saved,
     };
@@ -161,7 +166,8 @@ function applyStoredOverrides(autoNodes, storedNodes, formulas) {
       name: node.nameOverride || node.name || rule.name,
       section: node.sectionOverride || node.section || rule.section,
       marker: node.markerOverride || node.marker || rule.marker,
-      fastener: node.fastenerOverride || resolveFastener(rule, node, formulas),
+      fastener: node.fastenerOverride || sharedNodeRule(node, sharedRules)?.fastener || resolveFastener(rule, node, formulas),
+      fastenerScope: node.fastenerOverride ? 'project' : sharedNodeRule(node, sharedRules)?.fastener ? 'shared' : 'library',
       enabled: node.enabled !== false,
       override: node,
     };
@@ -439,11 +445,13 @@ function groupRows(nodes, settings) {
       kgEach: Number(node.fastener?.kgEach) || null,
       source: node.sourceReference,
       requiresEngineeringReview: false,
+      nodeIds: [],
       formulas: [],
     };
     current.nodeCount += node.nodeCount || 1;
     current.length = round(current.length + (Number(node.length) || 0));
     current.calculatedQty += Math.max(0, Number(node.calculatedQty) || 0);
+    current.nodeIds.push(node.id);
     current.requiresEngineeringReview ||= node.requiresEngineeringReview === true;
     if (node.formula && !current.formulas.includes(node.formula)) current.formulas.push(node.formula);
     grouped.set(key, current);
@@ -468,14 +476,14 @@ function groupRows(nodes, settings) {
   });
 }
 
-export function calculateConstructionNodes(project, calculation) {
+export function calculateConstructionNodes(project, calculation, sharedRules = {}) {
   const formulas = project.settings?.formulas || {};
   const autoNodes = [
     ...wallNodes(project, calculation, formulas),
     ...roofNodes(project, calculation, formulas),
     ...foundationAndExtensionNodes(project, calculation, formulas),
   ];
-  const nodes = applyStoredOverrides(autoNodes, project.nodes, formulas).map((node) => ({ ...node, warnings: nodeWarnings(node) }));
+  const nodes = applyStoredOverrides(autoNodes, project.nodes, formulas, sharedRules).map((node) => ({ ...node, warnings: nodeWarnings(node) }));
   const settings = { reservePercent: 10, packSizes: {}, ...(project.settings?.nodeFasteners || {}) };
   const rows = groupRows(nodes, settings);
   const withoutSize = rows.filter((row) => row.calculatedQty > 0 && row.size === '—');

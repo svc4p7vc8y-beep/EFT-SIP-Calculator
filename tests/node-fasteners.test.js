@@ -4,6 +4,56 @@ import { readFile } from 'node:fs/promises';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 import { applyPlanTransfer, createPlanTransfer } from '../src/react/storage/plan-transfer.js';
+import { normalizeNodeTypeRules } from '../src/react/cloud/node-type-rules.js';
+import { nodeRuleKey } from '../src/react/cloud/node-rule-scope.js';
+
+test('shared fastener rule applies across projects while an explicit project override wins', () => {
+  const first = createDefaultProject();
+  const second = createDefaultProject();
+  const baseline = calculateProject(first);
+  const target = baseline.nodeFasteners.nodes.find(node => node.type === 'PILE_BINDING');
+  assert.ok(target && !target.fastener?.size);
+  const rules = normalizeNodeTypeRules({ PILE_BINDING: { fastener: { type: 'lag-screw', size: '8x120' }, note: 'Решение конструктора КР-1' } });
+  const firstReport = calculateProject(first, { nodeTypeRules: rules });
+  const secondReport = calculateProject(second, { nodeTypeRules: rules });
+  assert.equal(firstReport.nodeFasteners.nodes.find(node => node.id === target.id).fastener.size, '8×120');
+  assert.equal(secondReport.nodeFasteners.nodes.find(node => node.id === target.id).fastenerScope, 'shared');
+  assert.ok(firstReport.nodeFasteners.purchase.some(row => row.fastenerType === 'lag-screw' && row.size === '8×120'));
+  assert.equal(firstReport.totals.total, baseline.totals.total);
+  first.nodes.push({ id: target.id, type: target.type, fastenerOverride: { type: 'lag-screw', size: '10×140', lengthMm: 140 } });
+  const overridden = calculateProject(first, { nodeTypeRules: rules }).nodeFasteners.nodes.find(node => node.id === target.id);
+  assert.equal(overridden.fastener.size, '10×140');
+  assert.equal(overridden.fastenerScope, 'project');
+});
+
+test('shared rule normalization rejects unknown nodes and malformed records', () => {
+  assert.deepEqual(normalizeNodeTypeRules({ UNKNOWN: { fastener: { type: 'nail', size: '4×80' } }, PILE_BINDING: { fastener: {} } }), {});
+  assert.deepEqual(normalizeNodeTypeRules([]), {});
+});
+
+test('changing panel thickness in a node card updates its derived fastener size', () => {
+  const project = createDefaultProject();
+  project.settings.sip.wallThickness = '174';
+  const baseline = calculateProject(project).nodeFasteners.nodes.find(node => node.type === 'SIP_WALL_CORNER');
+  assert.equal(baseline.fastener.size, '8×220');
+  project.nodes.push({ id: baseline.id, type: baseline.type, panelThicknessOverride: 224 });
+  const edited = calculateProject(project).nodeFasteners.nodes.find(node => node.id === baseline.id);
+  assert.equal(edited.fastener.size, '8×280');
+});
+
+test('shared SIP rules are scoped to panel thickness across projects', () => {
+  const thin = createDefaultProject();
+  const thick = createDefaultProject();
+  thin.settings.sip.wallThickness = '124';
+  thick.settings.sip.wallThickness = '224';
+  const thinNode = calculateProject(thin).nodeFasteners.nodes.find(node => node.type === 'SIP_WALL_CORNER');
+  const thickNode = calculateProject(thick).nodeFasteners.nodes.find(node => node.type === 'SIP_WALL_CORNER');
+  assert.equal(nodeRuleKey(thinNode), 'SIP_WALL_CORNER__124');
+  assert.equal(nodeRuleKey(thickNode), 'SIP_WALL_CORNER__224');
+  const rules = normalizeNodeTypeRules({ SIP_WALL_CORNER__124: { fastener: { type: 'structural-screw', size: '8×200' }, note: 'КР-2' } });
+  assert.equal(calculateProject(thin, { nodeTypeRules: rules }).nodeFasteners.nodes.find(node => node.id === thinNode.id).fastener.size, '8×200');
+  assert.equal(calculateProject(thick, { nodeTypeRules: rules }).nodeFasteners.nodes.find(node => node.id === thickNode.id).fastener.size, thickNode.fastener.size);
+});
 
 test('EFT node library has unique manufacturer-independent rules and traceable sources', async () => {
   const library = JSON.parse(await readFile(new URL('../EFT_NODE_LIBRARY.json', import.meta.url), 'utf8'));

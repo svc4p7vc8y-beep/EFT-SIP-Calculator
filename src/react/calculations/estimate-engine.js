@@ -2806,7 +2806,7 @@ function deliverySection(project, index, inputs) {
   };
 }
 
-export function calculateProject(project) {
+export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   const metrics = calculateBuildingMetrics(project);
   const inputs = deriveLinkedInputs(project, metrics);
   const index = catalogIndex(project);
@@ -2891,6 +2891,6 @@ export function calculateProject(project) {
     lines,
     totals,
   };
-  result.nodeFasteners = calculateConstructionNodes(project, result);
+  result.nodeFasteners = calculateConstructionNodes(project, result, nodeTypeRules);
   return result;
 }

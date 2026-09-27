@@ -555,7 +555,7 @@ if ($action === 'intake-status' && $method === 'POST') {
 
 if ($action === 'shared' && $method === 'GET') {
     $key = (string)($_GET['key'] ?? '');
-    if (!in_array($key, ['plan-library', 'knowledge-library'], true)) eft_json(['ok' => false, 'code' => 'invalid_key', 'message' => 'Неизвестная библиотека.'], 422);
+    if (!in_array($key, ['plan-library', 'knowledge-library', 'node-type-rules'], true)) eft_json(['ok' => false, 'code' => 'invalid_key', 'message' => 'Неизвестная библиотека.'], 422);
     $statement = $pdo->prepare('SELECT revision, payload, updated_at FROM eft_shared_documents WHERE document_key = ? LIMIT 1');
     $statement->execute([$key]);
     $row = $statement->fetch();
@@ -565,8 +565,20 @@ if ($action === 'shared' && $method === 'GET') {
 if ($action === 'shared' && $method === 'PUT') {
     $input = eft_input();
     $key = (string)($input['key'] ?? '');
-    if (!in_array($key, ['plan-library', 'knowledge-library'], true)) eft_json(['ok' => false, 'code' => 'invalid_key', 'message' => 'Неизвестная библиотека.'], 422);
+    if (!in_array($key, ['plan-library', 'knowledge-library', 'node-type-rules'], true)) eft_json(['ok' => false, 'code' => 'invalid_key', 'message' => 'Неизвестная библиотека.'], 422);
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
+    if ($key === 'node-type-rules') {
+        if (count($payload) > 100) eft_json(['ok' => false, 'code' => 'invalid_payload', 'message' => 'Слишком много правил узлов.'], 422);
+        foreach ($payload as $code => $rule) {
+            $fastener = is_array($rule) ? ($rule['fastener'] ?? null) : null;
+            $size = is_array($fastener) ? (string)($fastener['size'] ?? '') : '';
+            $type = is_array($fastener) ? (string)($fastener['type'] ?? '') : '';
+            $note = is_array($rule) ? (string)($rule['note'] ?? '') : '';
+            if (!is_string($code) || !preg_match('/^[A-Z0-9_]{2,64}$/', $code) || !preg_match('/^(?:M)?[0-9]+(?:[.,][0-9]+)?[×xх][0-9]+(?:[.,][0-9]+)?$/iu', $size) || strlen($type) > 120 || trim($type) === '' || strlen($note) > 1000 || trim($note) === '') {
+                eft_json(['ok' => false, 'code' => 'invalid_payload', 'message' => 'Для общего правила нужны корректные код, крепёж, типоразмер и источник.'], 422);
+            }
+        }
+    }
     $revision = max(0, (int)($input['revision'] ?? 0));
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $pdo->beginTransaction();

@@ -14,6 +14,7 @@ import {
 } from "../storage/knowledge-library.js";
 import { readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
 import { mergeLibraryEntries } from "./library-sync.js";
+import { normalizeNodeTypeRules } from "./node-type-rules.js";
 import { getSavedProjectVersion, restoreSavedProjectVersion } from "./project-versions.js";
 
 const TeamContext = createContext(null);
@@ -36,6 +37,9 @@ export function TeamProvider({ children }) {
   const [refreshError, setRefreshError] = useState("");
   const [mailError, setMailError] = useState("");
   const [users, setUsers] = useState([]);
+  const [nodeTypeRules, setNodeTypeRules] = useState({});
+  const nodeRulesRevision = useRef(0);
+  const nodeRulesQueue = useRef(Promise.resolve());
   const [current, setCurrent] = useState(null);
   const currentRef = useRef(null);
   const saveQueue = useRef(Promise.resolve());
@@ -175,12 +179,54 @@ export function TeamProvider({ children }) {
     }
   }, [session.user, readLocalLibrary, saveSharedLibrary, writeLocalLibrary]);
 
+  const refreshNodeTypeRules = useCallback(async () => {
+    if (!session.user) return;
+    const remote = await eftApi("shared", { query: { key: "node-type-rules" } });
+    const revision = Number(remote.revision) || 0;
+    if (revision > nodeRulesRevision.current) {
+      nodeRulesRevision.current = revision;
+      setNodeTypeRules(normalizeNodeTypeRules(remote.payload));
+    }
+  }, [session.user]);
+
+  const saveNodeTypeRule = useCallback((type, rule) => {
+    if (!session.user || session.user.role === 'viewer') return Promise.reject(new Error('Для общей правки нужен доступ сотрудника.'));
+    const run = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const remote = await eftApi("shared", { query: { key: "node-type-rules" } });
+        const base = normalizeNodeTypeRules(remote.payload);
+        const payload = { ...base };
+        if (rule) payload[type] = { ...rule, updatedAt: new Date().toISOString() };
+        else delete payload[type];
+        const normalized = normalizeNodeTypeRules(payload);
+        if (rule && (!normalized[type] || !normalized[type].note)) throw new Error('Укажите тип, размер крепежа и основание общей нормы.');
+        try {
+          const saved = await eftApi("shared", { method: "PUT", csrf: session.csrf, body: { key: "node-type-rules", revision: Number(remote.revision) || 0, payload: normalized } });
+          nodeRulesRevision.current = Number(saved.revision) || 0;
+          setNodeTypeRules(normalized);
+          return normalized[type] || null;
+        } catch (error) {
+          if (error.code !== 'revision_conflict' || attempt === 2) throw error;
+        }
+      }
+    };
+    const pending = nodeRulesQueue.current.catch(() => {}).then(run);
+    nodeRulesQueue.current = pending;
+    return pending;
+  }, [session.user, session.csrf]);
+
   const refreshMailStatus = useCallback(async () => {
     if (!session.user) return;
     const result = await eftApi("mail-status");
     setMailStatus(result.mail || null);
     setUnreadMail(Number(result.mail?.unread || 0));
     setMailError("");
+  }, [session.user]);
+
+  useEffect(() => {
+    if (session.user) return;
+    nodeRulesRevision.current = 0;
+    setNodeTypeRules({});
   }, [session.user]);
 
   useEffect(() => {
@@ -214,8 +260,9 @@ export function TeamProvider({ children }) {
         message: `Библиотеки: ${error.message}`,
       }),
     );
+    refreshNodeTypeRules().catch((error) => setSyncState({ status: 'error', message: `Общие правила узлов: ${error.message}` }));
     refreshMailStatus().catch((error) => setMailError(error.message));
-  }, [session.user, refresh, syncLibraries, refreshMailStatus]);
+  }, [session.user, refresh, syncLibraries, refreshMailStatus, refreshNodeTypeRules]);
 
   useEffect(() => {
     if (!session.user) return undefined;
@@ -224,9 +271,10 @@ export function TeamProvider({ children }) {
       syncLibraries().catch((error) =>
         setSyncState({ status: "error", message: `Библиотеки: ${error.message}` }),
       );
+      refreshNodeTypeRules().catch((error) => setSyncState({ status: 'error', message: `Общие правила узлов: ${error.message}` }));
     }, 45000);
     return () => window.clearInterval(timer);
-  }, [session.user, refresh, syncLibraries]);
+  }, [session.user, refresh, syncLibraries, refreshNodeTypeRules]);
 
   useEffect(() => {
     if (!session.user) return undefined;
@@ -266,6 +314,8 @@ export function TeamProvider({ children }) {
     setSession({ ready: true, user: null, csrf: "", error: "" });
     currentRef.current = null;
     setCurrent(null);
+    nodeRulesRevision.current = 0;
+    setNodeTypeRules({});
   }, [session.csrf]);
   const createProject = useCallback(
     async (payload) => {
@@ -451,6 +501,8 @@ export function TeamProvider({ children }) {
       refreshError,
       mailError,
       users,
+      nodeTypeRules,
+      saveNodeTypeRule,
       current,
       syncState,
       login,
@@ -482,6 +534,8 @@ export function TeamProvider({ children }) {
       refreshError,
       mailError,
       users,
+      nodeTypeRules,
+      saveNodeTypeRule,
       current,
       syncState,
       login,
