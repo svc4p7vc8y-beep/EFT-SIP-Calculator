@@ -14,6 +14,21 @@ for (const width of [1280, 768, 390]) {
   await page.getByRole('heading', { name: 'Карточка узла' }).waitFor();
   await page.locator('.node-3d-canvas canvas').waitFor();
   const three = await page.locator('.node-3d-canvas canvas').count();
+  for (const label of ['Пол', 'Потолок', 'Кровля']) {
+    const button = page.locator('.node-3d-layers button', { hasText: label });
+    await button.click();
+    if (await button.getAttribute('aria-pressed') !== 'true') throw new Error(`${label} layer did not activate`);
+    if (label === 'Кровля') {
+      const lath = page.getByRole('button', { name: 'Обрешётка скрыта' });
+      await lath.click();
+      if (await page.getByRole('button', { name: 'Обрешётка видна' }).getAttribute('aria-pressed') !== 'true') throw new Error('Roof lath toggle did not activate');
+      await page.getByRole('button', { name: 'Обрешётка видна' }).click();
+    }
+    if (width !== 768) {
+      await page.locator('.node-3d-canvas').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: join(tmpdir(), `eft-nodes-${label}-${width}.png`), fullPage: false });
+    }
+  }
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   await page.getByRole('button', { name: '2D-план' }).click();
   if (!await page.locator('svg.node-map').count()) throw new Error('2D reserve view is unavailable');

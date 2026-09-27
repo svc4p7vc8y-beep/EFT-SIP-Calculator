@@ -36,6 +36,46 @@ const meaningfulCorners = (plan) => contourPoints(plan).filter((point, index, po
   return Math.abs(cross) > 1e-6;
 });
 
+// Aggregate rows retain their total quantity; the coordinate marks one real,
+// representative connection rather than the otherwise misleading house centre.
+const pointOnRun = (plan, fraction = 0.35) => {
+  const run = contourRuns(plan)[0];
+  return run ? { x: round(run.start.x + (run.end.x - run.start.x) * fraction), y: round(run.start.y + (run.end.y - run.start.y) * fraction) } : { x: 0, y: 0 };
+};
+
+const panelSeamPoint = (plan, panelWidth = 1.25) => {
+  const points = contourPoints(plan);
+  const xs = points.map(point => point.x), ys = points.map(point => point.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const x = minX + Math.min(Math.max(0.1, Number(panelWidth) || 1.25), (maxX - minX) / 2);
+  const scan = [];
+  points.forEach((a, index) => {
+    const b = points[(index + 1) % points.length];
+    if ((a.x <= x && b.x > x) || (b.x <= x && a.x > x)) scan.push(a.y + (x - a.x) * (b.y - a.y) / (b.x - a.x));
+  });
+  scan.sort((a, b) => a - b);
+  return scan.length >= 2 ? { x: round(x), y: round(scan[0] + (scan[1] - scan[0]) * 0.35) } : { x: round((minX + maxX) / 2), y: round((minY + maxY) / 2) };
+};
+
+const wallSeamPoint = (plan, panelWidth = 1.25) => {
+  const run = contourRuns(plan)[0];
+  return run ? pointOnRun(plan, Math.min(0.5, (Number(panelWidth) || 1.25) / run.length)) : { x: 0, y: 0 };
+};
+
+const roofConnectionPoints = (plan, settings = {}) => {
+  const points = contourPoints(plan);
+  const xs = points.map(point => point.x), ys = points.map(point => point.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const step = Math.max(0.2, Number(settings.rafterStep) || 0.6);
+  const alongX = settings.ridgeAxis !== 'y';
+  const hipInset = settings.shape === 'hip' ? Math.min(maxX - minX, maxY - minY) / 2 : 0;
+  const station = alongX ? Math.min(maxX, minX + Math.max(step, hipInset)) : Math.min(maxY, minY + Math.max(step, hipInset));
+  const eave = alongX ? { x: station, y: minY } : { x: minX, y: station };
+  const ridge = alongX ? { x: station, y: (minY + maxY) / 2 } : { x: (minX + maxX) / 2, y: station };
+  const slope = { x: round((eave.x + ridge.x) / 2), y: round((eave.y + ridge.y) / 2) };
+  return { eave, ridge, slope, lath: { ...slope, x: round(slope.x + (alongX ? step : 0)), y: round(slope.y + (alongX ? 0 : step)) } };
+};
+
 const formulaValue = (formulas, key, fallback = 0) => Number(formulas?.[key]) || fallback;
 const safeId = (value) => String(value).replace(/[^a-zA-Z0-9_-]+/g, '-');
 const displaySize = (value) => value ? String(value).replace('x', '×') : null;
@@ -184,19 +224,23 @@ function wallNodes(project, calculation, formulas) {
     const floor = row.key.includes('SecondFloor') || row.key === 'secondFloor' ? 2 : row.key === 'ceiling' ? floorPlans.length : 1;
     const plan = floorPlans[Math.min(floor - 1, floorPlans.length - 1)]?.plan || project.plan;
     const center = { x: (Number(plan.house?.w) || 0) / 2, y: (Number(plan.house?.h) || 0) / 2 };
+    const edgePoint = pointOnRun(plan);
+    const seamPoint = row.key.startsWith('walls')
+      ? wallSeamPoint(plan, row.layoutWidth || project.settings.sip.floorPanelWidth)
+      : panelSeamPoint(plan, row.layoutWidth || project.settings.sip.floorPanelWidth);
     const usage = usageByKey.get(row.key) || {};
     const seamCount = Math.ceil((Number(row.jointLength) || 0) * 2 / formulaValue(formulas, 'sipSeamScrewSpacingM', 0.15));
-    if (row.jointLength > 0) nodes.push(makeNode('SIP_SPLINE', `${floor}-${row.key}-splines`, { floor, ...center, panelThickness: row.panelThickness }, formulas, seamCount, {
+    if (row.jointLength > 0) nodes.push(makeNode('SIP_SPLINE', `${floor}-${row.key}-splines`, { floor, ...seamPoint, panelThickness: row.panelThickness }, formulas, seamCount, {
       length: row.jointLength,
       nodeCount: Math.max(1, Math.ceil(row.jointLength / 2.5)),
       formula: `${round(row.jointLength, 2)} м × 2 стороны ÷ ${formulaValue(formulas, 'sipSeamScrewSpacingM', 0.15)} м`,
     }));
-    if (row.endBoardLength > 0) nodes.push(makeNode('SIP_EDGE_BOARD', `${floor}-${row.key}-edges`, { floor, ...center, panelThickness: row.panelThickness }, formulas, usage.edgeCount, {
+    if (row.endBoardLength > 0) nodes.push(makeNode('SIP_EDGE_BOARD', `${floor}-${row.key}-edges`, { floor, ...edgePoint, panelThickness: row.panelThickness }, formulas, usage.edgeCount, {
       length: row.endBoardLength,
       formula: `ceil(${round(row.endBoardLength, 2)} м ÷ ${formulaValue(formulas, 'sipEdgeScrewSpacingM', 0.4)} м)`,
     }));
     const supportCount = Math.max(0, (usage.seamCount || 0) - seamCount);
-    if (supportCount) nodes.push(makeNode('SIP_PANEL_SUPPORT', `${floor}-${row.key}-panel-supports`, { floor, ...center, panelThickness: row.panelThickness }, formulas, supportCount, {
+    if (supportCount) nodes.push(makeNode('SIP_PANEL_SUPPORT', `${floor}-${row.key}-panel-supports`, { floor, ...seamPoint, panelThickness: row.panelThickness }, formulas, supportCount, {
       nodeCount: calculation.sip?.cutting?.find((item) => item.key === row.key)?.panels || 1,
       formula: `${calculation.sip?.cutting?.find((item) => item.key === row.key)?.panels || 0} пан. × ${formulaValue(formulas, 'sipPanelSupportScrews', 8)} шт`,
     }));
@@ -250,7 +294,7 @@ function wallNodes(project, calculation, formulas) {
       const supportSpacing = formulaValue(formulas, 'sipSupportBoardScrewSpacingM', 1.25);
       const supportQty = Math.ceil(Math.max(0, Number(row.endBoardLength) || 0) / supportSpacing);
       const supportType = row.key === 'ceiling' ? 'SIP_CEILING_SUPPORT_BOARD' : 'SIP_FLOOR_SUPPORT_BOARD';
-      if (supportQty > 0) nodes.push(makeNode(supportType, `${floor}-${row.key}-support-board`, { floor, ...center, panelThickness: row.panelThickness }, formulas, supportQty, {
+      if (supportQty > 0) nodes.push(makeNode(supportType, `${floor}-${row.key}-support-board`, { floor, ...pointOnRun(plan, 0.65), panelThickness: row.panelThickness }, formulas, supportQty, {
         length: row.endBoardLength,
         nodeCount: contourRuns(plan).length,
         spacing: supportSpacing,
@@ -264,7 +308,7 @@ function wallNodes(project, calculation, formulas) {
       const structuralQty = Math.max(0, Math.round((row.structuralCount || 0) - (wallStarterRow?.bottomBindingCount || 0)));
       if (!structuralQty) return;
       const type = row.key === 'floor' ? 'SIP_FLOOR_SUPPORT' : row.key === 'ceiling' ? 'SIP_WALL_TO_CEILING' : 'SIP_WALL_TO_FLOOR';
-      nodes.push(makeNode(type, `${floor}-${row.key}-support`, { floor, ...center, panelThickness: row.supportPanelThickness || row.panelThickness }, formulas, structuralQty, {
+      nodes.push(makeNode(type, `${floor}-${row.key}-support`, { floor, ...edgePoint, panelThickness: row.supportPanelThickness || row.panelThickness }, formulas, structuralQty, {
         length: row.endBoardLength,
         nodeCount: contourRuns(plan).length,
         formula: `${round(row.endBoardLength, 2)} м опорного контура; расчёт каждой стороны с шагом ${formulaValue(formulas, 'sipBindingScrewSpacingM', 1.5)} м`,
@@ -286,11 +330,11 @@ function wallNodes(project, calculation, formulas) {
 function roofNodes(project, calculation, formulas) {
   const roof = calculation.roof || {};
   if (!roof.geometry) return [];
-  const center = { x: (Number(project.plan.house?.w) || 0) / 2, y: (Number(project.plan.house?.h) || 0) / 2 };
+  const connections = roofConnectionPoints(project.plan, project.settings.roof);
   const nodes = [];
   if (roof.mauerlatLength > 0 && roof.mauerlatFastener !== 'none') {
     const qty = roof.mauerlatFastener === 'anchors' ? roof.mauerlatAnchors : roof.mauerlatScrewCount;
-    nodes.push(makeNode('MAUERLAT', 'roof-mauerlat', { ...center, panelThickness: project.settings.sip.wallThickness, fastenerType: roof.mauerlatFastener }, formulas, qty, {
+    nodes.push(makeNode('MAUERLAT', 'roof-mauerlat', { ...pointOnRun(project.plan, 0.65), panelThickness: project.settings.sip.wallThickness, fastenerType: roof.mauerlatFastener }, formulas, qty, {
       length: roof.mauerlatLength,
       nodeCount: roof.mauerlatFastenerPoints || 1,
       spacing: roof.mauerlatFastenerSpacing,
@@ -299,7 +343,7 @@ function roofNodes(project, calculation, formulas) {
         : `${roof.mauerlatFastenerPoints} точек × ${roof.mauerlatScrewRows} ряда`,
     }));
   }
-  if (roof.sipSupportScrewCount > 0) nodes.push(makeNode('SIP_ROOF_SUPPORT', 'roof-sip-supports', { ...center, panelThickness: project.settings.sip.ceilingThickness }, formulas, roof.sipSupportScrewCount, {
+  if (roof.sipSupportScrewCount > 0) nodes.push(makeNode('SIP_ROOF_SUPPORT', 'roof-sip-supports', { ...connections.slope, panelThickness: project.settings.sip.ceilingThickness }, formulas, roof.sipSupportScrewCount, {
     nodeCount: roof.sipCutting?.panels || 1,
     formula: `${roof.sipCutting?.panels || 0} пан. × ${formulaValue(formulas, 'sipRoofSupportPointsPerPanel', 2)} точки`,
   }));
@@ -307,13 +351,13 @@ function roofNodes(project, calculation, formulas) {
     const supportPerNode = roof.rafterSupportConnection === 'angles'
       ? formulaValue(formulas, 'roofAngleNailsPerBracket', 5)
       : formulaValue(formulas, 'roofRafterSupportNails', 3);
-    nodes.push(makeNode('RAFTER_TO_MAUERLAT', 'roof-rafter-support', center, formulas, roof.rafterSupportNodeCount * supportPerNode, {
+    nodes.push(makeNode('RAFTER_TO_MAUERLAT', 'roof-rafter-support', connections.eave, formulas, roof.rafterSupportNodeCount * supportPerNode, {
       nodeCount: roof.rafterSupportNodeCount,
       qtyPerNode: supportPerNode,
       formula: `${roof.rafterSupportNodeCount} узл. × ${supportPerNode} шт`,
     }));
     const ridgePerNode = formulaValue(formulas, 'roofRafterRidgeNails', 3);
-    nodes.push(makeNode('RAFTER_TO_RIDGE', 'roof-rafter-ridge', center, formulas, roof.rafterSupportNodeCount * ridgePerNode, {
+    nodes.push(makeNode('RAFTER_TO_RIDGE', 'roof-rafter-ridge', connections.ridge, formulas, roof.rafterSupportNodeCount * ridgePerNode, {
       nodeCount: roof.rafterSupportNodeCount,
       qtyPerNode: ridgePerNode,
       formula: `${roof.rafterSupportNodeCount} узл. × ${ridgePerNode} шт`,
@@ -322,20 +366,20 @@ function roofNodes(project, calculation, formulas) {
     const tieQty = Math.max(0, (roof.framingNailCount || 0) - known);
     if (tieQty) {
       const tiePerNode = formulaValue(formulas, 'roofRafterTieNails', 3);
-      nodes.push(makeNode('RAFTER_TIE', 'roof-rafter-ties', center, formulas, tieQty, {
+      nodes.push(makeNode('RAFTER_TIE', 'roof-rafter-ties', connections.slope, formulas, tieQty, {
         nodeCount: Math.max(1, Math.round(tieQty / tiePerNode)),
         qtyPerNode: tiePerNode,
         formula: `${Math.max(1, Math.round(tieQty / tiePerNode))} узл. × ${tiePerNode} шт`,
       }));
     }
   }
-  if (roof.lathCrossingCount > 0) nodes.push(makeNode('ROOF_LATH', 'roof-lath-crossings', center, formulas, roof.lathNailCount, {
+  if (roof.lathCrossingCount > 0) nodes.push(makeNode('ROOF_LATH', 'roof-lath-crossings', connections.lath, formulas, roof.lathNailCount, {
     nodeCount: roof.lathCrossingCount,
     qtyPerNode: formulaValue(formulas, 'roofLathNailsPerCrossing', 2),
     length: roof.mainLathRequiredLength,
     formula: `${roof.lathCrossingCount} пересеч. × ${formulaValue(formulas, 'roofLathNailsPerCrossing', 2)} шт`,
   }));
-  if (project.settings.roof.includeCovering !== false && project.settings.roof.showCounterLath === true) nodes.push(makeNode('ROOF_COUNTERLATH', 'roof-counterlath', center, formulas, 0, {
+  if (project.settings.roof.includeCovering !== false && project.settings.roof.showCounterLath === true) nodes.push(makeNode('ROOF_COUNTERLATH', 'roof-counterlath', connections.slope, formulas, 0, {
     length: roof.rafterLegLength,
     formula: 'Геометрия известна, подтверждённая норма крепежа отсутствует',
   }));
@@ -344,10 +388,11 @@ function roofNodes(project, calculation, formulas) {
 
 function foundationAndExtensionNodes(project, calculation, formulas) {
   const nodes = [];
-  const center = { x: (Number(project.plan.house?.w) || 0) / 2, y: (Number(project.plan.house?.h) || 0) / 2 };
+  const firstPile = project.plan?.piles?.[0] || project.plan?.pileRows?.[0];
+  const pilePoint = firstPile ? { x: Number(firstPile.x ?? firstPile.x1) || 0, y: Number(firstPile.y ?? firstPile.y1) || 0 } : pointOnRun(project.plan);
   if (calculation.foundation?.totalPiles > 0) {
     const perPile = formulaValue(formulas, 'pileLagScrews', 4);
-    nodes.push(makeNode('PILE_BINDING', 'foundation-pile-binding', center, formulas, calculation.foundation.totalPiles * perPile, {
+    nodes.push(makeNode('PILE_BINDING', 'foundation-pile-binding', pilePoint, formulas, calculation.foundation.totalPiles * perPile, {
       nodeCount: calculation.foundation.totalPiles,
       length: calculation.foundation.bindingLength,
       qtyPerNode: perPile,
@@ -358,7 +403,7 @@ function foundationAndExtensionNodes(project, calculation, formulas) {
     const spacing = formulaValue(formulas, 'bindingPackScrewSpacingM', 0.5);
     const interfaces = Math.max(1, calculation.foundation.bindingLayers - 1);
     const quantity = Math.ceil(calculation.foundation.bindingLength / spacing) * interfaces;
-    nodes.push(makeNode('BINDING_BOARD_PACK', 'foundation-binding-board-pack', center, formulas, quantity, {
+    nodes.push(makeNode('BINDING_BOARD_PACK', 'foundation-binding-board-pack', pointOnRun(project.plan), formulas, quantity, {
       nodeCount: interfaces,
       length: calculation.foundation.bindingLength,
       spacing,

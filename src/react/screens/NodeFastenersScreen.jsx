@@ -78,7 +78,7 @@ function NodeMap({ project, floorPlans, nodes, selectedId, onSelect }) {
         </select></label>
         <label className="node-map-disabled"><input type="checkbox" checked={showDisabled} onChange={event => setShowDisabled(event.target.checked)} />Показать отключённые</label>
       </div>
-      <p className="node-map-help">Точки стоят на координатах узлов. Если в одной точке несколько узлов, повторное нажатие переключает их; каждый также доступен в списке ниже.</p>
+      <p className="node-map-help">Точки стоят на координатах узлов. Сводный узел отмечен на одном характерном соединении; количество в карточке относится ко всем таким соединениям. Если в точке несколько узлов, повторное нажатие переключает их.</p>
       <svg className="node-map" viewBox={`${left} ${top} ${Math.max(...allXs) + pad - left} ${Math.max(...allYs) + pad - top}`} role="group" aria-label="План с маркерами строительных узлов">
         <polygon points={points.map((point) => `${point.x},${point.y}`).join(' ')} />
         {(plan.rooms || []).map(room => <polygon key={room.id} className="node-map-room" points={(room.points?.length ? room.points : [{ x: room.x, y: room.y }, { x: room.x + room.w, y: room.y }, { x: room.x + room.w, y: room.y + room.h }, { x: room.x, y: room.y + room.h }]).map(point => `${point.x},${point.y}`).join(' ')}><title>{room.name}</title></polygon>)}

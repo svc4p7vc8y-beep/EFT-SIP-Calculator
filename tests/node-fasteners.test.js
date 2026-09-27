@@ -7,6 +7,29 @@ import { applyPlanTransfer, createPlanTransfer } from '../src/react/storage/plan
 import { normalizeNodeTypeRules } from '../src/react/cloud/node-type-rules.js';
 import { nodeRuleKey } from '../src/react/cloud/node-rule-scope.js';
 
+test('aggregate markers use representative physical joints without changing estimate quantities', () => {
+  const project = createDefaultProject();
+  const result = calculateProject(project);
+  const nodes = result.nodeFasteners.nodes;
+  const floorSeam = nodes.find(node => node.id === 'node-1-floor-splines');
+  const floorEdge = nodes.find(node => node.id === 'node-1-floor-edges');
+  const ceilingSeam = nodes.find(node => node.id === 'node-1-ceiling-splines');
+  const wallSeam = nodes.find(node => node.id === 'node-1-walls-splines');
+  const roofEave = nodes.find(node => node.type === 'RAFTER_TO_MAUERLAT');
+  const roofRidge = nodes.find(node => node.type === 'RAFTER_TO_RIDGE');
+  assert.ok(floorSeam && floorEdge && ceilingSeam && wallSeam && roofEave && roofRidge);
+  assert.notDeepEqual([floorSeam.x, floorSeam.y], [floorEdge.x, floorEdge.y]);
+  assert.notDeepEqual([roofEave.x, roofEave.y], [roofRidge.x, roofRidge.y]);
+  assert.equal(wallSeam.y, floorEdge.y);
+  const saved = structuredClone(project);
+  saved.nodes = [{ id: floorSeam.id, type: floorSeam.type, xOverride: 3.1, yOverride: 4.2 }];
+  const changed = calculateProject(saved);
+  const moved = changed.nodeFasteners.nodes.find(node => node.id === floorSeam.id);
+  assert.deepEqual([moved.x, moved.y], [3.1, 4.2]);
+  assert.equal(moved.calculatedQty, floorSeam.calculatedQty);
+  assert.equal(changed.totals.total, result.totals.total);
+});
+
 test('shared fastener rule applies across projects while an explicit project override wins', () => {
   const first = createDefaultProject();
   const second = createDefaultProject();
