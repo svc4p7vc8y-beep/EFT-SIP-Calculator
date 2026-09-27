@@ -17,8 +17,9 @@ import {
 } from "../calculations/price-adjustments.js";
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
+import { normalizeProductionCutting } from './production-cutting.js';
 
-export const REACT_PROJECT_VERSION = 156;
+export const REACT_PROJECT_VERSION = 157;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -578,6 +579,7 @@ export function createDefaultProject() {
         packSizes: {},
         lastCalculatedAt: null,
       },
+      productionCutting: normalizeProductionCutting(),
       roof: {
         shape: "gable",
         ridgeAxis: "x",
@@ -942,6 +944,7 @@ export function migrateProject(raw) {
         },
       },
       roof: { ...base.settings.roof, ...(raw.settings?.roof || {}) },
+      productionCutting: normalizeProductionCutting(raw.settings?.productionCutting),
       delivery: {
         ...base.settings.delivery,
         ...(raw.settings?.delivery || {}),

@@ -78,6 +78,7 @@ const SipGuideScreen = lazy(() => import("../screens/SipGuideScreen.jsx"));
 const NodeFastenersScreen = lazy(
   () => import("../screens/NodeFastenersScreen.jsx"),
 );
+const CuttingScreen = lazy(() => import('../screens/CuttingScreen.jsx'));
 const TeamWorkspaceScreen = lazy(
   () => import("../screens/TeamWorkspaceScreen.jsx"),
 );
@@ -93,6 +94,7 @@ const NAV_ITEMS = [
   { id: "piles", label: "Сваи", icon: HardHat, group: "calculate" },
   { id: "sip", label: "СИП", icon: Layers3, group: "calculate" },
   { id: "nodes", label: "Метизы по узлам", icon: Wrench, group: "calculate" },
+  { id: "cutting", label: "Раскрой", icon: Ruler, group: "calculate" },
   { id: "roof", label: "Кровля", icon: Home, group: "calculate" },
   { id: "terrace", label: "Терраса", icon: Trees, group: "calculate" },
   { id: "openings", label: "Окна / двери", icon: PanelTop, group: "calculate" },
@@ -152,6 +154,7 @@ function Screen({ active, calculation, teamProps }) {
   if (active === "sip-guide") return <SipGuideScreen />;
   if (active === "nodes")
     return <NodeFastenersScreen calculation={calculation} />;
+  if (active === 'cutting') return <CuttingScreen calculation={calculation} />;
   if (active === "calculation-settings") return <CalculationSettingsScreen />;
   return <Calculators type={active} />;
 }

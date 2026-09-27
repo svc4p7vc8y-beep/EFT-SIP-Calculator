@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v156-sip-layer-details-1';
+const CACHE_NAME = 'eft-calculator-react-v157-production-cutting-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
