@@ -1,4 +1,12 @@
 .cutting-screen { min-width: 0; }
+.cutting-screen fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 10px; margin: 18px 0; padding: 16px; }
+.cutting-screen input[aria-invalid=true] { border-color: #b4412f; }
+.cutting-screen [role=alert] { color: #a43221; }
+.cut-layout-settings { padding: 14px; margin: 12px 0; background: var(--green-soft); border-radius: 10px; }
+.cut-layout g[aria-label^="Соединитель"] { pointer-events: bounding-box; }
+.cut-layout g[aria-label^="Соединитель"] text { pointer-events: all; }
+.cut-layout { scroll-margin-top: 120px; }
+.cutting-screen textarea { min-height: 90px; }
 .cutting-screen button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--green-dark); cursor: pointer; font: inherit; }
 .cutting-screen button:disabled { opacity: .5; cursor: default; }
 .cut-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }

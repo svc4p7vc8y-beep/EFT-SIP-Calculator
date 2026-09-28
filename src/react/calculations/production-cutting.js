@@ -2,6 +2,7 @@ import clipping from 'polygon-clipping';
 import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints } from '../planner/geometry.js';
 import { sipTimberProfile } from './sip-joinery.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
+import { cuttingRevision, validateProductionSettings, parseManualPanel, reconcileCutting } from './production-controls.js';
 
 const mm = value => Math.round((Number(value) || 0) * 1000);
 const round = value => Math.round(value * 1000) / 1000;
@@ -49,15 +50,24 @@ const mergeWalls = segments => {
 // and holes. A stock blank is its bounding rectangle, never its net area.
 export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
   if (surface.blocked || !surface.geometry.length) return [];
+  if (surface.layout?.direction === 'y' && !surface.transposed) {
+    const swap = shape => shape.map(r => r.map(([x,y]) => [y,x]));
+    const parts = tileSurface({ ...surface, transposed: true, geometry: surface.geometry.map(swap), layout: { ...surface.layout, originX: surface.layout.originY, originY: surface.layout.originX } }, panelWidth, panelLength, step, staggered);
+    return parts.map(part => { const shape = swap(part.shape); return { ...part, blankWidth: part.width, blankHeight: part.height, shape, ...polygonBounds(shape) }; });
+  }
   const bounds = polygonBounds(surface.geometry.flat());
   const width = Math.min(panelWidth, surface.layoutWidth || panelWidth, step);
   const cells = Math.ceil(bounds.width / width) * (Math.ceil(bounds.height / panelLength) + 1);
   if (cells > 10000) throw new Error(`${surface.name}: более 10 000 ячеек. Проверьте размеры и шаг.`);
   const parts = [];
-  for (let column = 0; column * width < bounds.width - 0.01; column++) {
-    const x = bounds.x + column * width;
+  const originX = presentNumber(surface.layout?.originX) ? Number(surface.layout.originX) : bounds.x;
+  const originY = presentNumber(surface.layout?.originY) ? Number(surface.layout.originY) : bounds.y;
+  const firstColumn = Math.floor((bounds.x - originX) / width);
+  for (let column = firstColumn; originX + column * width < bounds.x + bounds.width - 0.01; column++) {
+    const x = originX + column * width;
     const shift = staggered && surface.horizontal && surface.staggered !== false && column % 2 ? panelLength / 2 : 0;
-    for (let row = 0, y = bounds.y - shift; y < bounds.y + bounds.height - 0.01; y += panelLength, row++) {
+    const firstRow = Math.floor((bounds.y - originY + shift) / panelLength);
+    for (let row = firstRow, y = originY + firstRow * panelLength - shift; y < bounds.y + bounds.height - 0.01; y += panelLength, row++) {
       const pieces = clipping.intersection(surface.geometry, rect(x, y, width, panelLength));
       pieces.forEach((shape, fragment) => {
         const area = polygonAreaMm(shape);
@@ -72,7 +82,7 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
 
 // Split collinear edges at every endpoint. Shared seams are counted once,
 // including T-joints of the staggered layout and edges interrupted by openings.
-export function connectionSegments(parts) {
+export function connectionSegments(parts, continuous = false) {
   const lines = new Map();
   for (const part of parts) for (const ring of part.shape) for (let i = 0; i < ring.length - 1; i++) {
     const a = ring[i], b = ring[i + 1], length = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -87,22 +97,28 @@ export function connectionSegments(parts) {
   }
   const result = [];
   for (const { ux, uy, offset, spans } of lines.values()) {
+    const lineStart = result.length;
     const stops = [...new Set(spans.flatMap(s => [round(s.start), round(s.end)]))].sort((a, b) => a - b);
     for (let i = 0; i < stops.length - 1; i++) {
       const start = stops[i], end = stops[i + 1], mid = (start + end) / 2;
       const adjacent = spans.filter(s => s.start < mid && s.end > mid).map(s => s.id);
       if (!adjacent.length || end - start < 0.01) continue;
-      result.push({ a: [round(ux * start - uy * offset), round(uy * start + ux * offset)], b: [round(ux * end - uy * offset), round(uy * end + ux * offset)], length: Math.ceil(end - start - 0.001), seam: adjacent.length > 1, panels: [...new Set(adjacent)] });
+      const segment = { a: [round(ux * start - uy * offset), round(uy * start + ux * offset)], b: [round(ux * end - uy * offset), round(uy * end + ux * offset)], length: Math.ceil(end - start - 0.001), seam: adjacent.length > 1, panels: [...new Set(adjacent)] };
+      const previous = result.at(-1);
+      if (continuous && result.length > lineStart && previous.seam === segment.seam && Math.hypot(previous.b[0]-segment.a[0], previous.b[1]-segment.a[1]) < .01) {
+        previous.b = segment.b; previous.length = Math.ceil(Math.hypot(previous.b[0]-previous.a[0],previous.b[1]-previous.a[1])-.001); previous.panels = [...new Set([...previous.panels, ...segment.panels])];
+      } else result.push(segment);
     }
   }
   return result;
 }
 
-export function packPanelBlanks(parts, stockWidth, stockLength, kerf = 0) {
+export function packPanelBlanks(parts, stockWidth, stockLength, kerf = 0, allowRotation = false) {
   const sheets = [], unplaced = [];
   const sorted = [...parts].sort((a, b) => b.height - a.height || b.width - a.width || a.id.localeCompare(b.id));
   for (const part of sorted) {
-    const width = Math.ceil(round(part.width)), height = Math.ceil(round(part.height));
+    let width = Math.ceil(round(part.blankWidth ?? part.width)), height = Math.ceil(round(part.blankHeight ?? part.height)), rotated = false;
+    if (allowRotation && height <= stockWidth && width <= stockLength && (width > stockWidth || height > stockLength || (width > height && sheets.some(s => s.material === `${part.family}/${part.thickness}` && s.shelves.some(sh => width <= sh.height && sh.used + kerf + height <= stockWidth))))) { [width, height] = [height, width]; rotated = true; }
     const material = `${part.family}/${part.thickness}`;
     if (width > stockWidth || height > stockLength) { unplaced.push(part.id); continue; }
     let placement;
@@ -122,10 +138,16 @@ export function packPanelBlanks(parts, stockWidth, stockLength, kerf = 0) {
       sheets.push(sheet); placement = { sheet, shelf, x: 0 };
     }
     const { sheet, shelf, x } = placement;
-    sheet.parts.push({ id: part.id, x, y: shelf.y, width, height });
+    sheet.parts.push({ id: part.id, x, y: shelf.y, width, height, rotated });
     shelf.used = x + width;
   }
-  return { sheets, unplaced };
+  const remnants = sheets.flatMap(sheet => {
+    const right = sheet.shelves.filter(s => stockWidth - s.used - kerf > 0).map(s => ({ sheet: sheet.id, x: s.used + kerf, y: s.y, width: stockWidth - s.used - kerf, height: s.height }));
+    const y = sheet.shelves.reduce((sum,s)=>sum+s.height+kerf,0);
+    return [...right, ...(y < stockLength ? [{ sheet: sheet.id, x:0, y, width:stockWidth, height:stockLength-y }] : [])];
+  });
+  const stockArea = sheets.length * stockWidth * stockLength;
+  return { sheets, unplaced, remnants, wastePercent: stockArea ? 100 * (1 - parts.filter(p => !unplaced.includes(p.id)).reduce((sum,p)=>sum+(p.area ?? p.width*p.height),0)/stockArea) : 0 };
 }
 
 export function packMembers(members, stockLength, kerf) {
@@ -143,6 +165,7 @@ export function packMembers(members, stockLength, kerf) {
 
 export function calculateProductionCutting(project, calculation) {
   const settings = normalizeProductionCutting(project.settings?.productionCutting);
+  validateProductionSettings(settings);
   const f = project.settings?.formulas || {}, sip = project.settings?.sip || {}, services = project.services || {};
   const panelWidth = mm(f.panelWidth || 1.25), panelLength = mm(f.panelLength || 2.5);
   if (!(panelWidth >= 100 && panelWidth <= 10000 && panelLength >= 100 && panelLength <= 20000)) throw new Error('Проверьте формат панели в формулах проекта: ширина 100–10 000 мм, длина 100–20 000 мм.');
@@ -151,22 +174,32 @@ export function calculateProductionCutting(project, calculation) {
   if (settings.kerfMm === '') issue('KERF', 'Укажите ширину пропила оборудования, мм.');
   if (settings.endAllowanceMm === '') issue('ALLOWANCE', 'Укажите припуск на каждый торец соединительного элемента, мм (0 — без припуска).');
   const plans = calculation.metrics?.floorPlans?.map(item => item.plan) || [project.plan];
-  const addSurface = data => { const surface = { family: 'pps', ...data }; surfaces.push(surface); return surface; };
+  const addSurface = data => {
+    const surface = { family: 'pps', ...data };
+    surface.layoutKey = `${surface.id}:${cuttingRevision([surface.geometry, surface.planStart, surface.planEnd])}`;
+    surface.layout = settings.layouts[surface.layoutKey] || {};
+    for (const key of ['originX', 'originY', 'step']) if (presentNumber(surface.layout[key]) && (Math.abs(Number(surface.layout[key])) > 100000 || (key === 'step' && (Number(surface.layout[key]) < 100 || Number(surface.layout[key]) > 2500)))) throw new Error(`${surface.id}: недопустимая сетка раскладки`);
+    if (presentNumber(surface.layout.step)) surface.layoutWidth = Number(surface.layout.step);
+    surface.effectiveStep = Math.min(panelWidth, surface.layoutWidth || settings.frameStepMm);
+    surfaces.push(surface); return surface;
+  };
   plans.forEach((plan, floorIndex) => {
     const floor = floorIndex + 1, contour = houseContourPoints(plan), shape = polygon(contour);
     if (plan.house?.contourDefined === false) { issue('CONTOUR', `${floor} этаж: задайте контур дома на плане.`); return; }
     const h = mm(plan.wallHeight);
     const edges = contour.map((a, i) => ({ a, b: contour[(i + 1) % contour.length], id: `Э${floor}-С${i + 1}`, outer: true }));
     if (services.partitions && sip.partitionType === 'sip') {
-      const segments = mergeWalls([...unifiedWallSegments(plan).map(lineEndpoints), ...(plan.walls || []).filter(w => w.include !== false).map(w => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }])]);
+      const segments = mergeWalls([...unifiedWallSegments({ ...plan, rooms: (plan.rooms || []).filter(r => r.include !== false) }).map(lineEndpoints), ...(plan.walls || []).filter(w => w.include !== false).map(w => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }])]);
       const seen = new Set();
       segments.forEach(([a, b], i) => { const key = [a, b].map(p => `${mm(p.x)},${mm(p.y)}`).sort().join(':'); if (!seen.has(key)) { edges.push({ a, b, id: `Э${floor}-ПГ${i + 1}`, outer: false }); seen.add(key); } });
     }
     const assigned = new Map(edges.map(edge => [edge.id, []]));
+    const blockedWalls = new Set();
     for (const opening of [...(plan.openings || []), ...(plan.wallGaps || []).map(gap => ({ ...gap, type: 'gap', height: plan.wallHeight }))].filter(o => o.include !== false && o.subtractFromSip !== false)) {
-      const outer = opening.outer !== false;
-      if ((outer && !services.sipWalls) || (!outer && (!services.partitions || sip.partitionType !== 'sip'))) continue;
-      const choices = edges.filter(edge => edge.outer === outer).map(edge => {
+      const outer = typeof opening.outer === 'boolean' ? opening.outer : null;
+      if ((outer === true && !services.sipWalls) || (outer === false && (!services.partitions || sip.partitionType !== 'sip'))) continue;
+      const eligible = edges.filter(edge => (outer == null || edge.outer === outer) && (!edge.outer || services.sipWalls));
+      const choices = eligible.filter(edge => opening.orientation === 'h' ? Math.abs(edge.a.y - edge.b.y) < .001 : opening.orientation === 'v' ? Math.abs(edge.a.x - edge.b.x) < .001 : true).map(edge => {
         const dx = edge.b.x - edge.a.x, dy = edge.b.y - edge.a.y, length = Math.hypot(dx, dy);
         const u = length ? ((opening.x - edge.a.x) * dx + (opening.y - edge.a.y) * dy) / length : 0;
         const distance = Math.hypot(opening.x - edge.a.x - Math.max(0, Math.min(length, u)) * dx / (length || 1), opening.y - edge.a.y - Math.max(0, Math.min(length, u)) * dy / (length || 1));
@@ -176,7 +209,10 @@ export function calculateProductionCutting(project, calculation) {
       const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : '');
       const row = { key, id: opening.id, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Проём'} ${opening.id}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
       if (!row.gap) openings.push(row);
-      if (!nearest || nearest.distance > Math.max(Number(plan.wallThickness) || 0.174, 0.1) + 0.03) { issue('OPENING_WALL', `${row.name}: не найдена стена. Уточните положение на плане.`, key); continue; }
+      if (!nearest || nearest.distance > Math.max(Number(plan.wallThickness) || 0.174, 0.1) + 0.03 || (choices[1] && Math.abs(choices[1].distance - nearest.distance) < .001)) {
+        issue('OPENING_WALL', `${row.name}: стена не найдена или привязка неоднозначна. Раскрой возможных стен заблокирован; уточните положение и ориентацию на плане.`, key);
+        eligible.forEach(edge => blockedWalls.add(edge.id)); continue;
+      }
       assigned.get(nearest.edge.id).push({ ...row, x: mm(nearest.u) - row.width / 2 });
     }
     for (const edge of edges) {
@@ -184,14 +220,18 @@ export function calculateProductionCutting(project, calculation) {
       const wallKey = `${edge.id}@${mm(edge.a.x)},${mm(edge.a.y)}:${mm(edge.b.x)},${mm(edge.b.y)}`;
       const addition = Number(settings.wallAdditions[wallKey]) || 0;
       const height = h + addition, width = mm(Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y));
-      const holes = [], selectedOpenings = assigned.get(edge.id); let blocked = false;
+      const holes = [], selectedOpenings = assigned.get(edge.id); let blocked = blockedWalls.has(edge.id);
       walls.push({ id: edge.id, key: wallKey, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, baseHeight: h, addition });
       if (height <= 0 || width <= 0 || height > 30000 || width > 100000 || addition < 0) { issue('WALL_SIZE', `${edge.id}: проверьте размеры стены и добавочную высоту.`, edge.id); continue; }
       for (const o of selectedOpenings) {
         if (o.gap) o.height = height;
         if (!presentNumber(o.sill) || Number(o.sill) < 0) { issue('OPENING_SILL', `${o.name}: укажите отметку низа от пола. Развёртка ${edge.id} ожидает данные.`, o.key); blocked = true; continue; }
         if (o.width <= 0 || o.height <= 0 || o.x < -1 || o.x + o.width > width + 1 || Number(o.sill) + o.height > height + 1) { issue('OPENING_SIZE', `${o.name}: проём выходит за стену или имеет неверный размер.`, o.key); blocked = true; continue; }
-        holes.push(rect(o.x, Number(o.sill), o.width, o.height));
+        const hole = rect(o.x, Number(o.sill), o.width, o.height);
+        if (holes.some(previous => clipping.intersection(previous, hole).reduce((sum, poly) => sum + polygonAreaMm(poly), 0) > 1)) {
+          issue('OPENING_OVERLAP', `${edge.id}: проёмы пересекаются. Исправьте их положение до раскроя.`, edge.id); blocked = true;
+        }
+        holes.push(hole);
       }
       const geometry = subtract(rect(0, 0, width, height), holes);
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm(edge.a.x), mm(edge.a.y)], planEnd: [mm(edge.b.x), mm(edge.b.y)], thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings });
@@ -199,7 +239,9 @@ export function calculateProductionCutting(project, calculation) {
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
       const hole = plan.floorOpening;
       const holes = floorIndex > 0 && Number(hole?.width) > 0 && Number(hole?.length) > 0 ? [rect(mm(hole.x), mm(hole.y), mm(hole.width), mm(hole.length))] : [];
-      addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes) });
+      const blocked = holes.some(h => clipping.difference(h, shape).reduce((sum, poly) => sum + polygonAreaMm(poly), 0) > 1) || (floorIndex > 0 && ((Number(hole?.width) > 0) !== (Number(hole?.length) > 0)));
+      if (blocked) issue('STAIR_BOUNDS', `${floor} этаж: лестничный проём имеет неполный размер или выходит за контур. Перекрытие заблокировано.`, `Э${floor}-ПОЛ`);
+      addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes), blocked });
     }
     if (floorIndex === plans.length - 1 && services.sipCeiling) {
       let blocked = false;
@@ -207,6 +249,7 @@ export function calculateProductionCutting(project, calculation) {
         const hole = polygon(roomPoints(r)), area = polygonAreaMm(hole) / 1e6;
         if (r.openCeilingArea != null && Number(r.openCeilingArea) === 0) return [];
         if (r.openCeilingArea != null && Number(r.openCeilingArea) < area - 0.001) { blocked = true; issue('CEILING_OPENING', `${floor} этаж: у комнаты «${r.name || r.id}» задана только площадь открытого потолка. Укажите его контур в рабочем проекте.`); return []; }
+        if (clipping.difference(hole, shape).length || (r.openCeilingArea != null && Number(r.openCeilingArea) > area + .001)) { blocked = true; issue('CEILING_BOUNDS', `${floor} этаж: открытый потолок комнаты «${r.name || r.id}» выходит за контур или площадь превышает комнату.`); return []; }
         return [hole];
       });
       addSurface({ id: `Э${floor}-ПТ`, name: `${floor} этаж · Потолок`, floor, horizontal: true, thickness: Number(sip.ceilingThickness), family: sip.ceilingPanelFamily, layoutWidth: mm(sip.ceilingPanelWidth), geometry: subtract(shape, holes), blocked });
@@ -239,22 +282,68 @@ export function calculateProductionCutting(project, calculation) {
     }
   }
   if ((project.plan.platforms || []).some(p => p.include !== false)) issue('PLATFORMS', 'Пристройки: задайте их производственные детали вручную по конструктивному проекту.');
-  const parts = surfaces.flatMap(surface => tileSurface(surface, panelWidth, panelLength, settings.frameStepMm, settings.staggered));
-  const members = [];
-  for (const surface of surfaces) {
-    const segments = connectionSegments(parts.filter(part => part.surfaceId === surface.id));
-    const profile = sipTimberProfile(surface.thickness);
-    segments.forEach((segment, i) => members.push({ ...segment, id: `${surface.id}-${segment.seam ? 'Ш' : 'Т'}${i + 1}`, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: `${profile.thermalDepth}×${segment.seam ? settings.splineWidthMm : settings.edgeWidthMm}`, cutLength: segment.length + 2 * Number(settings.endAllowanceMm || 0), source: segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' }));
+  const parts = surfaces.flatMap(surface => tileSurface(surface, panelWidth, panelLength, surface.layoutWidth || settings.frameStepMm, settings.staggered));
+  const manualIds = new Set();
+  for (const item of settings.manualPanels) {
+    try {
+      if (!item?.id || manualIds.has(item.id)) throw new Error('Нет уникальной марки');
+      manualIds.add(item.id);
+      const shape = parseManualPanel(item), quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) throw new Error('Количество: целое от 1 до 100');
+      const outer = [shape[0]], holes = shape.slice(1).map(r => [r]);
+      if (holes.some(h => clipping.difference(h, outer).length)) throw new Error('Вырез выходит за внешний контур');
+      for(let i=0;i<holes.length;i++) for(let j=i+1;j<holes.length;j++) if(clipping.intersection(holes[i],holes[j]).length) throw new Error('Вырезы пересекаются');
+      const geometry = subtract(outer, holes);
+      if (geometry.length !== 1 || polygonAreaMm(geometry[0]) < 1) throw new Error('Панель должна быть одной связной деталью ненулевой площади');
+      for (let i=0;i<quantity;i++) {
+        const id = `РП-${item.id}-${i+1}`;
+        addSurface({ id, name: item.name, thickness: Number(item.thickness), family: item.family, geometry, horizontal: true, manual: true });
+        parts.push({ id: `${id}-P1`, surfaceId: id, surface: item.name, thickness: Number(item.thickness), family: item.family, shape: geometry[0], ...polygonBounds(geometry[0]), area: polygonAreaMm(geometry[0]), upperCourse: false });
+      }
+    } catch (error) { issue('MANUAL_PANEL', `Ручная панель ${item?.name || ''}: ${error.message}`); }
   }
+  const activeLayouts = new Set(surfaces.map(s=>s.layoutKey));
+  if (Object.keys(settings.layouts).some(key=>!activeLayouts.has(key))) issue('STALE_LAYOUT', 'Геометрия изменилась: часть индивидуальных сеток не применяется. Проверьте и сбросьте устаревшие настройки.');
+  const members = [];
+  const overrideKeys = new Set(), profileMismatches = new Set();
+  for (const surface of surfaces) {
+    const segments = connectionSegments(parts.filter(part => part.surfaceId === surface.id), settings.continuousMembers);
+    const profile = sipTimberProfile(surface.thickness);
+    segments.forEach((segment, i) => {
+      const id = `${surface.id}-${segment.seam ? 'Ш' : 'Т'}${i + 1}`;
+      const key = `${surface.layoutKey}:${cuttingRevision([segment.a, segment.b, segment.seam, surface.thickness, sip.connectorType])}`;
+      overrideKeys.add(key);
+      const override = settings.memberOverrides[key] || {};
+      const estimateProfile = segment.seam ? sip.connectorType === 'solid' ? `${profile.core}×100` : `${profile.thermalDepth}×95` : `${profile.endBoardDepth}×45`;
+      const savedProfile = `${profile.thermalDepth}×${segment.seam ? settings.splineWidthMm : settings.edgeWidthMm}`;
+      const selectedProfile = override.profile?.trim() || (settings.profileMode === 'estimate' ? estimateProfile : savedProfile);
+      if (selectedProfile !== estimateProfile) profileMismatches.add(`${selectedProfile} ↔ ${estimateProfile}`);
+      const length = presentNumber(override.length) ? Number(override.length) : segment.length;
+      if (!(length > 0 && length <= 100000)) { issue('MEMBER_OVERRIDE', `${id}: неверная длина`, key); return; }
+      if ((override.exclude || override.profile || presentNumber(override.length)) && !override.nodeRef?.trim()) issue('MEMBER_NODE', `${id}: для изменения или исключения укажите рабочий узел`, key);
+      members.push({ ...segment, id, key, excluded: override.exclude === true, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
+    });
+  }
+  if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');
+  const notices = [...profileMismatches].map(value => `Сечение раскроя / сметы: ${value} мм. Смета не изменена; подтвердите проектный профиль.`);
+  const ids = new Set(); let manualCount = 0;
   for (const item of settings.manualParts) {
+    if (ids.has(item.id)) { issue('MANUAL_ID', `Повторная марка ручной детали: ${item.id}`); continue; } ids.add(item.id);
     if (!item.name?.trim() || !item.profile?.trim() || !(Number(item.length) > 0) || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1 || Number(item.quantity) > 1000) { issue('MANUAL', 'Ручная деталь: заполните название, сечение, длину и целое количество от 1 до 1000.', item.id); continue; }
     const quantity = Math.min(1000, Math.floor(Number(item.quantity)));
+    manualCount += quantity;
+    if (manualCount > 10000) { issue('MANUAL_LIMIT', 'Более 10 000 ручных деталей: разделите комплект на партии.'); break; }
     for (let i = 0; i < quantity; i++) members.push({ id: `Р-${item.id}-${i + 1}`, material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
-  const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0));
-  const timberStock = packMembers(members, settings.stockLengthMm, Number(settings.kerfMm || 0));
+  const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
+  const timberStock = packMembers(members.filter(m=>!m.excluded), settings.stockLengthMm, Number(settings.kerfMm || 0));
   if (panelStock.unplaced.length) issue('PANEL_SIZE', `Не помещаются в заготовку: ${panelStock.unplaced.join(', ')}`);
   if (timberStock.unplaced.length) issue('MEMBER_SIZE', `Длиннее хлыста: ${timberStock.unplaced.join(', ')}. Нужен проект стыковки или другая длина заготовки.`);
-  if (!surfaces.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
-  return { settings, panelWidth, panelLength, surfaces, parts, members, openings, walls, issues, panelStock, timberStock, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
+  if (!surfaces.length && !members.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
+  const { approval, ...revisionSettings } = settings;
+  const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const report = { settings, revision, panelWidth, panelLength, surfaces, parts, members, openings, walls, issues, notices, panelStock, timberStock, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
+  report.reconciliation = reconcileCutting(report, calculation);
+  report.approvalStatus = approval.revision === revision && !issues.length && approval.reviewer?.trim() && approval.nodeRef?.trim() && ['geometry','nodes','released'].includes(approval.status) ? approval.status : 'draft';
+  return report;
 }
