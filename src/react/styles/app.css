@@ -830,6 +830,13 @@ button:disabled {
 .internal-room-card h3 { margin:3px 0; font-size:1.25rem; }
 .internal-room-card header p { margin:0; color:var(--muted); }
 .internal-assembly-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.internal-assembly-grid.sauna-active { grid-template-columns:1fr; }
+.internal-assembly-grid.sauna-active > fieldset:nth-child(n+2) { display:none; }
+.sauna-editor { border:2px solid #9bad8a; border-radius:14px; padding:16px; margin-top:16px; min-width:0; background:#fcfdf9; overflow-wrap:anywhere; }
+.sauna-editor input:not([type="checkbox"]), .sauna-editor textarea { width:100%; min-width:0; box-sizing:border-box; }
+.sauna-editor textarea { min-height:90px; }
+.sauna-editor .form-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); }
+.sauna-editor .form-grid > * { min-width:0; }
 .internal-assembly-grid fieldset { min-width:0; display:grid; align-content:start; gap:10px; margin:0; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.72); }
 .internal-assembly-grid legend { display:flex; align-items:center; gap:7px; padding:0 5px; font-weight:850; color:var(--text); }
 .internal-assembly-grid legend svg { width:17px; color:#4f8a39; }

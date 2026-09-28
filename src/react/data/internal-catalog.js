@@ -1,3 +1,4 @@
+import { SAUNA_ITEMS } from './sauna-catalog.js';
 const material = (id, name, unit, price, priceNote) => ({
   id, name, unit, price, kind: 'material', cat: 'Внутренняя отделка',
   priceEstimated: true, priceNote,
@@ -12,6 +13,7 @@ const KNaufFloor = 'Ориентировочная цена. Состав сис
 const KNaufWall = 'Ориентировочная цена. Комплектность каркаса сверять с системой КНАУФ: https://www.knauf.ru/systems/oblitsovki/s-623-h2/';
 
 export const INTERNAL_MATERIALS = [
+  ...SAUNA_ITEMS.filter(item=>item.kind==='material'),
   material('MAT-206', 'ГВЛВ 12,5 мм 1200×2500 мм', 'шт', 1450, `${KNaufFloor}. Розничный ориентир 1 449 ₽/лист на 01.09.2026.`),
   material('MAT-207', 'Элемент пола ГВЛВ 20 мм 1200×600 мм', 'шт', 900, KNaufFloor),
   material('MAT-208', 'Гипсокартон 12,5 мм 1200×2500 мм', 'шт', 400, `${KNaufWall}. Ориентир российского розничного рынка на 01.09.2026.`),
@@ -43,6 +45,7 @@ export const INTERNAL_MATERIALS = [
 ];
 
 export const INTERNAL_LABOR = [
+  ...SAUNA_ITEMS.filter(item=>item.kind==='labor'),
   labor('LAB-114', 'Монтаж металлического каркаса под гипсокартон', 'м2', 550, 'Предварительная ставка; зависит от геометрии и высоты помещения.'),
   labor('LAB-115', 'Монтаж гипсокартона в один слой', 'м2', 400, 'Предварительная ставка на один слой.'),
   labor('LAB-116', 'Заделка швов гипсокартона Q2', 'м2', 350, 'Ориентир для базовой подготовки; Q3/Q4 считаются отдельно.'),

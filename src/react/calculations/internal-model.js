@@ -1,4 +1,5 @@
 import { polygonArea } from '../../calculations/plan-metrics.js';
+import { saunaLines } from './sauna-model.js';
 
 const n = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const round = (value, digits = 2) => Math.round(n(value) * 10 ** digits) / 10 ** digits;
@@ -123,12 +124,28 @@ export function calculateInternal(project, metrics, inputs) {
   const lines=[];
   const add=(...args)=>{const value=line(...args);if(value)lines.push(value);};
   for(const room of rooms) {
-    const s=room.settings;if(s.enabled===false)continue;
+    const original=room.settings;
+    const s=original.sauna?.enabled?{...original,wallsFinish:'none',ceilingFinish:'none'}:original;
+    if(s.enabled===false)continue;
+    lines.push(...saunaLines(room,reserve));
     const floorArea=Math.max(0,s.floorArea==null?room.area:n(s.floorArea));
     const wallArea=Math.max(0,s.wallArea==null?room.wallArea:n(s.wallArea));
     const ceilingArea=Math.max(0,s.ceilingArea==null?room.ceilingArea:n(s.ceilingArea));
     const roomLabel=`${room.floor} этаж · ${room.name}`;
     const floorGroup=`${roomLabel} · Пол`,wallGroup=`${roomLabel} · Стены`,ceilingGroup=`${roomLabel} · Потолок`;
+    if(s.tileCompletion===true && s.wallsFinish==='drywall' && s.wallFinal==='tile') {
+      const area=wallArea*Math.max(0,Math.min(1,n(s.waterproofWallShare,1)||1));
+      const key=`${room.floor}-${room.id}-tile-completion`;
+      add('MAT-215',`${key}-primer`,ceil(area*.15/10),wallGroup,'Грунтовка под плитку стен');
+      add('LAB-125',`${key}-primer-work`,area,wallGroup,'Грунтование стен');
+      add('MAT-104',`${key}-grout`,ceil(area*.3/2),wallGroup,'Затирка плитки стен');
+      add('LAB-058',`${key}-grout-work`,area,wallGroup,'Затирка швов стен');
+      if(area>0){
+        add('MAT-109',`${key}-tape`,Math.max(0,n(s.tileTapeLength))*reserve,wallGroup,'Лента мокрых примыканий стен');
+        add('MAT-216',`${key}-sealant`,ceil(n(s.tileSealLength)/10),wallGroup,'Герметик стен');
+        add('LAB-126',`${key}-seal-work`,Math.max(0,n(s.tileSealLength)),wallGroup,'Герметизация стен');
+      }
+    }
     if(s.floorFinish!=='none'&&floorArea>0) {
       if(settings.includePreparation) add('LAB-119',`${room.floor}-${room.id}-floor-prep`,floorArea,floorGroup,'Подготовка основания пола');
       if(s.floorSubstrate==='osb12') {add('MAT-111',`${room.floor}-${room.id}-osb`,ceil(floorArea*reserve/3.125),floorGroup,'OSB-3 12 мм · лист 3,125 м²');add('MAT-218',`${room.floor}-${room.id}-osb-screws`,ceil(floorArea*20/500),floorGroup,'Крепёж OSB · 20 шт/м²');add('LAB-065',`${room.floor}-${room.id}-osb-work`,floorArea,floorGroup,'Монтаж OSB');}

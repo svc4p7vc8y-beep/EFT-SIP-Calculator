@@ -66,12 +66,12 @@ function makeLine(index, section, query, qty, options = {}) {
     unit: options.unit || item?.unit || "шт",
     qty: round(amount, options.digits ?? 2),
     price:
-      (Number(item?.price) || Number(options.price) || 0) *
+      (options.projectPrice != null ? Math.max(0, Number(options.projectPrice) || 0) : (Number(item?.price) || Number(options.price) || 0)) *
       (Number(options.priceMultiplier) || 1),
     kind: item?.kind || options.kind || "material",
     source: options.source || section,
     estimateGroup: options.estimateGroup,
-    ...(item?.pricePending === true && !(Number(item?.price) > 0 || Number(options.price) > 0) ? { pricePending: true } : {}),
+    ...(item?.pricePending === true && !(options.projectPrice != null ? Number(options.projectPrice)>0 : Number(item?.price)>0 || Number(options.price)>0) ? { pricePending: true } : {}),
     ...(options.exactQuantity === true ? { exactQuantity: true } : {}),
   };
 }
@@ -2684,6 +2684,8 @@ function finishSections(project, index, inputs, metrics) {
         catalogId: item.catalogId,
         estimateGroup: item.group,
         source: 'internal-room-assembly',
+        name: item.name,
+        projectPrice: item.projectPrice,
       })))
     : project.services.internalFinish
     ? compact([
