@@ -1,4 +1,6 @@
 import { polygonArea } from '../../calculations/plan-metrics.js';
+import { useId } from 'react';
+import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { resolveRoofAxes } from '../../calculations/roof-orientation.js';
 import { calculateFoundation } from '../calculations/foundation-model.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
@@ -98,6 +100,8 @@ function PrintRoofTopLayer({ plan, roof = {}, p }) {
 }
 
 export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSettings, floorOpening }) {
+  const clearAreas=calculateClearAreas(plan);
+  const wallClipId=useId().replace(/:/g,'');
   const bounds = planBounds(plan, options);
   const scale = Math.min(
     (PLAN_VIEW.width - PLAN_VIEW.margin * 2) / Math.max(1, bounds.w),
@@ -138,7 +142,7 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
     const geometry = opening.type === 'door' ? (garage ? garageSwingGeometry(opening, q, size, plan) : doorSwingGeometry(opening, q, size, plan)) : null;
     const tag = garage ? 'ГВ' : opening.doorType === 'interior' ? 'МД' : 'ВХ';
     return <g key={opening.id} className={`print-opening-group ${garage ? 'garage' : opening.type}`}>
-      <line className="print-opening-cut" {...openingLine(opening)} />
+      <line className="print-opening-cut" style={{strokeWidth:Math.max(18,2*(Number(plan.wallThickness)||.174)*scale)}} {...openingLine(opening)} />
       <line className={`print-opening ${garage ? 'garage' : opening.type}`} {...openingLine(opening)} />
       {geometry ? <g className={`print-door-swing ${garage ? 'garage' : ''}`} aria-label={garage ? 'Двустворчатое открывание гаражных ворот' : 'Направление открывания двери'}>
         {geometry.leaves.map((leaf, index) => <line key={`leaf-${index}`} {...leaf} />)}
@@ -171,16 +175,17 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
     }) : null}
     {showContour || showRooms || options.showRoof ? <polygon className="print-house-fill" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
     {options.showRoof ? <PrintRoofTopLayer plan={plan} roof={roofSettings} p={p} /> : null}
-    {showRooms ? (plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : roomBounds.x + roomBounds.w / 2, Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : roomBounds.y + roomBounds.h / 2); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" style={{ fontSize: Math.max(8, (Number(room.labelFontSize) || 22) * .55) }} x={center.x} y={center.y - 7}>{room.name}</text><text x={center.x} y={center.y + 9}>{formatNumber(polygonArea(points))} м²</text></g>; }) : null}
+    {showRooms ? (plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : roomBounds.x + roomBounds.w / 2, Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : roomBounds.y + roomBounds.h / 2); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" style={{ fontSize: Math.max(8, (Number(room.labelFontSize) || 22) * .55) }} x={center.x} y={center.y - 7}>{room.name}</text><text x={center.x} y={center.y + 9}>{formatNumber(polygonArea(points))} м² контур</text><text x={center.x} y={center.y+23} style={{fontSize:9}}>{clearAreas.rooms[room.id]?.clearArea!=null?`${formatNumber(clearAreas.rooms[room.id].clearArea,2)} м² в свету`:'В свету: проверить'}</text></g>; }) : null}
     {showRooms ? (plan.annotations || []).map(item => { const label = p(item.x, item.y); const target = p(item.targetX, item.targetY); return <g key={item.id} className="print-annotation">{item.showArrow !== false ? <line x1={label.x} y1={label.y + 4} x2={target.x} y2={target.y} markerEnd="url(#print-note-arrow)" /> : null}<text x={label.x} y={label.y} style={{ fontSize: Math.max(8, (Number(item.fontSize) || 18) * .55) }}>{item.text}</text></g>; }) : null}
     {showRooms && floorOpeningArea > 0 ? <g className="print-floor-opening" aria-label="Лестничный проём между этажами">
       <rect x={floorOpeningStart.x} y={floorOpeningStart.y} width={sharedFloorOpening.width * scale} height={sharedFloorOpening.length * scale} />
       <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 - 4}>Лестничный проём</text>
       <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 + 12}>{formatNumber(floorOpeningArea)} м²</text>
     </g> : null}
-    {showContour || options.showRoof ? <polygon className="print-outer-wall" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
-    {showRooms ? unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; }) : null}
-    {showRooms ? (plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; }) : null}
+    <defs><clipPath id={wallClipId}><polygon points={houseScreen.map(point=>`${point.x},${point.y}`).join(' ')}/></clipPath></defs>
+    {showContour || options.showRoof ? <polygon className="print-outer-wall" clipPath={`url(#${wallClipId})`} style={{strokeWidth:2*(Number(plan.wallThickness)||.174)*scale}} points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
+    {showRooms ? unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" style={{strokeWidth:(Number(plan.partitionThickness)||.1)*scale}} key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; }) : null}
+    {showRooms ? (plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" style={{strokeWidth:(Number(plan.partitionThickness)||.1)*scale}} key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; }) : null}
     {showOpenings ? (plan.wallGaps || []).map(gap => <line key={gap.id} className="print-wall-gap" {...gapLine(gap)} />) : null}
     {showBinding ? <g className="print-binding" aria-label="Обвязка на печатном плане">
       {(plan.bindingLines || []).filter((item) => item.include !== false).map((item) => { const q = line(item); return <line key={item.id} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; })}

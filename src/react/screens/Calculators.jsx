@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { calculateProject } from "../calculations/estimate-engine.js";
@@ -1076,11 +1077,7 @@ export default function Calculators({ type }) {
         Object.assign(next.settings.internal, calculation.inputs.internal);
       }
       next.settings[group][key] = value;
-      if (group === "sip" && key === "partitionFrameSection") {
-        const thickness = value === "50x150" ? 0.15 : 0.1;
-        next.plan.partitionThickness = thickness;
-        (next.upperFloors || []).forEach((floorPlan) => { floorPlan.partitionThickness = thickness; });
-      }
+      if (group === "sip") synchronizeWallThickness(next,key);
       if (group === "roof" && !key.startsWith("show"))
         releasePlanLinkedQuantityOverrides(next);
       if (group === "engineering")

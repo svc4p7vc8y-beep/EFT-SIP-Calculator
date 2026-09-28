@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { roofOutline } from '../planner/roof-outline.js';
+import { calculateClearAreas } from '../calculations/plan-clear-area.js';
+import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
 import { isInteriorDoor } from '../calculations/opening-types.js';
@@ -1188,6 +1190,7 @@ function PlanCanvas({
   onSelected,
 }) {
   const svgRef = useRef(null);
+  const wallClipId=useId().replace(/:/g,'');
   const gestureRef = useRef(null);
   const activePointersRef = useRef(new Map());
   const pinchRef = useRef(null);
@@ -1219,6 +1222,7 @@ function PlanCanvas({
     return () => svg.removeEventListener("wheel", handleWheel);
   }, [wheelZoomEnabled, viewportZoom, plan.zoom, onViewportZoom]);
   const shownPlan = useMemo(() => previewPlan(plan, gesture), [plan, gesture]);
+  const clearAreas=useMemo(()=>calculateClearAreas(shownPlan),[shownPlan]);
   const shownFloorOpening = useMemo(() => {
     const current = fitFloorOpening(floorOpening, plan.house);
     if (gesture?.type !== "floorOpening" || gesture.kind !== "move") return current;
@@ -1862,11 +1866,11 @@ function PlanCanvas({
     ? roomPoints(selectedRoom).map((point) => p(point.x, point.y))
     : [];
   const partitionWidth = Math.max(
-    4,
+    0,
     (Number(shownPlan.partitionThickness) || 0.1) * layout.scale,
   );
   const outerWallWidth = Math.max(
-    5,
+    0,
     (Number(shownPlan.wallThickness) || 0.174) * layout.scale,
   );
   const drawSegment = (segment, key) => {
@@ -1881,7 +1885,7 @@ function PlanCanvas({
           y1={q1.y}
           x2={q2.x}
           y2={q2.y}
-          style={{ strokeWidth: partitionWidth + 4 }}
+          style={{ strokeWidth: partitionWidth, strokeLinecap:'butt' }}
         />
         <line
           className="wall-band-hatch"
@@ -1889,7 +1893,7 @@ function PlanCanvas({
           y1={q1.y}
           x2={q2.x}
           y2={q2.y}
-          style={{ strokeWidth: partitionWidth }}
+          style={{ strokeWidth: Math.max(0,partitionWidth - 2), strokeLinecap:'butt' }}
         />
       </g>
     );
@@ -2127,8 +2131,9 @@ function PlanCanvas({
                   <rect className="room-label-hit" x={labelCenter.x - roomLabelHitWidth / 2} y={labelCenter.y - roomLabelHitHeight / 2} width={roomLabelHitWidth} height={roomLabelHitHeight} rx="7" />
                   <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 0.8}>{room.name}</text>
                   <text className="room-dimensions" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 0.55}>{formatNumber(bounds.w)} × {formatNumber(bounds.h)} м</text>
-                  <text className="room-area" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 1.8}>{formatNumber(polygonArea(points))} м²</text>
-                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 3}>Второй свет</text> : null}
+                  <text className="room-area" style={{ fontSize: fittedMetaSize*.75 }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 1.8}>{formatNumber(polygonArea(points))} м² контур</text>
+                  <text className="room-area" style={{ fontSize: fittedMetaSize*.75 }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 2.8}>{clearAreas.rooms[room.id]?.clearArea!=null?`${formatNumber(clearAreas.rooms[room.id].clearArea,2)} м² в свету`:'В свету: проверить контур'}</text>
+                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 4}>Второй свет</text> : null}
                 </g>
                 {selectedNow
                   ? screen.map((point, index) => (
@@ -2202,8 +2207,10 @@ function PlanCanvas({
           className={`planner-object house-contour-object ${selected?.type === "houseContour" ? "selected" : ""}`}
           onPointerDown={(event) => objectDown(event, "houseContour", "house")}
         >
+          <defs><clipPath id={wallClipId}><polygon points={houseContour.map(point=>{const q=p(point.x,point.y);return `${q.x},${q.y}`;}).join(' ')}/></clipPath></defs>
           <polygon
             className="outer-wall outer-wall-border"
+            clipPath={`url(#${wallClipId})`}
             points={houseContour
               .map((point) => {
                 const q = p(point.x, point.y);
@@ -2211,11 +2218,12 @@ function PlanCanvas({
               })
               .join(" ")}
             style={{
-              strokeWidth: outerWallWidth + 5,
+              strokeWidth: outerWallWidth * 2,
             }}
           />
           <polygon
             className="outer-wall outer-wall-texture"
+            clipPath={`url(#${wallClipId})`}
             points={houseContour
               .map((point) => {
                 const q = p(point.x, point.y);
@@ -2223,7 +2231,7 @@ function PlanCanvas({
               })
               .join(" ")}
             style={{
-              strokeWidth: outerWallWidth,
+              strokeWidth: Math.max(0,outerWallWidth * 2 - 2),
             }}
           />
           {selected?.type === "houseContour"
@@ -2298,7 +2306,7 @@ function PlanCanvas({
                   y1={q.a.y}
                   x2={q.b.x}
                   y2={q.b.y}
-                  style={{ strokeWidth: partitionWidth + 4 }}
+                  style={{ strokeWidth: partitionWidth, strokeLinecap:'butt' }}
                 />
                 <line
                   className="wall-band-hatch"
@@ -2306,7 +2314,7 @@ function PlanCanvas({
                   y1={q.a.y}
                   x2={q.b.x}
                   y2={q.b.y}
-                  style={{ strokeWidth: partitionWidth }}
+                  style={{ strokeWidth: Math.max(0,partitionWidth - 2), strokeLinecap:'butt' }}
                 />
                 <line
                   className="wide-hit"
@@ -2797,13 +2805,14 @@ function PlanCanvas({
 }
 
 function RoomList({ plan, issues, onSelect }) {
+  const clearAreas=useMemo(()=>calculateClearAreas(plan),[plan]);
   const issueIds = new Set(issues.flatMap((issue) => issue.roomIds || []));
   return (
     <div className="room-summary">
       <header>
         <div>
           <h3>Помещения</h3>
-          <p>Нажмите строку, чтобы выбрать комнату на плане.</p>
+          <p>Нажмите строку, чтобы выбрать комнату на плане. Контур — сохранённые границы; в свету — без занимаемой стенами площади, до отделки.</p>
         </div>
         <strong>
           {formatNumber(
@@ -2812,9 +2821,10 @@ function RoomList({ plan, issues, onSelect }) {
               0,
             ),
           )}{" "}
-          м²
+          м² по контурам
         </strong>
       </header>
+      <p className="clear-area-note">{clearAreas.reason||`Внутри дома без стен: ${formatNumber(clearAreas.clearArea)} м². Комнаты в свету (без повторного счёта пересечений): ${formatNumber(clearAreas.roomsClearArea)} м². Наружные стены расположены внутри габарита, перегородки — по оси. Дверные проходы включены; чистовая отделка не вычитается. Закупка SIP-пола остаётся по наружному контуру.`}</p>
       {issues.length ? (
         <div className="plan-warning">
           <AlertTriangle />
@@ -2834,7 +2844,7 @@ function RoomList({ plan, issues, onSelect }) {
               <i>{index + 1}</i>
               <strong>{room.name}</strong>
             </span>
-            <em>{formatNumber(polygonArea(roomPoints(room)))} м²</em>
+            <em>{formatNumber(polygonArea(roomPoints(room)))} м² контур<br/>{clearAreas.rooms[room.id]?.clearArea!=null?`${formatNumber(clearAreas.rooms[room.id].clearArea,2)} м² в свету`:'В свету: проверить'}</em>
           </button>
         ))}
       </div>
@@ -3309,9 +3319,10 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
           />
         </div>
         <div className="readout">
-          <span>Площадь помещения</span>
+          <span>Площадь по контуру</span>
           <strong>{formatNumber(area)} м²</strong>
         </div>
+        <p className="inspector-note">В свету: {calculateClearAreas(plan).rooms[room.id]?.clearArea!=null?`${formatNumber(calculateClearAreas(plan).rooms[room.id].clearArea)} м²`:'требуется проверка контура'}. До чистовой отделки, без вычета лестничного проёма.</p>
         <SelectField
           label="Верх помещения"
           value={room.ceilingMode || "flat"}
@@ -4187,7 +4198,7 @@ function MobileSelectionAdjuster({
     const b = boundsOf(roomPoints(room));
     const area = polygonArea(roomPoints(room));
     title = room.name || "Комната";
-    subtitle = `${formatNumber(area)} м² · ${formatNumber(b.w)} × ${formatNumber(b.h)} м`;
+    subtitle = `${formatNumber(area)} м² по контуру · ${formatNumber(b.w)} × ${formatNumber(b.h)} м`;
     controls = (
       <>
         <RoomNameField value={room.name} onChange={(name) => update("rooms", (item) => { item.name = name; })} />
@@ -4208,7 +4219,7 @@ function MobileSelectionAdjuster({
     detail = (
       <div className="mobile-object-facts">
         <span>
-          Площадь <b>{formatNumber(area)} м²</b>
+          По контуру <b>{formatNumber(area)} м²</b>; в свету <b>{calculateClearAreas(plan).rooms[room.id]?.clearArea!=null?`${formatNumber(calculateClearAreas(plan).rooms[room.id].clearArea)} м²`:'проверить'}</b>
         </span>
         <span>
           X / Y{" "}
@@ -4829,6 +4840,7 @@ export default function PlanScreen({ onNavigate }) {
           floorPlan.wallThickness = thickness / 1000;
         });
         next.settings.sip.wallThickness = String(thickness);
+        synchronizeWallThickness(next,'wallThickness');
         return next;
       }),
     [commit],
@@ -4842,11 +4854,13 @@ export default function PlanScreen({ onNavigate }) {
         if (target) target.partitionThickness = thickness / 1000;
         if ([124, 174, 224].includes(thickness)) {
           next.settings.sip.partitionThickness = String(thickness);
+          next.settings.sip.partitionType = "sip";
         }
         if ([100, 150].includes(thickness)) {
           next.settings.sip.partitionType = "frame";
           next.settings.sip.partitionFrameSection = thickness === 150 ? "50x150" : "50x100";
         }
+        synchronizeWallThickness(next,'partitionType');
         return next;
       }),
     [activeFloor, commit],
@@ -5908,6 +5922,8 @@ export default function PlanScreen({ onNavigate }) {
             options={PARTITION_THICKNESS_OPTIONS}
             onChange={changePartitionThickness}
           />
+          <p className="inspector-note" style={{gridColumn:'1 / -1'}}>Толщины без чистовой отделки. Для каркаса — ширина стойки, для SIP — готовая панель. Новый выбор применяется ко всем этажам и смете; координаты комнат сохраняются.</p>
+          {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):project.settings.sip.partitionFrameSection==='50x150'?150:100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции в разделе SIP. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
           {activeFloor === 2 ? (
             <SelectField
               label="Пол 2 этажа"

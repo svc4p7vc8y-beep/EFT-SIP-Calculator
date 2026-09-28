@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v159-sauna-finishes-1';
+const CACHE_NAME = 'eft-calculator-react-v160-plan-thickness-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

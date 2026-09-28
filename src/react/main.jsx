@@ -4,6 +4,7 @@ import { App } from "./app/App.jsx";
 import { ProjectProvider } from "./state/ProjectContext.jsx";
 import { TeamProvider } from "./cloud/TeamContext.jsx";
 import "./styles/app.css";
+import "./styles/black-ink.css";
 
 // A tab left open during deployment can request a chunk from the previous build.
 // Reload once to obtain the current HTML and asset names; repeated failures are

@@ -1,3 +1,4 @@
+import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import {
   createEmptyPlan,
   createProjectWithCurrentPrices,
@@ -117,12 +118,13 @@ export function createProjectFromClientBrief(currentProject, raw) {
   const floorThickness = thickness(brief.sip?.floorThickness);
   const ceilingThickness = thickness(brief.sip?.ceilingThickness);
   const secondFloorThickness = thickness(brief.sip?.secondFloorThickness);
-  if (wallThickness) next.settings.sip.wallThickness = wallThickness;
+  if (wallThickness) {next.settings.sip.wallThickness = wallThickness;synchronizeWallThickness(next,'wallThickness');}
   if (floorThickness) next.settings.sip.floorThickness = floorThickness;
   if (ceilingThickness) next.settings.sip.ceilingThickness = ceilingThickness;
   if (secondFloorThickness) next.settings.sip.secondFloorThickness = secondFloorThickness;
   if (brief.sip?.partitionType === "Каркасные") next.settings.sip.partitionType = "frame";
   if (brief.sip?.partitionType === "SIP-панели") next.settings.sip.partitionType = "sip";
+  if (['Каркасные','SIP-панели'].includes(brief.sip?.partitionType)) synchronizeWallThickness(next,'partitionType');
   const panelFamily = {
     PPS: "pps",
     Минвата: "mineral-wool",

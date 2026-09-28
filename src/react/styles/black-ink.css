@@ -1,0 +1,19 @@
+/* Pure black ink in the default light UI; keep construction-layer colors.
+   Dark mode deliberately retains its contrasting light ink. */
+.app:not([data-theme="dark"]) { --ink:#000; --muted:#000; --text:#000; }
+.app:not([data-theme="dark"]) *,
+.app:not([data-theme="dark"]) *::before,
+.app:not([data-theme="dark"]) *::after { color:#000 !important; }
+.app:not([data-theme="dark"]) input::placeholder,
+.app:not([data-theme="dark"]) textarea::placeholder { color:#000 !important; opacity:1; }
+.app:not([data-theme="dark"]) svg.lucide { stroke:#000 !important; opacity:1 !important; }
+.app:not([data-theme="dark"]) svg text,
+.app:not([data-theme="dark"]) svg tspan { fill:#000 !important; fill-opacity:1 !important; }
+.app:not([data-theme="dark"]) button:disabled { opacity:1; background:#e5e5e5; border-style:dashed; }
+.app:not([data-theme="dark"]) .button.primary { background:#cde4bd; }
+.app:not([data-theme="dark"]) :is(.version-badge,.room-summary-list i) { background:#cde4bd; }
+.clear-area-note { font-size:12px; line-height:1.5; }
+@media print {
+  #root *, .print-only *, .production-print * { color:#000 !important; }
+  svg text, svg tspan { fill:#000 !important; }
+}

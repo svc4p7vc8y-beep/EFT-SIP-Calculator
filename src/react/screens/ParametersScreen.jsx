@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { CheckCircle2, CircleAlert, Home } from "lucide-react";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
@@ -221,6 +222,7 @@ export default function ParametersScreen() {
         });
         if ([124, 174, 224].includes(millimeters)) {
           next.settings.sip.partitionThickness = String(millimeters);
+          next.settings.sip.partitionType = "sip";
         }
         if ([100, 150].includes(millimeters)) {
           next.settings.sip.partitionType = "frame";
@@ -257,11 +259,7 @@ export default function ParametersScreen() {
         next.settings.roof.showLath = value;
         if (!value) next.settings.roof.showCounterLath = false;
       }
-      if (path === "settings.sip.partitionFrameSection") {
-        const thickness = value === "50x150" ? 0.15 : 0.1;
-        next.plan.partitionThickness = thickness;
-        (next.upperFloors || []).forEach((floorPlan) => { floorPlan.partitionThickness = thickness; });
-      }
+      if (path.startsWith('settings.sip.')) synchronizeWallThickness(next,keys.at(-1));
       if (path.startsWith("settings.roof.") && !path.includes(".show"))
         releasePlanLinkedQuantityOverrides(next);
       if (disableLink) next.settings.links[disableLink] = false;
