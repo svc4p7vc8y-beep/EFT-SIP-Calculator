@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v161-sauna-specification-1';
+const CACHE_NAME = 'eft-calculator-react-v162-room-labels-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

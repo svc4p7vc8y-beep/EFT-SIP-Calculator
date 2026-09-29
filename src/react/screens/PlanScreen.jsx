@@ -1855,7 +1855,6 @@ function PlanCanvas({
   const line = (item) => ({ a: p(item.x1, item.y1), b: p(item.x2, item.y2) });
   const textScale = Math.max(0.85, Math.min(3.2, layout.scale / 55));
   const roomNameSize = 30 * textScale;
-  const roomMetaSize = 23 * textScale;
   const technicalTextSize = 10.5 * textScale;
   const dimensionTextSize = 34.5 * textScale;
   const selectedRoom =
@@ -2102,9 +2101,10 @@ function PlanCanvas({
             );
             const labelWidth = Math.max(1, bounds.w * layout.scale - 18);
             const labelHeight = Math.max(1, bounds.h * layout.scale - 18);
-            const fittedNameSize = Math.min(roomNameSize, labelWidth / Math.max(1, String(room.name).length * 0.62), labelHeight / 5);
-            const fittedMetaSize = Math.min(roomMetaSize, labelWidth / 15, labelHeight / 5);
+            const dimensionsLabel = `${formatNumber(bounds.w)} × ${formatNumber(bounds.h)} м (${formatNumber(polygonArea(points),2)} м² контур)`;
+            const fittedNameSize = Math.min(roomNameSize, labelWidth / Math.max(1, String(room.name).length * 0.62, dimensionsLabel.length * .75 * .56), labelHeight / 5);
             const roomLabelNameSize = Number(room.labelFontSize) || fittedNameSize;
+            const fittedMetaSize = roomLabelNameSize * .75;
             const roomLabelHitWidth = Math.max(70, Math.min(labelWidth, String(room.name).length * roomLabelNameSize * .7));
             const roomLabelHitHeight = Math.max(54, fittedMetaSize * (room.ceilingMode === "open-rafter" ? 4.2 : 3.1));
             const selectedNow =
@@ -2130,10 +2130,9 @@ function PlanCanvas({
                 <g className={`room-label-object ${selected?.type === "roomLabel" && selected.id === room.id ? "selected" : ""}`} onPointerDown={(event) => objectDown(event, "roomLabel", room.id)}>
                   <rect className="room-label-hit" x={labelCenter.x - roomLabelHitWidth / 2} y={labelCenter.y - roomLabelHitHeight / 2} width={roomLabelHitWidth} height={roomLabelHitHeight} rx="7" />
                   <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 0.8}>{room.name}</text>
-                  <text className="room-dimensions" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 0.55}>{formatNumber(bounds.w)} × {formatNumber(bounds.h)} м</text>
-                  <text className="room-area" style={{ fontSize: fittedMetaSize*.75 }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 1.8}>{formatNumber(polygonArea(points))} м² контур</text>
-                  <text className="room-area" style={{ fontSize: fittedMetaSize*.75 }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 2.8}>{clearAreas.rooms[room.id]?.clearArea!=null?`${formatNumber(clearAreas.rooms[room.id].clearArea,2)} м² в свету`:'В свету: проверить контур'}</text>
-                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 4}>Второй свет</text> : null}
+                  <text className="room-dimensions room-area" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * .65}>{dimensionsLabel}</text>
+                  <text className="room-area" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 1.95}>{clearAreas.rooms[room.id]?.clearArea!=null?`${formatNumber(clearAreas.rooms[room.id].clearArea,2)} м² в свету`:'В свету: проверить контур'}</text>
+                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 3.25}>Второй свет</text> : null}
                 </g>
                 {selectedNow
                   ? screen.map((point, index) => (

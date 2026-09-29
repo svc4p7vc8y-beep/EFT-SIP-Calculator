@@ -2516,9 +2516,9 @@ select,
   text-anchor: middle;
 }
 .draft-room-dimensions .draft-room-summary {
-  fill: #fff;
-  stroke: #37661f;
-  stroke-width: 5;
+  fill: #000;
+  stroke: none;
+  stroke-width: 0;
   font-size: 12px;
 }
 .polygon-hover-edge {
@@ -5337,8 +5337,7 @@ select,
 .room-label-object { cursor: move; }
 .room-label-hit { fill: transparent; stroke: transparent; pointer-events: all; }
 .room-label-object:hover .room-label-hit, .room-label-object.selected .room-label-hit { fill: rgba(91, 145, 51, .08); stroke: #5b9133; stroke-width: 1.5px; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
-.room-label-object text { pointer-events: none; paint-order: stroke; stroke: rgba(255,255,255,.9); stroke-width: 3px; stroke-linejoin: round; }
-.room-label-object.selected text { stroke: #dff1d5; stroke-width: 5px; }
+.room-label-object text, .room-label-object.selected text { pointer-events: none; stroke: none; stroke-width: 0; }
 .planner-annotation { cursor: move; }
 .planner-annotation line { stroke: #305d28; stroke-width: 2px; vector-effect: non-scaling-stroke; }
 .planner-annotation text { fill: #20391c; font-weight: 750; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
