@@ -127,7 +127,7 @@ export function calculateInternal(project, metrics, inputs) {
     const original=room.settings;
     const s=original.sauna?.enabled?{...original,wallsFinish:'none',ceilingFinish:'none'}:original;
     if(s.enabled===false)continue;
-    lines.push(...saunaLines(room,reserve));
+    lines.push(...saunaLines(room,reserve,[...project.priceMat,...project.priceLab]));
     const floorArea=Math.max(0,s.floorArea==null?room.area:n(s.floorArea));
     const wallArea=Math.max(0,s.wallArea==null?room.wallArea:n(s.wallArea));
     const ceilingArea=Math.max(0,s.ceilingArea==null?room.ceilingArea:n(s.ceilingArea));

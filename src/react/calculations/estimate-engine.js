@@ -13,6 +13,7 @@ import { deriveLinkedInputs } from "./calculation-links.js";
 import { isInteriorDoor } from './opening-types.js';
 import { calculateExterior } from './exterior-model.js';
 import { calculateInternal } from './internal-model.js';
+import { saunaIncomplete } from './sauna-details.js';
 import { calculateEngineering } from './engineering-model.js';
 import {
   calculateSipConsumables,
@@ -2686,6 +2687,7 @@ function finishSections(project, index, inputs, metrics) {
         source: 'internal-room-assembly',
         name: item.name,
         projectPrice: item.projectPrice,
+        priceMultiplier: item.priceMultiplier,
       })))
     : project.services.internalFinish
     ? compact([
@@ -2888,6 +2890,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
     terrace,
     exterior,
     internal: finishes.internalCalculation,
+    saunaWarnings: project.services.internalFinish ? finishes.internalCalculation.rooms.flatMap(room=>saunaIncomplete(room,project.settings.internal.reserve)) : [],
     engineering: engineering.calculation,
     sections,
     lines,

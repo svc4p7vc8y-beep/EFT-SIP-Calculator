@@ -1,3 +1,4 @@
+import { SAUNA_EXTRA_ITEMS } from './sauna-options.js';
 // New supplier-priced assemblies; no invented market prices or installation norms.
 export const SAUNA_ITEMS = [
   ['lining', 'Обшивка парной', 'м2', 'material'],
@@ -15,6 +16,6 @@ export const SAUNA_ITEMS = [
   ['shield', 'Теплозащитный экран по паспорту печи', 'м2', 'material'],
   ['guard', 'Ограждение печи', 'шт', 'material'],
   ['installation', 'Монтаж комплектации парной по согласованному объёму', 'компл', 'labor'],
-].map(([key, name, unit, kind]) => ({key, id:`${kind==='labor'?'LAB':'MAT'}-SAUNA-${key.toUpperCase()}`, name, unit, kind, cat:'Внутренняя отделка', price:0, pricePending:true, priceNote:'Запросить цену поставщика/подрядчика. Состав и пригодность для парной подтвердить проектом.'}));
+].map(([key, name, unit, kind]) => ({key, id:`${kind==='labor'?'LAB':'MAT'}-SAUNA-${key.toUpperCase()}`, name, unit, kind, cat:'Внутренняя отделка', price:0, pricePending:true, priceNote:'Запросить цену поставщика/подрядчика. Состав и пригодность для парной подтвердить проектом.'})).concat(SAUNA_EXTRA_ITEMS);
 
 export const SAUNA_WOODS = [{value:'linden',label:'Липа'},{value:'aspen',label:'Осина'},{value:'alder',label:'Ольха'},{value:'abachi',label:'Абаш'},{value:'custom',label:'По спецификации проекта'}];
