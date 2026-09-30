@@ -2,6 +2,7 @@ import { formatMoney, formatNumber } from '../utils/format.js';
 import { EXTERIOR_TYPES } from './exterior-model.js';
 import { isInteriorDoor } from './opening-types.js';
 import { isEstimateAccessory, isEstimateCutting } from './client-estimate.js';
+import { constructionDescription, internalDescription } from './proposal-description.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
 const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
@@ -39,7 +40,7 @@ function sectionAmount(lines) {
   return lines.reduce((sum, line) => sum + (Number(line.qty) || 0) * (Number(line.price) || 0), 0);
 }
 
-function scopeDescription(key, project, calculation, lineCount) {
+function scopeDescription(key, project, calculation, lineCount, lines) {
   const { metrics, foundation, roof, terrace } = calculation;
   const platforms = (project.plan.platforms || []).filter((platform) => platform.include !== false);
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
@@ -67,8 +68,9 @@ function scopeDescription(key, project, calculation, lineCount) {
     ];
     return {
       summary: joinParts(surfaces),
+      blocks: constructionDescription(project, lines),
       details: joinParts([
-        `Панели ${project.settings.sip.floorPanelFamily || 'pps'}/${project.settings.sip.wallPanelFamily || 'pps'}/${project.settings.sip.ceilingPanelFamily || 'pps'}, раскладка пола ${Math.round(Number(project.settings.sip.floorPanelWidth || 1.25) * 1000)} мм и потолка ${Math.round(Number(project.settings.sip.ceilingPanelWidth || 1.25) * 1000)} мм, соединения (${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}), резка, торцевые доски, крепёж и монтаж`,
+        `Типы конструкций и толщины указаны ниже по параметрам сметы. Соединения панелей: ${CONNECTOR_TYPES[project.settings.sip.connectorType] || 'термобрус'}. Чистовая отделка описана отдельно`,
         floorCount > 1 && metrics.secondFloorOpeningArea > 0 && `лестничный проём ${formatNumber(metrics.secondFloorOpeningWidth)} × ${formatNumber(metrics.secondFloorOpeningLength)} м расположен на планах обоих этажей и вычтен из межэтажного перекрытия`,
       ])
     };
@@ -124,8 +126,9 @@ function scopeDescription(key, project, calculation, lineCount) {
     const detailed=calculation.internal?.mode==='rooms';
     return {
       summary: detailed
-        ? `полы ${formatNumber(calculation.internal.totals.floorArea)} м², стены ${formatNumber(calculation.internal.totals.wallArea)} м², потолки ${formatNumber(calculation.internal.totals.ceilingArea)} м²`
+        ? 'Отделка по помещениям: покрытия пола, облицовка стен и потолков, основания и дополнительные элементы'
         : `внутренняя отделка ${formatNumber(calculation.inputs.internal.wallArea)} м² стен`,
+      blocks: internalDescription(calculation, lines),
       details: joinParts([detailed?'Отделка назначена отдельно по помещениям и этажам':'Выбранные отделочные материалы и монтажные работы',calculation.inputs.internal.doors>0&&`межкомнатные двери с монтажом: ${calculation.inputs.internal.doors} шт`])
     };
   }
@@ -158,10 +161,11 @@ function scopeDescription(key, project, calculation, lineCount) {
 
 export function buildCommercialScope(project, calculation, options = {}) {
   return calculation.sections.map(section => ({ ...section, lines: section.lines.filter(line =>
+    Number(line.qty) > 0 &&
     (options.includeLabor !== false || line.kind !== 'labor' || isEstimateCutting(line)) &&
     (options.includeAccessories !== false || !isEstimateAccessory(line))
   ) })).filter((section) => section.lines.length).map((section) => {
-    const description = scopeDescription(section.key, project, calculation, section.lines.length);
+    const description = scopeDescription(section.key, project, calculation, section.lines.length, section.lines);
     const estimateGroups = section.key === 'sip' ? [...new Set(section.lines.map((line) => line.estimateGroup).filter(Boolean))] : [];
     const groups = [...new Set(section.lines.map(line => line.estimateGroup).filter(Boolean))];
     const materials = section.lines.filter(line => line.kind !== 'labor');
@@ -175,7 +179,7 @@ export function buildCommercialScope(project, calculation, options = {}) {
       title: section.title,
       ...description,
       details: exclusions ? `Комплектация по выбранным параметрам проекта. ${exclusions}` : description.details,
-      expanded: `${groups.length ? `Учтённые части раздела: ${groups.join('; ')}. ` : ''}${breakdown}`,
+      expanded: `${groups.length && !description.blocks ? `Учтённые части раздела: ${groups.join('; ')}. ` : ''}${breakdown}`,
       coverage: [...sectionCoverage(section.lines), ...estimateGroups],
       total: formatMoney(sectionAmount(section.lines))
     };

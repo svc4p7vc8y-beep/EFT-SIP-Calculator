@@ -44,7 +44,6 @@ export function createEstimateWorkbook(project, calculation) {
     section.title, line.estimateGroup || '', line.name, line.kind === 'labor' ? 'Работа' : 'Материал', line.unit, line.qty, line.price, line.qty * line.price
   ])));
   estimateRows.push([], ['ИТОГО МАТЕРИАЛЫ', clientEstimate.totals.materials], ['ИТОГО РАБОТЫ', clientEstimate.totals.labor], ['ИТОГО ПО СМЕТЕ', clientEstimate.totals.total]);
-  for(const warning of calculation.saunaWarnings||[])estimateRows.push(['Комплектация парной предварительная',warning]);
   const catalogRows = (items) => [['Код', 'Категория', 'Наименование', 'Ед.', 'Цена, ₽'], ...items.map((item) => [item.id, item.cat, item.name, item.unit, item.price])];
   const files = {
     '[Content_Types].xml': strToU8('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'),
