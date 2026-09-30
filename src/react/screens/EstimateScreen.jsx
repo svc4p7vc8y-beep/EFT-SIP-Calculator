@@ -8,6 +8,7 @@ import { buildClientEstimate, isEstimateCutting, unpricedClientLines } from '../
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
 import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../components/ui.jsx';
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
+import { ProposalOverview } from '../components/ProposalOverview.jsx';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { addEstimateLine, changeEstimateLine, removeEstimateLine, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
 import { MAX_ESTIMATE_IMAGES, MAX_ESTIMATE_IMAGE_DATA, prepareEstimateImage } from '../state/estimate-images.js';
@@ -130,8 +131,9 @@ export default function EstimateScreen() {
         </dl>
       </div>
       <div className="estimate-totals"><Stat label="Материалы" value={formatMoney(clientEstimate.totals.materials)} /><Stat label="Работы" value={formatMoney(clientEstimate.totals.labor)} /><Stat label="Итого по предложению" value={formatMoney(clientEstimate.totals.total)} tone="accent" /></div>
+      <ProposalOverview scope={commercialScope} options={printOptions} />
       <PrintProjectDiagrams project={project} calculation={calculation} />
-      <section className="estimate-images" aria-label="Изображения проекта в смете">
+      <section className={`estimate-images${estimateImages.length ? '' : ' no-print'}`} aria-label="Изображения проекта в смете">
         <header className="no-print"><div><h2>Свои изображения в смете</h2><p>Планы, эскизы и фотографии сохраняются вместе с проектом и печатаются в PDF.</p></div><button type="button" className="button secondary" disabled={uploadingImages || estimateImages.length >= MAX_ESTIMATE_IMAGES} onClick={() => fileInput.current?.click()}><ImagePlus />{uploadingImages ? 'Обработка…' : 'Добавить изображения'}</button><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addImages} /></header>
         {imageError ? <p className="estimate-image-error no-print" role="alert">{imageError}</p> : null}
         {estimateImages.length ? <div className="estimate-images-grid">{estimateImages.map((image, index) => <figure key={image.id}><img src={image.data} alt={image.caption || `Изображение проекта ${index + 1}`} /><figcaption><span className="print-only">{image.caption || `Изображение ${index + 1}`}</span><input className="no-print" aria-label={`Подпись изображения ${index + 1}`} value={image.caption} maxLength={160} placeholder="Подпись к изображению" onChange={(event) => updateImage(image.id, { caption: event.target.value })} /></figcaption><div className="estimate-image-actions no-print"><button type="button" aria-label={`Переместить изображение ${index + 1} влево`} disabled={index === 0} onClick={() => moveImage(index, -1)}><ArrowLeft /></button><button type="button" aria-label={`Переместить изображение ${index + 1} вправо`} disabled={index === estimateImages.length - 1} onClick={() => moveImage(index, 1)}><ArrowRight /></button><button type="button" aria-label={`Удалить изображение ${index + 1}`} onClick={() => removeImage(image.id)}><Trash2 /></button></div></figure>)}</div> : <p className="estimate-images-empty no-print">Пока без дополнительных изображений.</p>}

@@ -5348,7 +5348,7 @@ select,
 .print-plan-svg .print-annotation text { fill: #20391c; font-weight: 750; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
 
 @media print {
-  .print-diagrams .print-diagram-sheet { grid-column: 1 / -1; break-before: page; page-break-before: always; break-after: page; page-break-after: always; min-height: 245mm; display: flex; flex-direction: column; justify-content: center; }
+  .print-diagrams .print-diagram-sheet { grid-column: 1 / -1; break-before: page; page-break-before: always; min-height: 245mm; display: flex; flex-direction: column; justify-content: center; }
   .print-diagrams .print-diagram-sheet svg { max-height: 205mm; }
 }
 .node-view-switch, .node-3d-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
@@ -6601,6 +6601,32 @@ select,
   .commercial-scope-heading, .proposal-assemblies dt { break-after: avoid; }
 }
 .ventilation-labor-summary ul { padding-left: 20px; line-height: 1.8; }
+.proposal-overview { margin: 0 0 24px; padding: 18px; border: 1px solid #cad6d0; border-left: 4px solid #1e5140; border-radius: 8px; }
+.proposal-overview h2 { margin: 0 0 6px; font-size: 18px; }
+.proposal-overview > p { margin: 0 0 12px; font-size: 12px; }
+.proposal-overview dl { margin: 0; }
+.proposal-overview dl > div { display: grid; grid-template-columns: 155px minmax(0, 1fr); gap: 12px; padding: 7px 0; border-top: 1px solid #dce4df; break-inside: avoid; }
+.proposal-overview dt { font-weight: 700; }
+.proposal-overview dd { margin: 0; }
+.proposal-overview dt, .proposal-overview dd { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.proposal-overview footer { margin-top: 12px; font-size: 11px; line-height: 1.5; }
+@media (max-width: 600px) {
+  .proposal-overview dl > div { grid-template-columns: 1fr; gap: 3px; }
+}
+@media print {
+  .proposal-overview { padding: 3mm; margin-bottom: 5mm; }
+  .proposal-overview h2 { font-size: 12pt; break-after: avoid; }
+  .proposal-overview > p { margin-bottom: 2mm; font-size: 8pt; break-after: avoid; }
+  .proposal-overview dl > div { grid-template-columns: 36mm minmax(0, 1fr); gap: 3mm; padding: 1.5mm 0; }
+  .proposal-overview dt, .proposal-overview dd { font-size: 9pt; line-height: 1.35; }
+  .proposal-overview footer { font-size: 8pt; margin-top: 2mm; }
+  /* Fragment large descriptions normally; only individual assemblies stay together. */
+  .commercial-scope { break-inside: auto; }
+  .commercial-scope > header { break-after: avoid; }
+  .print-diagrams:has(.print-diagram-sheet) { display: block; }
+  .print-diagrams .print-diagram-sheet { margin: 0; }
+  .print-diagrams:has(.print-diagram-sheet) + .estimate-images + .commercial-scope { break-before: page; }
+}
 @media (max-width: 600px) {
   .super-compact .commercial-scope-heading { flex-direction: column; align-items: flex-start; gap: 8px; }
   .super-compact .commercial-scope-item { padding: 14px; }
