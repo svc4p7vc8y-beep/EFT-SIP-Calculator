@@ -19,7 +19,7 @@ import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 
-export const REACT_PROJECT_VERSION = 164;
+export const REACT_PROJECT_VERSION = 165;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -653,6 +653,7 @@ export function createDefaultProject() {
         showDimensions: true,
         compactAccessories: true,
         maximumCompact: false,
+        superCompact: false,
         includeLabor: true,
         includeAccessories: true,
       },
@@ -888,6 +889,14 @@ export function migrateProject(raw) {
   const savedMaterialIds = new Set(
     (Array.isArray(raw.priceMat) ? raw.priceMat : []).map((item) => item.id),
   );
+  // Upgrade the old standard rate only; keep individual saved price edits.
+  if (!Number.isFinite(savedVersion) || savedVersion < 165) {
+    const deck = normalizedPriceMat.find(item => item.id === 'MAT-028');
+    const board = normalizedPriceMat.find(item => item.id === 'MAT-006');
+    if (deck && (!savedMaterialIds.has(deck.id) || Number(deck.price) === 26400)) {
+      deck.price = Math.round(Number(board?.price || 340) / (.045 * .145) * 100) / 100;
+    }
+  }
   const legacyStructuralPrice = Number(
     (Array.isArray(raw.priceMat) ? raw.priceMat : []).find(
       (item) => item.id === "MAT-081",

@@ -853,6 +853,16 @@
   ],
   "priceMat": [
     {
+      "cat": "Монтаж окон и дверей",
+      "id": "MAT-OPENING-FOAM",
+      "kind": "material",
+      "name": "Монтажная пена для окон и дверей 750 мл",
+      "price": 600,
+      "unit": "баллон",
+      "priceEstimated": true,
+      "priceNote": "Сметный ориентир 600 ₽; Петрович, Tytan, от 598 ₽ (30.09.2026). https://moscow.petrovich.ru/catalog/1433/tytan/"
+    },
+    {
       "cat": "Фундамент",
       "id": "MAT-001",
       "kind": "material",
@@ -1153,7 +1163,7 @@
       "id": "MAT-028",
       "kind": "material",
       "name": "Доска террасная 45×145 мм",
-      "price": 26400,
+      "price": 52107.28,
       "unit": "м3"
     },
     {

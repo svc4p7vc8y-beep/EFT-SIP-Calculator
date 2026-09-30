@@ -1,7 +1,7 @@
 import { Cable, Droplets, Fan, Flame, Layers3, Waves } from 'lucide-react';
 import { DEFAULT_ENGINEERING, ELECTRIC_BOILER_POWERS, ENGINEERING_STAGES, GAS_BOILER_POWERS, HEATING_BOILERS, VENTILATION_SOLUTIONS } from '../calculations/engineering-model.js';
 import { NumberField, SelectField, Stat, Toggle } from './ui.jsx';
-import { formatMoney } from '../utils/format.js';
+import { formatMoney, formatNumber } from '../utils/format.js';
 
 const WATER_SOURCES = [
   { value: 'well', label: 'Колодец с погружным насосом' },
@@ -33,7 +33,9 @@ export function EngineeringEditor({ project, calculation, commit }) {
     return next;
   });
   const service = (key, value) => commit(next => { next.services[key] = value; return next; });
-  if (!detailed) return <div className="internal-upgrade engineering-upgrade"><Layers3/><div><strong>Сохранён прежний расчёт инженерии</strong><p>Он оставлен без изменений, чтобы старая смета не подорожала. Подробный режим добавит стадии, щит, колодец с насосом, канализацию и три схемы вентиляции.</p></div><button className="button primary" onClick={() => commit(next => { next.settings.engineering = { ...DEFAULT_ENGINEERING, ...next.settings.engineering, assemblyVersion: 1 }; return next; })}>Перейти на подробный расчёт</button></div>;
+  const ventilationLabor = lines.filter(line => line.kind === 'labor' && (line.estimateGroup?.startsWith('Вентиляция') || line.id === 'engineering:vent-work'));
+  const ventilationWork = project.services.engineeringVentilation ? <details className="ventilation-labor-summary"><summary>Монтаж вентиляции · {formatMoney(ventilationLabor.reduce((sum, line) => sum + line.qty * line.price, 0))}</summary><ul>{ventilationLabor.map(line => <li key={line.id}>{line.name}: {formatNumber(line.qty)} {line.unit} × {formatMoney(line.price)} = {formatMoney(line.qty * line.price)}</li>)}</ul><p>Количество и цену можно изменить в ведомости. Базовые ставки: воздуховоды 400 ₽/м, решётки 800 ₽/шт. <a href="https://frostsystems.ru/montazh-ventilyacii" target="_blank" rel="noreferrer">Рыночные ориентиры монтажа</a>; окончательная стоимость зависит от трасс и доступа.</p></details> : null;
+  if (!detailed) return <><div className="internal-upgrade engineering-upgrade"><Layers3/><div><strong>Прежняя комплектация инженерии</strong><p>Монтаж воздуховодов и решёток включён. Подробный режим добавит стадии, щит, колодец с насосом, канализацию и три схемы вентиляции.</p></div><button className="button primary" onClick={() => commit(next => { next.settings.engineering = { ...DEFAULT_ENGINEERING, ...next.settings.engineering, assemblyVersion: 1 }; return next; })}>Перейти на подробный расчёт</button></div>{ventilationWork}</>;
 
   return <div className="engineering-editor">
     <section className="engineering-overview">
@@ -83,6 +85,7 @@ export function EngineeringEditor({ project, calculation, commit }) {
         <p className="internal-source-note">Цена стяжки — предварительный ориентир Московской области на 16.09.2026: база 840 ₽/м² при 50 мм и площади 101–150 м², плюс 55 ₽/м² за каждые следующие 10 мм. Для небольших площадей действует минимальный заказ, а точная цена подтверждается замером.</p>
       </> : null}
     </section>
+    {ventilationWork}
     {calculation.engineering?.warnings?.length ? <aside className="engineering-warnings">{calculation.engineering.warnings.map(item => <p key={item}>{item}</p>)}</aside> : null}
     <p className="internal-source-note">Бюджетные цены помечены в прайс-листе как ориентировочные. Конкретные модели, трассы, расходы воздуха и защита подтверждаются проектом.</p>
   </div>;

@@ -40,7 +40,7 @@ export function createEstimateWorkbook(project, calculation) {
     ['Горизонтальный СИП-потолок, м²', calculation.metrics.ceilingArea], ['Второй свет, м²', calculation.metrics.openCeilingArea],
     [], ['Раздел', 'Группа', 'Номенклатура', 'Вид', 'Ед.', 'Количество', 'Цена, ₽', 'Сумма, ₽']
   ];
-  clientEstimate.sections.forEach((section) => section.lines.forEach((line) => estimateRows.push([
+  (project.settings.print?.maximumCompact ? [{title:'Сводная смета',lines:clientEstimate.compactLines}] : clientEstimate.sections).forEach((section) => section.lines.forEach((line) => estimateRows.push([
     section.title, line.estimateGroup || '', line.name, line.kind === 'labor' ? 'Работа' : 'Материал', line.unit, line.qty, line.price, line.qty * line.price
   ])));
   estimateRows.push([], ['ИТОГО МАТЕРИАЛЫ', clientEstimate.totals.materials], ['ИТОГО РАБОТЫ', clientEstimate.totals.labor], ['ИТОГО ПО СМЕТЕ', clientEstimate.totals.total]);
@@ -51,7 +51,7 @@ export function createEstimateWorkbook(project, calculation) {
     '_rels/.rels': strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
     'xl/workbook.xml': strToU8('<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Смета" sheetId="1" r:id="rId1"/><sheet name="Материалы" sheetId="2" r:id="rId2"/><sheet name="Работы" sheetId="3" r:id="rId3"/></sheets></workbook>'),
     'xl/_rels/workbook.xml.rels': strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/></Relationships>'),
-    'xl/worksheets/sheet1.xml': strToU8(worksheet(estimateRows, [24, 20, 46, 14, 12, 14, 16, 18])),
+    'xl/worksheets/sheet1.xml': strToU8(worksheet(estimateRows, [24, 20, 92, 14, 7, 9, 16, 18])),
     'xl/worksheets/sheet2.xml': strToU8(worksheet(catalogRows(project.priceMat), [14, 30, 62, 14, 16])),
     'xl/worksheets/sheet3.xml': strToU8(worksheet(catalogRows(project.priceLab), [14, 30, 62, 14, 16]))
   };

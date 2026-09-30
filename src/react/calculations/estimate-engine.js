@@ -2563,6 +2563,10 @@ function openingSection(project, index) {
             1,
             { key: `fastener-${openingIndex}`, unit: "компл" },
           ),
+          makeLine(index, 'openings', 'MAT-OPENING-FOAM', 1, {
+            catalogId: 'MAT-OPENING-FOAM', key: `foam-${openingIndex}`,
+            source: 'Сметный запас: 1 баллон на проём; количество уточняется по монтажному зазору и редактируется в ведомости',
+          }),
         );
     });
   return { lines: compact(lines) };
@@ -2668,8 +2672,11 @@ function engineeringSection(project, index, inputs, metrics) {
         "engineering",
         "Монтаж вентиляционной решётки",
         s.ventGrilles,
-        { key: "vent-work", kind: "labor", unit: "шт" },
+        { key: "vent-work", catalogId: 'LAB-106', kind: "labor", unit: "шт", estimateGroup: 'Вентиляция' },
       ),
+      makeLine(index, 'engineering', 'LAB-103', s.ventDuct, {
+        key: 'vent-duct-work', catalogId: 'LAB-103', kind: 'labor', estimateGroup: 'Вентиляция',
+      }),
     );
   }
   return { lines: compact(lines), calculation: { mode: 'legacy', settings: project.settings.engineering, warnings: [] } };
@@ -2735,6 +2742,10 @@ function finishSections(project, index, inputs, metrics) {
         }),
         makeLine(index, "internal", "Комплект крепежа для монтажа окна / двери", internal.doors, {
           key: "doors-fasteners", unit: "компл",
+        }),
+        makeLine(index, 'internal', 'MAT-OPENING-FOAM', Math.ceil(internal.doors), {
+          key: 'doors-foam', catalogId: 'MAT-OPENING-FOAM',
+          source: 'Сметный запас: 1 баллон на дверь; уточняется в ведомости',
         }),
       ])
     : [];

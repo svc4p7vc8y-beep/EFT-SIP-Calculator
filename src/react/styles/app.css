@@ -6551,3 +6551,54 @@ select,
     padding: 2.5mm;
   }
 }
+
+/* Estimate columns: reserve the space for the product specification. */
+.editable-estimate-table, .estimate-preview-table { table-layout: fixed; width: 100%; }
+.editable-estimate-table thead th:first-child { width: calc(100% - 485px); }
+.editable-estimate-table thead th:nth-child(2) { width: 100px; }
+.editable-estimate-table thead th:nth-child(3) { width: 50px; }
+.editable-estimate-table thead th:nth-child(4) { width: 70px; }
+.editable-estimate-table thead th:nth-child(5) { width: 100px; }
+.editable-estimate-table thead th:nth-child(6) { width: 110px; }
+.editable-estimate-table thead th:nth-child(7) { width: 55px; }
+.editable-estimate-table .estimate-cell-input { min-width: 0; }
+.editable-estimate-table .estimate-number-input.without-steppers { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.editable-estimate-table td, .editable-estimate-table th { padding-left: 5px; padding-right: 5px; }
+.estimate-preview-table { min-width: 820px; }
+.estimate-preview-table thead th:first-child { width: 52%; }
+.estimate-preview-table thead th:nth-child(2) { width: 10%; }
+.estimate-preview-table thead th:nth-child(3) { width: 5%; }
+.estimate-preview-table thead th:nth-child(4) { width: 7%; }
+.estimate-preview-table thead th:nth-child(5) { width: 12%; }
+.estimate-preview-table thead th:nth-child(6) { width: 14%; }
+.estimate-preview-table td { overflow-wrap: anywhere; white-space: normal; }
+.super-compact-option { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid #8ea79b; border-radius: 12px; background: #f3f8f5; color: #000; }
+.super-compact-option input { width: 20px; height: 20px; flex: 0 0 auto; }
+.super-compact-option span { display: grid; gap: 5px; }
+.super-compact .print-sheet { border-top: 5px solid #1e5140; }
+.super-compact .print-title { padding-bottom: 22px; border-bottom: 1px solid #a6b6ae; }
+.super-compact .commercial-scope-grid { grid-template-columns: 1fr; gap: 16px; }
+.super-compact .commercial-scope-item { border: 1px solid #cad6d0; border-left: 4px solid #1e5140; padding: 20px; background: #fff; break-inside: avoid; }
+.super-compact .commercial-scope-item small { font-size: 13px; line-height: 1.6; }
+.super-compact .commercial-scope-heading h3, .super-compact .commercial-scope-heading strong { font-size: 16px; line-height: 1.35; }
+.super-compact .commercial-scope-item > p { font-size: 14px; line-height: 1.6; }
+.super-compact .commercial-scope-tags span { font-size: 11px; }
+.super-compact .scope-expanded { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e0e6e2; font-size: 13px; line-height: 1.6; }
+.super-compact .estimate-footer { border-top: 2px solid #1e5140; }
+.super-compact .estimate-totals .stat.accent { background: #e8f0e9; color: #000; border: 1px solid #93aa99; }
+.ventilation-labor-summary { margin: 16px 0; padding: 16px; border: 1px solid #cad6d0; border-radius: 10px; }
+.ventilation-labor-summary summary { cursor: pointer; font-weight: 700; }
+.estimate-source-ledger > summary { cursor: pointer; font-weight: 700; padding: 16px 0; }
+.ventilation-labor-summary ul { padding-left: 20px; line-height: 1.8; }
+@media (max-width: 600px) {
+  .super-compact .commercial-scope-heading { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .super-compact .commercial-scope-item { padding: 14px; }
+}
+@media print {
+  .estimate-preview-table { min-width: 0; }
+  .estimate-preview-table th, .estimate-preview-table td { padding: 1.5mm 1mm; }
+  .super-compact .commercial-scope-item { padding: 4mm; }
+  .super-compact .commercial-scope-item small, .super-compact .scope-expanded { font-size: 9pt; line-height: 1.45; }
+  .super-compact .commercial-scope-heading h3, .super-compact .commercial-scope-heading strong { font-size: 11pt; }
+  .super-compact .commercial-scope-item p { font-size: 10pt; }
+}

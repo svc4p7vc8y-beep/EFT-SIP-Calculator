@@ -55,6 +55,23 @@ const ROOF_TRIM_NAME =
 const sumAmount = (lines) =>
   lines.reduce((sum, line) => sum + Number(line.qty || 0) * Number(line.price || 0), 0);
 
+// Same product, specification, unit and rate only. Room/floor groups do not
+// prevent consolidation; the original IDs remain available for traceability.
+export function mergeIdenticalEstimateLines(lines) {
+  const merged = new Map();
+  for (const line of lines) {
+    const key = JSON.stringify([line.catalogId || '', line.name, line.kind, line.unit, Number(line.price)]);
+    const previous = merged.get(key);
+    if (!previous) merged.set(key, { ...line, includedLineIds: [...(line.includedLineIds || [line.id])] });
+    else {
+      previous.qty += Number(line.qty) || 0;
+      previous.includedLineIds.push(...(line.includedLineIds || [line.id]));
+      if (previous.estimateGroup !== line.estimateGroup) previous.estimateGroup = '';
+    }
+  }
+  return [...merged.values()];
+}
+
 function aggregateLines(lines, { id, name, unit = "компл.", kind = "material", quantity }) {
   if (!lines.length) return null;
   const amount = sumAmount(lines);
@@ -84,7 +101,8 @@ function compactRoof(lines, section) {
     ),
     trim: lines.filter(
       (line) =>
-        line.kind === "material" && ROOF_TRIM_NAME.test(String(line.name || "")),
+        line.kind === "material" && ROOF_TRIM_NAME.test(String(line.name || "")) &&
+        !(line.unit === 'м³' && ROOF_LUMBER_NAME.test(String(line.name || ''))),
     ),
   };
   const reserved = new Set(
@@ -128,6 +146,8 @@ function compactRoof(lines, section) {
 const INTERNAL_PRIMARY_IDS = new Set(['MAT-105','MAT-106','MAT-108','MAT-110','MAT-111','MAT-206','MAT-207','MAT-208','MAT-209','MAT-210','MAT-180']);
 function internalSurface(line) {
   const group=String(line.estimateGroup||'');
+  if(/парн|саун/iu.test(group))return 'Парная / сауна';
+  if(/трап/iu.test(group))return 'Трапы помещений';
   if(/потолок/iu.test(group))return 'Потолки';
   if(/стен/iu.test(group))return 'Стены';
   if(/двер/iu.test(group))return 'Двери';
@@ -138,7 +158,7 @@ function compactInternal(lines,section) {
   lines.forEach(line=>{
     if(line.kind==='material'&&INTERNAL_PRIMARY_IDS.has(line.catalogId)) {
       const key=`${line.catalogId}:${line.price}:${line.unit}`;
-      const current=primary.get(key)||{...line,id:`client-compact:${section.key}:${line.catalogId}`,qty:0,includedLineIds:[]};
+      const current=primary.get(key)||{...line,id:`client-compact:${section.key}:${key}`,qty:0,includedLineIds:[]};
       current.qty+=Number(line.qty)||0;current.includedLineIds.push(line.id);current.estimateGroup=internalSurface(line);primary.set(key,current);return;
     }
     const surface=internalSurface(line),kind=line.kind==='labor'?'labor':'material',key=`${surface}:${kind}`;
@@ -200,7 +220,8 @@ export function buildClientEstimate(calculation, options = {}) {
     });
     lines.push(...kits.values());
     return { ...section, lines };
-  }).filter((section) => section.lines.length);
+  }).filter((section) => section.lines.length)
+    .map(section => maximumCompact ? { ...section, lines: mergeIdenticalEstimateLines(section.lines) } : section);
 
   const totals = sections.reduce(
     (sum, section) => {
@@ -214,5 +235,5 @@ export function buildClientEstimate(calculation, options = {}) {
     { materials: 0, labor: 0 },
   );
   totals.total = totals.materials + totals.labor;
-  return { sections, totals };
+  return { sections, totals, compactLines: maximumCompact ? mergeIdenticalEstimateLines(sections.flatMap(section => section.lines)) : [] };
 }

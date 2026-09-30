@@ -461,7 +461,7 @@ test('print plan and roof layers default independently and survive migration', (
   assert.deepEqual(project.settings.print, {
     includePlan: true, separatePlanSheets: true, includeRoof: false, separatePileSheet: false, separateRoofSheet: true, showContour: true, showRooms: true,
     showOpenings: true, showPlatforms: true, showPiles: true, showBinding: true, showDimensions: true,
-    compactAccessories: true, maximumCompact: false, includeLabor: true, includeAccessories: true
+    compactAccessories: true, maximumCompact: false, superCompact: false, includeLabor: true, includeAccessories: true
   });
   project.settings.print.showPiles = false;
   project.settings.print.showDimensions = false;

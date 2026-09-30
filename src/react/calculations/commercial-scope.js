@@ -1,6 +1,7 @@
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { EXTERIOR_TYPES } from './exterior-model.js';
 import { isInteriorDoor } from './opening-types.js';
+import { isEstimateAccessory, isEstimateCutting } from './client-estimate.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
 const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
@@ -155,14 +156,26 @@ function scopeDescription(key, project, calculation, lineCount) {
   return { summary: `${lineCount} поз.`, details: 'Позиции, включённые в текущую смету проекта' };
 }
 
-export function buildCommercialScope(project, calculation) {
-  return calculation.sections.filter((section) => section.lines.length).map((section) => {
+export function buildCommercialScope(project, calculation, options = {}) {
+  return calculation.sections.map(section => ({ ...section, lines: section.lines.filter(line =>
+    (options.includeLabor !== false || line.kind !== 'labor' || isEstimateCutting(line)) &&
+    (options.includeAccessories !== false || !isEstimateAccessory(line))
+  ) })).filter((section) => section.lines.length).map((section) => {
     const description = scopeDescription(section.key, project, calculation, section.lines.length);
     const estimateGroups = section.key === 'sip' ? [...new Set(section.lines.map((line) => line.estimateGroup).filter(Boolean))] : [];
+    const groups = [...new Set(section.lines.map(line => line.estimateGroup).filter(Boolean))];
+    const materials = section.lines.filter(line => line.kind !== 'labor');
+    const labor = section.lines.filter(line => line.kind === 'labor');
+    const breakdown = [materials.length && `Материалы и оборудование: ${formatMoney(sectionAmount(materials))}.`,
+      labor.length && `Работы: ${formatMoney(sectionAmount(labor))}.`].filter(Boolean).join(' ');
+    const exclusions = [options.includeLabor === false && 'Монтажные работы исключены; технологический раскрой сохраняется, если он рассчитан.',
+      options.includeAccessories === false && 'Крепёж и сопутствующие расходные материалы исключены.'].filter(Boolean).join(' ');
     return {
       key: section.key,
       title: section.title,
       ...description,
+      details: exclusions ? `Комплектация по выбранным параметрам проекта. ${exclusions}` : description.details,
+      expanded: `${groups.length ? `Учтённые части раздела: ${groups.join('; ')}. ` : ''}${breakdown}`,
       coverage: [...sectionCoverage(section.lines), ...estimateGroups],
       total: formatMoney(sectionAmount(section.lines))
     };

@@ -168,7 +168,7 @@ export const PreviewTable = memo(function PreviewTable({ lines, empty = 'Нет 
   const total = lines.reduce((sum, line) => sum + line.qty * line.price, 0);
   return (
     <div className="table-wrap">
-      <table className="data-table">
+      <table className="data-table estimate-preview-table">
         <thead><tr><th>Номенклатура</th><th>Вид</th><th>Ед.</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr></thead>
         <tbody>
           {lines.map((line) => <tr key={line.id}><td>{line.name}</td><td><span className={`kind ${line.kind}`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td><td>{line.unit}</td><td>{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</td><td>{formatMoney(line.price)}</td><td>{formatMoney(line.qty * line.price)}</td></tr>)}
@@ -184,13 +184,14 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
   const changed = hiddenCount > 0 || (lines || []).some((line) => line.custom || line.projectOverride);
   const priceUnlocked = isPriceEditorUnlocked();
   return <div className="estimate-editor">
+    {(lines || []).some(line => line.catalogId === 'MAT-OPENING-FOAM') ? <p className="internal-source-note no-print">Монтажная пена: предварительный сметный запас — 1 баллон 750 мл на окно или дверь. Фактический расход зависит от зазоров; количество можно изменить в ведомости.</p> : null}
     <div className="estimate-editor-toolbar no-print">
       <div><strong>Ведомость текущего проекта</strong><span>Правки не изменяют общий прайс-лист · цены {priceUnlocked ? 'разблокированы' : 'защищены паролем'}</span></div>
       <div><button className="button secondary compact-button" onClick={onAddLine}><Plus />Добавить позицию</button>{changed ? <button className="button secondary compact-button" onClick={onResetSection}><RotateCcw />Сбросить правки{hiddenCount ? ` · скрыто ${hiddenCount}` : ''}</button> : null}</div>
     </div>
     {!lines?.length ? <div className="empty-state">{empty}</div> : <div className="table-wrap">
       <table className="data-table editable-estimate-table resizable-table">
-        <thead><tr><ResizableHeader minWidth={180}>Номенклатура</ResizableHeader><ResizableHeader>Вид</ResizableHeader><ResizableHeader>Ед.</ResizableHeader><ResizableHeader>Кол-во</ResizableHeader><ResizableHeader>Цена</ResizableHeader><ResizableHeader>Сумма</ResizableHeader><th className="no-print">Действия</th></tr></thead>
+        <thead><tr><ResizableHeader minWidth={360}>Номенклатура</ResizableHeader><ResizableHeader>Вид</ResizableHeader><ResizableHeader minWidth={40}>Ед.</ResizableHeader><ResizableHeader minWidth={60}>Кол-во</ResizableHeader><ResizableHeader>Цена</ResizableHeader><ResizableHeader>Сумма</ResizableHeader><th className="no-print">Действия</th></tr></thead>
         <tbody>{lines.flatMap((line, index) => {
           const group = line.estimateGroup || 'Дополнительные позиции';
           const previousGroup = index ? (lines[index - 1].estimateGroup || 'Дополнительные позиции') : null;
