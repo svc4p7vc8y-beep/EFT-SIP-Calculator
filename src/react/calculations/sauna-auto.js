@@ -42,7 +42,7 @@ export function resolveSauna(room) {
     quantities:{tape:area*1.5,fasteners:1,frameFasteners:1,staples:1,
       plinth:perimeter,cornice:perimeter,corner:height*4,casing:5,
       lamp:1,wire:perimeter+height*2,drain:1,vent:1,stones:100,shield:4,guard:1,...raw.quantities},
-    chimneyDimensions:raw.chimneyMode==='parts'?raw.chimneyDimensions:dims};
+    chimneyDimensions:raw.chimneyMode==='parts'?raw.chimneyDimensions:{...dims,...raw.chimneyOverrides}};
 }
 
 export function enableAutoSauna(s={}) {

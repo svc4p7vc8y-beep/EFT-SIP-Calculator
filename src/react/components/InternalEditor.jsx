@@ -4,6 +4,7 @@ import { DEFAULT_INTERNAL, inferInternalPreset, internalRoomKey } from '../calcu
 import { NumberField, SelectField, Stat, Toggle } from './ui.jsx';
 import { formatNumber } from '../utils/format.js';
 import { SaunaEditor } from './SaunaEditor.jsx';
+import { RoomDrainEditor } from './RoomDrainEditor.jsx';
 
 const FLOOR=[{value:'none',label:'Без чистового пола'},{value:'laminate',label:'Ламинат'},{value:'tile',label:'Плитка / керамогранит'}];
 const SUBSTRATE=[{value:'none',label:'Без дополнительного основания'},{value:'osb12',label:'OSB-3 12 мм'},{value:'gvl12',label:'ГВЛВ 12,5 мм · 1 слой (проектное решение)'},{value:'gvl20',label:'Элемент пола ГВЛВ 20 мм'},{value:'gvl-double',label:'ГВЛВ 12,5 мм · 2 слоя'}];
@@ -52,6 +53,7 @@ export function InternalEditor({project,calculation,commit}) {
           </>:null}
           <p><a href="https://www.knauf.ru/catalog/listovye-i-plitnye-materialy/gipsokarton-gkl/gipsokartonnyy-knauf-list-vlagostoykiy/" target="_blank" rel="noreferrer">КНАУФ: условия применения ГКЛВ</a>. Дополнение использует действующие нормы плиточного пола: грунтовка 0,15 л/м² (10 л), затирка 0,3 кг/м² (2 кг), герметик 1 шт/10 м; округление вверх. Ленты и примыкания задайте вручную, не повторяя уже учтённые на полу. Манжеты вводов и специальные узлы — по спецификации. Старые сметы не дополняются автоматически.</p>
         </section>:null}
+        {!values.sauna?.enabled?<RoomDrainEditor room={room} values={values} updateRoom={updateRoom} project={project}/>:null}
         <SaunaEditor room={room} values={values} updateRoom={updateRoom} project={project}/>
       </section>:<div className="empty-state">На плане нет площади для внутренней отделки</div>}
     </div>

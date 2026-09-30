@@ -1,11 +1,13 @@
 import { NumberField, SelectField, Toggle } from './ui.jsx';
 import { chimneySchedule, liningOptions, positive } from '../calculations/sauna-details.js';
 import { SAUNA_SOURCES } from '../data/sauna-options.js';
+import { LINING_OFFERS } from '../data/sauna-options.js';
+import { automaticLining } from '../calculations/sauna-auto.js';
 
 export function SaunaDetailsEditor({s,update,room,values,project}) {
   const stock=s.liningStock||{}, c=s.chimneyDimensions||{};
   const stockUpdate=patch=>update({liningStock:{...stock,...patch}});
-  const chimneyUpdate=patch=>update({chimneyDimensions:{...c,...patch}});
+  const chimneyUpdate=patch=>s.chimneyMode==='auto'?update({chimneyOverrides:{...s.chimneyOverrides,...patch}}):update({chimneyDimensions:{...c,...patch}});
   const area=positive(values.wallArea??room.wallArea)+positive(values.ceilingArea??room.ceilingArea);
   const options=liningOptions(area,stock,Math.max(1,Number(project.settings.internal.reserve)||1.1));
   const schedule=chimneySchedule(c);
@@ -21,6 +23,15 @@ export function SaunaDetailsEditor({s,update,room,values,project}) {
       </div>
       <h4>Вагонка: длины и закупка</h4>
       <SelectField label="Способ расчёта вагонки" value={s.liningMode||'area'} options={[...(s.autoEstimate?[{value:'auto',label:'Автоматически · упаковки по площади'}]:[]),{value:'area',label:'Площадь · ручная цена за м²'},{value:'packs',label:'Липа 15×96 · упаковки по 10 досок'}]} onChange={liningMode=>update({liningMode})}/>
+      {s.liningMode==='auto'?<>
+        <p>Показаны действующие параметры, а не заглушки. Изменение одного поля не отключает пересчёт остальных по плану. Количество досок в упаковке: 10; запас проекта: {((Math.max(1,Number(project.settings.internal.reserve)||1.1)-1)*100).toFixed(0)}% (меняется в «Общие нормы и округление»).</p>
+        <div className="form-grid two">
+          <SelectField label="Сорт автоматической вагонки" value={stock.grade||'a'} options={[{value:'a',label:'А'},{value:'extra',label:'Экстра'}]} onChange={grade=>stockUpdate({grade})}/>
+          <NumberField label="Рабочая ширина автоматической вагонки" suffix="мм" value={stock.workingWidth??88} onChange={workingWidth=>stockUpdate({workingWidth})}/>
+          <SelectField label="Длина автоматической вагонки" value={stock.length||'auto'} options={[{value:'auto',label:`По высоте · сейчас ${automaticLining({...room,settings:values},s).length} м`},...LINING_OFFERS.map(o=>({value:String(o.length),label:`${o.length} м · вручную`}))]} onChange={length=>stockUpdate({length:length==='auto'?null:Number(length)})}/>
+        </div>
+        <button type="button" onClick={()=>update({liningStock:{...stock,workingWidth:88,length:null,grade:'a'}})}>Вернуть автоматические параметры вагонки</button>
+      </>:null}
       {s.liningMode==='packs'?<>
         <p>Введите рабочую ширину без шипа по поставщику: 96 мм — номинальная, не подтверждённая полезная ширина. Расчёт для одинаковых отрезков; для разных длин стен/потолка нужна отдельная карта раскроя. Проёмы учтены в заданной площади, не в карте резов.</p>
         <div className="form-grid two">
@@ -54,13 +65,14 @@ export function SaunaDetailsEditor({s,update,room,values,project}) {
       {s.heaterType==='wood'?<>
         <h4>Дымоход · предварительная комплектация</h4>
         <SelectField label="Расчёт дымохода" value={s.chimneyMode||'kit'} options={[...(s.autoEstimate?[{value:'auto',label:'Автоматически · бюджетная длина по дому'}]:[]),{value:'kit',label:'Готовый комплект · ручное количество'},{value:'parts',label:'Прямой вертикальный Ø115/200 · по деталям'}]} onChange={chimneyMode=>update({chimneyMode,...(chimneyMode==='parts'?{chimneyDimensions:{...c}}:{})})}/>
-        {s.chimneyMode==='parts'?<>
+        {['parts','auto'].includes(s.chimneyMode)?<>
+          {s.chimneyMode==='auto'?<p>Ниже показаны автоматически вычисленные отметки. Ручная правка фиксирует только изменённое поле; остальные продолжают следовать плану. {Object.keys(s.chimneyOverrides||{}).length?`Ручных полей: ${Object.keys(s.chimneyOverrides).length}.`:''} <button type="button" onClick={()=>update({chimneyOverrides:{}})}>Вернуть дымоход к автоматическому расчёту</button></p>:null}
           <p>Обычная труба → шибер → старт-сэндвич → сэндвич. Подбор серии Везувий BLACK — кандидат для проверки монтажником. Прежний комплект дымохода исключается, чтобы не было двойного счёта. Для бокового выхода, отводов и тройников используйте согласованный комплект.</p>
           <div className="form-grid two">{[
             ['ceilingHeight','От пола печи до потолка','м'],['roofRise','От потолка до кровли в точке выхода','м'],['aboveRoof','Возвышение трубы над кровлей по проекту','м'],['inletHeight','От пола до патрубка печи','м'],['singleEffective','Монтажная длина трубы L1 м','м'],['sandwichEffective','Монтажная длина сэндвича L0,5 м','м'],['fittingsEffective','Суммарная монтажная длина шибера и старта','м'],['passages','Количество проходов перекрытий','шт'],
           ].map(([key,label,unit])=><NumberField key={key} label={label} suffix={unit} step={unit==='шт'?1:.01} value={c[key]??0} onChange={value=>chimneyUpdate({[key]:value})}/>)}</div>
           <button type="button" onClick={()=>chimneyUpdate({ceilingHeight:(room.floor===1?project.plan:project.upperFloors?.[room.floor-2])?.wallHeight??0})}>Взять высоту потолка из плана</button>
-          <p>Все отметки отсчитываются от чистого пола помещения с печью. Кровлю в точке трубы и монтажные длины после стыковки нужно заполнить: габаритная длина модуля не равна монтажной. Высота конька проекта: {positive(project.settings.roof?.ridgeHeight).toFixed(2)} м над опорой, это не автоматически высота кровли в точке выхода.</p>
+          <p>Все отметки отсчитываются от чистого пола помещения с печью. Проверьте кровлю в точке трубы и монтажные длины после стыковки: габаритная длина модуля не равна монтажной. Высота конька проекта: {positive(project.settings.roof?.ridgeHeight).toFixed(2)} м над опорой, это не автоматически высота кровли в точке выхода.</p>
           {schedule.valid?<p className="assembly-info">От патрубка до устья требуется {schedule.length.toFixed(2)} м; набрано {schedule.purchased.toFixed(2)} м. Сэндвич-модулей: {schedule.quantities.chimneySandwich} шт.</p>:<p className="assembly-warning">Дымоход пока НЕ включён: не хватает корректных размеров.</p>}
           {schedule.warnings.map(w=><p className="assembly-warning" key={w}>{w}</p>)}
           {!positive(c.passages)?<p className="assembly-warning">Проходы перекрытий не учтены. Укажите их количество.</p>:null}

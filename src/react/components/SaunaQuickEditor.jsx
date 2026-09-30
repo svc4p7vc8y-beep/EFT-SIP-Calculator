@@ -1,9 +1,9 @@
-import { NumberField, SelectField } from './ui.jsx';
+import { SelectField } from './ui.jsx';
 import { SAUNA_ITEMS } from '../data/sauna-catalog.js';
 import { SAUNA_BUDGET_PRICES } from '../calculations/sauna-auto.js';
 import { chimneySchedule } from '../calculations/sauna-details.js';
 
-export function SaunaQuickEditor({s,raw,update,room,active,prices}) {
+export function SaunaQuickEditor({s,raw,update,room,active,prices,drainQuantity}) {
   const schedule=chimneySchedule(s.chimneyDimensions);
   const priced=active.map(line=>{const item=SAUNA_ITEMS.find(i=>i.id===line.catalogId);return {...line,item,price:line.projectPrice??prices.find(i=>i.id===line.catalogId)?.price??0};});
   const total=priced.reduce((sum,l)=>sum+l.qty*l.price*(l.priceMultiplier||1),0);
@@ -13,9 +13,8 @@ export function SaunaQuickEditor({s,raw,update,room,active,prices}) {
     <p>Площади и высота связаны с планом. Вагонка, каркас, фольга и прямой дымоход пересчитываются при изменении комнаты. Пол и подключение трапа сюда не входят.</p>
     <div className="form-grid two">
       <SelectField label="Печь в автоматической смете" value={s.heaterType} options={[{value:'wood',label:'Дровяная · Скиф 16 / своя модель'},{value:'electric',label:'Электрическая · без дымохода'},{value:'none',label:'Без печи и дымохода'}]} onChange={heaterType=>update({heaterType,...(heaterType==='electric'?{heaterModel:'Электропечь — выбрать модель',prices:{...raw.prices,heater:0}}:heaterType==='wood'?{heaterModel:'Везувий Скиф Ковка 16 Панорама М',prices:{...raw.prices,heater:42010}}:{})})}/>
-      <NumberField label="Трап парной" suffix="шт" step={1} value={s.quantities.drain} onChange={drain=>update({quantities:{...raw.quantities,drain}})}/>
     </div>
-    <p role="status">Выбрано: {s.heaterType==='none'?'без печи':s.heaterModel}. Трап: {s.quantities.drain} шт. {s.heaterType==='wood'&&schedule.valid?`Дымоход: ${schedule.length.toFixed(2)} м расчётно / ${schedule.purchased.toFixed(2)} м в закупке.`:''}</p>
+    <p role="status">Выбрано: {s.heaterType==='none'?'без печи':s.heaterModel}. Трап: {drainQuantity} шт. {s.heaterType==='wood'&&schedule.valid?`Дымоход: ${schedule.length.toFixed(2)} м расчётно / ${schedule.purchased.toFixed(2)} м в закупке.`:''}</p>
     <p>Вагонка: {lining?`${lining.qty.toLocaleString('ru-RU')} ${lining.item.unit} · ${(lining.qty*lining.price*(lining.priceMultiplier||1)).toLocaleString('ru-RU')} ₽ с наценкой`:'не учтена — проверьте площадь и ручные настройки'}.</p>
     {s.heaterType==='wood'&&['auto','parts'].includes(s.chimneyMode)&&!schedule.valid?<p className="assembly-warning">Дымоход не учтён: {schedule.warnings.join(' ')}</p>:null}
     <p className="assembly-warning">Бюджетная оценка, не монтажный проект. Печь, проходки, отступы и допустимость утепления SIP нужно согласовать. Трап не добавляет работы по полу или канализацию; если он уже учтён в инженерии, укажите здесь 0.</p>

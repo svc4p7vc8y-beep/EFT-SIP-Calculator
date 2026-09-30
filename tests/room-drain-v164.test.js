@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { roomDrainLines, resolveRoomDrain } from '../src/react/calculations/room-drain.js';
+import { saunaLines } from '../src/react/calculations/sauna-model.js';
+import { resolveSauna, enableAutoSauna, automaticLining } from '../src/react/calculations/sauna-auto.js';
+import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
+import { calculateProject } from '../src/react/calculations/estimate-engine.js';
+const room=()=>({floor:1,id:'a',name:'Санузел',wallArea:10,ceilingArea:6,area:6,perimeter:10,saunaGeometry:{height:2.5,ridgeHeight:1.8},settings:{}});
+const drain=lines=>lines.filter(l=>l.catalogId==='MAT-SAUNA-DRAIN');
+test('drain is opt-in for any room, quantity rounds up and zero prices are preserved',()=>{
+ const r=room();assert.deepEqual(roomDrainLines(r),[]);
+ r.settings.drain={quantity:1.2};const lines=roomDrainLines(r);
+ assert.equal(lines[0].qty,2);assert.equal(lines[0].projectPrice,6000);assert.equal(lines[0].priceMultiplier,1.25);
+ r.settings.drain.price=0;r.settings.drain.markup=0;
+ assert.equal(roomDrainLines(r)[0].projectPrice,0);assert.equal(roomDrainLines(r)[0].priceMultiplier,1);
+ r.settings.enabled=false;assert.deepEqual(roomDrainLines(r),[]);
+});
+test('sauna and generic drain settings share one line, old sauna quantity and price survive',()=>{
+ const r=room();r.settings.sauna=enableAutoSauna({quantities:{drain:2},prices:{drain:1234}});
+ assert.equal(resolveRoomDrain(r).quantity,2);assert.equal(resolveRoomDrain(r).price,1234);
+ assert.equal(drain([...roomDrainLines(r),...saunaLines(r)]).length,1);
+ r.settings.drain={quantity:3,price:1000,markup:10};
+ const lines=drain([...roomDrainLines(r),...saunaLines(r)]);
+ assert.equal(lines.length,1);assert.equal(lines[0].qty,3);assert.equal(lines[0].projectPrice,1000);assert.equal(lines[0].priceMultiplier,1.1);
+ r.settings.drain.quantity=0;assert.equal(drain(saunaLines(r)).length,0);
+ r.settings.sauna.enabled=false;r.settings.drain.quantity=1;
+ assert.equal(drain([...roomDrainLines(r),...saunaLines(r)]).length,1);
+});
+test('editing one auto chimney parameter does not freeze other plan-derived values',()=>{
+ const r=room();r.settings.sauna=enableAutoSauna();
+ const initial=resolveSauna(r).chimneyDimensions;
+ r.settings.sauna.chimneyOverrides={aboveRoof:2,inletHeight:.8};
+ r.saunaGeometry.height=3;
+ const edited=resolveSauna(r).chimneyDimensions;
+ assert.equal(edited.ceilingHeight,3);assert.equal(edited.aboveRoof,2);assert.equal(edited.inletHeight,.8);
+ r.settings.sauna.chimneyOverrides={};r.saunaGeometry.height=2.5;
+ assert.deepEqual(resolveSauna(r).chimneyDimensions,initial);
+ r.settings.sauna.liningStock={workingWidth:80,length:3,grade:'extra'};
+ const lining=automaticLining(r,resolveSauna(r));assert.equal(lining.length,3);assert.equal(lining.price,5040);assert.equal(lining.packs,8);
+});
+test('drains in bathroom and boiler room reach estimate and survive project migration',()=>{
+ const p=createDefaultProject();p.services.internalFinish=true;p.plan.house={w:6,h:2};
+ p.plan.rooms=[{id:'a',name:'Санузел',x:0,y:0,w:3,h:2},{id:'b',name:'Бойлерная',x:3,y:0,w:3,h:2}];p.plan.openings=[];
+ p.settings.internal.roomFinishes={'1:a':{drain:{quantity:1}},'1:b':{drain:{quantity:2,price:2000,markup:0}}};
+ const before=calculateProject(p),after=calculateProject(migrateProject(JSON.parse(JSON.stringify(p))));
+ assert.deepEqual(after.sections,before.sections);
+ const lines=drain(before.sections.find(s=>s.key==='internal').lines);
+ assert.equal(lines.length,2);assert.equal(lines[0].price,7500);assert.equal(lines[1].price,2000);
+ assert.equal(p.priceMat.find(l=>l.id==='MAT-SAUNA-DRAIN').price,0);
+});
