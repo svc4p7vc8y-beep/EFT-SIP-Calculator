@@ -33,7 +33,10 @@ PrintProjectDiagrams: кровля пристроек только при showRo
 печатные CSS-слои и Excel без этого предупреждения; диагностический список в
 расчёте сохранён (регрессионный тест). Playwright 1280/768/390: ошибок консоли и
 переполнения нет. Повторно проверены схемы, Undo/Redo и .eft.json.
-Изменения готовы к публикации по последнему поручению пользователя.
+Опубликовано 30.09.2026: commit 83ae005 в main. Beget 36775969615 и Pages
+36775969572 завершены success. На https://calc.eftsip.ru проверены HTTP 200,
+sw v166-proposal-diagrams-1 и EstimateScreen-D6ivjApM.js: предупреждение удалено,
+новые описания присутствуют. Авторизованный production-сеанс не проверялся.
 Новые файлы: proposal-description.js, print-diagram-layers.js,
 tests/proposal-v166.test.js — включить вместе с отслеживаемыми изменениями,
 посторонние untracked не включать.
