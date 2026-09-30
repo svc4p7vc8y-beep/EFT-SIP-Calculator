@@ -1,10 +1,11 @@
 import { SAUNA_ITEMS, SAUNA_WOODS } from '../data/sauna-catalog.js';
 import { CHIMNEY_KEYS, DETAILED_DEFAULT_PRICES, SAUNA_EXTRA_ITEMS } from '../data/sauna-options.js';
 import { chimneySchedule, liningOptions } from './sauna-details.js';
+import { resolveSauna, automaticLining, SAUNA_BUDGET_PRICES, SAUNA_OFFER_PRICES } from './sauna-auto.js';
 
 const positive = value => Number.isFinite(Number(value)) ? Math.max(0,Number(value)) : 0;
 export function saunaLines(room, reserve=1.1, catalog=[]) {
-  const s=room.settings.sauna;
+  const s=resolveSauna(room);
   if(!s?.enabled || room.settings.enabled===false) return [];
   const wall=positive(room.settings.wallArea??room.wallArea);
   const ceiling=positive(room.settings.ceilingArea??room.ceilingArea);
@@ -30,12 +31,16 @@ export function saunaLines(room, reserve=1.1, catalog=[]) {
       pack=liningOptions(area,s.liningStock,reserve).find(o=>o.length===Number(s.liningStock?.length));
       quantities.lining=0;quantities.liningPack=pack?.packs||0;
     }
+    if(s.liningMode==='auto'){
+      pack=automaticLining(room,s,reserve);
+      quantities.lining=0;quantities.liningPack=pack.packs;
+    }
     if(s.stockMaterials){
       for(const [key,stockKey,size] of [['foil','foilRoll',10],['tape','tapeRoll',30],['batten','battenStock',3],['counterBatten','counterStock',3]]){
         quantities[stockKey]=Math.ceil(positive(quantities[key])/size-1e-9);quantities[key]=0;
       }
     }
-    if(s.heaterType==='wood'&&s.chimneyMode==='parts'){
+    if(s.heaterType==='wood'&&['parts','auto'].includes(s.chimneyMode)){
       quantities.chimney=0;
       for(const key of CHIMNEY_KEYS)quantities[key]=0;
       Object.assign(quantities,chimneySchedule(s.chimneyDimensions).quantities);
@@ -50,7 +55,9 @@ export function saunaLines(room, reserve=1.1, catalog=[]) {
     if(['шт','компл','упак','усл','рул'].includes(item.unit))qty=Math.ceil(qty-1e-9);
     if(!qty)return [];
     const name=`${item.name}${item.key==='liningPack'?` · ${s.liningStock?.grade==='extra'?'Экстра':'А'} · ${pack.length} м`:['lining','bench','backrest'].includes(item.key)?` · ${wood}`:item.key==='heater'?` · ${s.heaterType==='wood'?'дровяная':'электрическая'} · ${String(s.heaterModel||'модель не указана').slice(0,160)}`:''}`;
-    const price=s.prices?.[item.key]??(detailed&&DETAILED_DEFAULT_PRICES[item.key]!=null?(catalog.find(row=>row.id===item.id)?.price??DETAILED_DEFAULT_PRICES[item.key]):undefined);
+    const catalogPrice=catalog.find(row=>row.id===item.id)?.price;
+    const autoPrice=s.autoEstimate?(item.key==='liningPack'?pack?.price:item.key==='heater'&&s.heaterType!=='wood'?0:SAUNA_OFFER_PRICES[item.key]??SAUNA_BUDGET_PRICES[item.key]):undefined;
+    const price=s.prices?.[item.key]??(s.autoEstimate?((catalogPrice>0?catalogPrice:undefined)??autoPrice??DETAILED_DEFAULT_PRICES[item.key]):(detailed&&DETAILED_DEFAULT_PRICES[item.key]!=null?(catalogPrice??DETAILED_DEFAULT_PRICES[item.key]):undefined));
     return [{catalogId:item.id,key:`${room.floor}-${room.id}-sauna-${item.key}`,qty,group:`${room.floor} этаж · ${room.name} · Парная`,description:name,name,
       priceMultiplier:detailed&&item.kind==='material'&&item.key!=='heaterDelivery'?1+positive(s.materialMarkup??25)/100:1,
       ...(price!=null?{projectPrice:positive(price)}:{})}];

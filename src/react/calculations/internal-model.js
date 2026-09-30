@@ -108,7 +108,7 @@ export function buildInternalRooms(project, metrics, settingsInput) {
       const floorOpening=floorCount>1?stairArea*(record.area/(floorArea||totalArea||1)):0;
       const usableArea=Math.max(0,record.area-floorOpening);
       const ceilingArea=record.ceilingMode==='open-rafter'?0:usableArea;
-      return {...record,area:round(usableArea,3),wallArea:round(finishWallArea,3),ceilingArea:round(ceilingArea,3),openingArea:round(openingShare,3),openingWidth:round(openingWidth,3),settings:resolveInternalRoom(settings,record)};
+      return {...record,saunaGeometry:{height:n(plan.wallHeight,2.5),upperHeight:plans.slice(floorIndex+1).reduce((sum,p)=>sum+n(p.wallHeight,2.5)+.224,0),ridgeHeight:n(project.settings.roof?.ridgeHeight),passages:plans.length-floorIndex},area:round(usableArea,3),wallArea:round(finishWallArea,3),ceilingArea:round(ceilingArea,3),openingArea:round(openingShare,3),openingWidth:round(openingWidth,3),settings:resolveInternalRoom(settings,record)};
     });
   });
 }

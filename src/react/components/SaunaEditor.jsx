@@ -1,23 +1,32 @@
 import { NumberField, SelectField, Toggle } from './ui.jsx';
+import { useState } from 'react';
+import { resolveSauna, enableAutoSauna } from '../calculations/sauna-auto.js';
+import { SaunaQuickEditor } from './SaunaQuickEditor.jsx';
 import { SAUNA_ITEMS, SAUNA_WOODS } from '../data/sauna-catalog.js';
 import { saunaLines } from '../calculations/sauna-model.js';
 import { SaunaDetailsEditor } from './SaunaDetailsEditor.jsx';
-import { CHIMNEY_KEYS, DETAILED_DEFAULT_PRICES, SAUNA_EXTRA_ITEMS } from '../data/sauna-options.js';
+import { CHIMNEY_KEYS, SAUNA_EXTRA_ITEMS } from '../data/sauna-options.js';
 
 export function SaunaEditor({room, values, updateRoom, project}) {
-  const s={heaterType:'none',wood:'linden',benchLength:0,benchWidth:0,benchTiers:1,...values.sauna};
-  const update=changes=>{if(Object.entries(changes).every(([key,value])=>JSON.stringify(s[key])===JSON.stringify(value)))return;updateRoom({sauna:{...s,...changes}});};
-  const quantity=(key,value)=>update({quantities:{...s.quantities,[key]:value}});
-  const active=saunaLines({...room,settings:{...values,sauna:s}},Math.max(1,Number(project.settings.internal.reserve)||1.1));
+  const raw=values.sauna||{};
+  const s={heaterType:'none',wood:'linden',benchLength:0,benchWidth:0,benchTiers:1,...resolveSauna({...room,settings:values})};
+  const [feedback,setFeedback]=useState('');
+  const update=changes=>{setFeedback('Настройки применены. Комплектация и сумма пересчитаны.');if(Object.entries(changes).every(([key,value])=>JSON.stringify(raw[key])===JSON.stringify(value)))return;updateRoom({sauna:{...raw,...changes}});};
+  const quantity=(key,value)=>update({quantities:{...raw.quantities,[key]:value}});
+  const active=saunaLines({...room,settings:values},Math.max(1,Number(project.settings.internal.reserve)||1.1),[...project.priceMat,...project.priceLab]);
   const prices=[...project.priceMat,...project.priceLab];
   const detailed=s.detailVersion===1;
   const automatic=new Set(['lining','foil','bench','heater','liningPack','liningWork','heaterWork','heaterDelivery','foilRoll','tapeRoll','battenStock','counterStock',...CHIMNEY_KEYS]);
-  if(detailed){automatic.add('installation');if(s.chimneyMode==='parts')automatic.add('chimney');if(s.frameMode==='area')for(const key of ['batten','counterBatten','insulation'])automatic.add(key);}
+  if(detailed){automatic.add('installation');if(['parts','auto'].includes(s.chimneyMode))automatic.add('chimney');if(s.frameMode==='area')for(const key of ['batten','counterBatten','insulation'])automatic.add(key);}
   const manual=SAUNA_ITEMS.filter(item=>!automatic.has(item.key)&&(detailed||!SAUNA_EXTRA_ITEMS.some(extra=>extra.key===item.key))&&!(item.key==='chimney'&&s.heaterType!=='wood')&&!(['stones','control','shield','guard'].includes(item.key)&&s.heaterType==='none'));
   return <section className="sauna-editor">
     <h3>Отделка парной / сауны</h3>
-    <Toggle label="Комплектация парной в этом помещении" checked={s.enabled===true} onChange={enabled=>update({enabled})}/>
+    <Toggle label="Комплектация парной в этом помещении" checked={s.enabled===true} onChange={enabled=>update(enabled&&Object.keys(raw).every(key=>key==='enabled')?enableAutoSauna():{enabled})}/>
     {s.enabled?<>
+      {feedback?<p className="assembly-info" role="status">{feedback}</p>:null}
+      {!project.services.internalFinish||values.enabled===false?<p className="assembly-warning">Парная не включена в итоговую смету: включите внутреннюю отделку и отделку помещения.</p>:null}
+      {!s.autoEstimate?<button className="button primary" type="button" onClick={()=>update(enableAutoSauna(raw))}>Настроить автоматически · предварительная смета</button>:<SaunaQuickEditor s={s} raw={raw} update={update} room={room} active={active} prices={prices}/>}
+      <details className="sauna-advanced"><summary>Ручные настройки, комплектация и цены</summary>
       <p className="assembly-info">Заменяет обычную отделку стен и потолка только этой комнаты. Пол настраивается выше отдельно. Площади стен распределены расчётом приблизительно: уточните их по развёрткам. Проектирование вентиляции, электрики и пожарной защиты в этот расчёт не входит.</p>
       {!project.services.internalFinish?<p className="assembly-warning">Включите услугу «Внутренняя отделка», иначе комплектация не попадёт в смету.</p>:null}
       {values.floorFinish==='laminate'?<p className="assembly-warning">Сейчас для пола выбран обычный ламинат. Подтвердите допустимость покрытия для температуры и влажности парной либо измените пол выше; автоматически он не заменён.</p>:null}
@@ -49,10 +58,11 @@ export function SaunaEditor({room, values, updateRoom, project}) {
       <div className="form-grid two">{manual.map(item=><NumberField key={item.key} label={item.name} value={s.quantities?.[item.key]??0} suffix={item.unit} step={['шт','компл','упак'].includes(item.unit)?1:.1} onChange={value=>quantity(item.key,value)}/>)}</div>
       <h4>Цены выбранной комплектации</h4>
       <p>Вводите закупочную цену ДО наценки. Правки относятся только к этой комнате, общий прайс не меняется. Нулевая цена означает неполный итог, а не бесплатный материал.</p>
-      <div className="form-grid two">{active.map(line=>{const item=SAUNA_ITEMS.find(i=>i.id===line.catalogId);const price=s.prices?.[item.key]??prices.find(i=>i.id===item.id)?.price??(detailed?DETAILED_DEFAULT_PRICES[item.key]:undefined)??0;return <div key={item.key}><NumberField label={`${line.description} · ${line.qty.toFixed(2)} ${item.unit}`} value={price} suffix={`₽/${item.unit}`} onChange={value=>update({prices:{...s.prices,[item.key]:value}})}/>{price>0?<small>В смете: {(price*(line.priceMultiplier||1)).toLocaleString('ru-RU')} ₽/{item.unit}{line.priceMultiplier>1?' · с наценкой':''}</small>:<small className="assembly-warning">Уточнить цену — итог неполный</small>}</div>;})}</div>
+      <div className="form-grid two">{active.map(line=>{const item=SAUNA_ITEMS.find(i=>i.id===line.catalogId);const price=line.projectPrice??prices.find(i=>i.id===item.id)?.price??0;return <div key={item.key}><NumberField label={`${line.description} · ${line.qty.toFixed(2)} ${item.unit}`} value={price} suffix={`₽/${item.unit}`} onChange={value=>update({prices:{...s.prices,[item.key]:value}})}/>{price>0?<small>В смете: {(price*(line.priceMultiplier||1)).toLocaleString('ru-RU')} ₽/{item.unit}{line.priceMultiplier>1?' · с наценкой':''}</small>:<small className="assembly-warning">Уточнить цену — итог неполный</small>}</div>;})}</div>
       <label className="field">Проектные примечания<textarea value={s.notes||''} placeholder="Профиль обшивки, крепёж, закладные, вентиляция, трап, светильники, дверь, защита печи и согласование проектировщика…" onChange={e=>update({notes:e.target.value})}/></label>
-      <p className="assembly-warning">Отдельно проверьте дверь парной, приток и вытяжку, слив/уклоны и гидроизоляцию мокрых зон, термостойкие светильники и проводку, защиту и подключение печи. Они здесь автоматически не добавляются: сверьте с дверями и инженерией, чтобы не задвоить закупку. Монтаж учитывается только при ненулевой комплектации работ.</p>
+      <p className="assembly-warning">Отдельно проверьте дверь парной, приток и вытяжку, слив/уклоны и гидроизоляцию мокрых зон, термостойкие светильники и проводку, защиту и подключение печи. В автоматическом режиме часть материалов включена бюджетно: сверьте ведомость с дверями и инженерией, чтобы не задвоить закупку. Монтаж учитывается только при ненулевой комплектации работ.</p>
       <p><a href="https://support.harvia.com/hc/en-gb/articles/21953077934620-I-am-about-to-start-panelling-my-sauna-what-do-I-need-to-take-into-account" target="_blank" rel="noreferrer">Harvia: обшивка и закладные</a> — справочная рекомендация, не несущий расчёт.</p>
+      </details>
     </>:<p>Включите вручную для нужной комнаты. Название «Баня» или «Сауна» не меняет старую смету автоматически.</p>}
   </section>;
 }

@@ -1,4 +1,5 @@
 import { LINING_OFFERS } from '../data/sauna-options.js';
+import { resolveSauna } from './sauna-auto.js';
 export const positive = value => Number.isFinite(Number(value)) ? Math.max(0,Number(value)) : 0;
 const ceil = value => Math.ceil(value-1e-9);
 
@@ -36,13 +37,14 @@ export function chimneySchedule(c={}) {
 }
 
 export function saunaIncomplete(room,reserve=1.1){
-  const s=room.settings?.sauna;
+  const s=resolveSauna(room);
   if(!s?.enabled||s.detailVersion!==1||room.settings.enabled===false)return [];
   const result=[];
+  if(s.autoEstimate)result.push('Автоматическая бюджетная оценка, не монтажный проект: ширина вагонки 88 мм, утеплитель 50 мм, каркас 600/400 мм, прямой дымоход до конька с запасом. Неподтверждённые цены и узлы уточнить; пол, канализационная разводка и подключение трапа не входят.');
   const area=positive(room.settings.wallArea??room.wallArea)+positive(room.settings.ceilingArea??room.ceilingArea);
   if(area>0&&s.liningMode==='packs'&&!liningOptions(area,s.liningStock,reserve).some(o=>o.length===Number(s.liningStock?.length)))result.push('Вагонка не учтена: проверьте рабочую ширину, отрезок и выбранную длину упаковки.');
   if(area>0&&s.frameMode==='area'&&(!positive(s.insulationThickness)||!positive(s.battenStep)||!positive(s.counterStep)))result.push('Каркас/утеплитель учтены не полностью: заполните толщину и оба шага.');
-  if(s.heaterType==='wood'&&s.chimneyMode==='parts'){
+  if(s.heaterType==='wood'&&['parts','auto'].includes(s.chimneyMode)){
     const schedule=chimneySchedule(s.chimneyDimensions);
     if(!schedule.valid)result.push('Дымоход не учтён: заполните корректные отметки и монтажные длины.');
     else result.push('Дымоход — предварительная ведомость: требуются согласованные проходки, отступы, опоры, высота от колосника и проверка тяги.');

@@ -10,7 +10,7 @@ export function SaunaDetailsEditor({s,update,room,values,project}) {
   const options=liningOptions(area,stock,Math.max(1,Number(project.settings.internal.reserve)||1.1));
   const schedule=chimneySchedule(c);
   return <>
-    <Toggle label="Подробная банная комплектация · материалы +25%" checked={s.detailVersion===1} onChange={enabled=>update({detailVersion:enabled?1:0})}/>
+    <Toggle label="Подробная банная комплектация · материалы +25%" checked={s.detailVersion===1} onChange={enabled=>update({detailVersion:enabled?1:0,...(!enabled?{autoEstimate:false}:{})})}/>
     {s.detailVersion===1?<>
       <p className="assembly-info">Источник ставок — согласование с Вадимом: работа по липе 18 000 ₽/м² стен и потолка, установка печи предварительно 15 000 ₽, доставка 7 000 ₽ без наценки. Пол не входит. Прежняя общая строка монтажа заменена этими работами. Наценка применяется один раз ко всем материалам этого блока; общий прайс и другие разделы не меняются.</p>
       <div className="form-grid two">
@@ -20,7 +20,7 @@ export function SaunaDetailsEditor({s,update,room,values,project}) {
         <Toggle label="Учитывать доставку печи отдельно" checked={s.heaterDelivery!==false} onChange={heaterDelivery=>update({heaterDelivery})}/>
       </div>
       <h4>Вагонка: длины и закупка</h4>
-      <SelectField label="Способ расчёта вагонки" value={s.liningMode||'area'} options={[{value:'area',label:'Площадь · ручная цена за м²'},{value:'packs',label:'Липа 15×96 · упаковки по 10 досок'}]} onChange={liningMode=>update({liningMode})}/>
+      <SelectField label="Способ расчёта вагонки" value={s.liningMode||'area'} options={[...(s.autoEstimate?[{value:'auto',label:'Автоматически · упаковки по площади'}]:[]),{value:'area',label:'Площадь · ручная цена за м²'},{value:'packs',label:'Липа 15×96 · упаковки по 10 досок'}]} onChange={liningMode=>update({liningMode})}/>
       {s.liningMode==='packs'?<>
         <p>Введите рабочую ширину без шипа по поставщику: 96 мм — номинальная, не подтверждённая полезная ширина. Расчёт для одинаковых отрезков; для разных длин стен/потолка нужна отдельная карта раскроя. Проёмы учтены в заданной площади, не в карте резов.</p>
         <div className="form-grid two">
@@ -53,7 +53,7 @@ export function SaunaDetailsEditor({s,update,room,values,project}) {
       <p><a href={SAUNA_SOURCES.heater} target="_blank" rel="noreferrer">Карточка и паспорт производителя</a> · 29.09.2026. Камни и защита — отдельные количества.</p>
       {s.heaterType==='wood'?<>
         <h4>Дымоход · предварительная комплектация</h4>
-        <SelectField label="Расчёт дымохода" value={s.chimneyMode||'kit'} options={[{value:'kit',label:'Готовый комплект · ручное количество'},{value:'parts',label:'Прямой вертикальный Ø115/200 · по деталям'}]} onChange={chimneyMode=>update({chimneyMode})}/>
+        <SelectField label="Расчёт дымохода" value={s.chimneyMode||'kit'} options={[...(s.autoEstimate?[{value:'auto',label:'Автоматически · бюджетная длина по дому'}]:[]),{value:'kit',label:'Готовый комплект · ручное количество'},{value:'parts',label:'Прямой вертикальный Ø115/200 · по деталям'}]} onChange={chimneyMode=>update({chimneyMode,...(chimneyMode==='parts'?{chimneyDimensions:{...c}}:{})})}/>
         {s.chimneyMode==='parts'?<>
           <p>Обычная труба → шибер → старт-сэндвич → сэндвич. Подбор серии Везувий BLACK — кандидат для проверки монтажником. Прежний комплект дымохода исключается, чтобы не было двойного счёта. Для бокового выхода, отводов и тройников используйте согласованный комплект.</p>
           <div className="form-grid two">{[
