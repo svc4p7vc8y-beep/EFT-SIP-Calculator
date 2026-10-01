@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { roofOutline } from '../planner/roof-outline.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
+import { guideFromOuterWall, moveTemporaryGuide } from '../planner/temporary-guides.js';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
@@ -158,6 +159,7 @@ const TOOLS = [
   ["door", "Дверь / ворота", DoorOpen],
   ["stairOpening", "Лестничный проём", Grid3X3],
   ["dimension", "Размер", Ruler],
+  ["guide", "Временная направляющая", Ruler],
   ["annotation", "Надпись со стрелкой", MessageSquareText],
   ["pile", "Отдельная свая", CircleDot],
   ["pileRow", "Ряд свай", ListTree],
@@ -596,6 +598,20 @@ function DraftRoomDimensions({ start, end, p }) {
       ) : null}
     </g>
   );
+}
+
+function TemporaryGuide({ guide, p, active, onPointerDown }) {
+  const origin = p(guide.axis === 'x' ? guide.origin : 0, guide.axis === 'y' ? guide.origin : 0);
+  const target = p(guide.axis === 'x' ? guide.target : 0, guide.axis === 'y' ? guide.target : 0);
+  const anchor = p(guide.axis === 'x' ? 0 : guide.anchor, guide.axis === 'y' ? 0 : guide.anchor);
+  const vertical = guide.axis === 'x';
+  const distance = Math.round(Math.abs(guide.target - guide.origin) * 1000).toLocaleString('ru-RU');
+  return <g className="temporary-guide" data-axis={guide.axis} data-distance-mm={Math.round(Math.abs(guide.target - guide.origin) * 1000)}>
+    <line className="temporary-guide-line" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} />
+    <line className="temporary-guide-measure" x1={vertical ? origin.x : anchor.x} y1={vertical ? anchor.y : origin.y} x2={vertical ? target.x : anchor.x} y2={vertical ? anchor.y : target.y} />
+    <text className="temporary-guide-distance" x={vertical ? (origin.x + target.x) / 2 : anchor.x + 15} y={vertical ? anchor.y - 10 : (origin.y + target.y) / 2}>{distance} мм</text>
+    <line className="temporary-guide-hit" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} pointerEvents={active ? 'stroke' : 'none'} onPointerDown={onPointerDown} />
+  </g>;
 }
 
 function DraftPolygonEdge({ points, hoverPoint, p }) {
@@ -1188,6 +1204,7 @@ function PlanCanvas({
   middlePanEnabled = false,
   onCreated,
   onSelected,
+  floorKey = 1,
 }) {
   const svgRef = useRef(null);
   const wallClipId=useId().replace(/:/g,'');
@@ -1201,6 +1218,8 @@ function PlanCanvas({
   const [hoverSnap, setHoverSnap] = useState(null);
   const [dimensionStart, setDimensionStart] = useState(null);
   const [dimensionHover, setDimensionHover] = useState(null);
+  const [temporaryGuides, setTemporaryGuides] = useState([]);
+  useEffect(() => setTemporaryGuides([]), [floorKey]);
   const [isViewportPanning, setIsViewportPanning] = useState(false);
   const setGesture = (value) => {
     gestureRef.current =
@@ -1316,6 +1335,10 @@ function PlanCanvas({
       plan,
       current?.type === "room" ? current.id : null,
     );
+    for (const guide of temporaryGuides) {
+      if (guide.axis === 'x') axes.xs.push(guide.target);
+      else axes.ys.push(guide.target);
+    }
     if (["polygon", "houseContour"].includes(tool) && polygonDraft.length) {
       polygonDraft.forEach((point) => {
         axes.xs.push(point.x);
@@ -1538,6 +1561,11 @@ function PlanCanvas({
     if (event.button !== 0) return;
     const rawPoint = rawPlanPoint(event);
     const point = toPlan(event);
+    if (tool === 'guide') {
+      const wall = guideFromOuterWall(plan, rawPoint, Math.max(0.15, 18 / layout.scale));
+      if (wall) begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: wall });
+      return;
+    }
     if (tool === "select") {
       setSelected(null);
       onSelected?.(null);
@@ -1665,7 +1693,7 @@ function PlanCanvas({
     setHoverSnap(resolved);
     if (!gestureRef.current || event.pointerId !== gestureRef.current.pointerId)
       return;
-    setGesture((current) => ({ ...current, end: resolved.point }));
+    setGesture((current) => ({ ...current, end: current.kind === 'temporaryGuide' ? rawPlanPoint(event) : resolved.point }));
   };
   const pointerUp = (event) => {
     if (panGestureRef.current?.pointerId === event.pointerId) {
@@ -1694,6 +1722,20 @@ function PlanCanvas({
       return;
     }
     const finalGesture = { ...current, end: toPlan(event) };
+    if (current.kind === 'temporaryGuide') {
+      const nextGuide = moveTemporaryGuide(current.guideBase, rawPlanPoint(event));
+      if (Math.abs(nextGuide.target - nextGuide.origin) >= 0.1) {
+        setTemporaryGuides((items) => current.guideId
+          ? items.map((item) => item.id === current.guideId ? { ...nextGuide, id: item.id } : item)
+          : [...items, { ...nextGuide, id: uid('guide') }]);
+      } else if (current.guideId && tool === 'guide') {
+        setTemporaryGuides((items) => items.filter((item) => item.id !== current.guideId));
+      }
+      svgRef.current?.releasePointerCapture?.(event.pointerId);
+      setGesture(null);
+      finishPointer(event);
+      return;
+    }
     if (current.kind === "draw") {
       const distance = Math.hypot(
         finalGesture.end.x - finalGesture.start.x,
@@ -2101,12 +2143,13 @@ function PlanCanvas({
             );
             const labelWidth = Math.max(1, bounds.w * layout.scale - 18);
             const labelHeight = Math.max(1, bounds.h * layout.scale - 18);
-            const dimensionsLabel = `${formatNumber(bounds.w)} × ${formatNumber(bounds.h)} м (${formatNumber(polygonArea(points),2)} м² контур)`;
+            const clearArea = clearAreas.rooms[room.id]?.clearArea;
+            const dimensionsLabel = `${formatNumber(bounds.w)} × ${formatNumber(bounds.h)} м (${clearArea != null ? `${formatNumber(clearArea,2)} м²` : 'площадь уточнить'})`;
             const fittedNameSize = Math.min(roomNameSize, labelWidth / Math.max(1, String(room.name).length * 0.62, dimensionsLabel.length * .75 * .56), labelHeight / 5);
             const roomLabelNameSize = Number(room.labelFontSize) || fittedNameSize;
             const fittedMetaSize = roomLabelNameSize * .75;
             const roomLabelHitWidth = Math.max(70, Math.min(labelWidth, String(room.name).length * roomLabelNameSize * .7));
-            const roomLabelHitHeight = Math.max(54, fittedMetaSize * (room.ceilingMode === "open-rafter" ? 4.2 : 3.1));
+            const roomLabelHitHeight = Math.max(45, fittedMetaSize * (room.ceilingMode === "open-rafter" ? 3.5 : 2.5));
             const selectedNow =
               selected?.type === "room" && selected.id === room.id;
             return (
@@ -2131,8 +2174,7 @@ function PlanCanvas({
                   <rect className="room-label-hit" x={labelCenter.x - roomLabelHitWidth / 2} y={labelCenter.y - roomLabelHitHeight / 2} width={roomLabelHitWidth} height={roomLabelHitHeight} rx="7" />
                   <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 0.8}>{room.name}</text>
                   <text className="room-dimensions room-area" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * .65}>{dimensionsLabel}</text>
-                  <text className="room-area" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 1.95}>{clearAreas.rooms[room.id]?.clearArea!=null?`${formatNumber(clearAreas.rooms[room.id].clearArea,2)} м² в свету`:'В свету: проверить контур'}</text>
-                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 3.25}>Второй свет</text> : null}
+                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 2}>Второй свет</text> : null}
                 </g>
                 {selectedNow
                   ? screen.map((point, index) => (
@@ -2727,7 +2769,7 @@ function PlanCanvas({
                   width={Math.abs(b.x - a.x)}
                   height={Math.abs(b.y - a.y)}
                 />
-                {["room", "stairOpening"].includes(gesture.type) ? (
+                {["room", "stairOpening", "terrace", "porch"].includes(gesture.type) ? (
                   <DraftRoomDimensions
                     start={gesture.start}
                     end={gesture.end}
@@ -2771,6 +2813,9 @@ function PlanCanvas({
           })}
         </g>
       ) : null}
+      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} active={tool === 'guide' || tool === 'select'} onPointerDown={(event) => { event.stopPropagation(); begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
+      {gesture?.kind === 'temporaryGuide' && !gesture.guideId ? <TemporaryGuide guide={moveTemporaryGuide(gesture.guideBase, gesture.end)} p={p} active={false} /> : null}
+      {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={VIEW.width - 183} y="55" width="171" height="31" rx="7" /><text x={VIEW.width - 98} y="76">Очистить направляющие</text></g> : null}
       {tool === "polygon" || tool === "houseContour" ? (
         <DraftPolygonEdge
           points={polygonDraft}
@@ -4025,6 +4070,7 @@ const MOBILE_TOOLS = [
   ["door", "Дверь", DoorOpen],
   ["stairOpening", "Проём лестницы", Grid3X3],
   ["dimension", "Размер", Ruler],
+  ["guide", "Направляющая", Ruler],
   ["annotation", "Надпись", MessageSquareText],
   ["pile", "Свая", PileIcon],
   ["pileRow", "Ряд свай", PileRowIcon],
@@ -5451,6 +5497,8 @@ export default function PlanScreen({ onNavigate }) {
           ? "Нарисуйте замкнутый внешний контур дома: эркер, выступ или дом неправильной формы."
           : tool === "dimension"
             ? "Нажмите первую точку, затем вторую. Размер автоматически вынесется за контур дома и займёт свободный уровень."
+            : tool === 'guide'
+              ? 'Протяните от наружной стены внутрь дома. Видно расстояние; к линии привязываются комнаты. Направляющую можно передвинуть или очистить на плане.'
             : tool === "annotation"
               ? "Щёлкните на плане, введите свой текст и перетащите зелёную точку стрелки к нужному месту."
             : tool === "stairOpening"
@@ -5676,6 +5724,7 @@ export default function PlanScreen({ onNavigate }) {
       </aside>
       <div className="mobile-plan-stage">
         <PlanCanvas
+          floorKey={activeFloor}
           plan={plan}
           floorOpening={floorOpening}
           commitFloorOpening={commitFloorOpening}
@@ -6167,6 +6216,7 @@ export default function PlanScreen({ onNavigate }) {
             </button>
           </div>
           <PlanCanvas
+            floorKey={activeFloor}
             plan={plan}
             floorOpening={floorOpening}
             commitFloorOpening={commitFloorOpening}

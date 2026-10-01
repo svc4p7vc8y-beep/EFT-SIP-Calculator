@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-test('room labels keep dimensions and contour area together with a 75% type scale', () => {
+test('room labels show dimensions and clear area on one line with a 75% type scale', () => {
   const source=readFileSync(new URL('../src/react/screens/PlanScreen.jsx',import.meta.url),'utf8');
   assert.match(source,/const fittedMetaSize = roomLabelNameSize \* \.75/);
-  assert.match(source,/м \(\$\{formatNumber\(polygonArea\(points\),2\)\} м² контур\)/);
+  assert.match(source,/const clearArea = clearAreas\.rooms\[room\.id\]\?\.clearArea/);
+  assert.match(source,/formatNumber\(clearArea,2\)\} м²/);
   assert.match(source,/className="room-dimensions room-area"[^\n]+\{dimensionsLabel\}/);
-  assert.match(source,/м² в свету/);
+  assert.doesNotMatch(source,/className="room-area"[^\n]*м² в свету/);
 });
 
 test('draft and selected room labels have no text stroke', () => {

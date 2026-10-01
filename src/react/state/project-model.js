@@ -19,7 +19,7 @@ import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 
-export const REACT_PROJECT_VERSION = 167;
+export const REACT_PROJECT_VERSION = 168;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v167-print-pagination-1';
+const CACHE_NAME = 'eft-calculator-react-v168-plan-guides-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

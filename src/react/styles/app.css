@@ -3235,6 +3235,15 @@ select,
   background: transparent;
   font-size: 13px;
 }
+.temporary-guide { pointer-events: none; }
+.temporary-guide-line { stroke: #7a55b7; stroke-width: 2; stroke-dasharray: 9 7; vector-effect: non-scaling-stroke; }
+.temporary-guide-measure { stroke: #4d3279; stroke-width: 2; marker-start: url(#planner-arrow); marker-end: url(#planner-arrow); vector-effect: non-scaling-stroke; }
+.temporary-guide-distance { fill: #2b164e; stroke: #fff; stroke-width: 4; paint-order: stroke; font-size: 13px; font-weight: 900; text-anchor: middle; }
+.temporary-guide-hit { stroke: transparent; stroke-width: 22; cursor: ew-resize; pointer-events: stroke; }
+.temporary-guide[data-axis="y"] .temporary-guide-hit { cursor: ns-resize; }
+.temporary-guide-clear { pointer-events: all; cursor: pointer; }
+.temporary-guide-clear rect { fill: #fff; stroke: #7453aa; stroke-width: 1.5; }
+.temporary-guide-clear text { fill: #2b164e; font-size: 11px; font-weight: 800; text-anchor: middle; pointer-events: none; }
 .price-unlock-form .password-input {
   flex: 1;
   height: 36px;
