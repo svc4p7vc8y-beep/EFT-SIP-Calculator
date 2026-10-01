@@ -6561,26 +6561,27 @@ select,
   }
 }
 
-/* Estimate columns: reserve the space for the product specification. */
+/* Balanced estimate columns: keep the specification readable without crowding figures. */
 .editable-estimate-table, .estimate-preview-table { table-layout: fixed; width: 100%; }
-.editable-estimate-table thead th:first-child { width: calc(100% - 485px); }
-.editable-estimate-table thead th:nth-child(2) { width: 100px; }
-.editable-estimate-table thead th:nth-child(3) { width: 50px; }
-.editable-estimate-table thead th:nth-child(4) { width: 70px; }
-.editable-estimate-table thead th:nth-child(5) { width: 100px; }
-.editable-estimate-table thead th:nth-child(6) { width: 110px; }
-.editable-estimate-table thead th:nth-child(7) { width: 55px; }
+.editable-estimate-table thead th:first-child { width: 26%; }
+.editable-estimate-table thead th:nth-child(2) { width: 11%; }
+.editable-estimate-table thead th:nth-child(3) { width: 7%; min-width: 60px; }
+.editable-estimate-table thead th:nth-child(4) { width: 11%; }
+.editable-estimate-table thead th:nth-child(5) { width: 17%; }
+.editable-estimate-table thead th:nth-child(6) { width: 20%; }
+.editable-estimate-table thead th:nth-child(7) { width: 8%; }
 .editable-estimate-table .estimate-cell-input { min-width: 0; }
 .editable-estimate-table .estimate-number-input.without-steppers { min-width: 0; grid-template-columns: minmax(0, 1fr); }
 .editable-estimate-table td, .editable-estimate-table th { padding-left: 5px; padding-right: 5px; }
 .estimate-preview-table { min-width: 820px; }
-.estimate-preview-table thead th:first-child { width: 52%; }
-.estimate-preview-table thead th:nth-child(2) { width: 10%; }
-.estimate-preview-table thead th:nth-child(3) { width: 5%; }
-.estimate-preview-table thead th:nth-child(4) { width: 7%; }
-.estimate-preview-table thead th:nth-child(5) { width: 12%; }
-.estimate-preview-table thead th:nth-child(6) { width: 14%; }
+.estimate-preview-table thead th:first-child { width: 27%; }
+.estimate-preview-table thead th:nth-child(2) { width: 11%; }
+.estimate-preview-table thead th:nth-child(3) { width: 9%; }
+.estimate-preview-table thead th:nth-child(4) { width: 12%; }
+.estimate-preview-table thead th:nth-child(5) { width: 19%; }
+.estimate-preview-table thead th:nth-child(6) { width: 22%; }
 .estimate-preview-table td { overflow-wrap: anywhere; white-space: normal; }
+.estimate-preview-table td:nth-child(3) { overflow-wrap: normal; white-space: nowrap; }
 .super-compact-option { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid #8ea79b; border-radius: 12px; background: #f3f8f5; color: #000; }
 .super-compact-option input { width: 20px; height: 20px; flex: 0 0 auto; }
 .super-compact-option span { display: grid; gap: 5px; }

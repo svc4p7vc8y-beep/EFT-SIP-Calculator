@@ -191,7 +191,7 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
     </div>
     {!lines?.length ? <div className="empty-state">{empty}</div> : <div className="table-wrap">
       <table className="data-table editable-estimate-table resizable-table">
-        <thead><tr><ResizableHeader minWidth={360}>Номенклатура</ResizableHeader><ResizableHeader>Вид</ResizableHeader><ResizableHeader minWidth={40}>Ед.</ResizableHeader><ResizableHeader minWidth={60}>Кол-во</ResizableHeader><ResizableHeader>Цена</ResizableHeader><ResizableHeader>Сумма</ResizableHeader><th className="no-print">Действия</th></tr></thead>
+        <thead><tr><ResizableHeader minWidth={220}>Номенклатура</ResizableHeader><ResizableHeader>Вид</ResizableHeader><ResizableHeader minWidth={60}>Ед.</ResizableHeader><ResizableHeader minWidth={80}>Кол-во</ResizableHeader><ResizableHeader>Цена</ResizableHeader><ResizableHeader>Сумма</ResizableHeader><th className="no-print">Действия</th></tr></thead>
         <tbody>{lines.flatMap((line, index) => {
           const group = line.estimateGroup || 'Дополнительные позиции';
           const previousGroup = index ? (lines[index - 1].estimateGroup || 'Дополнительные позиции') : null;
