@@ -1207,6 +1207,18 @@ function roofSection(project, metrics, index, inputs) {
         : geometry.roofLength;
   const ridgeBeamPurchaseLength =
     ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
+  // Two specified 50×100 ridge rows for a layered scheme are budgeted separately.
+  // Bearing posts and beam sizing still require the structural project.
+  const layeredRidgeLength =
+    rafterStructure.system === "layered" && mainColdSlopeArea > 0
+      ? mainRoofShape === "hip" ? geometry.ridgeLength : geometry.roofLength
+      : 0;
+  const layeredRidgePurchaseLength =
+    layeredRidgeLength * inputs.formulas.ridgeBeamReserve;
+  const layeredRidgeBoardCount = layeredRidgePurchaseLength
+    ? Math.ceil(layeredRidgePurchaseLength / 6) * 2
+    : 0;
+  const layeredRidgeVolume = layeredRidgeBoardCount * 6 * 0.05 * 0.1;
   const rafterReserve =
     rafterStructure.system === "truss"
       ? inputs.formulas.trussRafterReserve
@@ -1218,7 +1230,7 @@ function roofSection(project, metrics, index, inputs) {
     ? rafterStructure.legCount * geometry.slopeLength + hipRafterLength
     : 0;
   const mainRafterRequiredLength =
-    mainRafterLegLength * rafterReserve + ridgeBeamPurchaseLength;
+    mainRafterLegLength * rafterReserve + ridgeBeamPurchaseLength - layeredRidgePurchaseLength;
   const mainRafterBoardCount = mainRafterRequiredLength
     ? Math.ceil(mainRafterRequiredLength / 6)
     : 0;
@@ -1381,9 +1393,17 @@ function roofSection(project, metrics, index, inputs) {
           : "Брус мауэрлата ест.влажн. сосна 150×100 мм";
       const ridgeBeamPurchaseLength =
         result.ridgeLength * inputs.formulas.ridgeBeamReserve;
+      const layeredTerraceRidgeLength =
+        rafterStructure.system === "layered" && coldSlope > 0 ? result.ridgeLength : 0;
+      const layeredTerraceRidgePurchaseLength =
+        layeredTerraceRidgeLength * inputs.formulas.ridgeBeamReserve;
+      const layeredTerraceRidgeBoardCount = layeredTerraceRidgePurchaseLength
+        ? Math.ceil(layeredTerraceRidgePurchaseLength / 6) * 2
+        : 0;
+      const layeredTerraceRidgeVolume = layeredTerraceRidgeBoardCount * 6 * 0.05 * 0.1;
       const terraceRafterRequiredLength =
         (coldSlope / rafterStructure.step) * rafterReserve +
-        ridgeBeamPurchaseLength;
+        ridgeBeamPurchaseLength - layeredTerraceRidgePurchaseLength;
       const terraceRafterBoardCount = terraceRafterRequiredLength
         ? Math.ceil(terraceRafterRequiredLength / 6)
         : 0;
@@ -1471,10 +1491,23 @@ function roofSection(project, metrics, index, inputs) {
             key: `${key}-rafters`,
             unit: "м³",
             digits: 3,
-            name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${terraceRafterBoardCount} шт × 6 м, включая коньковый прогон · кровля ${title}`,
+            name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${terraceRafterBoardCount} шт × 6 м${layeredTerraceRidgeLength ? '' : ', включая коньковый прогон'} · кровля ${title}`,
             source,
           },
         ),
+        makeLine(index, "roof", "Доска ест.влажн. сосна 50*100мм", layeredTerraceRidgeVolume, {
+          key: `${key}-layered-ridge-boards`,
+          unit: "м³",
+          digits: 3,
+          name: `Коньковый прогон 100×50 мм · верхний и нижний ряд · ${layeredTerraceRidgeBoardCount} шт × 6 м · кровля ${title}`,
+          source,
+        }),
+        makeLine(index, "roof", "Монтаж конькового прогона", layeredTerraceRidgeLength * 2, {
+          key: `${key}-layered-ridge-work`,
+          kind: "labor",
+          name: `Монтаж двух рядов конькового прогона 100×50 мм · кровля ${title}`,
+          source,
+        }),
         makeLine(
           index,
           "roof",
@@ -1970,9 +2003,20 @@ function roofSection(project, metrics, index, inputs) {
         key: "rafters",
         unit: "м³",
         digits: 3,
-        name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м${mainRoofShape === "flat" ? "" : `, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`}`,
+        name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м${mainRoofShape === "flat" ? "" : layeredRidgeLength ? mainRoofShape === "hip" ? ", включая накосные стропила" : "" : `, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`}`,
       },
     ),
+    makeLine(index, "roof", "Доска ест.влажн. сосна 50*100мм", layeredRidgeVolume, {
+      key: "layered-ridge-boards",
+      unit: "м³",
+      digits: 3,
+      name: `Коньковый прогон 100×50 мм · верхний и нижний ряд · ${layeredRidgeBoardCount} шт × 6 м`,
+    }),
+    makeLine(index, "roof", "Монтаж конькового прогона", layeredRidgeLength * 2, {
+      key: "layered-ridge-work",
+      kind: "labor",
+      name: "Монтаж двух рядов конькового прогона 100×50 мм",
+    }),
     makeLine(
       index,
       "roof",
@@ -2389,6 +2433,9 @@ function roofSection(project, metrics, index, inputs) {
     trussPlateCount,
     ridgeBeamLength: round(ridgeBeamLength, 3),
     ridgeBeamPurchaseLength: round(ridgeBeamPurchaseLength, 3),
+    layeredRidgeLength: round(layeredRidgeLength, 3),
+    layeredRidgeBoardCount,
+    layeredRidgeVolume: round(layeredRidgeVolume, 3),
     rafterLegLength: round(mainRafterLegLength, 3),
     rafterRequiredLength: round(mainRafterRequiredLength, 3),
     rafterBoardCount: mainRafterBoardCount,

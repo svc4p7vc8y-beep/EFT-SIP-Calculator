@@ -1128,6 +1128,7 @@ export default function ParametersScreen() {
                 integer: true,
               },
             ])}
+            {calculation.roof.layeredRidgeLength > 0 ? <div className="roof-cost-warning"><strong>Наслонная система: опоры — по проекту</strong><span>В смете учтены верхний и нижний ряды конькового прогона 100×50 мм и монтаж обоих рядов. Стойки, опирание и несущая способность прогона определяются конструктором и в автоматическую смету не включены. Количество и цену можно изменить в ведомости проекта.</span></div> : null}
             <div className="toggle-grid parameter-roof-toggles">
               {[
                 ["includeEaveTrim", "Карнизные планки", true],

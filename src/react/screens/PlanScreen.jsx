@@ -610,7 +610,7 @@ function TemporaryGuide({ guide, p, active, onPointerDown }) {
     <line className="temporary-guide-line" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} />
     <line className="temporary-guide-measure" x1={vertical ? origin.x : anchor.x} y1={vertical ? anchor.y : origin.y} x2={vertical ? target.x : anchor.x} y2={vertical ? anchor.y : target.y} />
     <text className="temporary-guide-distance" x={vertical ? (origin.x + target.x) / 2 : anchor.x + 15} y={vertical ? anchor.y - 10 : (origin.y + target.y) / 2}>{distance} мм</text>
-    <line className="temporary-guide-hit" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} pointerEvents={active ? 'stroke' : 'none'} onPointerDown={onPointerDown} />
+    <line className="temporary-guide-hit" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} style={{ pointerEvents: active ? 'stroke' : 'none' }} onPointerDown={active ? onPointerDown : undefined} />
   </g>;
 }
 
@@ -2144,12 +2144,13 @@ function PlanCanvas({
             const labelWidth = Math.max(1, bounds.w * layout.scale - 18);
             const labelHeight = Math.max(1, bounds.h * layout.scale - 18);
             const clearArea = clearAreas.rooms[room.id]?.clearArea;
-            const dimensionsLabel = `${formatNumber(bounds.w)} × ${formatNumber(bounds.h)} м (${clearArea != null ? `${formatNumber(clearArea,2)} м²` : 'площадь уточнить'})`;
-            const fittedNameSize = Math.min(roomNameSize, labelWidth / Math.max(1, String(room.name).length * 0.62, dimensionsLabel.length * .75 * .56), labelHeight / 5);
+            const dimensionsLabel = `${formatNumber(bounds.w)} × ${formatNumber(bounds.h)} м`;
+            const areaLabel = clearArea != null ? `${formatNumber(clearArea,2)} м²` : 'Площадь уточнить';
+            const fittedNameSize = Math.min(roomNameSize, labelWidth / Math.max(1, String(room.name).length * 0.62, dimensionsLabel.length * .75 * .56, areaLabel.length * .62), labelHeight / 5);
             const roomLabelNameSize = Number(room.labelFontSize) || fittedNameSize;
             const fittedMetaSize = roomLabelNameSize * .75;
             const roomLabelHitWidth = Math.max(70, Math.min(labelWidth, String(room.name).length * roomLabelNameSize * .7));
-            const roomLabelHitHeight = Math.max(45, fittedMetaSize * (room.ceilingMode === "open-rafter" ? 3.5 : 2.5));
+            const roomLabelHitHeight = Math.max(54, roomLabelNameSize * (room.ceilingMode === "open-rafter" ? 4.8 : 3.8));
             const selectedNow =
               selected?.type === "room" && selected.id === room.id;
             return (
@@ -2172,9 +2173,10 @@ function PlanCanvas({
                 ) : null}
                 <g className={`room-label-object ${selected?.type === "roomLabel" && selected.id === room.id ? "selected" : ""}`} onPointerDown={(event) => objectDown(event, "roomLabel", room.id)}>
                   <rect className="room-label-hit" x={labelCenter.x - roomLabelHitWidth / 2} y={labelCenter.y - roomLabelHitHeight / 2} width={roomLabelHitWidth} height={roomLabelHitHeight} rx="7" />
-                  <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 0.8}>{room.name}</text>
-                  <text className="room-dimensions room-area" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * .65}>{dimensionsLabel}</text>
-                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + fittedMetaSize * 2}>Второй свет</text> : null}
+                  <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 1.7}>{room.name}</text>
+                  <text className="room-dimensions" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y}>{dimensionsLabel}</text>
+                  <text className="room-area" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y + roomLabelNameSize * 1.15}>{areaLabel}</text>
+                  {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + roomLabelNameSize * 2}>Второй свет</text> : null}
                 </g>
                 {selectedNow
                   ? screen.map((point, index) => (
@@ -2813,7 +2815,7 @@ function PlanCanvas({
           })}
         </g>
       ) : null}
-      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} active={tool === 'guide' || tool === 'select'} onPointerDown={(event) => { event.stopPropagation(); begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
+      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} active={tool === 'guide'} onPointerDown={(event) => { event.stopPropagation(); begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
       {gesture?.kind === 'temporaryGuide' && !gesture.guideId ? <TemporaryGuide guide={moveTemporaryGuide(gesture.guideBase, gesture.end)} p={p} active={false} /> : null}
       {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={VIEW.width - 183} y="55" width="171" height="31" rx="7" /><text x={VIEW.width - 98} y="76">Очистить направляющие</text></g> : null}
       {tool === "polygon" || tool === "houseContour" ? (

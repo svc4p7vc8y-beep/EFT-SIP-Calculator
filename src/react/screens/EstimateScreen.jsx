@@ -6,6 +6,7 @@ import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
 import { buildClientEstimate, isEstimateCutting, unpricedClientLines } from '../calculations/client-estimate.js';
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
+import { estimatePdfTitle } from '../export/estimate-pdf-title.js';
 import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../components/ui.jsx';
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
 import { ProposalOverview } from '../components/ProposalOverview.jsx';
@@ -36,6 +37,12 @@ export default function EstimateScreen() {
     return () => window.removeEventListener('beforeprint', refreshDate);
   }, []);
   const { project, commit } = useProject();
+  const pdfTitle = estimatePdfTitle(project.meta);
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = pdfTitle;
+    return () => { document.title = previousTitle; };
+  }, [pdfTitle]);
   const fileInput = useRef(null);
   const [imageError, setImageError] = useState('');
   const [uploadingImages, setUploadingImages] = useState(false);
