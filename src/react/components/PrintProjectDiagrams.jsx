@@ -140,7 +140,6 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
     const size = Math.max(16, opening.width * scale);
     const garage = opening.type === 'door' && opening.doorType === 'garage';
     const geometry = opening.type === 'door' ? (garage ? garageSwingGeometry(opening, q, size, plan) : doorSwingGeometry(opening, q, size, plan)) : null;
-    const tag = garage ? 'ГВ' : opening.doorType === 'interior' ? 'МД' : 'ВХ';
     return <g key={opening.id} className={`print-opening-group ${garage ? 'garage' : opening.type}`}>
       <line className="print-opening-cut" style={{strokeWidth:Math.max(18,2*(Number(plan.wallThickness)||.174)*scale)}} {...openingLine(opening)} />
       <line className={`print-opening ${garage ? 'garage' : opening.type}`} {...openingLine(opening)} />
@@ -148,7 +147,7 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
         {geometry.leaves.map((leaf, index) => <line key={`leaf-${index}`} {...leaf} />)}
         {geometry.arcs.map((path, index) => <path key={`arc-${index}`} d={path} />)}
       </g> : null}
-      {opening.type === 'door' ? <text className="print-opening-tag" x={q.x} y={q.y - 9}>{tag}</text> : null}
+      {garage ? <text className="print-opening-tag" x={q.x} y={q.y - 9}>ГВ</text> : null}
     </g>;
   };
   const sharedFloorOpening = floorOpening || plan.floorOpening || {};

@@ -2577,6 +2577,7 @@ function openingSection(project, index) {
             name: `${type} ${width}×${height} мм · ${area} м²`,
             unit: pricedByArea ? "м2" : "шт",
             exactQuantity: pricedByArea,
+            priceMultiplier: panoramic ? 2 : 1,
           },
         ),
       );
@@ -2598,7 +2599,7 @@ function openingSection(project, index) {
           "openings",
           work,
           opening.type === "window" ? area : 1,
-          { key: `work-${openingIndex}`, kind: "labor", catalogId: workCatalogId, exactQuantity: opening.type === "window" },
+          { key: `work-${openingIndex}`, kind: "labor", catalogId: workCatalogId, exactQuantity: opening.type === "window", priceMultiplier: panoramic ? 2 : 1 },
         ),
       );
       if (!garage)

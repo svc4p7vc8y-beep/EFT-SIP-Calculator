@@ -2437,13 +2437,9 @@ function PlanCanvas({
                     plan={shownPlan}
                   />
                 ) : null}
-                {opening.type === "door" ? (
+                {garage ? (
                   <text className="opening-tag" x={q.x} y={q.y - 10}>
-                    {garage
-                      ? "ГВ"
-                      : opening.doorType === "interior"
-                        ? "МД"
-                        : "ВХ"}
+                    ГВ
                   </text>
                 ) : null}
               </g>
@@ -3155,6 +3151,34 @@ function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSel
   );
 }
 
+function DoorOrientationControls({ opening, onChange }) {
+  return (
+    <div className="form-grid door-orientation-controls">
+      {[
+        { field: "hinge", label: "Петли", options: [["left", "Слева"], ["right", "Справа"]], fallback: "right" },
+        { field: "swing", label: "Открывание", options: [["in", "Внутрь"], ["out", "Наружу"]], fallback: "in" },
+      ].map(({ field, label, options, fallback }) => (
+        <div className="door-orientation-field" key={field}>
+          <span>{label}</span>
+          <div className="door-orientation-options" role="group" aria-label={label}>
+            {options.map(([value, text]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={(opening[field] || fallback) === value}
+                className={(opening[field] || fallback) === value ? "active" : ""}
+                onClick={() => onChange(field, value)}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
   const { project } = useProject();
   const get = (key) =>
@@ -3686,7 +3710,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
           />
         </div>
         {opening.type === "window" ? (
-          <SelectField
+          <><SelectField
             label="Вид окна"
             value={opening.windowType || "standard"}
             onChange={(value) => update("openings", (item) => { item.windowType = value; })}
@@ -3695,6 +3719,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
               { value: "panoramic", label: "Панорамное / витражное" },
             ]}
           />
+          {opening.windowType === "panoramic" ? <p className="inspector-note">Панорамное / витражное: изделие и монтаж ×2 к ставкам прайса. Количество считается по площади проёма.</p> : null}</>
         ) : null}
         {opening.type === "door" ? (
           <>
@@ -3742,34 +3767,10 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
                     { value: "thermal-break", label: "С терморазрывом" },
                   ]}
                 /> : null}
-                <div className="form-grid">
-                <SelectField
-                  label="Петли"
-                  value={opening.hinge || "right"}
-                  onChange={(value) =>
-                    update("openings", (item) => {
-                      item.hinge = value;
-                    })
-                  }
-                  options={[
-                    { value: "left", label: "Слева" },
-                    { value: "right", label: "Справа" },
-                  ]}
+                <DoorOrientationControls
+                  opening={opening}
+                  onChange={(field, value) => update("openings", (item) => { item[field] = value; })}
                 />
-                <SelectField
-                  label="Открывание"
-                  value={opening.swing || "in"}
-                  onChange={(value) =>
-                    update("openings", (item) => {
-                      item.swing = value;
-                    })
-                  }
-                  options={[
-                    { value: "in", label: "Внутрь" },
-                    { value: "out", label: "Наружу" },
-                  ]}
-                />
-                </div>
               </>
             )}
           </>

@@ -3158,6 +3158,40 @@ select,
   color: #172018;
   background: #fff;
 }
+.door-orientation-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #172018;
+  font-size: 11px;
+  font-weight: 700;
+}
+.door-orientation-options {
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+}
+.door-orientation-options button {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px;
+  border: 1px solid #aebbac;
+  border-radius: 8px;
+  background: #fff;
+  color: #172018;
+  font: inherit;
+  cursor: pointer;
+}
+.door-orientation-options button.active {
+  border-color: #267c4b;
+  background: #e3f1e7;
+  box-shadow: inset 0 0 0 1px #267c4b;
+}
+.door-orientation-options button:focus-visible {
+  outline: 2px solid #174f33;
+  outline-offset: 2px;
+}
 .inspector-empty {
   padding-top: 18px;
 }
