@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDefaultProject, migrateProject, ensureProjectFloorCount } from '../src/react/state/project-model.js';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
-import { calculateProductionCutting, tileSurface, connectionSegments, polygonAreaMm, packPanelBlanks, packMembers, wallPanelColumns, groupPanels } from '../src/react/calculations/production-cutting.js';
+import { calculateProductionCutting, tileSurface, connectionSegments, polygonAreaMm, packPanelBlanks, packMembers, wallPanelColumns, groupPanels, groupMembers, MIN_PANEL_WIDTH_MM } from '../src/react/calculations/production-cutting.js';
 import { createPlanTransfer, applyPlanTransfer } from '../src/react/storage/plan-transfer.js';
 
 const rectangle = (w, h) => [[[0,0],[w,0],[w,h],[0,h],[0,0]]];
@@ -72,11 +72,57 @@ test('door lintel height follows wall and door height automatically', () => {
   assert.equal(report.openings[0].topClearance, 600);
 });
 
+test('horizontal wall layout turns courses around window and door, splitting long spans without narrow panels', () => {
+  const p = simple();
+  p.plan.house.w = 7;
+  p.plan.openings = [
+    { id:'window', type:'window', outer:true, x:2, y:0, width:1, height:1.2 },
+    { id:'door', type:'door', outer:true, x:5.2, y:0, width:.9, height:2.05 },
+  ];
+  const initial=calculateProductionCutting(p,calculateProject(p));
+  p.settings.productionCutting.layouts[initial.surfaces.find(surface=>surface.id==='Э1-С1').layoutKey] = { direction:'y' };
+  const estimate = calculateProject(p);
+  const report = calculateProductionCutting(p,estimate);
+  const wall = report.parts.filter(part=>part.surfaceId==='Э1-С1');
+  assert.ok(wall.length>0);
+  assert.equal(report.issues.some(issue=>issue.surfaceId==='Э1-С1' || issue.code==='MIN_PANEL_WIDTH'),false);
+  assert.ok(wall.every(part=>part.blankWidth<=1250 && part.blankHeight<=2500 && Math.min(part.width,part.height)>=MIN_PANEL_WIDTH_MM));
+  assert.ok(wall.some(part=>part.y===0 && part.y+part.height<=850));
+  assert.ok(wall.some(part=>part.y>=2050));
+  assert.ok(Math.abs(wall.reduce((sum,part)=>sum+part.area,0) - (7000*2800-1000*1200-900*2050))<.01);
+  assert.equal(calculateProject(p).totals.total,estimate.totals.total);
+});
+
+test('every door and window has two full-height jambs; matching members group without losing instances', () => {
+  const p=simple();
+  p.plan.openings=[{id:'window',type:'window',outer:true,x:2,y:0,width:1,height:1.2},{id:'door',type:'door',outer:true,x:3.5,y:0,width:.9,height:2.05}];
+  const report=calculateProductionCutting(p,calculateProject(p));
+  const jambs=report.members.filter(member=>member.surfaceId==='Э1-С1' && member.role==='jamb');
+  assert.equal(jambs.length,4);
+  assert.deepEqual(jambs.map(member=>member.openingRef).sort(),['Дверь door · левая','Дверь door · правая','Окно window · левая','Окно window · правая']);
+  assert.ok(jambs.every(member=>member.length===2800 && member.a[1]===0 && member.b[1]===2800));
+  assert.equal(groupMembers(report.members).reduce((sum,group)=>sum+group.qty,0),report.members.length);
+  assert.ok(report.members.some(member=>member.replacedByJamb && member.excluded));
+  assert.equal(report.timberStock.bars.flatMap(bar=>bar.parts).filter(part=>jambs.some(jamb=>jamb.id===part.id)).length,4);
+});
+
+test('starter-board top plan has a floor-level door gap but keeps board under raised windows', () => {
+  const p=simple();
+  p.plan.openings=[{id:'window',type:'window',outer:true,x:1,y:0,width:1,height:1.2},{id:'door',type:'door',outer:true,x:3,y:0,width:.9,height:2.05}];
+  const report=calculateProductionCutting(p,calculateProject(p));
+  const wall=report.starterBoards.find(item=>item.id==='Э1-С1');
+  assert.ok(wall);
+  assert.equal(wall.openings.find(item=>item.id==='window').noBoard,false);
+  assert.equal(wall.openings.find(item=>item.id==='door').noBoard,true);
+  assert.ok(wall.boards.every(board=>board.end<=2550 || board.start>=3450));
+  assert.ok(Math.abs(wall.boards.reduce((sum,board)=>sum+board.length,0)-4100)<.01);
+});
+
 test('concave floor and closed holes have exact area after staggered tiling', () => {
   const surface = { id: 'floor', name: 'floor', horizontal: true, thickness: 224, geometry: [[[[0,0],[4000,0],[4000,2000],[2000,2000],[2000,4000],[0,4000],[0,0]], [[500,500],[500,1000],[1000,1000],[1000,500],[500,500]]]] };
   const parts = tileSurface(surface, 1250, 2500, 625, true);
-  assert.equal(parts.reduce((sum, part) => sum + polygonAreaMm(part.shape), 0), 12e6 - 0.25e6);
-  assert.ok(parts.every(part => part.width <= 625 && part.height <= 2500));
+  assert.ok(Math.abs(parts.reduce((sum, part) => sum + polygonAreaMm(part.shape), 0) - (12e6 - 0.25e6)) < .01);
+  assert.ok(parts.every(part => part.width <= 1250 && part.height <= 2500 && Math.min(part.width,part.height) >= 200));
   assert.ok(parts.some(part => part.height === 1250));
 });
 

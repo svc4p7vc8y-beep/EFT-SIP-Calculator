@@ -30,6 +30,11 @@
 .cut-layout { display: block; width: 100%; height: auto; max-height: 480px; min-height: 150px; margin: 12px 0; background: #fbfcf8; border-radius: 10px; }.cut-layout g[role=button] { cursor: pointer; }.cut-layout g:focus path { stroke: #146ec1; stroke-width: 3px; }.cut-layout text { pointer-events: none; fill: #28421c; }
 .cut-detail { display: grid; grid-template-columns: minmax(0,1fr) minmax(180px,.7fr); gap: 20px; padding: 16px; background: var(--green-soft); border-radius: 12px; }.cut-detail p { overflow-wrap: anywhere; }
 .cut-table-wrap { max-width: 100%; overflow-x: auto; margin: 16px 0; }.cut-table-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; }.cut-table-wrap th, .cut-table-wrap td { padding: 9px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }.cut-table-wrap th { background: var(--green-soft); }.cut-table-wrap small { display: block; margin-top: 4px; color: var(--muted); }
+.cut-table-wrap td { overflow-wrap: anywhere; }.cut-table-wrap details { margin-top: 8px; }.cut-table-wrap summary { cursor: pointer; font-weight: 700; }
+.cut-starter svg { display: block; width: 100%; height: auto; max-height: 540px; min-height: 220px; background: #fbfcf8; border: 1px solid var(--line); border-radius: 12px; }
+.cut-starter .starter-wall { stroke: #9ba69d; stroke-width: 3; }.cut-starter .starter-board { stroke: #277443; stroke-width: 10; stroke-linecap: round; }.cut-starter .starter-gap { stroke: #b5372b; stroke-width: 7; stroke-dasharray: 8 5; }
+.cut-starter text { fill: #111; font-weight: 800; paint-order: stroke; stroke: white; stroke-width: 5px; stroke-linejoin: round; }.cut-starter .starter-opening-label { fill: #9a251d; }
+.cut-starter-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0; font-size: 12px; font-weight: 700; }
 .cut-empty { padding: 28px 16px; border: 1px dashed var(--line); border-radius: 10px; text-align: center; }
 .cut-stock-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }.cut-stock { border: 1px solid var(--line); padding: 12px; border-radius: 10px; min-width: 0; }.cut-stock h3 { font-size: 14px; }.cut-stock svg { width: 100%; max-height: 300px; }.cut-stock small { display: block; overflow-wrap: anywhere; font-size: 10px; line-height: 1.5; }
 .cut-bars { display: grid; gap: 14px; }.cut-bars article { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }.cut-bars small { display: block; line-height: 1.7; overflow-wrap: anywhere; }.cut-bar { position: relative; height: 24px; background: #eee9da; margin: 10px 0; }.cut-bar span { position: absolute; height: 100%; background: #abc895; border: 1px solid #5c7b43; }
@@ -43,5 +48,6 @@
   .production-print .cut-print-surface { break-before: page; }.production-print .cut-layout { max-height: 130mm; min-height: 0; }
   .production-print .cut-table-wrap { overflow: visible; }.production-print table { width: 100%; table-layout: fixed; font-size: 8pt; }.production-print td, .production-print th { border: 1px solid #aaa; overflow-wrap: anywhere; padding: 4px; }.production-print thead { display: table-header-group; }.production-print tr { break-inside: avoid; }
   .production-print .cut-stock-grid { display: grid; grid-template-columns: 1fr 1fr; }.production-print .cut-stock { break-inside: avoid; }.production-print .cut-stock svg { max-height: 95mm; }
+  .production-print .cut-starter svg { max-height: 160mm; min-height: 0; }
 }
 .cut-quantity { display: inline-block; color: #173c20; font-size: 1.4rem; line-height: 1; font-weight: 900; white-space: nowrap; }
