@@ -47,7 +47,7 @@ const SAUNA_FEATURES = [
   [['MAT-SAUNA-SHIELD'], 'теплозащитный экран печи'], [['MAT-SAUNA-GUARD'], 'ограждение печи'],
   [['MAT-SAUNA-LAMP'], 'термостойкий светильник'], [['MAT-SAUNA-WIRE'], 'термостойкий провод'],
   [['MAT-SAUNA-VENT'], 'комплект притока и вытяжки'],
-  [['MAT-SAUNA-GLASSDOOR'], 'стеклянная дверь 690×1890 мм'],
+  [['MAT-SAUNA-GLASSDOOR'], 'прозрачная стеклянная дверь 700×1900 мм'],
   [['MAT-SAUNA-LINDENWINDOW'], 'липовая форточка 400×500 мм'],
 ];
 

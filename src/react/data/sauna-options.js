@@ -15,7 +15,7 @@ export const LINING_OFFERS = [
 
 export const DETAILED_DEFAULT_PRICES = {liningWork:18000,heaterWork:15000,heaterDelivery:7000};
 export const SAUNA_EXTRA_ITEMS = [
-  ['glassDoor','Стеклянная дверь парной 690×1890 мм · матовая, коробка из осины','шт','material'],
+  ['glassDoor','Стеклянная дверь парной 700×1900 мм · прозрачная бронза','шт','material'],
   ['lindenWindow','Форточка парной 400×500 мм · липа, стеклопакет','шт','material'],
   ['liningPack','Вагонка липа 15×96 мм · 10 досок','упак','material'],
   ['foilRoll','Фольга алюминиевая 80 мкм · рулон 10 м²','рул','material'],
@@ -45,6 +45,6 @@ export const SAUNA_EXTRA_ITEMS = [
   ['chimneyEnd','Завершение дымохода Ø115/200 по паспорту','компл','material'],
   ['chimneySupports','Опоры, хомуты и растяжки дымохода по проекту','компл','material'],
   ['chimneySeal','Высокотемпературный герметик по паспорту системы','шт','material'],
-].map(([key,name,unit,kind])=>{const offer=key==='glassDoor'?{price:14462,url:'https://ufa.lemanapro.ru/product/dver-dlya-sauny-steklyannaya-s-magnitnym-zamkom-matovaya-1890x690-mm-dvustoronnyaya-85848824/'}:key==='lindenWindow'?{price:3500,url:'https://stroyudacha.ru/products/206603-blok-okonnyy-lipa-400h500-mm.html'}:null;return {key,name,unit,kind,id:`${kind==='labor'?'LAB':'MAT'}-SAUNA-${key.toUpperCase()}`,cat:'Внутренняя отделка',price:offer?.price??DETAILED_DEFAULT_PRICES[key]??0,...(!offer&&!DETAILED_DEFAULT_PRICES[key]?{pricePending:true}:{}),priceNote:offer?`Розничный ориентир ${offer.price.toLocaleString('ru-RU')} ₽/шт по карточке товара; региональную цену и наличие уточнить: ${offer.url}. Монтаж не входит.`:DETAILED_DEFAULT_PRICES[key]?'Согласовано пользователем 29.09.2026; установка печи — предварительно.':'Цена и комплектность уточняются. Проектная цена не меняет общий прайс.'};});
+].map(([key,name,unit,kind])=>{const offer=key==='glassDoor'?{price:11400,url:'https://stroyudacha.ru/products/219307-blok-dvernoy-steklyannyy-bannyy-700h1900-mm-steklo-8-mm--bronza.html'}:key==='lindenWindow'?{price:3500,url:'https://stroyudacha.ru/products/206603-blok-okonnyy-lipa-400h500-mm.html'}:null;return {key,name,unit,kind,id:`${kind==='labor'?'LAB':'MAT'}-SAUNA-${key.toUpperCase()}`,cat:'Внутренняя отделка',price:offer?.price??DETAILED_DEFAULT_PRICES[key]??0,...(!offer&&!DETAILED_DEFAULT_PRICES[key]?{pricePending:true}:{}),priceNote:offer?`Розничный ориентир ${offer.price.toLocaleString('ru-RU')} ₽/шт по карточке товара; региональную цену и наличие уточнить: ${offer.url}. Монтаж не входит.`:DETAILED_DEFAULT_PRICES[key]?'Согласовано пользователем 29.09.2026; установка печи — предварительно.':'Цена и комплектность уточняются. Проектная цена не меняет общий прайс.'};});
 
 export const CHIMNEY_KEYS = SAUNA_EXTRA_ITEMS.filter(i=>i.key.startsWith('chimney')).map(i=>i.key);

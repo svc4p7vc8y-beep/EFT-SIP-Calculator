@@ -14,7 +14,7 @@ test('new sauna door and linden window are opt-in, supplier-priced, marked up on
   assert.equal(item(saunaLines(makeRoom(sauna)),'MAT-SAUNA-LINDENWINDOW'),undefined);
   sauna.quantities={glassDoor:1,lindenWindow:1};
   const lines=saunaLines(makeRoom(sauna));
-  assert.equal(item(lines,'MAT-SAUNA-GLASSDOOR').projectPrice,14462);
+  assert.equal(item(lines,'MAT-SAUNA-GLASSDOOR').projectPrice,11400);
   assert.equal(item(lines,'MAT-SAUNA-LINDENWINDOW').projectPrice,3500);
   assert.equal(item(lines,'MAT-SAUNA-GLASSDOOR').priceMultiplier,1.25);
   assert.equal(item(lines,'MAT-SAUNA-LINDENWINDOW').priceMultiplier,1.25);
@@ -23,7 +23,7 @@ test('new sauna door and linden window are opt-in, supplier-priced, marked up on
   assert.equal(item(edited,'MAT-SAUNA-GLASSDOOR').projectPrice,10000);
   assert.equal(item(edited,'MAT-SAUNA-LINDENWINDOW').projectPrice,0);
   const legacy={enabled:true,quantities:{glassDoor:1,lindenWindow:1}};
-  assert.equal(item(saunaLines(makeRoom(legacy)),'MAT-SAUNA-GLASSDOOR').projectPrice,14462);
+  assert.equal(item(saunaLines(makeRoom(legacy)),'MAT-SAUNA-GLASSDOOR').projectPrice,11400);
   assert.equal(item(saunaLines(makeRoom(legacy)),'MAT-SAUNA-LINDENWINDOW').priceMultiplier,1.25);
 });
 
@@ -37,11 +37,11 @@ test('saved sauna choices survive migration and arrive in the estimate without c
   const oldOpenings=JSON.stringify(project.plan.openings);
   const migrated=migrateProject(JSON.parse(JSON.stringify(project)));
   const lines=calculateProject(migrated).sections.find(section=>section.key==='internal').lines;
-  assert.equal(item(lines,'MAT-SAUNA-GLASSDOOR').price,18077.5);
+  assert.equal(item(lines,'MAT-SAUNA-GLASSDOOR').price,14250);
   assert.equal(item(lines,'MAT-SAUNA-LINDENWINDOW').price,4375);
   assert.equal(JSON.stringify(migrated.plan.openings),oldOpenings);
   assert.equal(migrated.plan.rooms[0].w,3);
   assert.equal(migrated.plan.rooms[0].h,2);
   assert.equal(migrated.settings.internal.roomFinishes['1:steam'].sauna.quantities.glassDoor,1);
-  assert.equal(migrated.priceMat.find(row=>row.id==='MAT-SAUNA-GLASSDOOR').price,14462);
+  assert.equal(migrated.priceMat.find(row=>row.id==='MAT-SAUNA-GLASSDOOR').price,11400);
 });
