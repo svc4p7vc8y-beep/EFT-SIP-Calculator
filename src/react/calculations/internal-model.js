@@ -1,4 +1,5 @@
 import { polygonArea } from '../../calculations/plan-metrics.js';
+import { isInteriorDoor } from './opening-types.js';
 import { saunaLines } from './sauna-model.js';
 import { roomDrainLines } from './room-drain.js';
 
@@ -23,6 +24,7 @@ export const DEFAULT_INTERNAL = Object.freeze({
   includePreparation: true,
   includeThresholds: true,
   includeSlopes: true,
+  includeInteriorDoorSlopes: false,
   slopeDepth: 0.2,
   stretchMinimumArea: 5,
   roomFinishes: {},
@@ -76,6 +78,20 @@ export function normalizeInternal(value={}) {
 }
 
 export function internalRoomKey(floor, roomId) { return `${floor}:${roomId}`; }
+
+export function interiorOpeningSlopeLengths(project) {
+  const floorCount=Math.max(1,Math.min(2,n(project.meta?.floors,1)));
+  const plans=[project.plan,...(project.upperFloors||[]).slice(0,floorCount-1)];
+  const lengths=plans.flatMap(plan=>plan.openings||[]).reduce((lengths,opening)=>{
+    if(opening.include===false||opening.includeInEstimate===false)return lengths;
+    const length=Math.max(0,n(opening.width))+2*Math.max(0,n(opening.height));
+    if(opening.type==='window'&&opening.outer!==false)lengths.windows+=length;
+    else if(isInteriorDoor(opening))lengths.interiorDoors+=length;
+    else if(opening.type==='door'&&opening.doorType!=='garage'&&(opening.doorType==='entrance'||opening.outer!==false))lengths.entranceDoors+=length;
+    return lengths;
+  },{windows:0,entranceDoors:0,interiorDoors:0});
+  return Object.fromEntries(Object.entries(lengths).map(([key,value])=>[key,round(value,3)]));
+}
 
 export function resolveInternalRoom(settings, room) {
   const key=internalRoomKey(room.floor,room.id);
@@ -163,7 +179,18 @@ export function calculateInternal(project, metrics, inputs) {
   }
   const doors=Math.max(0,n(inputs.internal.doors));
   add('MAT-OPENING-FOAM','doors-foam',ceil(doors),'Межкомнатные двери','Сметный запас: 1 баллон на дверь; уточняется в ведомости');
-  add('MAT-180','doors',doors,'Межкомнатные двери','Комплект межкомнатной двери');add('LAB-068','doors-work',doors,'Межкомнатные двери','Установка межкомнатной двери');add('MAT-050','doors-fasteners',doors,'Межкомнатные двери','Комплект крепежа двери');if(settings.includeThresholds){add('MAT-217','doors-threshold',doors,'Межкомнатные двери','Пороги');add('LAB-120','doors-threshold-work',doors,'Межкомнатные двери','Монтаж порогов');}
-  if(settings.includeSlopes){const plans=[project.plan,...(project.upperFloors||[]).slice(0,Math.max(0,n(project.meta?.floors,1)-1))];const slopeLength=plans.flatMap(plan=>plan.openings||[]).filter(opening=>opening.includeInEstimate!==false&&(opening.outer!==false)&&(opening.type==='window'||opening.type==='door')).reduce((sum,opening)=>sum+n(opening.width)+2*n(opening.height),0);const slopeArea=slopeLength*Math.max(.05,n(settings.slopeDepth,.2));add('MAT-208','opening-slopes-board',ceil(slopeArea*reserve/3),'Откосы окон и входных дверей','Гипсокартон для откосов');add('MAT-219','opening-slopes-putty',ceil(slopeArea*1.2/20),'Откосы окон и входных дверей','Шпаклёвка откосов');add('MAT-215','opening-slopes-primer',ceil(slopeArea*.15/10),'Откосы окон и входных дверей','Грунтовка откосов');add('LAB-121','opening-slopes-work',slopeLength,'Откосы окон и входных дверей','Отделка откосов');}
+  add('MAT-180','doors',doors,'Межкомнатные двери','Комплект межкомнатной двери');add('LAB-068','doors-work',doors,'Межкомнатные двери','Установка межкомнатной двери');add('MAT-070','doors-fasteners',doors,'Межкомнатные двери','Комплект крепежа двери');if(settings.includeThresholds){add('MAT-217','doors-threshold',doors,'Межкомнатные двери','Пороги');add('LAB-120','doors-threshold-work',doors,'Межкомнатные двери','Монтаж порогов');}
+  const slopeLengths=interiorOpeningSlopeLengths(project);
+  const slopeDepth=Math.max(.05,n(settings.slopeDepth,.2));
+  const addSlopes=(key,length,group,previousLength=0)=>{
+    const area=length*slopeDepth,previousArea=previousLength*slopeDepth,totalArea=area+previousArea;
+    add('MAT-208',`${key}-board`,ceil(totalArea*reserve/3)-ceil(previousArea*reserve/3),group,'Гипсокартон для откосов');
+    add('MAT-219',`${key}-putty`,ceil(totalArea*1.2/20)-ceil(previousArea*1.2/20),group,'Шпаклёвка откосов');
+    add('MAT-215',`${key}-primer`,ceil(totalArea*.15/10)-ceil(previousArea*.15/10),group,'Грунтовка откосов');
+    add('LAB-121',`${key}-work`,length,group,'Отделка откосов');
+  };
+  const exteriorSlopeLength=settings.includeSlopes?slopeLengths.windows+slopeLengths.entranceDoors:0;
+  if(settings.includeSlopes)addSlopes('opening-slopes',exteriorSlopeLength,'Откосы окон и входных дверей');
+  if(settings.includeInteriorDoorSlopes)addSlopes('interior-door-slopes',slopeLengths.interiorDoors,'Дополнительные откосы межкомнатных дверей',exteriorSlopeLength);
   return {mode:'rooms',rooms,lines:lines.filter(Boolean),totals:{floorArea:round(rooms.reduce((sum,r)=>sum+n(r.settings.floorArea==null?r.area:r.settings.floorArea),0)),wallArea:round(rooms.reduce((sum,r)=>sum+n(r.settings.wallArea==null?r.wallArea:r.settings.wallArea),0)),ceilingArea:round(rooms.reduce((sum,r)=>sum+n(r.settings.ceilingArea==null?r.ceilingArea:r.settings.ceilingArea),0))}};
 }

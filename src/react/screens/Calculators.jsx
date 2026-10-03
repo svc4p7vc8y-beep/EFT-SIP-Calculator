@@ -1002,7 +1002,7 @@ function RoofConstructionPanels({
   );
 }
 
-export default function Calculators({ type }) {
+export default function Calculators({ type, onNavigate }) {
   const { project: sourceProject, commit } = useProject();
   const calculation = useMemo(
     () => calculateProject(sourceProject),
@@ -1831,8 +1831,7 @@ export default function Calculators({ type }) {
                 checked={project.services.internalFinish}
                 onChange={(value) => setService("internalFinish", value)}
               />
-              <Toggle label={project.settings.internal?.assemblyVersion===1?'Межкомнатные двери из плана':'Количество и площади из плана'} checked={calculation.inputs.links.internalFinishFromPlan} onChange={value=>commit(next=>{if(!value)Object.assign(next.settings.internal,calculation.inputs.internal);next.settings.links.internalFinishFromPlan=value;return next;})}/>
-              <InternalEditor project={sourceProject} calculation={calculation} commit={commit}/>
+              <InternalEditor project={sourceProject} calculation={calculation} commit={commit} onNavigate={onNavigate}/>
             </Panel>
           </div>
           <Panel title="Внутренняя ведомость">

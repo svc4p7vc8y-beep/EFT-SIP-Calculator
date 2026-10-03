@@ -141,7 +141,7 @@ function downloadProject(project) {
   setTimeout(() => URL.revokeObjectURL(link.href), 0);
 }
 
-function Screen({ active, calculation, teamProps }) {
+function Screen({ active, calculation, teamProps, onNavigate }) {
   if (active === "team") return <TeamWorkspaceScreen {...teamProps} />;
   if (active === "mail") return <MailScreen />;
   if (active === "files") return <FilesScreen />;
@@ -156,7 +156,7 @@ function Screen({ active, calculation, teamProps }) {
     return <NodeFastenersScreen calculation={calculation} />;
   if (active === 'cutting') return <CuttingScreen calculation={calculation} />;
   if (active === "calculation-settings") return <CalculationSettingsScreen />;
-  return <Calculators type={active} />;
+  return <Calculators type={active} onNavigate={onNavigate} />;
 }
 
 export function App() {
@@ -633,6 +633,7 @@ export function App() {
               <Screen
                 active={active}
                 calculation={calculation}
+                onNavigate={setActive}
                 teamProps={{
                   project,
                   onOpenProject: openTeamProject,

@@ -98,5 +98,6 @@ export function internalDescription(calculation, lines) {
   const doors = lines.find(line => line.id === 'internal:doors');
   if (doors) blocks.push({ title: 'Межкомнатные двери', text: `${formatNumber(doors.qty, 0)} шт.${lines.some(line => line.id === 'internal:doors-work') ? ' с установкой' : ', без установки'}.` });
   if (lines.some(line => line.estimateGroup === 'Откосы окон и входных дверей')) blocks.push({ title: 'Откосы', text: 'Отделка откосов окон и входных дверей в рассчитанном объёме.' });
+  if (lines.some(line => line.estimateGroup === 'Дополнительные откосы межкомнатных дверей')) blocks.push({ title: 'Дополнительные откосы', text: 'Отделка откосов межкомнатных дверей по отдельному выбору проекта.' });
   return blocks;
 }

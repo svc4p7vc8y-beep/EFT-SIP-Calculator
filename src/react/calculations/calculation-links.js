@@ -111,7 +111,7 @@ export function deriveLinkedInputs(project, metrics) {
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
   const activePlans = [project.plan, ...(project.upperFloors || []).slice(0, floorCount - 1)];
   const wetRooms = activePlans.flatMap((plan) => plan.rooms || []).filter((room) => room.include !== false && WET_ROOM.test(room.name || '')).length;
-  const interiorDoors = activePlans.flatMap((plan) => plan.openings || []).filter(opening => isInteriorDoor(opening) && opening.includeInEstimate !== false).length;
+  const interiorDoors = activePlans.flatMap((plan) => plan.openings || []).filter(opening => isInteriorDoor(opening) && opening.include !== false && opening.includeInEstimate !== false).length;
   const platformArea = metrics.platformArea || 0;
   const value = (auto, computed, manual) => round(auto ? computed : manual, 3);
   return {

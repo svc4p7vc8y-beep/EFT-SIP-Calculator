@@ -4,6 +4,7 @@ import {createDefaultProject,migrateProject} from '../src/react/state/project-mo
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
 import {buildCommercialScope} from '../src/react/calculations/commercial-scope.js';
 import {changeEstimateLine} from '../src/react/state/estimate-edits.js';
+import {interiorOpeningSlopeLengths} from '../src/react/calculations/internal-model.js';
 
 const section = (c,key) => c.sections.find(s=>s.key===key)?.lines || [];
 const ext = p => section(calculateProject(p),'external');
@@ -29,10 +30,42 @@ test('interior doors only enter enabled internal finishing; drawings and SIP rem
     const row=section(on,'internal').find(l=>l.id===`internal:${key}`);
     assert.equal(row.qty,1);assert.ok(row.price>0);
   }
+  assert.equal(section(on,'internal').find(l=>l.id==='internal:doors-fasteners').catalogId,'MAT-070');
   assert.equal(on.lines.filter(l=>l.catalogId==='MAT-180').length,1);
   assert.ok(section(on,'internal').every(l=>l.catalogId && l.price>0));
   p.services.openings=false;
   assert.deepEqual(section(calculateProject(p),'internal'),section(on,'internal'));
+});
+test('door slopes count entrance reveals but not interior doors, garage doors or omitted openings',()=>{
+  const p=house();p.services.internalFinish=true;
+  p.plan.openings=[
+    {id:'entry',type:'door',doorType:'entrance',outer:true,width:.9,height:2.1},
+    {id:'inside',type:'door',doorType:'interior',width:.8,height:2},
+    {id:'garage',type:'door',doorType:'garage',outer:true,width:3,height:2.3},
+    {id:'hidden',type:'window',outer:true,width:2,height:1,include:false},
+  ];
+  assert.deepEqual(interiorOpeningSlopeLengths(p),{windows:0,entranceDoors:5.1,interiorDoors:4.8});
+  const rows=section(calculateProject(p),'internal');
+  assert.equal(rows.find(l=>l.id==='internal:opening-slopes-work').qty,5.1);
+  assert.equal(rows.find(l=>l.id==='internal:opening-slopes-work').catalogId,'LAB-121');
+  assert.equal(rows.find(l=>l.id==='internal:doors-fasteners').catalogId,'MAT-070');
+  assert.equal(rows.find(l=>l.id==='internal:doors-fasteners').price,450);
+  assert.equal(rows.find(l=>l.id==='internal:interior-door-slopes-work'),undefined);
+  p.settings.internal.includeInteriorDoorSlopes=true;
+  const optional=section(calculateProject(p),'internal');
+  assert.equal(optional.find(l=>l.id==='internal:interior-door-slopes-work').qty,4.8);
+  assert.equal(optional.filter(l=>l.catalogId==='MAT-208'&&l.id.includes('slopes')).reduce((sum,l)=>sum+l.qty,0),1);
+  assert.ok(optional.every(l=>l.catalogId&&l.price>0));
+  const reopened=migrateProject(JSON.parse(JSON.stringify(p)));
+  assert.equal(reopened.settings.internal.includeInteriorDoorSlopes,true);
+  assert.equal(section(calculateProject(reopened),'internal').find(l=>l.id==='internal:interior-door-slopes-work').qty,4.8);
+});
+test('hidden interior doors do not inflate the linked door quantity',()=>{
+  const p=house();p.services.internalFinish=true;
+  p.plan.openings=[{type:'door',outer:false,include:false},{type:'door',outer:false,includeInEstimate:false},{type:'door',outer:false}];
+  const calc=calculateProject(p);
+  assert.equal(calc.inputs.internal.doors,1);
+  assert.equal(section(calc,'internal').find(l=>l.id==='internal:doors').qty,1);
 });
 test('door quantity respects both floors, exclusions and legacy type fallback',()=>{
   const p=house();p.services.internalFinish=true;p.meta.floors=2;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Brush, Building2, CheckCircle2, Droplets, Layers3 } from 'lucide-react';
-import { DEFAULT_INTERNAL, inferInternalPreset, internalRoomKey } from '../calculations/internal-model.js';
+import { DEFAULT_INTERNAL, inferInternalPreset, internalRoomKey, interiorOpeningSlopeLengths } from '../calculations/internal-model.js';
 import { NumberField, SelectField, Stat, Toggle } from './ui.jsx';
 import { formatNumber } from '../utils/format.js';
 import { SaunaEditor } from './SaunaEditor.jsx';
@@ -16,7 +16,34 @@ const CEILING=[{value:'none',label:'Без потолка / второй све�
 const CEILING_FRAME=FRAME.filter(item=>item.value!=='metal');
 const STRETCH=[{value:'pvc',label:'ПВХ-полотно'},{value:'fabric',label:'Тканевое полотно'}];
 
-export function InternalEditor({project,calculation,commit}) {
+function DoorFinishingPanel({project,calculation,commit,detailed,onNavigate}) {
+  const settings=project.settings.internal;
+  const linked=calculation.inputs.links.internalFinishFromPlan;
+  const doors=calculation.inputs.internal.doors;
+  const slopes=interiorOpeningSlopeLengths(project);
+  const update=(key,value)=>commit(next=>{next.settings.internal={...DEFAULT_INTERNAL,...next.settings.internal,[key]:value};return next;});
+  const setLinked=value=>commit(next=>{if(!value)next.settings.internal.doors=doors;next.settings.links.internalFinishFromPlan=value;return next;});
+  return <section className="internal-door-panel" aria-label="Межкомнатные двери и откосы">
+    <h3>Межкомнатные двери и откосы</h3>
+    <div className="internal-door-summary"><Stat label="Межкомнатные двери" value={`${doors} шт`}/>{detailed?<><Stat label="Откосы входных дверей" value={`${formatNumber(slopes.entranceDoors)} м`}/><Stat label="Откосы окон" value={`${formatNumber(slopes.windows)} м`}/></>:null}</div>
+    <Toggle label="Количество межкомнатных дверей из плана" checked={linked} onChange={setLinked}/>
+    {!linked?<NumberField label="Межкомнатные двери вручную" value={settings.doors} suffix="шт" min={0} step={1} onChange={value=>update('doors',value)}/>:null}
+    {doors===0&&linked?<p>На плане нет межкомнатных дверей, включённых в смету. Добавьте их инструментом «Дверь / ворота» на внутренней стене.</p>:null}
+    {onNavigate?<button className="button secondary" type="button" onClick={()=>onNavigate('plan')}>Открыть план дома</button>:null}
+    <p>Комплект межкомнатной двери уже содержит добор и замок; установка, крепёж и пена считаются во внутренней отделке, если раздел включён.</p>
+    {detailed?<>
+      <div className="internal-door-options">
+        <Toggle label="Пороги межкомнатных дверей" checked={settings.includeThresholds!==false} onChange={value=>update('includeThresholds',value)}/>
+        <Toggle label="Откосы окон и входных дверей" checked={settings.includeSlopes!==false} onChange={value=>update('includeSlopes',value)}/>
+        <Toggle label="Дополнительная отделка откосов межкомнатных дверей" checked={settings.includeInteriorDoorSlopes===true} onChange={value=>update('includeInteriorDoorSlopes',value)}/>
+      </div>
+      <NumberField label="Глубина отделываемых откосов" value={settings.slopeDepth} suffix="м" min={.05} step={.01} onChange={value=>update('slopeDepth',value)}/>
+      <p>Входная дверь: верх и две боковые стороны, {formatNumber(slopes.entranceDoors)} пог. м по плану. Межкомнатные проёмы с доборами не включаются в эту строку. Их отдельная отделка добавляется только по переключателю, если добор не закрывает проём.</p>
+    </>:null}
+  </section>;
+}
+
+export function InternalEditor({project,calculation,commit,onNavigate}) {
   const detailed=project.settings.internal?.assemblyVersion===1&&project.settings.internal?.mode!=='legacy';
   const rooms=calculation.internal?.rooms||[];
   const [selectedKey,setSelectedKey]=useState('');
@@ -27,12 +54,13 @@ export function InternalEditor({project,calculation,commit}) {
   const updateGlobal=(key,value)=>commit(next=>{next.settings.internal={...DEFAULT_INTERNAL,...next.settings.internal,[key]:value};return next;});
   const updateRoom=(changes)=>{if(!room)return;commit(next=>{const settings={...DEFAULT_INTERNAL,...next.settings.internal};const key=internalRoomKey(room.floor,room.id);settings.roomFinishes={...(settings.roomFinishes||{}),[key]:{...inferInternalPreset(room.name),...(settings.roomFinishes?.[key]||{}),...changes}};next.settings.internal=settings;return next;});};
   const resetRoom=()=>{if(!room)return;commit(next=>{const key=internalRoomKey(room.floor,room.id);const finishes={...(next.settings.internal.roomFinishes||{})};delete finishes[key];next.settings.internal.roomFinishes=finishes;return next;});};
-  if(!detailed)return <div className="internal-upgrade"><Layers3/><div><strong>Сохранён прежний расчёт внутренней отделки</strong><p>Он оставлен без изменений, чтобы старая смета не подорожала автоматически. Перейдите на расчёт по помещениям — будут учтены основания пола, каркасы, гидроизоляция, плинтусы и потолочные узлы.</p></div><button className="button primary" onClick={()=>commit(next=>{next.settings.internal={...DEFAULT_INTERNAL,...next.settings.internal,assemblyVersion:1,mode:'rooms',roomFinishes:{}};return next;})}>Перейти на подробный расчёт</button></div>;
+  if(!detailed)return <><DoorFinishingPanel project={project} calculation={calculation} commit={commit} detailed={false} onNavigate={onNavigate}/><div className="internal-upgrade"><Layers3/><div><strong>Сохранён прежний расчёт внутренней отделки</strong><p>Он оставлен без изменений, чтобы старая смета не подорожала автоматически. Перейдите на расчёт по помещениям — будут учтены основания пола, каркасы, гидроизоляция, плинтусы и потолочные узлы.</p></div><button className="button primary" onClick={()=>commit(next=>{next.settings.internal={...DEFAULT_INTERNAL,...next.settings.internal,assemblyVersion:1,mode:'rooms',roomFinishes:{}};return next;})}>Перейти на подробный расчёт</button></div></>;
   return <div className="internal-editor">
     <section className="internal-overview">
       <Stat label="Полы" value={`${formatNumber(calculation.internal?.totals.floorArea||0)} м²`}/><Stat label="Стены" value={`${formatNumber(calculation.internal?.totals.wallArea||0)} м²`}/><Stat label="Потолки" value={`${formatNumber(calculation.internal?.totals.ceilingArea||0)} м²`}/><Stat label="Помещения" value={`${rooms.length} шт`}/>
     </section>
-    <details className="internal-global"><summary>Общие нормы и округление</summary><div className="form-grid four"><NumberField label="Запас материалов" value={(project.settings.internal.reserve||1.1)*100-100} suffix="%" step={1} onChange={value=>updateGlobal('reserve',1+value/100)}/><NumberField label="Шаг обрешётки" value={project.settings.internal.battenStep} suffix="м" step={.05} min={.2} onChange={value=>updateGlobal('battenStep',value)}/><NumberField label="Расход краски на слой" value={project.settings.internal.paintConsumption} suffix="л/м²" step={.01} onChange={value=>updateGlobal('paintConsumption',value)}/><NumberField label="Плиточный клей" value={project.settings.internal.tileGlueConsumption} suffix="кг/м²" step={.1} onChange={value=>updateGlobal('tileGlueConsumption',value)}/><NumberField label="Минимум натяжного потолка" value={project.settings.internal.stretchMinimumArea} suffix="м²/комната" step={1} onChange={value=>updateGlobal('stretchMinimumArea',value)}/><NumberField label="Глубина откосов" value={project.settings.internal.slopeDepth} suffix="м" step={.01} onChange={value=>updateGlobal('slopeDepth',value)}/>{project.settings.links.internalFinishFromPlan===false?<NumberField label="Межкомнатные двери вручную" value={project.settings.internal.doors} suffix="шт" step={1} onChange={value=>updateGlobal('doors',value)}/>:null}</div><div className="internal-toggle-grid"><Toggle label="Подготовка основания пола" checked={project.settings.internal.includePreparation!==false} onChange={value=>updateGlobal('includePreparation',value)}/><Toggle label="Пороги межкомнатных дверей" checked={project.settings.internal.includeThresholds!==false} onChange={value=>updateGlobal('includeThresholds',value)}/><Toggle label="Откосы окон и входных дверей" checked={project.settings.internal.includeSlopes!==false} onChange={value=>updateGlobal('includeSlopes',value)}/></div><p>Листовые материалы округляются вверх. Брусок округляется до закупки шестиметровыми хлыстами. Нормы остаются редактируемыми для конкретного проекта.</p></details>
+    <DoorFinishingPanel project={project} calculation={calculation} commit={commit} detailed onNavigate={onNavigate}/>
+    <details className="internal-global"><summary>Общие нормы и округление</summary><div className="form-grid four"><NumberField label="Запас материалов" value={(project.settings.internal.reserve||1.1)*100-100} suffix="%" step={1} onChange={value=>updateGlobal('reserve',1+value/100)}/><NumberField label="Шаг обрешётки" value={project.settings.internal.battenStep} suffix="м" step={.05} min={.2} onChange={value=>updateGlobal('battenStep',value)}/><NumberField label="Расход краски на слой" value={project.settings.internal.paintConsumption} suffix="л/м²" step={.01} onChange={value=>updateGlobal('paintConsumption',value)}/><NumberField label="Плиточный клей" value={project.settings.internal.tileGlueConsumption} suffix="кг/м²" step={.1} onChange={value=>updateGlobal('tileGlueConsumption',value)}/><NumberField label="Минимум натяжного потолка" value={project.settings.internal.stretchMinimumArea} suffix="м²/комната" step={1} onChange={value=>updateGlobal('stretchMinimumArea',value)}/></div><div className="internal-toggle-grid"><Toggle label="Подготовка основания пола" checked={project.settings.internal.includePreparation!==false} onChange={value=>updateGlobal('includePreparation',value)}/></div><p>Листовые материалы округляются вверх. Брусок округляется до закупки шестиметровыми хлыстами. Нормы остаются редактируемыми для конкретного проекта.</p></details>
     <div className="internal-workspace">
       <nav className="internal-room-list" aria-label="Помещения внутренней отделки">{rooms.map(item=>{const key=internalRoomKey(item.floor,item.id);const itemSettings=item.settings;return <button key={key} className={key===selectedKey?'active':''} onClick={()=>setSelectedKey(key)}><span><Building2/> {item.floor} этаж</span><strong>{item.name}</strong><small>{formatNumber(item.area)} м² · {itemSettings.floorFinish==='tile'?'плитка':itemSettings.floorFinish==='laminate'?'ламинат':'без пола'}</small></button>;})}</nav>
       {room&&values?<section className="internal-room-card">
