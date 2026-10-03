@@ -14,6 +14,8 @@ export function normalizeProductionCutting(value = {}) {
     splineWidthMm: number('splineWidthMm', 90, 20, 300),
     edgeWidthMm: number('edgeWidthMm', 45, 20, 300),
     staggered: value.staggered !== false,
+    ceilingBearingAlignment: value.ceilingBearingAlignment !== false,
+    counterLathProfile: typeof value.counterLathProfile==='string'?value.counterLathProfile.trim().replace(/[xх]/g,'×'):'',
     profileMode: value.profileMode === 'estimate' ? 'estimate' : 'saved',
     allowRotation: value.allowRotation === true,
     continuousMembers: value.continuousMembers === true,

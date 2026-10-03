@@ -8,9 +8,10 @@ import { createPlanTransfer, applyPlanTransfer } from '../src/react/storage/plan
 const rectangle = (w, h) => [[[0,0],[w,0],[w,h],[0,h],[0,0]]];
 const simple = () => {
   const p = createDefaultProject();
-  p.plan = { ...p.plan, house: { w: 5, h: 4 }, rooms: [], walls: [], openings: [], wallGaps: [], platforms: [], wallHeight: 2.8 };
+  p.plan = { ...p.plan, bindingLines:[],pileRows:[],piles:[],house: { w: 5, h: 4 }, rooms: [], walls: [], openings: [], wallGaps: [], platforms: [], wallHeight: 2.8 };
   p.settings.productionCutting.kerfMm = 3;
   p.settings.productionCutting.endAllowanceMm = 0;
+  p.settings.productionCutting.counterLathProfile = "50×50";
   return p;
 };
 

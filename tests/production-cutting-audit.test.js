@@ -4,7 +4,7 @@ import { createDefaultProject, ensureProjectFloorCount, migrateProject } from '.
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting, tileSurface, connectionSegments, packPanelBlanks } from '../src/react/calculations/production-cutting.js';
 import { normalizeProductionCutting } from '../src/react/state/production-cutting.js';
-const base=()=>{const p=createDefaultProject();p.plan={...p.plan,house:{w:5,h:4},rooms:[],walls:[],openings:[],wallGaps:[],platforms:[],wallHeight:2.8};Object.assign(p.settings.productionCutting,{kerfMm:3,endAllowanceMm:0});p.settings.sip.partitionType='sip';return p;};
+const base=()=>{const p=createDefaultProject();p.plan={...p.plan,bindingLines:[],pileRows:[],piles:[],house:{w:5,h:4},rooms:[],walls:[],openings:[],wallGaps:[],platforms:[],wallHeight:2.8};Object.assign(p.settings.productionCutting,{kerfMm:3,endAllowanceMm:0,counterLathProfile:"50×50"});p.settings.sip.partitionType='sip';return p;};
 const run=p=>calculateProductionCutting(p,calculateProject(p));
 test('cutting excludes omitted room partitions without mutating plan',()=>{const p=base();p.plan.rooms=[{id:'off',x:1,y:1,w:2,h:2,include:false}];assert.equal(run(p).surfaces.filter(s=>s.id.includes('ПГ')).length,0);assert.equal(p.plan.rooms.length,1);});
 test('missing outer opening inferred from nearest correctly oriented wall',()=>{const p=base();p.plan.walls=[{id:'w',x1:1,y1:2,x2:4,y2:2}];p.plan.openings=[{id:'d',type:'door',x:2,y:2,width:.8,height:2,orientation:'h'}];const r=run(p);assert.equal(r.issues.length,0);assert.equal(r.parts.filter(x=>x.surfaceId.includes('ПГ')).reduce((s,x)=>s+x.area,0),6.8e6);});

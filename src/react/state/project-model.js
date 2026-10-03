@@ -21,7 +21,7 @@ import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 183;
+export const REACT_PROJECT_VERSION = 184;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -550,6 +550,7 @@ export function createDefaultProject() {
         autoSyncBinding: true,
         boardVolumePerMeter: 0.0225,
         bindingLayers: 3,
+        bindingType: "boards",
         bindingBoardWidthMm: 50,
         bindingBoardHeightMm: 150,
         boardStockLength: 6,

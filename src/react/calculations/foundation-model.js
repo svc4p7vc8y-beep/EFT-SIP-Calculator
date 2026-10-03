@@ -237,9 +237,10 @@ export function calculateFoundation(plan, settings = {}) {
   const houseBindingLength = bindingLines.filter((line) => line.include !== false).reduce((sum, line) => sum + Math.hypot(line.x2 - line.x1, line.y2 - line.y1), 0);
   const platformBinding = (plan.platforms || []).filter((platform) => platform.include !== false).reduce((sum, platform) => sum + platformBindingLength(platform, plan.house), 0);
   const bindingLength = houseBindingLength + platformBinding;
-  const boardWidth = Math.max(0.01, (Number(settings.bindingBoardWidthMm) || 50) / 1000);
-  const boardHeight = Math.max(0.01, (Number(settings.bindingBoardHeightMm) || 150) / 1000);
-  const bindingLayers = Math.max(1, Math.round(Number(settings.bindingLayers) || Math.round((Number(settings.boardVolumePerMeter) || 0.0225) / (boardWidth * boardHeight)) || 3));
+  const bindingType=settings.bindingType==='timber'?'timber':'boards';
+  const boardWidth = bindingType==='timber'?0.15:Math.max(0.01, (Number(settings.bindingBoardWidthMm) || 50) / 1000);
+  const boardHeight = bindingType==='timber'?0.15:Math.max(0.01, (Number(settings.bindingBoardHeightMm) || 150) / 1000);
+  const bindingLayers = bindingType==='timber'?1:Math.max(1, Math.round(Number(settings.bindingLayers) || Math.round((Number(settings.boardVolumePerMeter) || 0.0225) / (boardWidth * boardHeight)) || 3));
   const boardStockLength = 6;
   const requiredBoardLength = bindingLength * bindingLayers;
   const boardCount = requiredBoardLength ? Math.ceil(requiredBoardLength / boardStockLength) : 0;
@@ -255,6 +256,7 @@ export function calculateFoundation(plan, settings = {}) {
     platformBindingLength: round(platformBinding),
     bindingLength: round(bindingLength),
     bindingLayers,
+    bindingType, bindingProfile:`${Math.round(boardWidth*1000)}×${Math.round(boardHeight*1000)}`,
     boardStockLength,
     requiredBoardLength: round(requiredBoardLength, 3),
     boardCount,

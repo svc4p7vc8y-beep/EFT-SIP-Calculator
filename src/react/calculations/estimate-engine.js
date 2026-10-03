@@ -7,6 +7,7 @@ import {
   roofGeometry,
 } from "../../calculations/plan-metrics.js";
 import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
+import { bearingEdges, partitionProfileShares } from './bearing-walls.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation, calculateConcreteBase } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
@@ -152,9 +153,7 @@ function resolveRafterStructure(project, geometry, frameLength) {
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
   const roofSupportPlan =
     floorCount > 1 ? project.upperFloors?.[floorCount - 2] || project.plan : project.plan;
-  const hasBearingSupport = (roofSupportPlan.rooms || []).some(
-    (room) => room.include !== false && room.bearing,
-  );
+  const hasBearingSupport = bearingEdges(roofSupportPlan).length>0;
   const system =
     geometry.shape === "flat"
       ? "flat"
@@ -738,7 +737,17 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       const boardVolume = linearMode
         ? assembly.volume
         : area * f.partitionBoardM3PerM2 * partitionVolumeFactor;
-      lines.push(
+      const shares=partitionProfileShares(partitionPlan,partitionFrameSection);
+      const customProfiles=shares.some(s=>s.profile!==partitionFrameSection);
+      if(customProfiles){
+        for(const share of shares){
+          const depth=Number(share.profile.split('x')[1])/1000;
+          const requiredLength=linearMode?assembly.requiredLength:boardVolume/(.05*Number(partitionFrameSection.split('x')[1])/1000);
+          const boardCount=Math.ceil(requiredLength*share.share/assembly.stockLength);
+          const query={'50x100':'Доска ест.влажн. сосна 50*100мм','50x150':'Доска ест. влажн. сосна 50х150мм','50x200':'Доска ест. влажн. сосна 50х200мм'}[share.profile];
+          lines.push(makeLine(index,'sip',query,round(boardCount*assembly.stockLength*.05*depth,3),{key:`partition-board${suffix}-${share.profile}`,unit:'м³',source:key,estimateGroup:groupNames[key],name:`Каркас перегородок · доска ${share.profile.replace('x','×')} мм · ${boardCount} шт × ${assembly.stockLength} м · распределение по длинам стен`}));
+        }
+      } else lines.push(
         makeLine(
           index,
           "sip",
@@ -925,13 +934,13 @@ function foundationSection(project, index, inputs) {
       makeLine(
         index,
         "foundation",
-        "Доска ест. влажн. сосна 50х150мм",
+        foundation.bindingType==='timber' ? "Брус ест.влажн. сосна 150×150 мм" : "Доска ест. влажн. сосна 50х150мм",
         foundation.boardVolume,
         {
           key: "binding-board",
           unit: "м³",
           digits: 3,
-          name: `Доска обвязки 50×150 мм · ${foundation.boardCount} шт × 6 м`,
+          name: `${foundation.bindingType==='timber'?'Брус':'Доска'} обвязки ${foundation.bindingProfile} мм · ${foundation.boardCount} шт × 6 м`,
         },
       ),
       makeLine(

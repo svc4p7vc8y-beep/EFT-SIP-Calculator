@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v183-assembly-cutting-1';
+const CACHE_NAME = 'eft-calculator-react-v184-mounting-album-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

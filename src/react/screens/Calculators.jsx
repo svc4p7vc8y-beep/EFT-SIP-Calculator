@@ -1190,6 +1190,7 @@ export default function Calculators({ type, onNavigate }) {
           <Panel title="Параметры основания">
             <div className="form-grid three">
               {project.services.foundation ? <>
+              <label>Конструкция обвязки<select value={project.settings.piles.bindingType||'boards'} onChange={e=>setSetting('piles','bindingType',e.target.value)}><option value="boards">Пакет досок · по умолчанию 3×50×150</option><option value="timber">Цельный брус 150×150</option></select></label>
               <NumberField
                 label="Предельный шаг свай"
                 value={project.settings.piles.spacing}
@@ -1198,7 +1199,7 @@ export default function Calculators({ type, onNavigate }) {
                 onChange={(value) => setSetting("piles", "spacing", value)}
               />
               <NumberField
-                label="Слоёв доски 50×150"
+                label="Слоёв доски (для пакета)"
                 value={project.settings.piles.bindingLayers || 3}
                 suffix="шт"
                 min={1}

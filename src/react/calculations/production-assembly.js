@@ -1,4 +1,5 @@
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
+import { bearingEdges } from './bearing-walls.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',foundation:'Опора фундамента'};
 export const productionMark=id=>String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -33,7 +34,7 @@ export function gableFrameMembers(surface,settings) {
 export function calculateAssemblyPlan(project,calculation,settings) {
   const roof=calculation.roof||{},g=roof.geometry||{};
   const plans=calculation.metrics?.floorPlans?.map(item=>item.plan)||[project.plan];
-  const floors=plans.map((plan,index)=>({floor:index+1,contour:houseContourPoints(plan).map(p=>[mm(p.x),mm(p.y)]),
+  const floors=plans.map((plan,index)=>({floor:index+1,contour:houseContourPoints(plan).map(p=>[mm(p.x),mm(p.y)]),bearing:bearingEdges(plan).map(e=>({a:[mm(e.a.x),mm(e.a.y)],b:[mm(e.b.x),mm(e.b.y)],profile:e.profile})),
     openings:(plan.openings||[]).filter(o=>o.include!==false).map((o,i)=>({name:`${o.type==='window'?'Окно':'Дверь'} ${i+1}`,x:mm(o.x),y:mm(o.y),width:mm(o.width),orientation:o.orientation,type:o.type})),
     rooms:(plan.rooms||[]).filter(r=>r.include!==false).map((r,i)=>({name:r.name||`Комната ${i+1}`,bearing:r.bearing===true,points:roomPoints(r).map(p=>[mm(p.x),mm(p.y)])}))}));
   const contour=floors.at(-1).contour,axis=roof.ridgeAxis||'x';
@@ -43,6 +44,13 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const eave=Math.max(0,mm(g.roofSpan||span/1000)-span)/2,gable=Math.max(0,mm(g.roofLength||axisLength/1000)-axisLength)/2;
   const at=(along,across)=>axis==='x'?[bounds.x+along,bounds.y+across]:[bounds.x+across,bounds.y+along];
   const rafters=[],members=[],issues=[];
+  const binding=[];
+  if(project.services.foundation){for(const [index,line] of (project.plan.bindingLines||[]).filter(l=>l.include!==false).entries()){
+    const a=[mm(line.x1),mm(line.y1)],b=[mm(line.x2),mm(line.y2)],length=Math.round(Math.hypot(b[0]-a[0],b[1]-a[1]));
+    if(!length)continue;const profile=calculation.foundation?.bindingProfile||'50×150',layers=calculation.foundation?.bindingLayers||3;
+    binding.push({id:`ОБ-${index+1}`,a,b,length,profile,layers});
+    for(let layer=1;layer<=layers;layer++)members.push({id:`ОБ-${index+1}-${layer}`,material:layers===1?'Брус обвязки':'Доска пакета обвязки',profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),surface:'Обвязка',source:'Линии обвязки плана',panels:[],processing:'Стыки на опорах и соединения по проекту'});
+  }}
   const simple=['gable','flat','tiered'].includes(roof.mainRoofShape);
   const rectangular=contour.length===4 && contour.every((a,i)=>{const b=contour[(i+1)%contour.length];return a[0]===b[0]||a[1]===b[1];});
   const frame=roof.rafterStructure||{};
@@ -71,6 +79,21 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     runs.forEach((length,i)=>addRoofMember(`КР-М${i+1}`,'Мауэрлат','100×150',Math.ceil(length)));
   }
   if(project.services.roof && roof.layeredRidgeLength>0)for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength));
+  const laths=[],counterLaths=[];
+  if(project.services.roof&&roof.includeCovering&&rafters.length){
+    for(const name of [...new Set(rafters.map(r=>r.name))]){
+      const run=rafters.filter(r=>r.name===name),sample=run[0],rowCount=Math.ceil(sample.length/mm(roof.lathStep||.35));
+      const alongIndex=axis==='x'?0:1,acrossIndex=1-alongIndex;
+      const anchors=[-gable,...run.map(r=>r.a[alongIndex]-(axis==='x'?bounds.x:bounds.y)),axisLength+gable].sort((a,b)=>a-b);
+      const spans=[];let start=anchors[0];
+      while(start<anchors.at(-1)-.1){const choices=anchors.filter(x=>x>start+.1&&x-start<=settings.stockLengthMm-2*Number(settings.endAllowanceMm||0));const end=choices.at(-1)||anchors.find(x=>x>start+.1);spans.push([start,end]);start=end;}
+      for(let row=0;row<=rowCount;row++)for(const [from,to]of spans){const t=row/rowCount,across=sample.a[acrossIndex]+(sample.b[acrossIndex]-sample.a[acrossIndex])*t-(axis==='x'?bounds.y:bounds.x),a=at(from,across),b=at(to,across),id=`КР-ОБ${laths.length+1}`,length=Math.round(to-from);
+        const item={id,a,b,length,profile:'25×100',name,slopeY:Math.round(sample.length*t)};laths.push(item);members.push({...item,material:'Обрешётка',cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Шаг обрешётки текущей кровли',surface:'Кровля',panels:[],processing:'Стыки на стропилах; первый ряд и крепление уточнить по покрытию'});
+      }
+    }
+    if(/^\d+×\d+$/.test(settings.counterLathProfile)&&settings.counterLathProfile.split('×').every(v=>Number(v)>0))for(const r of rafters){const item={...r,id:`КР-КО${counterLaths.length+1}`,profile:settings.counterLathProfile};counterLaths.push(item);members.push({...item,material:'Контробрешётка',cutLength:r.length+2*Number(settings.endAllowanceMm||0),source:'Проектное сечение',surface:'Кровля',panels:[],processing:'Вентиляционный зазор и крепление по проекту'});}
+    else issues.push('Контробрешётка: укажите проектное сечение в исходных данных раскроя. Материалы не добавлены автоматически.');
+  }
   const supports=[],ids=new Set();
   for(const [i,item] of settings.roofSupports.entries()){
     const mark=`ОП-${i+1}`;
@@ -114,7 +137,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   }
   supports.forEach(item=>{item.loadPath=trace(item.id);if(!item.loadPath.complete)issues.push(`${item.mark}: путь нагрузки до фундамента не заполнен, содержит цикл или несовпадающее опирание.`);});
   const roofOutline=rectangular?[at(-gable,-eave),at(axisLength+gable,-eave),at(axisLength+gable,span+eave),at(-gable,span+eave)]:contour;
-  return {floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,supports,members,issues};
+  return {floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,laths,counterLaths,supports,members,issues,binding,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
 }
 
 // Unique straight cuts on each blank map plus shaped cuts; not a CNC/toolpath forecast.

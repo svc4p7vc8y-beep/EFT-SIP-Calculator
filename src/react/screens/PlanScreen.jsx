@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { roofOutline } from '../planner/roof-outline.js';
+import { roomBearingEdges } from '../calculations/bearing-walls.js';
+import BearingRoomControls from './BearingRoomControls.jsx';
 import { normalizeTieredRoof } from '../calculations/tiered-roof.js';
 import { stairStepGeometry } from '../planner/stair-steps.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
@@ -2223,6 +2225,7 @@ function PlanCanvas({
                     .map((point) => `${point.x},${point.y}`)
                     .join(" ")}
                 />
+                {roomBearingEdges(room).filter(e=>e.bearing).map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y);return <line key={edge.key} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#277249" strokeWidth="3" pointerEvents="none"><title>Несущая сторона {edge.index+1} · {edge.profile||'общее сечение'}</title></line>;})}
                 {room.extension ? (
                   <>
                     <polygon className="outer-wall outer-wall-border extension-wall" points={screen.map((point) => `${point.x},${point.y}`).join(" ")} style={{ strokeWidth: outerWallWidth + 5 }} />
@@ -3492,7 +3495,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
           />
         ) : null}
         <Toggle
-          label="Несущие перегородки"
+          label="Несущие стороны по умолчанию"
           checked={room.bearing}
           onChange={(value) =>
             update("rooms", (item) => {
@@ -3500,6 +3503,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
             })
           }
         />
+        <BearingRoomControls room={room} onChange={(key,value)=>update('rooms',item=>{item.bearingWalls={...item.bearingWalls,[key]:value};})}/>
         <Toggle
           label="Учитывать в расчёте"
           checked={room.include !== false}
@@ -4326,6 +4330,7 @@ function MobileSelectionAdjuster({
           onMinus={() => resizeRoom("h", -step)}
           onPlus={() => resizeRoom("h", step)}
         />
+        <BearingRoomControls room={room} onChange={(key,value)=>update('rooms',item=>{item.bearingWalls={...item.bearingWalls,[key]:value};})}/>
       </>
     );
     detail = (

@@ -10,6 +10,7 @@ import { approvalLabels, CuttingControls, SurfaceLayoutControls, MemberEditor, R
 import AssemblyPlan, { AssemblyDiagram } from './AssemblyPlan.jsx';
 import { productionMark as mark, productionFamily } from '../calculations/production-assembly.js';
 import { PRODUCTION_GUIDANCE } from '../data/production-guidance.js';
+import MountingAlbum from './MountingAlbum.jsx';
 
 const formatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 });
 const n = value => formatter.format(Number(value) || 0);
@@ -77,6 +78,7 @@ function StockSheets({ report }) {
 }
 
 function PrintReport({ project, report, scope }) {
+  if(scope==='album')return <MountingAlbum project={project} report={report}/>;
   const surfaces = scope === 'all' ? report.surfaces : report.surfaces.filter(s => s.id === scope);
   const members = scope === 'all' ? report.members : report.members.filter(m => m.surfaceId === scope);
   return <div className="production-print">
@@ -91,7 +93,7 @@ function PrintReport({ project, report, scope }) {
     {scope === 'all' ? <section className="cut-print-surface"><h2>Каталог уникальных панелей</h2><PanelTable parts={report.parts} /></section> : null}
     {surfaces.map(surface => { const parts = report.parts.filter(part => part.surfaceId === surface.id); return <section className="cut-print-surface" key={surface.id}><h2>{surface.name} · {surface.frameOnly?'Каркас':'СИП '+surface.thickness+' мм'}</h2>{surface.blocked ? <p>Раскрой этой конструкции не сформирован: заполните данные проёмов.</p> : null}<Layout surface={surface} parts={parts} /><p>Начало координат — левый нижний угол развёртки стены; для перекрытия — координаты плана. Доборный ряд выделен светло-коричневым.</p><PanelTable parts={parts} /><h3>Контуры деталей и вырезов</h3>{groupPanels(parts).map(({part,qty}) => <p key={mark(part.id)}><b>{mark(part.id)} · ×{qty}</b>: {part.shape.map((ring, i) => `${i ? 'вырез' : 'контур'} [${ring.map(([x, y]) => `${n(x - part.x)};${n(y - part.y)}`).join(' / ')}]`).join(' · ')}</p>)}</section>; })}
     <section className="cut-print-surface"><h2>Шпонки и соединительные элементы</h2><MemberTable members={members} /></section>
-    {scope==='all'?<section className="cut-print-surface"><h2>Крыша и путь нагрузки к фундаменту</h2><AssemblyDiagram assembly={report.assembly}/><p>Панели: {report.cutting.panelCuts} резов, {n(report.cutting.panelCutLengthM)} м; пиломатериалы: {report.cutting.timberCuts} резов. Резы по картам заготовок и фигурным контурам, без пазов/выборки и угловых врубок.</p></section>:null}
+    {scope==='all'?<section className="cut-print-surface"><h2>Крыша и путь нагрузки к фундаменту</h2><AssemblyDiagram assembly={report.assembly}/>{report.assembly.supports.map(s=><p key={s.id}>{s.mark}: {s.loadPath.text} · {s.nodeRef||'Узел не задан'}</p>)}<p>Панели: {report.cutting.panelCuts} резов, {n(report.cutting.panelCutLengthM)} м; пиломатериалы: {report.cutting.timberCuts} резов. Резы по картам заготовок и фигурным контурам, без пазов/выборки и угловых врубок.</p></section>:null}
     {scope==='all' ? <section className="cut-print-surface"><h2>Монтаж стартовой торцевой доски · вид сверху</h2><StarterBoardDiagram walls={report.starterBoards} /></section> : null}
     {surfaces.filter(s=>!s.blocked).map(surface=><section className="cut-print-surface" key={`members-${surface.id}`}><h2>{surface.name} · привязка соединителей</h2><p>Шаг {surface.effectiveStep} мм · направление {surface.layout?.direction || 'x'} · начало X {surface.layout?.originX ?? 'авто'}, Y {surface.layout?.originY ?? 'авто'}. Координаты концов и обработка — в ведомости.</p><Layout surface={surface} parts={report.parts.filter(p=>p.surfaceId===surface.id)} members={members.filter(m=>m.surfaceId===surface.id)} /></section>)}
     <Reconciliation report={report} />
@@ -106,7 +108,7 @@ export default function CuttingScreen({ calculation }) {
   const [memberKey, setMemberKey] = useState(''), [showMembers, setShowMembers] = useState(true);
   const [printError, setPrintError] = useState('');
   const settings = normalizeProductionCutting(project.settings.productionCutting);
-  const inputKey = useMemo(()=>JSON.stringify({ project: { plan: project.plan, upperFloors: project.upperFloors, settings: project.settings, services: project.services, nodes: project.nodes, construction: project.construction }, calculation: { metrics: calculation.metrics, roof: calculation.roof, lines: calculation.lines } }),[project,calculation]);
+  const inputKey = useMemo(()=>JSON.stringify({ project: { plan: project.plan, upperFloors: project.upperFloors, settings: project.settings, services: project.services, nodes: project.nodes, construction: project.construction }, calculation: { foundation: calculation.foundation, metrics: calculation.metrics, roof: calculation.roof, lines: calculation.lines } }),[project,calculation]);
   const [result, setResult] = useState({});
   useEffect(()=>{
     const worker = new Worker(new URL('../calculations/production-cutting.worker.js', import.meta.url), { type: 'module' });
@@ -126,6 +128,7 @@ export default function CuttingScreen({ calculation }) {
   return <section className="screen cutting-screen">
     <div className="screen-header"><div><span className="eyebrow">ПРОИЗВОДСТВО ДОМОКОМПЛЕКТА</span><h1>Раскрой</h1><p>Панели, доборы по высоте, шпонки и соединительные элементы из текущего проекта.</p><p>{pending ? 'Пересчёт… Печать временно недоступна.' : report ? `${report.revision} · ${approvalLabels[report.approvalStatus]}` : ''}</p></div><button className="secondary-button" disabled={pending || !report || (!report.parts.length && !report.members.length)} onClick={() => print('all')}><Printer size={18} />Печать комплекта</button></div>
     <div className="cut-summary"><div><small>Детали панелей</small><strong>{report?.parts.length || 0}</strong><small>Уникальных: {report?.panelGroups.length || 0}</small></div><div><small>Доборы по высоте</small><strong>{report?.upperCourseCount || 0}</strong></div><div><small>Соединители</small><strong>{report?.members.length || 0}</strong></div><div><small>Панели-заготовки</small><strong>{report?.panelStock.sheets.length || 0}</strong></div></div>
+    <button className="secondary-button" disabled={pending||!report} onClick={()=>print('album')}><Printer size={18}/>Печать монтажного альбома</button>
     {report?.cutting?<div className="cut-summary"><div><small>Целые панели</small><strong>{report.cutting.fullPanels}</strong></div><div><small>Резка панелей</small><strong>{report.cutting.panelCuts} резов</strong><small>{n(report.cutting.panelCutLengthM)} м</small></div><div><small>Фигурные резы / вырезы</small><strong>{report.cutting.shapedCuts}</strong></div><div><small>Резка пиломатериалов</small><strong>{report.cutting.timberCuts} резов</strong></div></div>:null}
     <p className="cut-note">Марки: Э — этаж, С — стена, ПГ — перегородка, П — панель, Ш — шпонка, Т — торцевая доска, ФР — фронтон, КР — кровля, СТ — стропило, СТП — стойка проёма (Л/П — стороны), К — каркас фронтона, М — мауэрлат, КН — коньковая доска, ОП — проектная опора. Резка показана по картам заготовок и фигурным контурам, без пазов, выборки и врубок.</p>
     <div className="cut-tabs" role="group" aria-label="Разделы раскроя">{[['panels', 'Панели и развёртки'], ['assembly', 'Крыша и опоры'], ['members', 'Шпонки и брус'], ['starter', 'Стартовая доска'], ['stock', 'Карты заготовок'], ['settings', 'Исходные данные']].map(([key, title]) => <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{title}</button>)}</div>
@@ -137,6 +140,8 @@ export default function CuttingScreen({ calculation }) {
     {tab === 'settings' ? <div className="cut-card"><h2>Настройки производства</h2><p>Размер панели {n(report?.panelWidth)} × {n(report?.panelLength)} мм берётся из формул проекта. Эта ведомость не меняет сметные количества и цены.</p><div className="cut-fields">
       <label>Раскладка стен<select value={settings.wallPanelMode} onChange={e=>update({wallPanelMode:e.target.value})}><option value="full">Целые панели с подрезкой у проёмов</option><option value="grid">Разбиение по шагу каркаса</option></select></label>
       <DraftText label="Сечение каркаса фронтонов, мм" value={settings.gableFrameProfile} onChange={gableFrameProfile=>update({gableFrameProfile})}/>
+      <DraftText label="Сечение контробрешётки по проекту, мм" value={settings.counterLathProfile} placeholder="Например 50×50, после проверки узла" onChange={counterLathProfile=>update({counterLathProfile})}/>
+      <label className="cut-check"><input type="checkbox" checked={settings.ceilingBearingAlignment} onChange={e=>update({ceilingBearingAlignment:e.target.checked})}/>Привязывать сетку потолка к несущим стенам (приоритет над началом сетки)</label>
       <NumberInput label="Шаг силового каркаса" value={settings.frameStepMm} min={100} max={2500} onChange={value => update({ frameStepMm: value })} />
       <NumberInput label="Низ окон от пола по умолчанию" value={settings.windowSillMm} min={0} max={30000} onChange={value => update({ windowSillMm: value })} />
       <NumberInput label="Ширина пропила" value={settings.kerfMm} max={20} placeholder="Укажите пропил станка" onChange={value => update({ kerfMm: value })} />
