@@ -21,7 +21,7 @@ import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 179;
+export const REACT_PROJECT_VERSION = 180;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -553,6 +553,7 @@ export function createDefaultProject() {
         bindingBoardWidthMm: 50,
         bindingBoardHeightMm: 150,
         boardStockLength: 6,
+        concreteBase: { enabled: true, length: null, anchorSpacingM: 1.2, anchorCount: null },
       },
       sip: {
         floorThickness: "224",
@@ -956,7 +957,10 @@ export function migrateProject(raw) {
     settings: {
       ...base.settings,
       ...(raw.settings || {}),
-      piles: { ...base.settings.piles, autoLayoutMode: 'nodes', ...(raw.settings?.piles || {}) },
+      piles: {
+        ...base.settings.piles, autoLayoutMode: 'nodes', ...(raw.settings?.piles || {}),
+        concreteBase: { ...base.settings.piles.concreteBase, ...(raw.settings?.piles?.concreteBase || {}) },
+      },
       sip: {
         ...base.settings.sip,
         connectorType: 'thermal',

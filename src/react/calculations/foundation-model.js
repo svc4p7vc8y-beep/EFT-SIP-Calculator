@@ -263,3 +263,26 @@ export function calculateFoundation(plan, settings = {}) {
     boardVolume: round(purchaseBoardLength * boardWidth * boardHeight, 3)
   };
 }
+
+// Budget for a prepared concrete base; concrete construction itself is not included.
+// Anchor spacing is an editable estimating assumption, not a structural design.
+export function calculateConcreteBase(plan, settings = {}, enabled = false) {
+  const points = houseContourPoints(plan);
+  const perimeter = points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return sum + Math.hypot(next.x - point.x, next.y - point.y);
+  }, 0);
+  const length = settings.length == null || settings.length === ''
+    ? perimeter : Math.max(0, Number(settings.length) || 0);
+  const anchorSpacingM = Math.min(3, Math.max(0.3, Number(settings.anchorSpacingM) || 1.2));
+  const anchorCount = settings.anchorCount == null || settings.anchorCount === ''
+    ? Math.ceil(length / anchorSpacingM) : Math.max(0, Math.ceil(Number(settings.anchorCount) || 0));
+  const active = enabled && settings.enabled !== false && plan.house?.contourDefined !== false && length > 0;
+  const beamCount = active ? Math.ceil(length * 1.1 / 6) : 0;
+  return {
+    active, perimeter: round(perimeter), length: active ? round(length) : 0,
+    beamCount, beamVolume: round(beamCount * 6 * 0.1 * 0.15, 3),
+    stripRolls: active ? Math.ceil(length * 1.1 / 20) : 0,
+    anchorSpacingM, anchorCount: active ? anchorCount : 0,
+  };
+}

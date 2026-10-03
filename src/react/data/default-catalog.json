@@ -287,6 +287,16 @@
       "unit": "м.п."
     },
     {
+      "cat": "Основание по готовому бетону",
+      "id": "LAB-132",
+      "kind": "labor",
+      "name": "Укладка и анкеровка лежачего бруса 100×150 по бетону",
+      "price": 500,
+      "priceEstimated": true,
+      "priceNote": "Предварительная ставка 500 руб./м внутри опубликованного диапазона 300–800 руб./м: https://stroytelstvo.ru/cena-dom-sip-paneli/ . Состав монтажа и цену уточнить по проекту и основанию.",
+      "unit": "м.п."
+    },
+    {
       "cat": "Кровля двускатная",
       "id": "LAB-038",
       "kind": "labor",
@@ -2497,6 +2507,26 @@
       "priceEstimated": true,
       "priceNote": "Ориентир Лемана ПРО: комплект 4 планки по 1,25 м за 2 832 руб. = 708 руб./шт, арт. 91846983. https://ufa.lemanapro.ru/catalogue/profnastil/metallicheskaya-krovlya/?page=22 . Профиль и ширину фартука согласовать по узлу.",
       "unit": "шт"
+    },
+    {
+      "cat": "Основание по готовому бетону",
+      "id": "MAT-248",
+      "kind": "material",
+      "name": "Анкер клиновой М12×200 для бетона",
+      "price": 277,
+      "priceEstimated": true,
+      "priceNote": "Ориентир Крепком, клиновой анкер 12×200 мм АК-А: https://krepcom.ru/catalog/ankera/anker-klinovoy-12-kh200-8-8-ots.htm . Тип, длина, глубина заделки, шаг и допустимость для конкретного бетона — по проекту.",
+      "unit": "шт"
+    },
+    {
+      "cat": "Основание по готовому бетону",
+      "id": "MAT-249",
+      "kind": "material",
+      "name": "Отсечная гидроизоляция Технониколь 200 мм × 20 м",
+      "price": 2300,
+      "priceEstimated": true,
+      "priceNote": "Ориентир Лемана ПРО, Тверь, артикул 91058613: https://tver.lemanapro.ru/product/otsechnaya-gidroizolyaciya-tehnonikol-200mm-h-20m-91058613/ . Полоса 200 мм под лежачий брус шириной 150 мм; примыкания и монтаж по инструкции производителя.",
+      "unit": "рулон"
     }
   ],
   "priceMode": "reference",

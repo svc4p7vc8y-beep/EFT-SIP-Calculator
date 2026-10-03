@@ -52,9 +52,15 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
     floorPlans.flatMap((plan) => plan.openings || []).filter(o => !isInteriorDoor(o) && o.includeInEstimate !== false),
   );
 
-  if (key === 'foundation') return {
+  if (key === 'foundation') return project.services.foundation ? {
     summary: `${pluralRu(foundation.totalPiles, 'свая', 'сваи', 'свай')}, обвязка ${formatNumber(foundation.bindingLength)} м`,
     details: `Разбивка, монтаж свай, оголовки, крепёж и ${foundation.boardCount} досок обвязки по 6 м`
+  } : foundation.concreteBase?.active ? {
+    summary: `Готовое бетонное основание; обвязка ${formatNumber(foundation.concreteBase?.length || 0)} м`,
+    details: `Лежачий брус 100×150, отсечная гидроизоляция, ${foundation.concreteBase?.anchorCount || 0} анкеров к бетону и монтаж; устройство бетона не входит в предложение. Шаг анкеров и узел проверить по проекту.`,
+  } : {
+    summary: 'Основание и обвязка не включены',
+    details: 'Комплект по готовому бетонному основанию отключён; бетон, обвязка и их монтаж не входят в предложение.',
   };
   if (key === 'sip') {
     const surfaces = [

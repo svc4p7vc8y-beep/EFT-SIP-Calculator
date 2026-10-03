@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDefaultProject, migrateProject, ensureProjectFloorCount } from '../src/react/state/project-model.js';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
-import { calculateProductionCutting, tileSurface, connectionSegments, polygonAreaMm, packPanelBlanks, packMembers } from '../src/react/calculations/production-cutting.js';
+import { calculateProductionCutting, tileSurface, connectionSegments, polygonAreaMm, packPanelBlanks, packMembers, wallPanelColumns, groupPanels } from '../src/react/calculations/production-cutting.js';
 import { createPlanTransfer, applyPlanTransfer } from '../src/react/storage/plan-transfer.js';
 
 const rectangle = (w, h) => [[[0,0],[w,0],[w,h],[0,h],[0,0]]];
@@ -30,15 +30,46 @@ test('production wall cuts preserve opening area and add a labelled upper course
   assert.equal(report.issues.length, 0);
 });
 
-test('missing sill never silently fabricates a window elevation', () => {
+test('window sill defaults to editable 850 mm and impossible overrides block the wall', () => {
   const p = simple();
   p.plan.openings = [{ id: 'window', type: 'window', outer: true, x: 2, y: 0, width: 1, height: 1.2 }];
   const report = calculateProductionCutting(p, calculateProject(p));
-  assert.ok(report.issues.some(issue => issue.code === 'OPENING_SILL'));
-  assert.equal(report.parts.filter(part => part.surfaceId === 'Э1-С1').length, 0);
+  assert.equal(report.openings[0].sill, 850);
+  assert.equal(report.issues.some(issue => issue.code === 'OPENING_SILL'), false);
+  assert.ok(report.parts.filter(part => part.surfaceId === 'Э1-С1').length > 0);
   assert.ok(report.parts.some(part => part.surfaceId === 'Э1-С2'));
   p.settings.productionCutting.openingSills['1:window'] = 2000;
   assert.ok(calculateProductionCutting(p, calculateProject(p)).issues.some(issue => issue.code === 'OPENING_SIZE'));
+});
+
+test('wall seams align with at least one jamb and balanced bays stay within frame step', () => {
+  const openings = [{ x: 1600, width: 900 }, { x: 4200, width: 1000 }];
+  const columns = wallPanelColumns({ x: 0, width: 6000 }, 625, openings);
+  const boundaries = columns.flatMap(column => [column.x, column.x + column.width]);
+  for (const opening of openings) assert.ok([opening.x, opening.x + opening.width].some(jamb => boundaries.some(boundary => Math.abs(boundary-jamb)<.001)));
+  assert.ok(columns.every(column => column.width > 0 && column.width <= 625));
+  assert.equal(columns.reduce((sum,column)=>sum+column.width,0), 6000);
+});
+
+test('identical panel shapes get one production mark with a quantity, without changing stock count', () => {
+  const p = simple();
+  const report = calculateProductionCutting(p, calculateProject(p));
+  assert.ok(report.panelGroups.length < report.parts.length);
+  assert.equal(report.panelGroups.reduce((sum,group)=>sum+group.qty,0), report.parts.length);
+  const pair = [report.parts[0], { ...report.parts[0], id: 'same-elsewhere', x: report.parts[0].x + 10000,
+    shape: report.parts[0].shape.map(ring=>ring.map(([x,y])=>[x+10000,y])) }];
+  assert.equal(groupPanels(pair)[0].qty, 2);
+  assert.equal(report.panelStock.sheets.flatMap(sheet=>sheet.parts).length, report.parts.length);
+});
+
+test('door lintel height follows wall and door height automatically', () => {
+  const p = simple();
+  p.plan.openings = [{ id:'door', type:'door', outer:true, x:2, y:0, width:.9, height:2.05 }];
+  let report = calculateProductionCutting(p, calculateProject(p));
+  assert.equal(report.openings[0].topClearance, 750);
+  p.plan.openings[0].height = 2.2;
+  report = calculateProductionCutting(p, calculateProject(p));
+  assert.equal(report.openings[0].topClearance, 600);
 });
 
 test('concave floor and closed holes have exact area after staggered tiling', () => {

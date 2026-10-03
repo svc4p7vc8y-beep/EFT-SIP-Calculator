@@ -21,6 +21,38 @@ export const polygonBounds = poly => {
 };
 const subtract = (shape, holes) => holes.length ? clipping.difference(shape, ...holes) : clipping.union(shape);
 
+// One joint lands on a jamb of each opening. Remaining bays are balanced
+// between fixed points and never exceed the selected frame step.
+export function wallPanelColumns(bounds, step, openings = []) {
+  const start = bounds.x, end = bounds.x + bounds.width;
+  const anchors = [start, end];
+  const distanceToGrid = value => {
+    const remainder = ((value - start) % step + step) % step;
+    return Math.min(remainder, step - remainder);
+  };
+  for (const opening of [...openings].sort((a,b) => a.x - b.x)) {
+    const candidates = [opening.x, opening.x + opening.width]
+      .filter(value => value > start + 1 && value < end - 1);
+    if (!candidates.length) continue;
+    const chosen = candidates.sort((a,b) => {
+      const score = value => distanceToGrid(value) + (Math.min(...anchors.map(anchor => Math.abs(value-anchor))) < step * .25 ? step : 0);
+      return score(a) - score(b);
+    })[0];
+    if (!anchors.some(value => Math.abs(value - chosen) < 1)) anchors.push(chosen);
+  }
+  anchors.sort((a,b) => a-b);
+  const columns = [];
+  for (let index=0; index<anchors.length-1; index++) {
+    const left=anchors[index], right=anchors[index+1];
+    const count=Math.max(1,Math.ceil((right-left)/step));
+    for(let section=0;section<count;section++) columns.push({
+      x:left+(right-left)*section/count,
+      width:(right-left)/count,
+    });
+  }
+  return columns;
+}
+
 const mergeWalls = segments => {
   const groups = new Map();
   for (const [a, b] of segments) {
@@ -63,12 +95,19 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
   const originX = presentNumber(surface.layout?.originX) ? Number(surface.layout.originX) : bounds.x;
   const originY = presentNumber(surface.layout?.originY) ? Number(surface.layout.originY) : bounds.y;
   const firstColumn = Math.floor((bounds.x - originX) / width);
-  for (let column = firstColumn; originX + column * width < bounds.x + bounds.width - 0.01; column++) {
-    const x = originX + column * width;
+  const adaptive = !surface.horizontal && surface.openings?.length && !presentNumber(surface.layout?.originX)
+    ? wallPanelColumns(bounds, width, surface.openings) : null;
+  const firstX = originX + firstColumn * width;
+  const columns = adaptive || Array.from({ length: Math.ceil((bounds.x + bounds.width - firstX) / width) }, (_, index) => ({
+    x: originX + (firstColumn + index) * width, width, column: firstColumn + index,
+  })).filter(item => item.x < bounds.x + bounds.width - 0.01);
+  for (let index = 0; index < columns.length; index++) {
+    const { x, width: cellWidth } = columns[index];
+    const column = columns[index].column ?? index;
     const shift = staggered && surface.horizontal && surface.staggered !== false && column % 2 ? panelLength / 2 : 0;
     const firstRow = Math.floor((bounds.y - originY + shift) / panelLength);
     for (let row = firstRow, y = originY + firstRow * panelLength - shift; y < bounds.y + bounds.height - 0.01; y += panelLength, row++) {
-      const pieces = clipping.intersection(surface.geometry, rect(x, y, width, panelLength));
+      const pieces = clipping.intersection(surface.geometry, rect(x, y, cellWidth, panelLength));
       pieces.forEach((shape, fragment) => {
         const area = polygonAreaMm(shape);
         if (area < 1) return;
@@ -78,6 +117,27 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
     }
   }
   return parts;
+}
+
+// Group only truly identical local contours; position and wall name do not
+// affect the fabrication shape, while thickness, family and handed cuts do.
+export function groupPanels(parts = []) {
+  const groups = new Map();
+  const ringKey = (ring, x, y) => {
+    const points = ring.at(-1)?.[0] === ring[0]?.[0] && ring.at(-1)?.[1] === ring[0]?.[1]
+      ? ring.slice(0, -1) : ring;
+    const local = points.map(([px, py]) => [round(px - x), round(py - y)]);
+    const rotations = sequence => sequence.map((_, index) => JSON.stringify([...sequence.slice(index), ...sequence.slice(0,index)]));
+    return [...rotations(local), ...rotations([...local].reverse())].sort()[0];
+  };
+  for (const part of parts) {
+    const key = JSON.stringify([part.family, part.thickness, round(part.width), round(part.height),
+      part.shape.map(ring => ringKey(ring, part.x, part.y)).sort()]);
+    const group = groups.get(key);
+    if (group) { group.qty++; group.instances.push(part.id); }
+    else groups.set(key, { id: part.id, part, qty: 1, instances: [part.id] });
+  }
+  return [...groups.values()];
 }
 
 // Split collinear edges at every endpoint. Shared seams are counted once,
@@ -206,8 +266,8 @@ export function calculateProductionCutting(project, calculation) {
         return { edge, u, distance };
       }).sort((a, b) => a.distance - b.distance);
       const nearest = choices[0], key = `${floor}:${opening.id}`;
-      const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : '');
-      const row = { key, id: opening.id, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Проём'} ${opening.id}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
+      const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : settings.windowSillMm);
+      const row = { key, id: opening.id, type: opening.type, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Проём'} ${opening.id}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
       if (!row.gap) openings.push(row);
       if (!nearest || nearest.distance > Math.max(Number(plan.wallThickness) || 0.174, 0.1) + 0.03 || (choices[1] && Math.abs(choices[1].distance - nearest.distance) < .001)) {
         issue('OPENING_WALL', `${row.name}: стена не найдена или привязка неоднозначна. Раскрой возможных стен заблокирован; уточните положение и ориентацию на плане.`, key);
@@ -225,6 +285,8 @@ export function calculateProductionCutting(project, calculation) {
       if (height <= 0 || width <= 0 || height > 30000 || width > 100000 || addition < 0) { issue('WALL_SIZE', `${edge.id}: проверьте размеры стены и добавочную высоту.`, edge.id); continue; }
       for (const o of selectedOpenings) {
         if (o.gap) o.height = height;
+        const displayRow = openings.find(row => row.key === o.key);
+        if (displayRow) displayRow.topClearance = height - Number(o.sill) - o.height;
         if (!presentNumber(o.sill) || Number(o.sill) < 0) { issue('OPENING_SILL', `${o.name}: укажите отметку низа от пола. Развёртка ${edge.id} ожидает данные.`, o.key); blocked = true; continue; }
         if (o.width <= 0 || o.height <= 0 || o.x < -1 || o.x + o.width > width + 1 || Number(o.sill) + o.height > height + 1) { issue('OPENING_SIZE', `${o.name}: проём выходит за стену или имеет неверный размер.`, o.key); blocked = true; continue; }
         const hole = rect(o.x, Number(o.sill), o.width, o.height);
@@ -363,7 +425,7 @@ export function calculateProductionCutting(project, calculation) {
   if (!surfaces.length && !members.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
   const { approval, ...revisionSettings } = settings;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
-  const report = { settings, revision, panelWidth, panelLength, surfaces, parts, members, openings, walls, issues, notices, panelStock, timberStock, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
+  const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, openings, walls, issues, notices, panelStock, timberStock, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   report.reconciliation = reconcileCutting(report, calculation);
   report.approvalStatus = approval.revision === revision && !issues.length && approval.reviewer?.trim() && approval.nodeRef?.trim() && ['geometry','nodes','released'].includes(approval.status) ? approval.status : 'draft';
   return report;

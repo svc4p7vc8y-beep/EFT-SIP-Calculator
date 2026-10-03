@@ -1145,7 +1145,18 @@ export default function Calculators({ type, onNavigate }) {
       <ScreenHeader title={title} description={description} />
       {type === "piles" ? (
         <>
-          <div className="stats-row">
+          {!project.services.foundation ? <Panel title="Готовое бетонное основание" description="Бетон уже выполнен заказчиком. Сваи и их монтаж не входят в предложение; отдельно считаются лежачий брус, отсечная гидроизоляция, анкеры и работа.">
+            <div className="form-grid three">
+              <Toggle label="Добавить комплект по бетону" checked={project.settings.piles.concreteBase?.enabled !== false} onChange={enabled => setSetting('piles', 'concreteBase', { ...project.settings.piles.concreteBase, enabled })} />
+              <NumberField label="Длина обвязки по бетону" suffix="м" min={0} step={0.1} value={project.settings.piles.concreteBase?.length ?? calculation.foundation.concreteBase.perimeter} onChange={length => setSetting('piles', 'concreteBase', { ...project.settings.piles.concreteBase, length })} />
+              <NumberField label="Расчётный шаг анкеров" suffix="м" min={0.3} max={3} step={0.1} value={project.settings.piles.concreteBase?.anchorSpacingM ?? 1.2} onChange={anchorSpacingM => setSetting('piles', 'concreteBase', { ...project.settings.piles.concreteBase, anchorSpacingM })} />
+              <NumberField label="Количество анкеров" suffix="шт" min={0} step={1} value={project.settings.piles.concreteBase?.anchorCount ?? calculation.foundation.concreteBase.anchorCount} onChange={anchorCount => setSetting('piles', 'concreteBase', { ...project.settings.piles.concreteBase, anchorCount: Math.ceil(anchorCount) })} />
+              <div className="readout"><span>Закупка</span><strong>{calculation.foundation.concreteBase.beamCount} брусьев × 6 м · {calculation.foundation.concreteBase.stripRolls} рул. гидроизоляции · {calculation.foundation.concreteBase.anchorCount} анкеров</strong></div>
+              <button type="button" className="button secondary" onClick={() => setSetting('piles', 'concreteBase', { ...project.settings.piles.concreteBase, length: null, anchorCount: null })}>Вернуть длину и анкеры по плану</button>
+            </div>
+            <p className="inspector-note">Брус 100×150 укладывается широкой стороной на бетон. Длина по умолчанию — наружный контур дома, закупка бруса и полосы с запасом 10%; шаг 1,2 м — только сметное предположение. Тип анкера, глубину заделки, краевые расстояния и узел гидроизоляции подтвердить конструктивным проектом. <a href="https://tver.lemanapro.ru/product/otsechnaya-gidroizolyaciya-tehnonikol-200mm-h-20m-91058613/" target="_blank" rel="noreferrer">Полоса 200 мм × 20 м</a>, <a href="https://krepcom.ru/catalog/ankera/anker-klinovoy-12-kh200-8-8-ots.htm" target="_blank" rel="noreferrer">анкер М12×200</a>, <a href="https://stroytelstvo.ru/cena-dom-sip-paneli/" target="_blank" rel="noreferrer">ориентир работы</a>.</p>
+          </Panel> : null}
+          {project.services.foundation ? <div className="stats-row">
             <Stat
               label="Сваи дома"
               value={`${calculation.foundation.housePiles} шт`}
@@ -1175,9 +1186,10 @@ export default function Calculators({ type, onNavigate }) {
               label="Объём доски"
               value={`${formatNumber(calculation.foundation.boardVolume, 3)} м³`}
             />
-          </div>
+          </div> : null}
           <Panel title="Параметры основания">
             <div className="form-grid three">
+              {project.services.foundation ? <>
               <NumberField
                 label="Предельный шаг свай"
                 value={project.settings.piles.spacing}
@@ -1213,6 +1225,7 @@ export default function Calculators({ type, onNavigate }) {
                   {formatNumber(calculation.foundation.boardWasteLength)} м
                 </strong>
               </div>
+              </> : null}
               <Toggle
                 label="Включить в смету"
                 checked={project.services.foundation}
@@ -1220,7 +1233,7 @@ export default function Calculators({ type, onNavigate }) {
               />
             </div>
           </Panel>
-          <Panel title="Ведомость фундамента">
+          <Panel title={project.services.foundation ? "Ведомость фундамента" : "Ведомость обвязки по бетону"}>
             <SectionResult calculation={calculation} sectionKey="foundation" />
           </Panel>
         </>

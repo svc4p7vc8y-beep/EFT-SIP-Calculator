@@ -5,6 +5,7 @@ export function normalizeProductionCutting(value = {}) {
   const record = source => source && typeof source === 'object' && !Array.isArray(source) ? Object.fromEntries(Object.entries(source).slice(0, 2000).map(([key, item]) => [key, item !== '' && item != null && Number.isFinite(Number(item)) && Number(item) >= 0 && Number(item) <= 30000 ? Number(item) : ''])) : {};
   return {
     frameStepMm: number('frameStepMm', 625, 100, 2500),
+    windowSillMm: number('windowSillMm', 850),
     kerfMm: number('kerfMm', '', 0, 20),
     endAllowanceMm: number('endAllowanceMm', '', 0, 100),
     stockLengthMm: number('stockLengthMm', 6000, 500, 15000),

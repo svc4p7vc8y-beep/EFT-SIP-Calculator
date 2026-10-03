@@ -8,7 +8,7 @@ import {
 } from "../../calculations/plan-metrics.js";
 import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
-import { calculateFoundation } from "./foundation-model.js";
+import { calculateFoundation, calculateConcreteBase } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
 import { isInteriorDoor } from './opening-types.js';
 import { calculateExterior } from './exterior-model.js';
@@ -857,7 +857,31 @@ function sipSection(project, metrics, index, inputs, roofResult) {
 
 function foundationSection(project, index, inputs) {
   const foundation = calculateFoundation(project.plan, project.settings.piles);
-  if (!project.services.foundation) return { lines: [], foundation };
+  const concreteBase = calculateConcreteBase(
+    project.plan, project.settings.piles?.concreteBase || {},
+    !project.services.foundation && (project.services.sipFloor || project.services.sipWalls),
+  );
+  foundation.concreteBase = concreteBase;
+  if (!project.services.foundation) return { foundation, lines: compact([
+    makeLine(index, 'foundation', 'Брус ест.влажн. сосна 100×150 мм', concreteBase.beamVolume, {
+      key: 'concrete-base-beam', catalogId: 'MAT-018', unit: 'м3', digits: 3,
+      name: `Лежачий брус 100×150 мм по готовому бетону · ${concreteBase.beamCount} шт × 6 м`,
+      source: 'concrete-base',
+    }),
+    makeLine(index, 'foundation', 'Отсечная гидроизоляция Технониколь 200 мм × 20 м', concreteBase.stripRolls, {
+      key: 'concrete-base-strip', catalogId: 'MAT-249', unit: 'рулон', exactQuantity: true,
+      source: 'concrete-base',
+    }),
+    makeLine(index, 'foundation', 'Анкер клиновой М12×200 для бетона', concreteBase.anchorCount, {
+      key: 'concrete-base-anchors', catalogId: 'MAT-248', unit: 'шт', exactQuantity: true,
+      name: `Анкеры к готовому бетону М12×200 · ${concreteBase.anchorCount} шт`,
+      source: 'concrete-base',
+    }),
+    makeLine(index, 'foundation', 'Укладка и анкеровка лежачего бруса 100×150 по бетону', concreteBase.length, {
+      key: 'concrete-base-work', catalogId: 'LAB-132', kind: 'labor', unit: 'м.п.',
+      source: 'concrete-base',
+    }),
+  ]) };
   const count = foundation.totalPiles;
   const bindingPackSpacing = Math.max(0.05, Number(inputs.formulas.bindingPackScrewSpacingM) || 0.5);
   const bindingPackInterfaces = Math.max(0, foundation.bindingLayers - 1);
@@ -2988,7 +3012,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   const sections = applyProjectEstimateEdits(project, [
     {
       key: "foundation",
-      title: "Свайно-винтовой фундамент и обвязка",
+      title: project.services.foundation ? "Свайно-винтовой фундамент и обвязка" : "Обвязка по готовому бетонному основанию",
       lines: foundation.lines,
     },
     { key: "sip", title: "СИП-конструкции и перегородки", lines: sip.lines },

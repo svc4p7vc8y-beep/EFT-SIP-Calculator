@@ -44,3 +44,4 @@
   .production-print .cut-table-wrap { overflow: visible; }.production-print table { width: 100%; table-layout: fixed; font-size: 8pt; }.production-print td, .production-print th { border: 1px solid #aaa; overflow-wrap: anywhere; padding: 4px; }.production-print thead { display: table-header-group; }.production-print tr { break-inside: avoid; }
   .production-print .cut-stock-grid { display: grid; grid-template-columns: 1fr 1fr; }.production-print .cut-stock { break-inside: avoid; }.production-print .cut-stock svg { max-height: 95mm; }
 }
+.cut-quantity { display: inline-block; color: #173c20; font-size: 1.4rem; line-height: 1; font-weight: 900; white-space: nowrap; }

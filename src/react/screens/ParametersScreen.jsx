@@ -658,6 +658,7 @@ export default function ParametersScreen() {
             title="Сваи и обвязка"
             description="Шаг свай и сечение обвязки; ряды и линии рисуются на плане."
           >
+            {!project.services.foundation ? <p className="inspector-note">Бетонное основание считается готовым. Комплект лежачего бруса 100×150, отсечную гидроизоляцию, анкеры и монтаж настройте в разделе «Сваи → Готовое бетонное основание». Свайные работы не добавляются.</p> : null}
             {fields([
               {
                 path: "settings.piles.spacing",
