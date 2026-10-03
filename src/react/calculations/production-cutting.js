@@ -3,6 +3,7 @@ import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints } fr
 import { sipTimberProfile } from './sip-joinery.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
 import { cuttingRevision, validateProductionSettings, parseManualPanel, reconcileCutting } from './production-controls.js';
+import { calculateAssemblyPlan, calculateCutOperations, gableFrameMembers } from './production-assembly.js';
 
 const mm = value => Math.round((Number(value) || 0) * 1000);
 const round = value => Math.round(value * 1000) / 1000;
@@ -17,6 +18,43 @@ function balancedCells(start, end, maximum, minimum = MIN_PANEL_WIDTH_MM) {
   if (length < minimum - .001 || length / count < minimum - .001) return null;
   return Array.from({ length: count }, (_, index) => ({ x: start + length * index / count, width: length / count }));
 }
+// Keep full stock pieces; rebalance only the last pair if its remainder is too narrow.
+export function stockCells(start,end,maximum,minimum=MIN_PANEL_WIDTH_MM) {
+  const length=end-start;
+  if(length<minimum-.001) return null;
+  const widths=[];let remaining=length;
+  while(remaining>maximum+.001){widths.push(maximum);remaining-=maximum;}
+  if(remaining<minimum-.001 && widths.length){const previous=widths.pop();widths.push(previous-minimum+remaining,minimum);}
+  else widths.push(remaining);
+  let x=start;return widths.map(width=>{const cell={x,width};x+=width;return cell;});
+}
+function tileStockWall(surface,panelWidth,panelLength) {
+  const bounds=polygonBounds(surface.geometry.flat());
+  const anchors=[...new Set([bounds.x,bounds.x+bounds.width,...(surface.openings||[]).flatMap(o=>[o.x,o.x+o.width])])].sort((a,b)=>a-b);
+  const parts=[];
+  for(let i=0;i<anchors.length-1;i++){
+    const left=anchors[i],right=anchors[i+1];
+    const holes=(surface.openings||[]).filter(o=>o.x<(left+right)/2 && o.x+o.width>(left+right)/2).sort((a,b)=>Number(a.sill)-Number(b.sill));
+    const spans=[];let cursor=bounds.y;
+    for(const hole of holes){if(Number(hole.sill)>cursor+.001)spans.push([cursor,Number(hole.sill)]);cursor=Math.max(cursor,Number(hole.sill)+hole.height);}
+    if(cursor<bounds.y+bounds.height-.001)spans.push([cursor,bounds.y+bounds.height]);
+    for(const [bottom,top] of spans){
+      const direction=holes.length ? surface.layout.openingDirections?.[holes[0].key]||surface.layout.direction : surface.layout.direction;
+      const options=direction==='y'?[true]:direction==='x'||!holes.length?[false]:[false,true];
+      const candidates=options.map(rotated=>({rotated,columns:stockCells(left,right,rotated?panelLength:panelWidth),rows:stockCells(bottom,top,rotated?panelWidth:panelLength)})).filter(c=>c.columns&&c.rows);
+      candidates.sort((a,b)=>a.columns.length*a.rows.length-b.columns.length*b.rows.length);
+      const best=candidates[0];if(!best)throw narrowPanelError(surface.name);
+      for(const column of best.columns)for(const row of best.rows){
+        const shape=rect(column.x,row.x,column.width,row.width),box=polygonBounds(shape);
+        parts.push({id:`${surface.id}-P${parts.length+1}`,surfaceId:surface.id,surface:surface.name,floor:surface.floor,
+          thickness:surface.thickness,family:surface.family,shape,...box,area:polygonAreaMm(shape),
+          blankWidth:best.rotated?box.height:box.width,blankHeight:best.rotated?box.width:box.height,
+          orientation:best.rotated?'Горизонтально':'Вертикально',upperCourse:row.x>=bounds.y+panelLength});
+      }
+    }
+  }
+  return parts;
+}
 export const polygonAreaMm = poly => poly.reduce((sum, ring, index) => {
   const area = Math.abs(ring.reduce((a, p, i) => { const q = ring[(i + 1) % ring.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
   return sum + (index ? -area : area);
@@ -29,7 +67,7 @@ export const polygonBounds = poly => {
 };
 const subtract = (shape, holes) => holes.length ? clipping.difference(shape, ...holes) : clipping.union(shape);
 
-// One joint lands on a jamb of each opening. Remaining bays are balanced
+// Joints land on both jambs where the minimum panel size permits. Remaining bays are balanced
 // between fixed points and never exceed the selected frame step.
 export function wallPanelColumns(bounds, step, openings = []) {
   const start = bounds.x, end = bounds.x + bounds.width;
@@ -42,11 +80,11 @@ export function wallPanelColumns(bounds, step, openings = []) {
     const candidates = [opening.x, opening.x + opening.width]
       .filter(value => value > start + 1 && value < end - 1);
     if (!candidates.length) continue;
-    const chosen = candidates.sort((a,b) => {
+    candidates.sort((a,b) => {
       const score = value => distanceToGrid(value) + (Math.min(...anchors.map(anchor => Math.abs(value-anchor))) < step * .25 ? step : 0);
       return score(a) - score(b);
-    })[0];
-    if (anchors.every(value => Math.abs(value - chosen) >= MIN_PANEL_WIDTH_MM)) anchors.push(chosen);
+    });
+    for(const chosen of candidates) if (anchors.every(value => Math.abs(value - chosen) >= MIN_PANEL_WIDTH_MM)) anchors.push(chosen);
   }
   anchors.sort((a,b) => a-b);
   const columns = [];
@@ -148,7 +186,9 @@ const mergeWalls = segments => {
 // Each connected polygon is a separate labelled part, including concave cuts
 // and holes. A stock blank is its bounding rectangle, never its net area.
 export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
-  if (surface.blocked || !surface.geometry.length) return [];
+  if (surface.blocked || surface.frameOnly || !surface.geometry.length) return [];
+  if(surface.stockWall && !presentNumber(surface.layout?.originX) && !presentNumber(surface.layout?.originY) && !presentNumber(surface.layout?.step))
+    return tileStockWall(surface,panelWidth,panelLength);
   if (surface.layout?.direction === 'y' && !surface.horizontal && surface.openings?.length &&
       !presentNumber(surface.layout?.originX) && !presentNumber(surface.layout?.originY))
     return tileHorizontalWall(surface, panelWidth, panelLength);
@@ -208,6 +248,7 @@ export function groupPanels(parts = []) {
   };
   for (const part of parts) {
     const key = JSON.stringify([part.family, part.thickness, round(part.width), round(part.height),
+      round(part.blankWidth??part.width),round(part.blankHeight??part.height),
       part.shape.map(ring => ringKey(ring, part.x, part.y)).sort()]);
     const group = groups.get(key);
     if (group) { group.qty++; group.instances.push(part.id); }
@@ -235,7 +276,7 @@ export function starterBoardPlan(surfaces = [], members = []) {
         id:member.id,start:Math.min(member.a[0],member.b[0]),end:Math.max(member.a[0],member.b[0]),
         length:round(Math.abs(member.b[0]-member.a[0])),cutLength:member.cutLength,profile:member.profile,
       })).sort((a,b)=>a.start-b.start);
-    const openings=(surface.openings||[]).map(opening=>({id:opening.id,type:opening.type,
+    const openings=(surface.openings||[]).map(opening=>({id:opening.id,name:opening.name,type:opening.type,
       start:opening.x,end:opening.x+opening.width,width:opening.width,sill:Number(opening.sill)||0,
       noBoard:opening.gap || Number(opening.sill)===0})).sort((a,b)=>a.start-b.start);
     return {id:surface.id,name:surface.name,start:surface.planStart,end:surface.planEnd,
@@ -343,7 +384,8 @@ export function calculateProductionCutting(project, calculation) {
     surface.layout = settings.layouts[surface.layoutKey] || {};
     for (const key of ['originX', 'originY', 'step']) if (presentNumber(surface.layout[key]) && (Math.abs(Number(surface.layout[key])) > 100000 || (key === 'step' && (Number(surface.layout[key]) < 100 || Number(surface.layout[key]) > 2500)))) throw new Error(`${surface.id}: недопустимая сетка раскладки`);
     if (presentNumber(surface.layout.step)) surface.layoutWidth = Number(surface.layout.step);
-    surface.effectiveStep = Math.min(panelWidth, surface.layoutWidth || settings.frameStepMm);
+    surface.stockWall=settings.wallPanelMode==='full' && !!surface.planStart;
+    surface.effectiveStep = Math.min(panelWidth, surface.stockWall && !presentNumber(surface.layout.step) ? panelWidth : surface.layoutWidth || settings.frameStepMm);
     surfaces.push(surface); return surface;
   };
   plans.forEach((plan, floorIndex) => {
@@ -358,6 +400,7 @@ export function calculateProductionCutting(project, calculation) {
     }
     const assigned = new Map(edges.map(edge => [edge.id, []]));
     const blockedWalls = new Set();
+    let openingNumber=0;
     for (const opening of [...(plan.openings || []), ...(plan.wallGaps || []).map(gap => ({ ...gap, type: 'gap', height: plan.wallHeight }))].filter(o => o.include !== false && o.subtractFromSip !== false)) {
       const outer = typeof opening.outer === 'boolean' ? opening.outer : null;
       if ((outer === true && !services.sipWalls) || (outer === false && (!services.partitions || sip.partitionType !== 'sip'))) continue;
@@ -370,7 +413,7 @@ export function calculateProductionCutting(project, calculation) {
       }).sort((a, b) => a.distance - b.distance);
       const nearest = choices[0], key = `${floor}:${opening.id}`;
       const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : settings.windowSillMm);
-      const row = { key, id: opening.id, type: opening.type, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Проём'} ${opening.id}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
+      const row = { key, id: opening.id, type: opening.type, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Дверь'} ${++openingNumber}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
       if (!row.gap) openings.push(row);
       if (!nearest || nearest.distance > Math.max(Number(plan.wallThickness) || 0.174, 0.1) + 0.03 || (choices[1] && Math.abs(choices[1].distance - nearest.distance) < .001)) {
         issue('OPENING_WALL', `${row.name}: стена не найдена или привязка неоднозначна. Раскрой возможных стен заблокирован; уточните положение и ориентацию на плане.`, key);
@@ -429,6 +472,7 @@ export function calculateProductionCutting(project, calculation) {
     const shape = polygon(houseContourPoints(plans.at(-1))), bounds = polygonBounds(shape);
     const rectangular = Math.abs(polygonAreaMm(shape) - bounds.width * bounds.height) < 1;
     const addRoof = (id, name, shape, thickness = sip.ceilingThickness, horizontal = true) => addSurface({ id, name, floor: plans.length, horizontal, staggered: false, thickness: Number(thickness), family: horizontal ? sip.ceilingPanelFamily : sip.wallPanelFamily, geometry: clipping.union(shape), layoutWidth: mm(roof.sipFrameStep || f.panelWidth || 1.25) });
+    const addGable=(id,name,geometry,type)=>{const surface=addRoof(id,`${name} · ${type==='sip'?'СИП':'каркас'}`,geometry,sip.wallThickness,false);surface.frameOnly=type==='cold';};
     if (roof.mainRoofShape === 'tiered' && rectangular && Number(roof.warmSlopeArea) > 0) {
       const settings = roofSettings.tiered || {};
       const warmLevel = settings.warmLevel || 'upper';
@@ -450,20 +494,25 @@ export function calculateProductionCutting(project, calculation) {
         }
       } else for (let i = 1; i <= (roof.mainRoofShape === 'flat' ? 1 : 2); i++) addRoof(`КР-С${i}`, `Кровля · скат ${i}`, rect(0, 0, length, slope));
     } else if (roofSettings.type === 'sip' || Number(roof.warmSlopeArea) > 0) issue('ROOF', 'Комбинированная или контурная SIP-кровля: нужны границы тёплых скатов и ендов из рабочего проекта. Автоматический раскрой этих скатов пока не сформирован.');
-    if (roof.mainRoofShape === 'tiered' && roof.tieredGables?.zones.some(zone => zone.type === 'sip')) {
+    if (roof.mainRoofShape === 'tiered' && roof.tieredGables?.zones.some(zone => ['sip','cold'].includes(zone.type))) {
       if (!rectangular) issue('GABLE', 'Г-образный контур: геометрию фронтонов и перепада уровней требуется уточнить в рабочем проекте.');
-      else for (const zone of roof.tieredGables.zones.filter(item => item.type === 'sip')) {
+      else for (const zone of roof.tieredGables.zones.filter(item => ['sip','cold'].includes(item.type))) {
         if (Math.abs(zone.area-zone.calculatedArea)>0.01) { issue('GABLE', `${zone.label}: проектная площадь отличается от геометрической. Автоматическая развёртка не создана.`); continue; }
         const width = mm(zone.internal ? roofGeometry.junctionLength : zone.key.startsWith('upper') ? roofGeometry.upperSpan : roofGeometry.lowerSpan);
         const height = mm(zone.internal ? roofGeometry.stepHeight : zone.key.startsWith('upper') ? roofGeometry.upperRise : roofGeometry.lowerRise);
         if (!width || !height) continue;
-        const geometry = zone.internal ? rect(0,0,width,height) : [[[0,0],[width,0],[width,height],[0,0]]];
-        addRoof(`ФР-${zone.key}`, zone.label, geometry, sip.wallThickness, false);
+        const upper=zone.key.startsWith('upper'),toward=(roofSettings.tiered?.[upper?'upperSlopeDirection':'lowerSlopeDirection']||(upper?'towardJunction':'awayJunction'))==='towardJunction';
+        const highRight=(upper?!toward:toward)!==(roofSettings.tiered?.upperSide==='second');
+        const geometry = zone.internal ? rect(0,0,width,height) : highRight?[[[0,0],[width,0],[width,height],[0,0]]]:[[[0,0],[width,0],[0,height],[0,0]]];
+        addGable(`ФР-${zone.key}`, zone.label, geometry,zone.type);
       }
-    } else if (roof.mainGableType === 'sip') {
+    } else if (['sip','cold'].includes(roof.mainGableType)) {
       if (rectangular && roof.mainRoofShape === 'gable') {
         const height = mm(roofSettings.ridgeHeight), span = roof.ridgeAxis === 'y' ? bounds.width : bounds.height;
-        for (let i = 1; i <= Math.min(2, Number(roofSettings.gableCount) || 0); i++) addRoof(`ФР-${i}`, `Фронтон ${i}`, [[[0,0],[span,0],[span/2,height],[0,0]]], sip.wallThickness, false);
+        for (let i = 1; i <= Math.min(2, Number(roofSettings.gableCount) || 0); i++) addGable(`ФР-${i}`, `Фронтон ${i}`, [[[0,0],[span,0],[span/2,height],[0,0]]],roof.mainGableType);
+      } else if(rectangular && roof.mainRoofShape==='flat'){
+        const height=mm(roof.flatRise),span=roof.ridgeAxis==='y'?bounds.width:bounds.height;
+        if(height>0){for(let i=1;i<=2;i++)addGable(`ФР-Б${i}`,`Боковой фронтон ${i}`,[[[0,0],[span,0],[span,height],[0,0]]],roof.mainGableType);addGable('ФР-ВЫС','Высокий фронтон',rect(0,0,roof.ridgeAxis==='y'?bounds.height:bounds.width,height),roof.mainGableType);}
       } else issue('GABLE', 'Фронтоны сложной или односкатной кровли: требуются отдельные развёртки и проёмы.');
     }
   }
@@ -489,8 +538,10 @@ export function calculateProductionCutting(project, calculation) {
       for(let i=0;i<holes.length;i++) for(let j=i+1;j<holes.length;j++) if(clipping.intersection(holes[i],holes[j]).length) throw new Error('Вырезы пересекаются');
       const geometry = subtract(outer, holes);
       if (geometry.length !== 1 || polygonAreaMm(geometry[0]) < 1) throw new Error('Панель должна быть одной связной деталью ненулевой площади');
+      const manualBounds=polygonBounds(geometry[0]);
+      if(Math.min(manualBounds.width,manualBounds.height)<MIN_PANEL_WIDTH_MM-.001)throw narrowPanelError(item.name);
       for (let i=0;i<quantity;i++) {
-        const id = `РП-${item.id}-${i+1}`;
+        const id = `РП-${settings.manualPanels.indexOf(item)+1}-${i+1}`;
         addSurface({ id, name: item.name, thickness: Number(item.thickness), family: item.family, geometry, horizontal: true, manual: true });
         parts.push({ id: `${id}-P1`, surfaceId: id, surface: item.name, thickness: Number(item.thickness), family: item.family, shape: geometry[0], ...polygonBounds(geometry[0]), area: polygonAreaMm(geometry[0]), upperCourse: false });
       }
@@ -501,6 +552,7 @@ export function calculateProductionCutting(project, calculation) {
   const members = [];
   const overrideKeys = new Set(), profileMismatches = new Set();
   for (const surface of surfaces) {
+    if(surface.frameOnly){members.push(...gableFrameMembers(surface,settings));continue;}
     const segments = connectionSegments(parts.filter(part => part.surfaceId === surface.id), settings.continuousMembers);
     const profile = sipTimberProfile(surface.thickness);
     const jambs = !surface.blocked && !surface.horizontal && surface.openings?.length ? surface.openings.filter(opening => !opening.gap && ['window','door'].includes(opening.type))
@@ -535,7 +587,7 @@ export function calculateProductionCutting(project, calculation) {
       if ((override.exclude || override.profile || presentNumber(override.length)) && !override.nodeRef?.trim()) issue('MEMBER_NODE',`${id}: для изменения или исключения укажите рабочий узел`,key);
       const a=[round(jamb.x),0], b=[round(jamb.x),surface.height];
       members.push({id,key,a,b,length,geometricLength,cutLength:length+2*Number(settings.endAllowanceMm||0),
-        material:'Стойка проёма',source:'Стойка проёма',openingRef:`${jamb.opening.type==='window'?'Окно':'Дверь'} ${jamb.opening.id} · ${jamb.side==='left'?'левая':'правая'}`,
+        material:'Стойка проёма',source:'Стойка проёма',openingRef:`${jamb.opening.name} · ${jamb.side==='left'?'левая':'правая'}`,
         role:'jamb',profile:selectedProfile,estimateProfile,excluded:override.exclude===true,
         nodeRef:override.nodeRef||'',processing:override.processing||'',surface:surface.name,surfaceId:surface.id,
         panels:parts.filter(part=>part.surfaceId===surface.id && (Math.abs(part.x-jamb.x)<.01 || Math.abs(part.x+part.width-jamb.x)<.01)).map(part=>part.id)});
@@ -550,8 +602,13 @@ export function calculateProductionCutting(project, calculation) {
     const quantity = Math.min(1000, Math.floor(Number(item.quantity)));
     manualCount += quantity;
     if (manualCount > 10000) { issue('MANUAL_LIMIT', 'Более 10 000 ручных деталей: разделите комплект на партии.'); break; }
-    for (let i = 0; i < quantity; i++) members.push({ id: `Р-${item.id}-${i + 1}`, material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
+    for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
+  const assembly=calculateAssemblyPlan(project,calculation,settings);
+  members.push(...assembly.members);
+  assembly.issues.forEach(message=>issue('ASSEMBLY',message));
+  if(services.roof && (roof.warmSlopeArea>0 || roof.rafterStructure?.system==='layered') && !assembly.supports.some(s=>s.type==='purlin'))
+    issue('ROOF_SUPPORTS','Опоры кровли: задайте проектные прогоны, стойки и путь нагрузки до фундамента на вкладке «Крыша и опоры».');
   const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
   const timberStock = packMembers(members.filter(m=>!m.excluded), settings.stockLengthMm, Number(settings.kerfMm || 0));
   if (panelStock.unplaced.length) issue('PANEL_SIZE', `Не помещаются в заготовку: ${panelStock.unplaced.join(', ')}`);
@@ -559,7 +616,8 @@ export function calculateProductionCutting(project, calculation) {
   if (!surfaces.length && !members.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
   const { approval, ...revisionSettings } = settings;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
-  const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
+  const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
+  report.cutting=calculateCutOperations(report);
   report.reconciliation = reconcileCutting(report, calculation);
   report.approvalStatus = approval.revision === revision && !issues.length && approval.reviewer?.trim() && approval.nodeRef?.trim() && ['geometry','nodes','released'].includes(approval.status) ? approval.status : 'draft';
   return report;

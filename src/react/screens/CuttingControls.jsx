@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { productionMark } from '../calculations/production-assembly.js';
 
 export const approvalLabels = { draft: 'Черновик', geometry: 'Геометрия проверена', nodes: 'Узлы согласованы', released: 'Разрешено в производство' };
 
@@ -32,7 +33,7 @@ export function CuttingControls({ settings, report, update, NumberInput }) {
       const change = patch=>update({manualPanels:settings.manualPanels.map((p,i)=>i===index?{...p,...patch}:p)});
       return <fieldset key={item.id}><legend>Панель {index+1}</legend><div className="cut-fields">
         <DraftText label="Название панели" value={item.name} onChange={name=>change({name})} placeholder="Панель пристройки по листу КР-5" />
-        <label>Семейство<select value={item.family} onChange={e=>change({family:e.target.value})}><option value="pps">PPS</option><option value="mineral-wool">Минвата</option><option value="csp-pps">CSP PPS</option></select></label>
+        <label>Семейство<select value={item.family} onChange={e=>change({family:e.target.value})}><option value="pps">ППС</option><option value="mineral-wool">Минвата</option><option value="csp-pps">ЦСП / ППС</option></select></label>
         <label>Толщина панели<select value={item.thickness} onChange={e=>change({thickness:Number(e.target.value)})}>{[124,174,224].map(t=><option key={t}>{t}</option>)}</select></label>
         <NumberInput label="Количество панелей" value={item.quantity} min={1} max={100} suffix="шт." onChange={quantity=>change({quantity})} />
       </div><DraftText label="Контуры панели (JSON, мм)" multiline value={item.contour} placeholder="[[[0,0],[625,0],[625,2500],[0,2500]]]" onChange={contour=>change({contour})} /><button onClick={()=>update({manualPanels:settings.manualPanels.filter((_,i)=>i!==index)})}>Удалить панель {index+1}</button></fieldset>;
@@ -46,18 +47,18 @@ export function SurfaceLayoutControls({ surface, settings, update, NumberInput }
   const layout = settings.layouts[surface.layoutKey] || {};
   const change = patch=>update({layouts:{...settings.layouts,[surface.layoutKey]:{...layout,...patch}}});
   return <details className="cut-layout-settings"><summary>Сетка конструкции · шаг {surface.effectiveStep} мм</summary><p>Пустое поле — настройки конструкции. Начало сетки задаётся в её координатах; для перекрытий это координаты плана. Согласование с реальными опорами выполняет технолог.</p><div className="cut-fields">
-    <label>Направление раскладки<select value={layout.direction || 'x'} onChange={e=>change({direction:e.target.value})}><option value="x">По X</option><option value="y">По Y (90°)</option></select></label>
+    <label>Направление раскладки<select value={layout.direction || 'auto'} onChange={e=>change({direction:e.target.value})}><option value="auto">Автоматически, смешанная ориентация</option><option value="x">Вертикальные стены / вдоль первой оси ската</option><option value="y">Горизонтальные стены / поворот на 90°</option></select></label>
     <NumberInput label="Шаг этой конструкции" value={layout.step ?? ''} min={100} max={2500} onChange={step=>change({step})} />
     <NumberInput label="Начало сетки X" value={layout.originX ?? ''} min={-100000} onChange={originX=>change({originX})} />
     <NumberInput label="Начало сетки Y" value={layout.originY ?? ''} min={-100000} onChange={originY=>change({originY})} />
-  </div></details>;
+  </div>{surface.stockWall?(surface.openings||[]).filter(o=>!o.gap).map((opening,index)=><label key={opening.key}>Панели над и под {opening.type==='window'?'окном':'дверью'} {index+1}<select value={layout.openingDirections?.[opening.key]||'auto'} onChange={e=>change({openingDirections:{...layout.openingDirections,[opening.key]:e.target.value}})}><option value="auto">Автоматически</option><option value="x">Вертикально</option><option value="y">Горизонтально</option></select></label>):null}</details>;
 }
 
 export function MemberEditor({ member, settings, update, NumberInput }) {
   if (!member?.key) return <p>Выберите автоматический соединитель в таблице или на развёртке.</p>;
   const value = settings.memberOverrides[member.key] || {};
   const change = patch=>update({memberOverrides:{...settings.memberOverrides,[member.key]:{...value,...patch}}});
-  return <fieldset><legend>Карточка {member.id}</legend><p>{member.surface} · геометрия {member.geometricLength} мм · сметный профиль {member.estimateProfile}. Исключение убирает элемент из карт хлыстов; при разложении пакета на доски сначала исключите сборочный элемент и добавьте его состав вручную.</p><div className="cut-fields">
+  return <fieldset><legend>Карточка {productionMark(member.id)}</legend><p>{member.surface} · геометрия {member.geometricLength} мм · сметный профиль {member.estimateProfile}. Исключение убирает элемент из карт хлыстов; при разложении пакета на доски сначала исключите сборочный элемент и добавьте его состав вручную.</p><div className="cut-fields">
     <NumberInput label="Проектная чистая длина" value={value.length ?? ''} min={1} onChange={length=>change({length})} placeholder={`${member.geometricLength} — по геометрии`} />
     <DraftText label="Проектное сечение" value={value.profile || ''} onChange={profile=>change({profile})} placeholder={member.profile} />
     <DraftText label="Рабочий узел соединителя" value={value.nodeRef || ''} onChange={nodeRef=>change({nodeRef})} placeholder="Шифр / лист / узел" />

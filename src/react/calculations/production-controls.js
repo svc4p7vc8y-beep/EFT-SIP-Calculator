@@ -13,6 +13,7 @@ export const productionLimits = {
 };
 
 export function validateProductionSettings(settings) {
+  if(!/^\d+[×хx]\d+$/.test(settings.gableFrameProfile)||settings.gableFrameProfile.split(/[×хx]/).some(value=>!(Number(value)>0)))throw new Error('Каркас фронтонов: задайте положительное сечение в формате 50×150 мм.');
   for (const [key, [min, max]] of Object.entries(productionLimits)) {
     if (settings[key] === '' && ['kerfMm', 'endAllowanceMm'].includes(key)) continue;
     if (!Number.isFinite(settings[key]) || settings[key] < min || settings[key] > max) throw new Error(`${key}: допустимо от ${min} до ${max} мм; введённое значение не заменено автоматически`);

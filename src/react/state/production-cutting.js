@@ -5,6 +5,8 @@ export function normalizeProductionCutting(value = {}) {
   const record = source => source && typeof source === 'object' && !Array.isArray(source) ? Object.fromEntries(Object.entries(source).slice(0, 2000).map(([key, item]) => [key, item !== '' && item != null && Number.isFinite(Number(item)) && Number(item) >= 0 && Number(item) <= 30000 ? Number(item) : ''])) : {};
   return {
     frameStepMm: number('frameStepMm', 625, 100, 2500),
+    wallPanelMode: value.wallPanelMode === 'grid' ? 'grid' : 'full',
+    gableFrameProfile: typeof value.gableFrameProfile==='string' ? value.gableFrameProfile.trim().replace(/[хx]/g,'×') : '50×150',
     windowSillMm: number('windowSillMm', 850),
     kerfMm: number('kerfMm', '', 0, 20),
     endAllowanceMm: number('endAllowanceMm', '', 0, 100),
@@ -16,6 +18,12 @@ export function normalizeProductionCutting(value = {}) {
     allowRotation: value.allowRotation === true,
     continuousMembers: value.continuousMembers === true,
     layouts: value.layouts && typeof value.layouts === 'object' && !Array.isArray(value.layouts) ? value.layouts : {},
+    roofSupports: Array.isArray(value.roofSupports) ? value.roofSupports.filter(item=>item && typeof item==='object').slice(0,200).map((item,index)=>({
+      ...item,id:String(item.id||`support-${index+1}`),name:String(item.name||'').slice(0,200),
+      type:['purlin','post','beam','foundation'].includes(item.type)?item.type:'purlin',
+      profile:String(item.profile||'').slice(0,100),nodeRef:String(item.nodeRef||'').slice(0,200),
+      startSupport:String(item.startSupport||''),endSupport:String(item.endSupport||''),foundationRef:String(item.foundationRef||'').slice(0,200),
+    })) : [],
     memberOverrides: value.memberOverrides && typeof value.memberOverrides === 'object' && !Array.isArray(value.memberOverrides) ? value.memberOverrides : {},
     manualPanels: Array.isArray(value.manualPanels) ? value.manualPanels.filter(item=>item && typeof item === 'object').slice(0, 100).map((item,index)=>({id:String(item.id || `panel-${index+1}`),name:String(item.name || '').slice(0,200),family:String(item.family || 'pps'),thickness:item.thickness == null ? 174 : Number(item.thickness),quantity:item.quantity == null ? 1 : Number(item.quantity),contour:typeof item.contour === 'string' ? item.contour : JSON.stringify(item.contour || [])})) : [],
     approval: value.approval && typeof value.approval === 'object' ? value.approval : {},

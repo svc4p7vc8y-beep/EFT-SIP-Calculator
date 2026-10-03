@@ -24,7 +24,7 @@ test('production wall cuts preserve opening area and add a labelled upper course
   const wall = report.parts.filter(part => part.surfaceId === 'Э1-С1');
   assert.ok(wall.some(part => part.upperCourse));
   assert.equal(wall.reduce((sum, part) => sum + part.area, 0), 5e3 * 3e3 - 1e3 * 1.2e3);
-  assert.ok(wall.every(part => part.height <= 2500 && part.width <= 625));
+  assert.ok(wall.every(part => (part.blankHeight??part.height) <= 2500 && (part.blankWidth??part.width) <= 1250));
   assert.deepEqual(p, before);
   assert.equal(calculateProject(p).totals.total, estimate.totals.total);
   assert.equal(report.issues.length, 0);
@@ -99,7 +99,7 @@ test('every door and window has two full-height jambs; matching members group wi
   const report=calculateProductionCutting(p,calculateProject(p));
   const jambs=report.members.filter(member=>member.surfaceId==='Э1-С1' && member.role==='jamb');
   assert.equal(jambs.length,4);
-  assert.deepEqual(jambs.map(member=>member.openingRef).sort(),['Дверь door · левая','Дверь door · правая','Окно window · левая','Окно window · правая']);
+  assert.deepEqual(jambs.map(member=>member.openingRef).sort(),['1 этаж · Дверь 2 · левая','1 этаж · Дверь 2 · правая','1 этаж · Окно 1 · левая','1 этаж · Окно 1 · правая']);
   assert.ok(jambs.every(member=>member.length===2800 && member.a[1]===0 && member.b[1]===2800));
   assert.equal(groupMembers(report.members).reduce((sum,group)=>sum+group.qty,0),report.members.length);
   assert.ok(report.members.some(member=>member.replacedByJamb && member.excluded));
