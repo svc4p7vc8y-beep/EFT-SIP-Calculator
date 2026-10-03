@@ -143,15 +143,15 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
         s.counterEnabled && e.area > 0 && 'вентиляционная контробрешётка',
         s.trimsEnabled && e.area > 0 && 'углы и обрамления проёмов',
         s.painting && e.areas.wood > 0 && `покраска дерева ${s.paintCoats} слоя`,
-        e.soffitArea > 0 && `подшивка ${formatNumber(e.soffitArea)} м²`,
-        e.plinthArea > 0 && `цоколь ${formatNumber(e.plinthArea)} м², высота ${formatNumber(s.plinthHeight)} м, ${s.plinthMaterial === 'brick' ? 'панели под кирпич' : 'профлист'}, труба 50×25×2`,
+        e.soffitArea > 0 && `подшивка ${formatNumber(e.soffitArea)} м²${s.soffitType === 'metal-st15' ? ' профлистом ST-15' : s.soffitType === 'metal' ? ' профлистом С-21' : ''}`,
+        e.plinthArea > 0 && `цоколь ${formatNumber(e.plinthArea)} м², высота ${formatNumber(s.plinthHeight)} м, ${s.plinthMaterial === 'brick' ? 'панели под кирпич' : s.plinthMaterial === 'metal-st15' ? 'профлист ST-15' : 'профлист С-21'}, труба 50×25×2`,
         s.outdoorEnabled && (s.lights || s.sockets || s.lightingLine || s.socketLine) && `наружная электрика: светильники ${s.lights}, розетки ${s.sockets}, линии ${formatNumber(Number(s.lightingLine) + Number(s.socketLine))} м`,
       ]),
     };
   }
   if (key === 'external') return {
     summary: `наружная отделка ${formatNumber(calculation.inputs.external.facadeArea)} м² фасада`,
-    details: joinParts(['Фасадные материалы, крепёж и монтажные работы', calculation.exterior?.plinthArea > 0 && `цоколь ${formatNumber(calculation.exterior.plinthArea)} м²`])
+    details: joinParts(['Фасадные материалы, крепёж и монтажные работы', calculation.inputs.external.metalArea > 0 && project.settings.external.legacyMetalType === 'metal-st15' && 'профлист ST-15', calculation.exterior?.plinthArea > 0 && `цоколь ${formatNumber(calculation.exterior.plinthArea)} м²`])
   };
   if (key === 'delivery') return {
     summary: `${formatNumber(project.settings.delivery.distance)} км, ${pluralRu(project.settings.delivery.trips, 'рейс', 'рейса', 'рейсов')}`,

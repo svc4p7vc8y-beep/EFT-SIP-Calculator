@@ -31,6 +31,73 @@ test('every facade option has priced catalog rows and never changes other sectio
     assert.deepEqual(unpricedClientLines(result),[]);
   }
 });
+test('ST-15 exterior facade uses the shared sheet price, framing and installation rules', () => {
+  const p = projectFor(100);
+  p.settings.external.cladding = 'metal';
+  const c21Sheet = line(p,'metal');
+  const c21Work = line(p,'metal-work');
+  const c21Cross = line(p,'cross-battens');
+  p.settings.external.cladding = 'metal-st15';
+  const st15Sheet = line(p,'metal-st15');
+  const st15Work = line(p,'metal-st15-work');
+  assert.equal(c21Sheet.catalogId,'MAT-041');
+  assert.equal(c21Sheet.price,800);
+  assert.equal(st15Sheet.catalogId,'MAT-245');
+  assert.equal(st15Sheet.price,950);
+  assert.equal(st15Sheet.qty,110);
+  assert.equal(st15Sheet.qty,c21Sheet.qty);
+  assert.equal(st15Work.catalogId,c21Work.catalogId);
+  assert.equal(st15Work.qty,c21Work.qty);
+  assert.equal(st15Work.price,c21Work.price);
+  assert.equal(line(p,'cross-battens').qty,c21Cross.qty);
+  assert.equal((st15Sheet.price-c21Sheet.price)*st15Sheet.qty,16500);
+});
+test('switching facade profile does not carry a C21-only manual line price into ST-15', () => {
+  const p=projectFor(100);
+  p.settings.external.cladding='metal';
+  changeEstimateLine(p,line(p,'metal'),{price:777});
+  assert.equal(line(p,'metal').price,777);
+  p.settings.external.cladding='metal-st15';
+  assert.equal(line(p,'metal-st15').price,950);
+  assert.equal(p.priceMat.find(item=>item.id==='MAT-245').price,950);
+});
+test('combined facade, soffit and plinth can use ST-15 without duplicate sheet rows', () => {
+  const p = projectFor(100);
+  Object.assign(p.settings.external, {
+    cladding:'combined', shares:{siding:0,wood:0,metal:40,'metal-st15':60,brick:0,bitumen:0},
+    soffitEnabled:true,soffitAuto:false,soffitArea:10,soffitTrimLength:10,soffitType:'metal-st15',
+    plinthEnabled:true,plinthAuto:false,plinthPerimeter:20,plinthHeight:1,plinthMaterial:'metal-st15'
+  });
+  const result=calculateProject(p);
+  assert.equal(line(p,'metal').qty,44);
+  assert.equal(line(p,'metal-st15').qty,66);
+  assert.equal(line(p,'soffit').catalogId,'MAT-245');
+  assert.equal(line(p,'soffit').qty,11);
+  assert.equal(line(p,'plinth-cover').catalogId,'MAT-245');
+  assert.equal(line(p,'plinth-cover').qty,22);
+  assert.equal(line(p,'soffit-work').qty,10);
+  assert.equal(line(p,'plinth-cover-work').qty,20);
+  assert.equal(new Set(result.lines.map(item=>item.id)).size,result.lines.length);
+  assert.ok(result.exterior.lines.every(item=>item.catalogId && item.price>0));
+  const restored=migrateProject(JSON.parse(JSON.stringify(p)));
+  assert.equal(restored.settings.external.shares['metal-st15'],60);
+  assert.equal(restored.settings.external.soffitType,'metal-st15');
+  assert.equal(restored.settings.external.plinthMaterial,'metal-st15');
+  assert.equal(line(restored,'plinth-cover').catalogId,'MAT-245');
+});
+test('legacy external estimate may switch sheet to ST-15 without upgrading its assembly', () => {
+  const p=projectFor();
+  p.settings.external.assemblyVersion=0;
+  p.settings.external.metalArea=12;
+  const c21=line(p,'metal');
+  assert.equal(c21.catalogId,'MAT-041');
+  p.settings.external.legacyMetalType='metal-st15';
+  const st15=line(p,'metal');
+  assert.equal(st15.catalogId,'MAT-245');
+  assert.equal(st15.qty,c21.qty);
+  assert.equal(st15.price,950);
+  assert.equal(migrateProject(JSON.parse(JSON.stringify(p))).settings.external.legacyMetalType,'metal-st15');
+});
 test('50 mm insulation, packs, six-metre lumber and panel purchases round up; labor has no reserve', () => {
   const p = projectFor();
   assert.equal(line(p,'insulation').qty,5.7); // 100 × .05 × 1.1, rounded to .3 m³ packs

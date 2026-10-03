@@ -2834,9 +2834,9 @@ function finishSections(project, index, inputs, metrics) {
         makeLine(
           index,
           "external",
-          "Профлист С-21 окрашенный",
+          project.settings.external?.legacyMetalType === 'metal-st15' ? "Профлист ST15 окрашенный" : "Профлист С-21 окрашенный",
           external.metalArea,
-          { key: "metal", unit: "м²" },
+          { key: "metal", unit: "м²", catalogId: project.settings.external?.legacyMetalType === 'metal-st15' ? 'MAT-245' : 'MAT-041' },
         ),
         makeLine(
           index,

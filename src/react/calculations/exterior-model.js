@@ -2,11 +2,12 @@ import { calculatePlanMetrics } from '../../calculations/plan-metrics.js';
 
 export const EXTERIOR_TYPES = [
   { value: 'siding', label: 'Виниловый сайдинг' }, { value: 'wood', label: 'Имитация бруса' },
-  { value: 'metal', label: 'Профлист' }, { value: 'brick', label: 'Панели под кирпич' },
+  { value: 'metal', label: 'Профлист С-21' }, { value: 'metal-st15', label: 'Профлист ST-15' }, { value: 'brick', label: 'Панели под кирпич' },
   { value: 'bitumen', label: 'Битумная фасадная плитка (HAUBERK)' },
 ];
 export const DEFAULT_EXTERIOR = {
-  assemblyVersion: 1, cladding: 'siding', shares: { siding: 50, wood: 50, metal: 0, brick: 0, bitumen: 0 },
+  assemblyVersion: 1, cladding: 'siding', shares: { siding: 50, wood: 50, metal: 0, 'metal-st15': 0, brick: 0, bitumen: 0 },
+  legacyMetalType: 'metal',
   reserve: 10, insulationEnabled: true, windEnabled: true, counterEnabled: true, crossBattens: 'auto',
   insulationSpacing: 0.6, battenSpacing: 0.4, membraneRollArea: 70, insulationPackageVolume: 0.3,
   sidingPanelArea: 0.84, brickPanelArea: 0.44, bitumenPackageArea: 2,
@@ -29,7 +30,9 @@ const ceilPack = (qty, pack) => qty > 0 ? Math.ceil((qty - 1e-9) / pack) * pack 
 export function normalizeExterior(raw = {}) {
   const result = { ...DEFAULT_EXTERIOR, ...raw, shares: { ...DEFAULT_EXTERIOR.shares, ...raw.shares } };
   if (![...EXTERIOR_TYPES.map(item => item.value), 'combined'].includes(result.cladding)) result.cladding = 'siding';
-  if (!['metal','brick'].includes(result.plinthMaterial)) result.plinthMaterial = 'metal';
+  if (!['metal','metal-st15','brick'].includes(result.plinthMaterial)) result.plinthMaterial = 'metal';
+  if (!['metal','metal-st15'].includes(result.legacyMetalType)) result.legacyMetalType = 'metal';
+  if (!['soffit','wood','metal','metal-st15'].includes(result.soffitType)) result.soffitType = 'soffit';
   return result;
 }
 function corners(plan) {
@@ -115,7 +118,7 @@ export function calculateExterior(project, metrics, roof = {}, linked = {}) {
     timber('counter', area / Math.max(.1,n(s.battenSpacing)) + trim.openingTrimLength + trim.sillLength,.05,.05,'MAT-096',base,'Вентиляционная контробрешётка 50×50 мм');
     add('LAB-050','counter-work',area,base);
   }
-  const crossArea = s.crossBattens === 'on' ? area : s.crossBattens === 'off' ? 0 : areas.metal;
+  const crossArea = s.crossBattens === 'on' ? area : s.crossBattens === 'off' ? 0 : areas.metal + areas['metal-st15'];
   if(crossArea) {
     timber('cross-battens',crossArea / Math.max(.1,n(s.battenSpacing)),.1,.025,'MAT-098',base,'Поперечная обрешётка 100×25 мм');
     add('LAB-051','cross-battens-work',crossArea,base);
@@ -141,7 +144,7 @@ export function calculateExterior(project, metrics, roof = {}, linked = {}) {
     if (key === 'siding') { add('EXT-MAT-SIDING',key,Math.ceil(a * reserve / Math.max(.01,n(s.sidingPanelArea))),group,`Виниловый сайдинг · панель ${s.sidingPanelArea} м²`); add('EXT-LAB-SIDING',`${key}-work`,a,group); }
     if (key === 'brick') { add('EXT-MAT-BRICK',key,Math.ceil(a * reserve / Math.max(.01,n(s.brickPanelArea))),group,`Полимерная панель под кирпич · ${s.brickPanelArea} м²`); add('EXT-LAB-BRICK',`${key}-work`,a,group); }
     if (key === 'wood') { wood(a,key,group); add('LAB-049',`${key}-work`,a,group); if (s.painting) paint(a,'wood',group); }
-    if (key === 'metal') { add('MAT-041',key,a * reserve,group); add('LAB-054',`${key}-work`,a,group); }
+    if (key === 'metal' || key === 'metal-st15') { add(key === 'metal-st15' ? 'MAT-245' : 'MAT-041',key,a * reserve,group); add('LAB-054',`${key}-work`,a,group); }
     if (key === 'bitumen') {
       add('EXT-MAT-BITUMEN',key,ceilPack(a * reserve,Math.max(.01,n(s.bitumenPackageArea))),group);
       add('EXT-LAB-BITUMEN',`${key}-work`,a,group);
@@ -154,7 +157,7 @@ export function calculateExterior(project, metrics, roof = {}, linked = {}) {
   if (s.trimsEnabled && area) {
     // Combined facade can choose one trim family or allocate by surface share.
     const trimShares = s.trimMaterial === 'auto' ? {
-      PVC: fractions.siding + fractions.brick, WOOD: fractions.wood, METAL: fractions.metal, BITUMEN: fractions.bitumen,
+      PVC: fractions.siding + fractions.brick, WOOD: fractions.wood, METAL: fractions.metal + fractions['metal-st15'], BITUMEN: fractions.bitumen,
     } : { [s.trimMaterial]: 1 };
     const group = 'Углы, проёмы и доборы';
     Object.entries(trimShares).forEach(([family, share]) => {
@@ -169,7 +172,7 @@ export function calculateExterior(project, metrics, roof = {}, linked = {}) {
   if (soffitArea) {
     const group = 'Подшивка свесов';
     if(s.soffitType === 'wood') wood(soffitArea,'soffit-wood',group);
-    else add(s.soffitType === 'metal' ? 'MAT-041' : 'EXT-MAT-SOFFIT','soffit',soffitArea * reserve,group);
+    else add(s.soffitType === 'metal-st15' ? 'MAT-245' : s.soffitType === 'metal' ? 'MAT-041' : 'EXT-MAT-SOFFIT','soffit',soffitArea * reserve,group);
     add('LAB-053','soffit-work',soffitArea,group);
     timber('soffit-frame',soffitArea / Math.max(.1,n(s.battenSpacing)),.05,.05,'MAT-096',group,'Каркас подшивы 50×50 мм');
     add('LAB-050','soffit-frame-work',soffitArea,group);
@@ -208,7 +211,7 @@ export function calculateExterior(project, metrics, roof = {}, linked = {}) {
       add('EXT-MAT-BRICK','plinth-cover',Math.ceil(plinthArea * reserve / Math.max(.01,n(s.brickPanelArea))),group);
       add('EXT-LAB-BRICK','plinth-cover-work',plinthArea,group);
     } else {
-      add('MAT-041','plinth-cover',plinthArea * reserve,group);
+      add(s.plinthMaterial === 'metal-st15' ? 'MAT-245' : 'MAT-041','plinth-cover',plinthArea * reserve,group);
       add('LAB-054','plinth-cover-work',plinthArea,group);
     }
     add('EXT-MAT-SCREW','plinth-fasteners',Math.ceil(plinthArea * n(s.fastenersPerM2) * reserve),group,'Крепёж облицовки цоколя к металлическому каркасу');

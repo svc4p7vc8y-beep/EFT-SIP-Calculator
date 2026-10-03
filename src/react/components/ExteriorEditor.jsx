@@ -24,6 +24,7 @@ export function ExteriorEditor({ project, calculation, commit }) {
       <p>Сохранён прежний расчёт фасада. Новая комплектация добавит ранее не учтённые материалы и работы и изменит итог.</p>
       <button className="button primary" onClick={()=>set('assemblyVersion',1)}>Перейти на полный расчёт фасада</button>
       <div className="form-grid">{[['facadeArea','Фасад'],['windArea','Ветрозащита'],['insulationArea','Утепление'],['metalArea','Профлист'],['soffitArea','Подшива']].map(([key,label])=><NumberField key={key} label={label} value={calculation.inputs.external[key]} suffix="м²" onChange={value=>commit(next=>{Object.assign(next.settings.external,calculation.inputs.external,{[key]:value});next.settings.links.externalFinishFromPlan=false;return next;})}/>)}</div>
+      <SelectField label="Профлист прежнего расчёта" value={s.legacyMetalType} options={[{value:'metal',label:'С-21'},{value:'metal-st15',label:'ST-15'}]} onChange={value=>set('legacyMetalType',value)}/>
     </> : <>
       <div className="form-grid">
         <SelectField label="Материал фасада" value={s.cladding} options={[...EXTERIOR_TYPES,{value:'combined',label:'Комбинированная отделка'}]} onChange={value=>set('cladding',value)}/>
@@ -38,7 +39,7 @@ export function ExteriorEditor({ project, calculation, commit }) {
       <section className="exterior-block"><h3>Утепление и основание</h3>
         <div className="form-grid">{toggle('insulationEnabled','Минеральная вата 50 мм + каркас 50×50')}{toggle('windEnabled','Паропроницаемая ветровлагозащита')}{toggle('counterEnabled','Вентиляционная контробрешётка 50×50')}{toggle('ventilationMesh','Защитная сетка вентиляционного зазора')}</div>
         <SelectField label="Поперечная обрешётка 100×25" value={s.crossBattens} options={[{value:'auto',label:'Автоматически под профлист'},{value:'on',label:'По всей площади'},{value:'off',label:'Не учитывать'}]} onChange={value=>set('crossBattens',value)}/>
-        <div className="exterior-layers" aria-label="Слои фасада"><span>Стена SIP</span>{s.insulationEnabled ? <span>Каркас + минвата 50 мм</span> : null}{s.windEnabled ? <span>Ветровлагозащита</span>:null}{s.counterEnabled ? <span>Вентзазор 50 мм</span>:null}{(s.crossBattens==='on'||(s.crossBattens==='auto'&&result.areas.metal>0))?<span>Поперечная обрешётка</span>:null}{result.areas.bitumen>0?<span>ОСП 12 мм под плитку</span>:null}<span>Облицовка</span></div>
+        <div className="exterior-layers" aria-label="Слои фасада"><span>Стена SIP</span>{s.insulationEnabled ? <span>Каркас + минвата 50 мм</span> : null}{s.windEnabled ? <span>Ветровлагозащита</span>:null}{s.counterEnabled ? <span>Вентзазор 50 мм</span>:null}{(s.crossBattens==='on'||(s.crossBattens==='auto'&&(result.areas.metal+result.areas['metal-st15'])>0))?<span>Поперечная обрешётка</span>:null}{result.areas.bitumen>0?<span>ОСП 12 мм под плитку</span>:null}<span>Облицовка</span></div>
         <p className="exterior-note">Пароизоляция — не наружная ветровлагозащита и сюда автоматически не добавляется. Для HAUBERK включены отдельное основание ОСП и его крепёж. Узлы, пожарные требования и пригодность системы для конкретной стены проверяются проектом.</p>
       </section>
       {result.areas.wood>0 ? <section className="exterior-block"><h3>Имитация бруса и покраска</h3>{toggle('painting','Грунт и покраска имитации бруса')}
@@ -53,7 +54,7 @@ export function ExteriorEditor({ project, calculation, commit }) {
         <p className="exterior-note">Окна: верх и два откоса + отдельный отлив. Двери и ворота: верх и два откоса, без нижней планки. Для комбинации автоматические доборы распределяются по долям площадей — уточните стыки вручную. Закупка планок округляется до 3 м для ПВХ и 2 м для остальных.</p>
       </section>
       <section className="exterior-block"><h3>Подшивка свесов</h3>{toggle('soffitEnabled','Включить подшивку кровли')}
-        {s.soffitEnabled?<><SelectField label="Материал подшивки" value={s.soffitType} options={[{value:'soffit',label:'Перфорированный софит'},{value:'wood',label:'Имитация бруса с вентиляцией'},{value:'metal',label:'Профлист с вентиляцией'}]} onChange={value=>set('soffitType',value)}/>
+        {s.soffitEnabled?<><SelectField label="Материал подшивки" value={s.soffitType} options={[{value:'soffit',label:'Перфорированный софит'},{value:'wood',label:'Имитация бруса с вентиляцией'},{value:'metal',label:'Профлист С-21 с вентиляцией'},{value:'metal-st15',label:'Профлист ST-15 с вентиляцией'}]} onChange={value=>set('soffitType',value)}/>
         <Toggle label="Размеры подшивки из основной крыши" checked={s.soffitAuto} onChange={value=>setAuto('soffitAuto',value)}/>
         <div className="form-grid"><NumberField label="Площадь подшивки" value={result.soffitArea} suffix="м²" onChange={value=>commit(next=>{Object.assign(next.settings.external,{soffitAuto:false,soffitArea:value,soffitTrimLength:result.soffitTrimLength});return next;})}/><NumberField label="Примыкания подшивки" value={result.soffitTrimLength} suffix="м" onChange={value=>commit(next=>{Object.assign(next.settings.external,{soffitAuto:false,soffitArea:result.soffitArea,soffitTrimLength:value});return next;})}/></div>
         {s.soffitType==='wood'?toggle('soffitPaint','Грунт и покраска подшивки'):null}
@@ -78,7 +79,7 @@ export function ExteriorEditor({ project, calculation, commit }) {
         <div className="form-grid">
           <NumberField label="Периметр цоколя" value={result.plinthPerimeter} suffix="м" min={0} onChange={value=>commit(next=>{Object.assign(next.settings.external,{plinthAuto:false,plinthPerimeter:value});return next;})}/>
           {number('plinthHeight','Высота облицовки цоколя','м',.05)}
-          <SelectField label="Материал цоколя" value={s.plinthMaterial} options={[{value:'metal',label:'Профлист С-21'},{value:'brick',label:'Пластиковые панели под кирпич'}]} onChange={value=>set('plinthMaterial',value)}/>
+          <SelectField label="Материал цоколя" value={s.plinthMaterial} options={[{value:'metal',label:'Профлист С-21'},{value:'metal-st15',label:'Профлист ST-15'},{value:'brick',label:'Пластиковые панели под кирпич'}]} onChange={value=>set('plinthMaterial',value)}/>
           {number('plinthRows','Горизонтальных рядов трубы 50×25×2','ряда',1)}
           {number('plinthVerticalLength','Дополнительные вертикальные стойки из трубы','м',.1)}
           {number('plinthExtraPiles','Дополнительные сваи сверх свайного поля','шт',1)}
