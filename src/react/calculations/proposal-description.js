@@ -95,6 +95,8 @@ export function internalDescription(calculation, lines) {
     }
     const drains = roomLines.filter(line => line.catalogId === 'MAT-SAUNA-DRAIN').reduce((sum, line) => sum + line.qty, 0);
     if (drains) parts.push(`Трап: ${formatNumber(drains, 0)} шт.; работы по полу и подключению канализации в эту позицию не входят.`);
+    const showers = roomLines.filter(line => line.catalogId === 'MAT-234').reduce((sum,line)=>sum+line.qty,0);
+    if (showers) parts.push(`Душевая кабина 90×90 см: ${formatNumber(showers,0)} шт., сборка и монтаж на готовые выводы${roomLines.some(line=>line.catalogId==='LAB-130')?' включены':' не включены'}.`);
     if (parts.length) blocks.push({ title: `${room.floor} этаж · ${room.name}`, text: parts.join(' '), paragraphs: parts });
   }
   const doors = lines.find(line => line.id === 'internal:doors');

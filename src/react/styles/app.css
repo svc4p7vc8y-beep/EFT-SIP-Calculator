@@ -844,6 +844,11 @@ button:disabled {
 .sauna-editor .form-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); }
 .sauna-editor .form-grid > * { min-width:0; }
 .sauna-openings,.room-drain-editor { min-width:0; padding:12px; border:1px solid var(--line); border-radius:12px; background:#f7faf4; }
+.shower-cabin-editor { min-width:0; padding:14px; border:1px solid #a8cbd3; border-radius:12px; background:#f5fafb; }
+.shower-cabin-editor h3 { margin:0 0 10px; }
+.shower-cabin-editor p { font-size:.82rem; line-height:1.45; }
+.shower-cabin-editor details { margin-top:10px; }
+.shower-cabin-editor summary { cursor:pointer; font-weight:700; }
 .sauna-openings h4,.room-drain-editor h4 { margin:0 0 9px; }
 .sauna-openings p,.room-drain-editor p { margin:9px 0 0; font-size:.82rem; line-height:1.45; }
 .room-drain-editor details { margin-top:8px; }

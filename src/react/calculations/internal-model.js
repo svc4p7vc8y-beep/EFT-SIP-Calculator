@@ -2,6 +2,7 @@ import { polygonArea } from '../../calculations/plan-metrics.js';
 import { isInteriorDoor } from './opening-types.js';
 import { saunaLines } from './sauna-model.js';
 import { roomDrainLines } from './room-drain.js';
+import { showerCabinLines } from './shower-cabin.js';
 
 const n = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const round = (value, digits = 2) => Math.round(n(value) * 10 ** digits) / 10 ** digits;
@@ -146,6 +147,7 @@ export function calculateInternal(project, metrics, inputs) {
     if(s.enabled===false)continue;
     lines.push(...saunaLines(room,reserve,[...project.priceMat,...project.priceLab]));
     lines.push(...roomDrainLines(room,project.priceMat));
+    lines.push(...showerCabinLines(room,[...project.priceMat,...project.priceLab]));
     const floorArea=Math.max(0,s.floorArea==null?room.area:n(s.floorArea));
     const wallArea=Math.max(0,s.wallArea==null?room.wallArea:n(s.wallArea));
     const ceilingArea=Math.max(0,s.ceilingArea==null?room.ceilingArea:n(s.ceilingArea));
