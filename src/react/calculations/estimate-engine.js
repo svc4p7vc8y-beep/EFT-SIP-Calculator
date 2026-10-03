@@ -26,6 +26,7 @@ import {
 } from "./sip-joinery.js";
 import { calculateConstructionNodes } from './construction-nodes.js';
 import { calculateSnowGuards } from './snow-guards.js';
+import { calculateTieredRoofGeometry, normalizeTieredRoof, resolveTieredGables } from './tiered-roof.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -157,6 +158,8 @@ function resolveRafterStructure(project, geometry, frameLength) {
   const system =
     geometry.shape === "flat"
       ? "flat"
+      : geometry.shape === 'tiered'
+        ? 'layered'
       : automatic
         ? hasBearingSupport
           ? "layered"
@@ -962,7 +965,7 @@ function roofSection(project, metrics, index, inputs) {
   const includeCovering = roof.includeCovering !== false;
   const osbSheetArea = 1.25 * 2.5;
   const span = roofAxes.span;
-  const mainRoofShape = ["flat", "hip"].includes(roof.shape)
+  const mainRoofShape = ["flat", "hip", "tiered"].includes(roof.shape)
     ? roof.shape
     : "gable";
   const flatSlopeMode = mainRoofShape === "flat" && ["tapered", "structural"].includes(roof.flatSlopeMode)
@@ -974,7 +977,10 @@ function roofSection(project, metrics, index, inputs) {
   const hasStructuralFlatGables = flatSlopeMode === "structural" && flatSlopePercent > 0;
   const eaveOverhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
-  const geometry = roofGeometry({
+  const geometry = mainRoofShape === 'tiered' ? calculateTieredRoofGeometry({
+    span, ridgeLength: inputs.roof.ridgeLength, eaveOverhang, gableOverhang,
+    tiered: roof.tiered,
+  }) : roofGeometry({
     span,
     ridgeLength: inputs.roof.ridgeLength,
     wallLength: roofAxes.ridgeBaseLength,
@@ -992,11 +998,22 @@ function roofSection(project, metrics, index, inputs) {
     mainArea,
     (metrics.openCeilingArea || 0) * geometry.slopeCoefficient,
   );
-  const mainWarmSlopeArea = Math.max(
-    0,
-    (mainArea * mainWarmPercent) / 100 - insulatedRafterArea,
+  const tieredWarmLevel = normalizeTieredRoof(roof.tiered).warmLevel;
+  const tieredWarmArea = tieredWarmLevel === 'both' ? mainArea
+    : tieredWarmLevel === 'lower' ? geometry.lowerArea : geometry.upperArea;
+  const mainWarmSlopeArea = Math.max(0,
+    (mainRoofShape === 'tiered' && roof.type === 'combo' ? tieredWarmArea : (mainArea * mainWarmPercent) / 100)
+      - insulatedRafterArea,
   );
   const mainColdSlopeArea = mainArea - mainWarmSlopeArea;
+  const tieredUpperWarmBase = roof.type === 'sip' || (roof.type === 'combo' && tieredWarmLevel !== 'lower')
+    ? geometry.upperArea || 0 : 0;
+  const tieredLowerWarmBase = roof.type === 'sip' || (roof.type === 'combo' && tieredWarmLevel !== 'upper')
+    ? geometry.lowerArea || 0 : 0;
+  const tieredWarmBase = tieredUpperWarmBase + tieredLowerWarmBase;
+  const tieredWarmFactor = tieredWarmBase ? mainWarmSlopeArea / tieredWarmBase : 0;
+  const tieredUpperColdShare = geometry.upperArea ? 1 - tieredUpperWarmBase * tieredWarmFactor / geometry.upperArea : 0;
+  const tieredLowerColdShare = geometry.lowerArea ? 1 - tieredLowerWarmBase * tieredWarmFactor / geometry.lowerArea : 0;
   let warmSlopeArea = mainWarmSlopeArea;
   let coldSlopeArea = mainColdSlopeArea;
   const terraceRoofs = (project.plan.platforms || [])
@@ -1013,7 +1030,7 @@ function roofSection(project, metrics, index, inputs) {
     if (platform.roof?.mode === "warm") warmSlopeArea += result.netArea;
     if (platform.roof?.mode === "cold") coldSlopeArea += result.netArea;
   });
-  const supportsMainGables = mainRoofShape === "gable" || hasStructuralFlatGables;
+  const supportsMainGables = mainRoofShape === "gable" || mainRoofShape === 'tiered' || hasStructuralFlatGables;
   const mainGableType =
     !supportsMainGables || roof.gableType === "none"
       ? "none"
@@ -1034,14 +1051,28 @@ function roofSection(project, metrics, index, inputs) {
   const mainFlatHighWallArea = hasStructuralFlatGables
     ? geometry.slopeHighWallArea || 0
     : 0;
-  const mainGableArea =
+  const tieredGables = mainRoofShape === 'tiered' ? resolveTieredGables(roof, geometry) : null;
+  const gableSideTypes = roof.gableSideTypes || {};
+  const mixedGableAreas = mainRoofShape === 'gable' && roof.type === 'combo'
+    ? Array.from({ length: mainGableCount }, (_, index) => {
+      const selected = gableSideTypes[index ? 'second' : 'first'];
+      const type = mainGableType === 'none' ? 'none'
+        : selected === 'sip' ? 'sip' : selected === 'frame' ? 'cold' : mainGableType;
+      return { type, area: geometry.gableArea / 2 };
+    }) : null;
+  const mainGableArea = tieredGables ? tieredGables.totalArea : mixedGableAreas
+    ? mixedGableAreas.reduce((sum, item) => sum + (item.type === 'none' ? 0 : item.area), 0) :
     mainGableType === "none"
       ? 0
       : hasStructuralFlatGables
         ? mainFlatSideWallArea + mainFlatHighWallArea
         : (geometry.gableArea * mainGableCount) / 2;
-  const mainColdGableArea = mainGableType === "cold" ? mainGableArea : 0;
-  const mainWarmGableArea = mainGableType === "sip" ? mainGableArea : 0;
+  const mainColdGableArea = tieredGables ? tieredGables.coldArea : mixedGableAreas
+    ? mixedGableAreas.filter(item => item.type === 'cold').reduce((sum, item) => sum + item.area, 0)
+    : mainGableType === "cold" ? mainGableArea : 0;
+  const mainWarmGableArea = tieredGables ? tieredGables.warmArea : mixedGableAreas
+    ? mixedGableAreas.filter(item => item.type === 'sip').reduce((sum, item) => sum + item.area, 0)
+    : mainGableType === "sip" ? mainGableArea : 0;
   let coldGableArea = mainColdGableArea;
   let warmGableArea = mainWarmGableArea;
   terraceRoofs.forEach(({ result }) => {
@@ -1083,10 +1114,20 @@ function roofSection(project, metrics, index, inputs) {
     extraWastePercent: project.settings.sip.wastePercent,
     layoutWidths: { roof: sipFrameStep },
   });
-  const mainSipFramePlaneCount = mainRoofShape === "gable" ? 2 : 1;
+  const mainSipFramePlaneCount = mainRoofShape === "gable" || mainRoofShape === 'tiered' ? 2 : 1;
   const mainSipFrameWarmShare = mainArea ? mainWarmSlopeArea / mainArea : 0;
   const mainSipFrameNetLength = mainSipCutting.panels
-    ? gridJointLength(
+    ? mainRoofShape === 'tiered'
+      ? (() => {
+          const tieredWarm = roof.type === 'sip' ? ['upper', 'lower']
+            : roof.type === 'combo' ? tieredWarmLevel === 'both' ? ['upper', 'lower'] : [tieredWarmLevel]
+              : [];
+          return tieredWarm.reduce((sum, level) => sum + gridJointLength(
+            geometry.roofLength, level === 'upper' ? geometry.upperSlopeLength : geometry.lowerSlopeLength,
+            sipFrameStep, inputs.formulas.panelLength,
+          ), 0) * tieredWarmFactor;
+        })()
+      : gridJointLength(
         geometry.roofLength,
         geometry.slopeLength,
         sipFrameStep,
@@ -1122,7 +1163,7 @@ function roofSection(project, metrics, index, inputs) {
   const mainSipSupportScrewCount =
     mainSipCutting.panels * sipRoofSupportPointsPerPanel;
   const mainSipRidgeRun =
-    mainRoofShape === "flat"
+    mainRoofShape === "flat" || mainRoofShape === 'tiered'
       ? 0
       : mainRoofShape === "hip"
         ? geometry.ridgeLength
@@ -1167,6 +1208,10 @@ function roofSection(project, metrics, index, inputs) {
   const mauerlatRuns =
     mainRoofShape === "flat" || mauerlatLayout === "none"
       ? []
+      : mainRoofShape === 'tiered'
+        ? mauerlatLayout === 'perimeter'
+          ? [...perimeterRuns, geometry.junctionLength]
+          : [houseLength, houseLength, geometry.junctionLength]
       : mainRoofShape === "hip" || mauerlatLayout === "perimeter"
         ? perimeterRuns
         : [houseLength, houseLength];
@@ -1210,7 +1255,7 @@ function roofSection(project, metrics, index, inputs) {
     inputs.formulas,
   );
   const ridgeBeamLength =
-    mainRoofShape === "flat"
+    mainRoofShape === "flat" || mainRoofShape === 'tiered'
       ? 0
       : mainRoofShape === "hip"
         ? geometry.ridgeLength + geometry.hipLength
@@ -1220,7 +1265,7 @@ function roofSection(project, metrics, index, inputs) {
   // Two specified 50×100 ridge rows for a layered scheme are budgeted separately.
   // Bearing posts and beam sizing still require the structural project.
   const layeredRidgeLength =
-    rafterStructure.system === "layered" && mainColdSlopeArea > 0
+    rafterStructure.system === "layered" && mainColdSlopeArea > 0 && mainRoofShape !== 'tiered'
       ? mainRoofShape === "hip" ? geometry.ridgeLength : geometry.roofLength
       : 0;
   const layeredRidgePurchaseLength =
@@ -1237,7 +1282,9 @@ function roofSection(project, metrics, index, inputs) {
         : inputs.formulas.layeredRafterReserve;
   const hipRafterLength = mainRoofShape === "hip" ? geometry.hipLength : 0;
   const mainRafterLegLength = mainColdSlopeArea
-    ? rafterStructure.legCount * geometry.slopeLength + hipRafterLength
+    ? mainRoofShape === 'tiered'
+      ? rafterStructure.pairCount * (geometry.upperSlopeLength * tieredUpperColdShare + geometry.lowerSlopeLength * tieredLowerColdShare)
+      : rafterStructure.legCount * geometry.slopeLength + hipRafterLength
     : 0;
   const mainRafterRequiredLength =
     mainRafterLegLength * rafterReserve + ridgeBeamPurchaseLength - layeredRidgePurchaseLength;
@@ -1253,7 +1300,8 @@ function roofSection(project, metrics, index, inputs) {
         ? 2 * (geometry.roofLength + geometry.roofSpan)
         : geometry.roofLength * 2;
   const mainVergeLength =
-    mainRoofShape === "gable" ? geometry.slopeLength * 4 : 0;
+    mainRoofShape === "gable" ? geometry.slopeLength * 4
+      : mainRoofShape === 'tiered' ? (geometry.upperSlopeLength + geometry.lowerSlopeLength) * 2 : 0;
   const mainEaveTrimPurchaseLength = includeCovering
     ? mainEaveLength * inputs.formulas.roofTrimReserve
     : 0;
@@ -1263,8 +1311,10 @@ function roofSection(project, metrics, index, inputs) {
   const mainCoverPurchaseArea = includeCovering
     ? mainArea * (1 + roof.wastePercent / 100)
     : 0;
-  const mainGablePurchaseArea = mainGableArea * (1 + roof.wastePercent / 100);
-  const mainConstructionArea = includeCovering ? mainArea + mainGableArea : 0;
+  const mainGablePurchaseArea = (tieredGables ? tieredGables.exteriorArea : mainGableArea) * (1 + roof.wastePercent / 100);
+  const mainConstructionArea = includeCovering ? mainArea + (tieredGables ? tieredGables.exteriorArea : mainGableArea) : 0;
+  const tieredJoinPieces = mainRoofShape === 'tiered' && includeCovering
+    ? Math.ceil(geometry.junctionLength * inputs.formulas.roofTrimReserve / 1.25) : 0;
   const mainGableBoardRequiredLength =
     (mainColdGableArea * inputs.formulas.gableBoardM3PerM2) / (0.05 * 0.15);
   const mainGableBoardCount = mainGableBoardRequiredLength
@@ -1282,6 +1332,8 @@ function roofSection(project, metrics, index, inputs) {
   const hasTimberRafters = mainColdSlopeArea > 0 && mainRoofShape !== "flat";
   const rafterSupportNodeCount = !hasTimberRafters
     ? 0
+    : mainRoofShape === 'tiered'
+      ? rafterStructure.legCount * 2
     : mainRoofShape === "hip"
       ? perimeterRuns.reduce(
           (sum, length) => sum + Math.ceil(length / rafterStructure.module),
@@ -1305,7 +1357,7 @@ function roofSection(project, metrics, index, inputs) {
       ),
     );
   const rafterRidgeNailCount =
-    rafterSupportNodeCount *
+    (mainRoofShape === 'tiered' ? 0 : rafterSupportNodeCount) *
     Math.max(
       0,
       Math.round(Number(inputs.formulas.roofRafterRidgeNails) || 0),
@@ -1878,7 +1930,7 @@ function roofSection(project, metrics, index, inputs) {
   const gutterLength = includeCovering && roof.includeGutter === true ? mainEaveLength : 0;
   const mainOsbArea =
     (includeCovering && covering.osb ? mainCoverPurchaseArea : 0) +
-    (mainColdGableArea ? mainGablePurchaseArea : 0);
+    mainColdGableArea * (1 + roof.wastePercent / 100);
   const mainOsbSheets = mainOsbArea ? Math.ceil(mainOsbArea / osbSheetArea) : 0;
   const gutterRunCount =
     mainRoofShape === "hip" ? 4 : mainRoofShape === "flat" ? 1 : 2;
@@ -2015,7 +2067,7 @@ function roofSection(project, metrics, index, inputs) {
         key: "rafters",
         unit: "м³",
         digits: 3,
-        name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м${mainRoofShape === "flat" ? "" : layeredRidgeLength ? mainRoofShape === "hip" ? ", включая накосные стропила" : "" : `, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`}`,
+        name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м${mainRoofShape === "flat" || mainRoofShape === 'tiered' ? "" : layeredRidgeLength ? mainRoofShape === "hip" ? ", включая накосные стропила" : "" : `, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`}`,
       },
     ),
     makeLine(index, "roof", "Доска ест.влажн. сосна 50*100мм", layeredRidgeVolume, {
@@ -2139,6 +2191,15 @@ function roofSection(project, metrics, index, inputs) {
           },
         )
       : null,
+    makeLine(index, 'roof', 'Планка примыкания разноуровневой кровли 1,25 м', tieredJoinPieces, {
+      key: 'tiered-junction-flashing', catalogId: 'MAT-247', unit: 'шт', exactQuantity: true,
+      name: `Планка примыкания двух уровней · ${tieredJoinPieces} шт × 1,25 м`,
+      source: 'tiered-junction',
+    }),
+    makeLine(index, 'roof', 'Монтаж планки примыкания разноуровневой кровли', tieredJoinPieces ? geometry.junctionLength : 0, {
+      key: 'tiered-junction-work', catalogId: 'LAB-131', kind: 'labor', unit: 'м.п.',
+      name: 'Монтаж планки примыкания двух уровней', source: 'tiered-junction',
+    }),
     includeCovering && roof.includeEaveTrim !== false
       ? makeLine(
           index,
@@ -2397,6 +2458,8 @@ function roofSection(project, metrics, index, inputs) {
     lines,
     extensionLines,
     geometry,
+    tieredGables,
+    tieredJoinPieces,
     snowGuards,
     mainRoofShape,
     includeCovering,
@@ -2437,6 +2500,7 @@ function roofSection(project, metrics, index, inputs) {
     terracePostCount,
     totalArea: round(totalArea),
     mauerlatLength: round(mauerlatLength, 3),
+    tieredStepSupportLength: mainRoofShape === 'tiered' && mauerlatLayout !== 'none' ? geometry.junctionLength : 0,
     mauerlatPurchaseLength: round(mauerlatPurchaseLength, 3),
     mauerlatBoardCount,
     mauerlatAnchors,

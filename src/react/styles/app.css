@@ -3129,6 +3129,19 @@ select,
   stroke-width: 7;
   vector-effect: non-scaling-stroke;
 }
+.roof-tier-junction { stroke: #5b3a24; stroke-width: 5; stroke-dasharray: 10 5; }
+.roof-plan-tier-label { fill: #152719; font-size: 17px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.tiered-roof-editor { margin: 14px 0; padding: 16px; border: 1px solid #b9cbbd; border-radius: 12px; background: #f7faf6; }
+.tiered-roof-editor > h3, .tiered-roof-editor > h4 { margin: 0 0 8px; }
+.tiered-roof-editor > p { margin: 6px 0 14px; line-height: 1.45; }
+.tiered-roof-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 16px 0; }
+.tiered-roof-metrics > div { display: flex; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid #d6e1d7; border-radius: 8px; background: #fff; }
+.tiered-roof-metrics span { color: #263e2b; }
+.tiered-gable-list { display: grid; gap: 8px; margin: 12px 0; }
+.tiered-gable-row { display: grid; grid-template-columns: minmax(150px,1.2fr) minmax(180px,1.4fr) minmax(135px,1fr) auto; align-items: end; gap: 8px; padding: 10px; border: 1px solid #d6e1d7; border-radius: 8px; background: #fff; }
+.tiered-gable-row > strong { align-self: center; }
+@media (max-width: 768px) { .tiered-roof-metrics { grid-template-columns: 1fr; } .tiered-gable-row { grid-template-columns: 1fr 1fr; } .tiered-gable-row > strong { grid-column: 1 / -1; } }
+@media (max-width: 430px) { .tiered-gable-row { grid-template-columns: 1fr; } .tiered-gable-row > strong { grid-column: auto; } .tiered-roof-metrics > div { flex-wrap: wrap; } }
 .roof-hips line {
   stroke: #8e5816;
   stroke-width: 5;

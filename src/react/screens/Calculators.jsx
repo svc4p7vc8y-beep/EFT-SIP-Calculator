@@ -9,6 +9,7 @@ import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import { InternalEditor } from '../components/InternalEditor.jsx';
 import { EngineeringEditor } from '../components/EngineeringEditor.jsx';
+import { TieredRoofEditor } from '../components/TieredRoofEditor.jsx';
 import {
   NumberField,
   Panel,
@@ -368,6 +369,7 @@ function RoofConstructionPanels({
   setPlatformRoof,
 }) {
   const isFlatRoof = project.settings.roof.shape === "flat";
+  const isTieredRoof = project.settings.roof.shape === 'tiered';
   const roofVisibility = roofControlVisibility(project.settings.roof);
   const hasFlatSlope = isFlatRoof && (project.settings.roof.flatSlopeMode || "none") !== "none";
   const hasStructuralFlatGables = hasFlatSlope && project.settings.roof.flatSlopeMode === "structural";
@@ -383,7 +385,7 @@ function RoofConstructionPanels({
         ? "Балки плоской кровли"
         : "Обрешётка"
       : roofVisibility.showRafterStructure
-        ? "Стропильная система и фронтоны"
+        ? isTieredRoof ? 'Стропила двух уровней и фронтоны' : "Стропильная система и фронтоны"
         : roofVisibility.showSipFrame
           ? "Каркас SIP-кровли и фронтоны"
           : "Фронтоны";
@@ -411,13 +413,14 @@ function RoofConstructionPanels({
               onChange={(value) => setSetting("roof", "shape", value)}
               options={[
                 { value: "gable", label: "Двускатная" },
+                { value: 'tiered', label: 'Два односкатных уровня' },
                 { value: "hip", label: "Вальмовая" },
                 { value: "flat", label: "Плоская" },
               ]}
             />
             {!isFlatRoof ? (
               <SelectField
-                label="Направление конька"
+                label={isTieredRoof ? 'Направление линии раздела уровней' : 'Направление конька'}
                 value={project.settings.roof.ridgeAxis === "y" ? "y" : "x"}
                 onChange={(value) => setSetting("roof", "ridgeAxis", value)}
                 options={[
@@ -493,7 +496,7 @@ function RoofConstructionPanels({
                 </div>
               </>
             ) : null}
-            {project.settings.roof.shape !== "flat" ? (
+            {!isFlatRoof && !isTieredRoof ? (
               <NumberField
                 label="Высота конька"
                 value={project.settings.roof.ridgeHeight}
@@ -505,7 +508,7 @@ function RoofConstructionPanels({
             ) : null}
             <NumberField
               label={
-                project.settings.roof.shape === "flat"
+                isFlatRoof || isTieredRoof
                   ? "Длина кровли"
                   : "Длина конька"
               }
@@ -547,7 +550,7 @@ function RoofConstructionPanels({
                 {formatNumber(calculation.roof.geometry?.roofSpan)} м
               </strong>
             </div>
-            {project.settings.roof.type === "combo" ? (
+            {project.settings.roof.type === "combo" && !isTieredRoof ? (
               <NumberField
                 label="Тёплая часть"
                 value={project.settings.roof.warmPercent}
@@ -558,6 +561,7 @@ function RoofConstructionPanels({
               />
             ) : null}
           </div>
+          {isTieredRoof ? <TieredRoofEditor project={project} calculation={calculation} setSetting={setSetting} /> : null}
         </section>
         <section className="roof-main-section">
           <h3>{roofStructureTitle}</h3>
@@ -664,6 +668,11 @@ function RoofConstructionPanels({
               />
             </>
           ) : null}
+          {project.settings.roof.shape === 'gable' && project.settings.roof.type === 'combo' && project.settings.roof.gableType !== 'none' && (project.settings.roof.gableCount ?? 2) > 0 ? <div className="tiered-gable-list">
+            {['first', 'second'].slice(0, project.settings.roof.gableCount ?? 2).map((side, index) => <SelectField key={side} label={`Фронтон ${index + 1} · конструкция`} value={project.settings.roof.gableSideTypes?.[side] || 'auto'} options={[
+              { value: 'auto', label: 'По общему выбору' }, { value: 'sip', label: 'SIP-панели' }, { value: 'frame', label: 'Каркас 50×150 мм + ОСБ' },
+            ]} onChange={value => setSetting('roof', 'gableSideTypes', { ...project.settings.roof.gableSideTypes, [side]: value })} />)}
+          </div> : null}
           {isFlatRoof ? (
             <p className="inspector-note">
               При разуклонке поверх основания дополнительная зашивка стен не возникает, а материал разуклонки задаётся вручную. При перепаде высоты стен калькулятор считает высокую сторону и выбранное количество боковых треугольников по правилам для каркаса или SIP. Значение «Не учитывать» исключает всю зашивку.
@@ -698,7 +707,7 @@ function RoofConstructionPanels({
             <strong>{calculation.roof.mainLathBoardCount} досок × 6 м</strong>
           </div> : null}
         </div>
-        {roofVisibility.showRafterStructure ? (
+        {roofVisibility.showRafterStructure && !isTieredRoof ? (
           <RafterSystemPreview calculation={calculation} />
         ) : null}
         </section>
@@ -783,7 +792,7 @@ function RoofConstructionPanels({
         {roofVisibility.showMainAccessories ? <section className="roof-main-section">
           <h3>Доборные элементы</h3>
           <p className="roof-section-note">
-            Коньковая планка и её монтаж всегда входят в двускатную кровлю.
+            {isTieredRoof ? 'У двух односкатных уровней коньковой планки нет: вместо неё учитывается примыкание.' : 'Коньковая планка и её монтаж всегда входят в двускатную кровлю.'}
             Остальные элементы можно включать и выключать.
           </p>
           <div className="toggle-grid roof-accessory-grid">
@@ -803,14 +812,14 @@ function RoofConstructionPanels({
                 setSetting("roof", "includeVergeTrim", value)
               }
             /> : null}
-            <Toggle
+            {!isTieredRoof ? <Toggle
               label="Уплотнитель под конёк"
               hint="Коньковая планка при этом остаётся"
               checked={project.settings.roof.includeRidgeSeal !== false}
               onChange={(value) =>
                 setSetting("roof", "includeRidgeSeal", value)
               }
-            />
+            /> : null}
             <Toggle
               label="Водосточная система"
               hint={
@@ -823,24 +832,24 @@ function RoofConstructionPanels({
                 setSetting("roof", "includeGutter", value)
               }
             />
-            <div className="fixed-roof-accessory">
+            {!isTieredRoof ? <div className="fixed-roof-accessory">
               <span>Коньковая планка</span>
               <strong>
                 Обязательно · {formatNumber(calculation.roof.ridgeBeamLength)} м
               </strong>
-            </div>
+            </div> : null}
           </div>
-          {project.settings.roof.shape === 'gable' ? <div className="roof-snow-guards">
+          {(project.settings.roof.shape === 'gable' || isTieredRoof) ? <div className="roof-snow-guards">
             <h4>Снегозадержатели</h4>
             <div className="form-grid four">
               <SelectField label="Стороны скатов" value={snow.mode} onChange={(mode) => updateSnow({ mode })} options={[
                 { value: 'none', label: 'Не учитывать' },
-                { value: 'first', label: 'Первый скат' },
-                { value: 'second', label: 'Второй скат' },
+                { value: 'first', label: isTieredRoof ? 'Верхний скат' : 'Первый скат' },
+                { value: 'second', label: isTieredRoof ? 'Нижний скат' : 'Второй скат' },
                 { value: 'both', label: 'Оба ската' },
               ]} />
-              {(snow.mode === 'first' || snow.mode === 'both') ? <NumberField label="Длина · первый скат" suffix="м" min={0} step={0.1} value={snow.firstLength} onChange={(firstLength) => updateSnow({ firstLength })} /> : null}
-              {(snow.mode === 'second' || snow.mode === 'both') ? <NumberField label="Длина · второй скат" suffix="м" min={0} step={0.1} value={snow.secondLength} onChange={(secondLength) => updateSnow({ secondLength })} /> : null}
+              {(snow.mode === 'first' || snow.mode === 'both') ? <NumberField label={isTieredRoof ? 'Длина · верхний скат' : 'Длина · первый скат'} suffix="м" min={0} step={0.1} value={snow.firstLength} onChange={(firstLength) => updateSnow({ firstLength })} /> : null}
+              {(snow.mode === 'second' || snow.mode === 'both') ? <NumberField label={isTieredRoof ? 'Длина · нижний скат' : 'Длина · второй скат'} suffix="м" min={0} step={0.1} value={snow.secondLength} onChange={(secondLength) => updateSnow({ secondLength })} /> : null}
               {snow.mode !== 'none' ? <div className="readout"><span>Закупка / монтаж</span><strong>{snow.kits} компл. × 3 м / {formatNumber(snow.totalLength)} м</strong></div> : null}
             </div>
             {snow.mode !== 'none' ? <details><summary>Цены и ручная настройка</summary><div className="form-grid three">

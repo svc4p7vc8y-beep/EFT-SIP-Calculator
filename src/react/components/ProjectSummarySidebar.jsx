@@ -20,7 +20,7 @@ const ROOF_TYPES = {
   sip: "Тёплая SIP",
   combo: "Комбинированная",
 };
-const ROOF_SHAPES = { flat: "Плоская", gable: "Двускатная", hip: "Вальмовая" };
+const ROOF_SHAPES = { flat: "Плоская", gable: "Двускатная", hip: "Вальмовая", tiered: "Два односкатных уровня" };
 const PANEL_FAMILIES = { pps: "PPS", "mineral-wool": "минвата", "csp-pps": "CSP PPS" };
 const CONNECTOR_TYPES = {
   thermal: "Термобрус",
@@ -439,6 +439,8 @@ export default function ProjectSummarySidebar({
         <p className="summary-detail">
           {project.settings.roof.shape === "flat"
             ? `Плоская кровля: длина ${formatNumber(project.settings.roof.ridgeLength)} м`
+            : project.settings.roof.shape === 'tiered'
+              ? `Два односкатных уровня: верхний ${formatNumber(roof.geometry?.upperArea || 0)} м², нижний ${formatNumber(roof.geometry?.lowerArea || 0)} м², стык ${formatNumber(roof.geometry?.junctionLength || 0)} м. Опоры и узел примыкания — по проекту.`
             : `Конёк ${roofAxisLabel(project.settings.roof.ridgeAxis)}: высота ${formatNumber(project.settings.roof.ridgeHeight)} м · длина ${formatNumber(project.settings.roof.ridgeLength)} м · ${roof.rafterStructure?.system === "layered" ? "наслонная система" : roof.rafterStructure?.system === "truss" ? "стропильные фермы" : "висячая система"}`}
         </p>
         <SectionMaterials calculation={calculation} sectionKey="roof" />

@@ -41,6 +41,7 @@ const roofCoverings = [
 ];
 const roofShapes = [
   { value: "gable", label: "Двускатная" },
+  { value: "tiered", label: "Два односкатных уровня" },
   { value: "hip", label: "Вальмовая" },
   { value: "flat", label: "Плоская" },
 ];
@@ -379,7 +380,7 @@ export default function ParametersScreen() {
       ready:
         !project.services.roof ||
         project.settings.roof.shape === "flat" ||
-        project.settings.roof.ridgeHeight > 0,
+        project.settings.roof.shape === 'tiered' || project.settings.roof.ridgeHeight > 0,
       note: project.services.roof
         ? `${formatNumber(calculation.roof.totalArea)} м²`
         : "отключено",
@@ -919,7 +920,7 @@ export default function ParametersScreen() {
               },
               project.settings.roof.shape !== "flat" && {
                 path: "settings.roof.ridgeAxis",
-                label: "Направление конька",
+                label: project.settings.roof.shape === 'tiered' ? 'Направление линии стыка' : "Направление конька",
                 type: "select",
                 options: [
                   { value: "x", label: "Вдоль длины дома" },

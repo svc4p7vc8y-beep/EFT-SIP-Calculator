@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { roofOutline } from '../planner/roof-outline.js';
+import { normalizeTieredRoof } from '../calculations/tiered-roof.js';
 import { stairStepGeometry } from '../planner/stair-steps.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { guideFromOuterWall, moveTemporaryGuide } from '../planner/temporary-guides.js';
@@ -670,6 +671,7 @@ function PlatformRoofOverlay({ platform, house, p, mainRoof }) {
 }
 
 function RoofPlanOverlay({ plan, roof, p }) {
+  if (roof.shape === 'tiered') return <TieredRoofPlanOverlay plan={plan} roof={roof} p={p} />;
   const contour = houseContourPoints(plan);
   const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const bounds = boundsOf(contour);
@@ -696,12 +698,56 @@ function RoofPlanOverlay({ plan, roof, p }) {
   </g>;
 }
 
+function TieredRoofPlanOverlay({ plan, roof, p }) {
+  const bounds = boundsOf(houseContourPoints(plan));
+  const { vertical } = resolveRoofAxes(plan, roof);
+  const settings = normalizeTieredRoof(roof.tiered);
+  const eave = Math.max(0, Number(roof.eaveOverhang) || 0);
+  const gable = Math.max(0, Number(roof.gableOverhang) || 0);
+  const x1 = bounds.x - (vertical ? eave : gable);
+  const x2 = bounds.x2 + (vertical ? eave : gable);
+  const y1 = bounds.y - (vertical ? gable : eave);
+  const y2 = bounds.y2 + (vertical ? gable : eave);
+  const split = vertical
+    ? bounds.x + bounds.w * (settings.upperSide === 'first' ? settings.upperShare : 100 - settings.upperShare) / 100
+    : bounds.y + bounds.h * (settings.upperSide === 'first' ? settings.upperShare : 100 - settings.upperShare) / 100;
+  const at = (cross, along) => vertical ? p(cross, along) : p(along, cross);
+  const crossStart = vertical ? x1 : y1;
+  const crossEnd = vertical ? x2 : y2;
+  const longStart = vertical ? y1 : x1;
+  const longEnd = vertical ? y2 : x2;
+  const upperFirst = settings.upperSide === 'first';
+  const zones = [
+    { key: upperFirst ? 'Верхний' : 'Нижний', start: crossStart, end: split },
+    { key: upperFirst ? 'Нижний' : 'Верхний', start: split, end: crossEnd },
+  ];
+  const line = (a, b, key, className) => <line key={key} className={className} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+  const junctionA = at(split, longStart), junctionB = at(split, longEnd);
+  const step = Math.max(0.3, Number(roof.rafterStep) || 0.6);
+  const count = Math.max(1, Math.ceil((longEnd - longStart) / step));
+  return <g className="roof-plan-overlay tiered" pointerEvents="none" aria-label="Два односкатных уровня кровли">
+    <title>Схема двух односкатных уровней. Линия перепада и примыкания; несущие опоры проверяются по проекту.</title>
+    {zones.map(zone => {
+      const a = at(zone.start, longStart), b = at(zone.end, longEnd);
+      return <g key={zone.key}>
+        {roof.showRoofCover !== false ? <rect className="roof-cover-plane" x={Math.min(a.x,b.x)} y={Math.min(a.y,b.y)} width={Math.abs(b.x-a.x)} height={Math.abs(b.y-a.y)} fillOpacity={zone.key === 'Верхний' ? 0.58 : 0.3} /> : null}
+        {roof.showRafters !== false ? <g className="roof-rafters">{Array.from({length:count+1},(_,index)=>{
+          const along = longStart + (longEnd-longStart)*index/count;
+          return line(at(zone.start,along),at(zone.end,along),index);
+        })}</g> : null}
+        <text className="roof-plan-tier-label" x={(a.x+b.x)/2} y={(a.y+b.y)/2}>{zone.key} скат</text>
+      </g>;
+    })}
+    {line(junctionA,junctionB,'junction','roof-ridge roof-tier-junction')}
+  </g>;
+}
+
 function RectangularRoofPlanOverlay({ plan, roof, p }) {
   const clipId = useId().replace(/:/g, '');
   const contour = houseContourPoints(plan);
   const bounds = boundsOf(contour);
   const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
-  const shape = ["flat", "hip"].includes(roof.shape) ? roof.shape : "gable";
+  const shape = ["flat", "hip", "tiered"].includes(roof.shape) ? roof.shape : "gable";
   const resolvedAxes = resolveRoofAxes(plan, roof);
   const flatSlopeDirection = roof.flatSlopeDirection || "back";
   const vertical =
@@ -1160,7 +1206,7 @@ function RoofPlanCaption({ plan, roof, p }) {
   const shape = ["flat", "hip"].includes(roof.shape) ? roof.shape : "gable";
   const caption = p(bounds.x + bounds.w / 2, bounds.y + 0.55);
   const complex = lRoofFrame(houseContourPoints(plan), roof.shape || 'gable');
-  const label = complex ? 'Г-кровля · схема скатов' :
+  const label = shape === 'tiered' ? 'Два односкатных уровня' : complex ? 'Г-кровля · схема скатов' :
     shape === "hip"
       ? "Вальмовая кровля"
       : shape === "flat"
@@ -2901,13 +2947,14 @@ function RoofLayerInspector({ roof, commitRoof }) {
         onChange={(value) => commitRoof("shape", value)}
         options={[
           { value: "gable", label: "Двускатная" },
+          { value: "tiered", label: "Два односкатных уровня" },
           { value: "hip", label: "Вальмовая" },
           { value: "flat", label: "Плоская" },
         ]}
       />
       {roof.shape !== "flat" ? (
         <SelectField
-          label="Направление конька"
+        label={roof.shape === 'tiered' ? 'Направление стыка уровней' : 'Направление конька'}
           value={roof.ridgeAxis === "y" ? "y" : "x"}
           onChange={(value) => commitRoof("ridgeAxis", value)}
           options={[
@@ -2962,6 +3009,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           { value: "combo", label: "Комбинированная" },
         ]}
       />
+      {roof.shape === 'tiered' ? <p className="inspector-note">Ширина, уклоны двух уровней и пять зон фронтонов редактируются в разделе «Кровля → Основная кровля». Несущие опоры перепада — по проекту.</p> : null}
       <div className="form-grid">
         {roof.shape === "flat" && (roof.flatSlopeMode || "none") !== "none" ? (
           <NumberField
@@ -2973,7 +3021,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
             step={0.5}
             onChange={(value) => commitRoof("flatSlopePercent", value)}
           />
-        ) : roof.shape !== "flat" ? (
+        ) : roof.shape !== "flat" && roof.shape !== 'tiered' ? (
           <NumberField
             label="Высота конька"
             value={roof.ridgeHeight || 1.8}

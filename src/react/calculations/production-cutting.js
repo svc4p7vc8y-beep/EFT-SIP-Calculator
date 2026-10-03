@@ -264,7 +264,18 @@ export function calculateProductionCutting(project, calculation) {
     const shape = polygon(houseContourPoints(plans.at(-1))), bounds = polygonBounds(shape);
     const rectangular = Math.abs(polygonAreaMm(shape) - bounds.width * bounds.height) < 1;
     const addRoof = (id, name, shape, thickness = sip.ceilingThickness, horizontal = true) => addSurface({ id, name, floor: plans.length, horizontal, staggered: false, thickness: Number(thickness), family: horizontal ? sip.ceilingPanelFamily : sip.wallPanelFamily, geometry: clipping.union(shape), layoutWidth: mm(roof.sipFrameStep || f.panelWidth || 1.25) });
-    if (roofSettings.type === 'sip' && rectangular) {
+    if (roof.mainRoofShape === 'tiered' && rectangular && Number(roof.warmSlopeArea) > 0) {
+      const settings = roofSettings.tiered || {};
+      const warmLevel = settings.warmLevel || 'upper';
+      const warmLevels = roofSettings.type === 'sip' || warmLevel === 'both' ? ['upper', 'lower'] : [warmLevel];
+      for (const level of warmLevels) {
+        const length = mm(roofGeometry.roofLength);
+        const slope = mm(roofGeometry[`${level}SlopeLength`]);
+        addRoof(`КР-${level === 'upper' ? 'В' : 'Н'}`, `Кровля · ${level === 'upper' ? 'верхний' : 'нижний'} односкатный уровень`, rect(0, 0, length, slope));
+      }
+      if (Number(roof.warmSlopeArea) < warmLevels.reduce((sum,level)=>sum+Number(roofGeometry[`${level}Area`]||0),0)-0.01)
+        issue('ROOF_OPEN', 'На SIP-скатах есть открытые участки. Для вычета из раскроя задайте их точные контуры в рабочем проекте.');
+    } else if (roofSettings.type === 'sip' && rectangular) {
       const length = mm(roofGeometry.roofLength), span = mm(roofGeometry.roofSpan), slope = mm(roofGeometry.slopeLength);
       if (roof.mainRoofShape === 'hip') {
         const ridge = mm(roofGeometry.ridgeLength), inset = (length - ridge) / 2;
@@ -274,7 +285,17 @@ export function calculateProductionCutting(project, calculation) {
         }
       } else for (let i = 1; i <= (roof.mainRoofShape === 'flat' ? 1 : 2); i++) addRoof(`КР-С${i}`, `Кровля · скат ${i}`, rect(0, 0, length, slope));
     } else if (roofSettings.type === 'sip' || Number(roof.warmSlopeArea) > 0) issue('ROOF', 'Комбинированная или контурная SIP-кровля: нужны границы тёплых скатов и ендов из рабочего проекта. Автоматический раскрой этих скатов пока не сформирован.');
-    if (roof.mainGableType === 'sip') {
+    if (roof.mainRoofShape === 'tiered' && roof.tieredGables?.zones.some(zone => zone.type === 'sip')) {
+      if (!rectangular) issue('GABLE', 'Г-образный контур: геометрию фронтонов и перепада уровней требуется уточнить в рабочем проекте.');
+      else for (const zone of roof.tieredGables.zones.filter(item => item.type === 'sip')) {
+        if (Math.abs(zone.area-zone.calculatedArea)>0.01) { issue('GABLE', `${zone.label}: проектная площадь отличается от геометрической. Автоматическая развёртка не создана.`); continue; }
+        const width = mm(zone.internal ? roofGeometry.junctionLength : zone.key.startsWith('upper') ? roofGeometry.upperSpan : roofGeometry.lowerSpan);
+        const height = mm(zone.internal ? roofGeometry.stepHeight : zone.key.startsWith('upper') ? roofGeometry.upperRise : roofGeometry.lowerRise);
+        if (!width || !height) continue;
+        const geometry = zone.internal ? rect(0,0,width,height) : [[[0,0],[width,0],[width,height],[0,0]]];
+        addRoof(`ФР-${zone.key}`, zone.label, geometry, sip.wallThickness, false);
+      }
+    } else if (roof.mainGableType === 'sip') {
       if (rectangular && roof.mainRoofShape === 'gable') {
         const height = mm(roofSettings.ridgeHeight), span = roof.ridgeAxis === 'y' ? bounds.width : bounds.height;
         for (let i = 1; i <= Math.min(2, Number(roofSettings.gableCount) || 0); i++) addRoof(`ФР-${i}`, `Фронтон ${i}`, [[[0,0],[span,0],[span/2,height],[0,0]]], sip.wallThickness, false);

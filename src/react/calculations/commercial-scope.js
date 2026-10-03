@@ -5,7 +5,7 @@ import { isEstimateAccessory, isEstimateCutting } from './client-estimate.js';
 import { constructionDescription, internalDescription } from './proposal-description.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
-const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
+const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая', tiered: 'два односкатных уровня' };
 const ROOF_COVERINGS = { profile: 'профлист С-21', 'profile-st15': 'профлист ST15', 'metal-tile': 'металлочерепица', soft: 'мягкая кровля с OSB' };
 const CONNECTOR_TYPES = { thermal: 'термобрус', 'board-pack': 'клеёный пакет досок', solid: 'брус естественной влажности' };
 
@@ -80,7 +80,10 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
     return {
       summary: `${ROOF_SHAPES[project.settings.roof.shape] || 'двускатная'} ${ROOF_TYPES[project.settings.roof.type] || 'холодная'} кровля, ${ROOF_COVERINGS[project.settings.roof.covering] || 'профлист С-21'}, ${formatNumber(roof.totalArea)} м²`,
       details: joinParts([
-        `основная кровля, ${roof.rafterStructure?.system === 'layered' ? 'наслонная система' : roof.rafterStructure?.system === 'truss' ? 'стропильные фермы' : 'висячая система'} с чистым шагом ${formatNumber(roof.rafterStructure?.step || .6)} м`,
+        project.settings.roof.shape === 'tiered'
+          ? `два односкатных уровня: верхний ${formatNumber(roof.geometry?.upperArea || 0)} м², нижний ${formatNumber(roof.geometry?.lowerArea || 0)} м²; шаг стропил ${formatNumber(roof.rafterStructure?.step || .6)} м; линия примыкания ${formatNumber(roof.geometry?.junctionLength || 0)} м`
+          : `основная кровля, ${roof.rafterStructure?.system === 'layered' ? 'наслонная система' : roof.rafterStructure?.system === 'truss' ? 'стропильные фермы' : 'висячая система'} с чистым шагом ${formatNumber(roof.rafterStructure?.step || .6)} м`,
+        project.settings.roof.shape === 'tiered' && 'опоры перепада уровней, высотные отметки и гидроизоляция примыкания — по конструктивному проекту',
         roof.layeredRidgeLength > 0 && `два ряда конькового прогона 100×50 мм с монтажом; несущие опоры и их крепление уточняются по конструктивному проекту`,
         roof.mauerlatLength > 0 && `мауэрлат 100×150 мм: ${formatNumber(roof.mauerlatLength)} м, ${roof.mauerlatBoardCount || 0} брусьев по 6 м`,
         roof.mauerlatFastener === 'sip-screws' && `крепление мауэрлата: ${roof.mauerlatScrewCount || 0} конструкционных саморезов ${roof.mauerlatScrewSize || ''}`,
@@ -88,7 +91,7 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
         `крепёж стропильных узлов ${roof.framingNailCount || 0} шт, обрешётки ${roof.lathNailCount || 0} шт`,
         `обрешётка с шагом ${formatNumber(roof.lathStep || .35, 2)} м`,
         project.settings.roof.shape === 'hip' && `коэффициент вальмовой кровли: материалы +25%, работы +50%`,
-        `конёк включён`,
+        project.settings.roof.shape !== 'tiered' && `конёк включён`,
         project.settings.roof.includeGutter === true && `водосточная система ${formatNumber(roof.gutterLength)} м`,
         roof.gableArea > 0 && (roof.flatSlopeMode === 'structural'
           ? `зашивка перепада высот ${formatNumber(roof.gableArea)} м²`

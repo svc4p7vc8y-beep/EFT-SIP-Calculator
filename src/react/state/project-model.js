@@ -19,8 +19,9 @@ import {
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
+import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 178;
+export const REACT_PROJECT_VERSION = 179;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -617,6 +618,8 @@ export function createDefaultProject() {
         snowGuards: { mode: "none", firstLength: null, secondLength: null, materialPrice: null, laborPrice: null },
         gableType: "auto",
         gableCount: 2,
+        gableSideTypes: { first: 'auto', second: 'auto' },
+        tiered: clone(DEFAULT_TIERED_ROOF),
       },
       delivery: {
         distance: 30,
@@ -975,6 +978,8 @@ export function migrateProject(raw) {
         ...base.settings.roof,
         ...(raw.settings?.roof || {}),
         snowGuards: { ...base.settings.roof.snowGuards, ...(raw.settings?.roof?.snowGuards || {}) },
+        gableSideTypes: { ...base.settings.roof.gableSideTypes, ...(raw.settings?.roof?.gableSideTypes || {}) },
+        tiered: normalizeTieredRoof(raw.settings?.roof?.tiered),
       },
       productionCutting: normalizeProductionCutting(raw.settings?.productionCutting),
       delivery: {

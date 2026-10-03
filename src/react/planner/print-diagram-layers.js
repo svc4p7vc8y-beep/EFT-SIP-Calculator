@@ -3,12 +3,12 @@ import { boundsOf, houseContourPoints } from './geometry.js';
 
 export function printRoofBounds(plan, roof = {}) {
   const bounds = boundsOf(houseContourPoints(plan));
-  const shape = ['flat', 'hip'].includes(roof.shape) ? roof.shape : 'gable';
+  const shape = ['flat', 'hip', 'tiered'].includes(roof.shape) ? roof.shape : 'gable';
   const { vertical } = resolveRoofAxes(plan, roof);
   const eave = Math.max(0, Number(roof.eaveOverhang) || 0);
   const gable = Math.max(0, Number(roof.gableOverhang) || 0);
-  const dx = shape === 'gable' ? (vertical ? eave : gable) : eave;
-  const dy = shape === 'gable' ? (vertical ? gable : eave) : eave;
+  const dx = ['gable', 'tiered'].includes(shape) ? (vertical ? eave : gable) : eave;
+  const dy = ['gable', 'tiered'].includes(shape) ? (vertical ? gable : eave) : eave;
   return { x1: bounds.x - dx, x2: bounds.x2 + dx, y1: bounds.y - dy, y2: bounds.y2 + dy, shape, vertical };
 }
 

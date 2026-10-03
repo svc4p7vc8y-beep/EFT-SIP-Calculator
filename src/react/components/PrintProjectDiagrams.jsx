@@ -4,6 +4,7 @@ import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { calculateFoundation } from '../calculations/foundation-model.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { printDiagramLayers, printRoofBounds } from '../planner/print-diagram-layers.js';
+import { normalizeTieredRoof } from '../calculations/tiered-roof.js';
 import { boundsOf, houseContourPoints, lineEndpoints, roomPoints, unifiedWallSegments } from '../planner/geometry.js';
 import { formatNumber } from '../utils/format.js';
 
@@ -84,6 +85,34 @@ function PrintRoofTopLayer({ plan, roof = {}, p }) {
   const ridgeInset = shape === 'hip' ? Math.min(axisLength, spanLength) / 2 : 0;
   const ridgeA = vertical ? p(centerX, y1 + ridgeInset) : p(x1 + ridgeInset, centerY);
   const ridgeB = vertical ? p(centerX, y2 - ridgeInset) : p(x2 - ridgeInset, centerY);
+  if (shape === 'tiered') {
+    const settings = normalizeTieredRoof(roof.tiered);
+    const house = boundsOf(houseContourPoints(plan));
+    const split = vertical
+      ? house.x + house.w * (settings.upperSide === 'first' ? settings.upperShare : 100 - settings.upperShare) / 100
+      : house.y + house.h * (settings.upperSide === 'first' ? settings.upperShare : 100 - settings.upperShare) / 100;
+    const j1 = vertical ? p(split, y1) : p(x1, split);
+    const j2 = vertical ? p(split, y2) : p(x2, split);
+    const zones = vertical ? [[x1, split], [split, x2]] : [[y1, split], [split, y2]];
+    return <g className="print-roof-top-layer tiered" aria-label="Кровля: два односкатных уровня">
+      {zones.map(([start,end],index) => {
+        const first = vertical ? p(start,y1) : p(x1,start);
+        const last = vertical ? p(end,y2) : p(x2,end);
+        const label = (index === 0) === (settings.upperSide === 'first') ? 'Верхний скат' : 'Нижний скат';
+        return <g key={index}>
+          <rect className="print-roof-overhang" x={first.x} y={first.y} width={last.x-first.x} height={last.y-first.y} fillOpacity={index === 0 ? 0.6 : 0.32} />
+          <g className="print-roof-rafters">{rafters.map((value,i) => {
+            const q1 = vertical ? p(start,value) : p(value,start);
+            const q2 = vertical ? p(end,value) : p(value,end);
+            return <line key={i} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />;
+          })}</g>
+          <text className="print-roof-caption" x={(first.x+last.x)/2} y={(first.y+last.y)/2}>{label}</text>
+        </g>;
+      })}
+      <line className="print-roof-ridge" x1={j1.x} y1={j1.y} x2={j2.x} y2={j2.y} />
+      <text className="print-roof-caption" x={p(centerX,centerY).x} y={p(centerX,centerY).y - 32}>Два односкатных уровня · стык</text>
+    </g>;
+  }
   return <g className={`print-roof-top-layer ${shape}`} aria-label="Крыша из текущего плана">
     <rect className="print-roof-overhang" x={a.x} y={a.y} width={b.x - a.x} height={b.y - a.y} />
     {shape !== 'flat' ? <line className="print-roof-ridge" x1={ridgeA.x} y1={ridgeA.y} x2={ridgeB.x} y2={ridgeB.y} /> : null}
