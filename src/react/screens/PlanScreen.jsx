@@ -4834,8 +4834,14 @@ export default function PlanScreen({ onNavigate }) {
   const [gridVisible, setGridVisible] = useState(true);
   const [sheetMode, setSheetMode] = useState("peek");
   const [transferStatus, setTransferStatus] = useState("");
+  const [stairSetupRequired, setStairSetupRequired] = useState(false);
   const planFileRef = useRef(null);
   const inspectorRef = useRef(null);
+  const plannerCanvasRef = useRef(null);
+  const scrollToPlanCanvas = () =>
+    window.requestAnimationFrame(() =>
+      plannerCanvasRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
   const [libraryPlans, setLibraryPlans] = useState(readPlanLibrary);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [editingLibraryId, setEditingLibraryId] = useState(null);
@@ -4979,18 +4985,23 @@ export default function PlanScreen({ onNavigate }) {
       document.body.style.overflow = previousOverflow;
     };
   }, [isPlanFullscreen]);
-  const addSecondFloor = () => {
+  const addSecondFloor = (startStairOpening = false) => {
     commit((next) => {
       ensureProjectFloorCount(next, 2);
       releasePlanLinkedQuantityOverrides(next);
       return next;
     });
-    setActiveFloor(2);
+    setActiveFloor(startStairOpening ? 1 : 2);
     setSelected(null);
-    setTool("select");
+    setTool(startStairOpening ? "stairOpening" : "select");
+    setActiveLayer("plan");
+    setStairSetupRequired(false);
     setTransferStatus(
-      "Второй этаж добавлен: его стены, пол, перегородки и проёмы включены в расчёт",
+      startStairOpening
+        ? "Второй этаж добавлен. Протяните лестничный проём на плане — он появится на обоих этажах."
+        : "Второй этаж добавлен: его стены, пол, перегородки и проёмы включены в расчёт",
     );
+    if (startStairOpening) scrollToPlanCanvas();
   };
   const removeSecondFloor = () => {
     if (!window.confirm("Удалить второй этаж и все его помещения, стены и проёмы?"))
@@ -5054,9 +5065,12 @@ export default function PlanScreen({ onNavigate }) {
   }, [libraryPlans, libraryOpen, project]);
   const selectTool = (id) => {
     if (id === "stairOpening" && floorCount < 2) {
-      setTransferStatus("Сначала добавьте второй этаж, затем разместите общий лестничный проём");
+      setStairSetupRequired(true);
+      setTransferStatus("Лестничный проём относится к перекрытию второго этажа. Сначала добавьте этаж.");
       return;
     }
+    if (stairSetupRequired) setTransferStatus("");
+    setStairSetupRequired(false);
     if (
       activeFloor !== 1 &&
       ["pile", "pileRow", "bindingLine", "terrace", "porch"].includes(id)
@@ -5065,6 +5079,7 @@ export default function PlanScreen({ onNavigate }) {
       return;
     }
     setTool(id);
+    if (id === "stairOpening") scrollToPlanCanvas();
     if (!["polygon", "houseContour"].includes(id)) setPolygonDraft([]);
     if (["pile", "pileRow"].includes(id)) {
       setActiveLayer("piles");
@@ -5550,7 +5565,7 @@ export default function PlanScreen({ onNavigate }) {
               ) : null}
             </>
           ) : (
-            <button type="button" onClick={addSecondFloor}>+ этаж</button>
+            <button type="button" onClick={() => addSecondFloor()}>+ этаж</button>
           )}
         </div>
         <details className="mobile-project-menu">
@@ -5889,10 +5904,14 @@ export default function PlanScreen({ onNavigate }) {
         </details>
       </div>
       {transferStatus ? (
-        <div className="plan-transfer-status">
-          <Share2 />
+        <div className={`plan-transfer-status${stairSetupRequired ? " stair-setup-required" : ""}`}>
+          {stairSetupRequired ? <Grid3X3 /> : <Share2 />}
           <span>{transferStatus}</span>
-          {!transferStatus.startsWith("Чистый план") ? (
+          {stairSetupRequired ? (
+            <button type="button" className="button primary" onClick={() => addSecondFloor(true)}>
+              Добавить второй этаж и начать проём
+            </button>
+          ) : !transferStatus.startsWith("Чистый план") ? (
             <small>
               Файл плана не содержит прайс-лист, данные заказчика и ручные правки
               сметы.
@@ -5930,7 +5949,7 @@ export default function PlanScreen({ onNavigate }) {
               ) : null}
             </>
           ) : (
-            <button type="button" className="add-floor" onClick={addSecondFloor}>
+            <button type="button" className="add-floor" onClick={() => addSecondFloor()}>
               <Plus /> Второй этаж
             </button>
           )}
@@ -6142,7 +6161,7 @@ export default function PlanScreen({ onNavigate }) {
             </div>
           ))}
         </aside>
-        <div className="planner-canvas">
+        <div className="planner-canvas" ref={plannerCanvasRef}>
           <div className="plan-layer-tabs" aria-label="Слои проекта">
             {[
               ["piles", "Сваи", CircleDot],

@@ -1820,6 +1820,25 @@ select,
   color: #6b7669;
   font-size: 8px;
 }
+.plan-transfer-status.stair-setup-required {
+  flex-wrap: wrap;
+  border-color: #e0c987;
+  background: #fff9e8;
+  color: #352800;
+}
+.plan-transfer-status.stair-setup-required span {
+  flex: 1 1 220px;
+  font-size: 11px;
+}
+.plan-transfer-status.stair-setup-required .button {
+  min-height: 36px;
+  margin-left: auto;
+  white-space: normal;
+  text-align: center;
+}
+.planner-canvas {
+  scroll-margin-top: 80px;
+}
 .plan-house-fields {
   display: grid;
   grid-template-columns: repeat(5, minmax(105px, 150px));
