@@ -271,7 +271,9 @@
       "id": "LAB-037",
       "kind": "labor",
       "name": "Монтаж снегозадержателей",
-      "price": 2500,
+      "price": 550,
+      "priceEstimated": true,
+      "priceNote": "Ориентир от 550 руб./м.п. при монтаже вместе с кровлей: https://stroyld.ru/montazh/ustanovka-snegozaderzhateley/ . На готовой кровле ставка выше; уточнить на объекте.",
       "unit": "м.п."
     },
     {
@@ -2465,6 +2467,16 @@
       "priceEstimated": true,
       "priceNote": "Ориентир пользователя и производителя для базового размера: от 45000 руб. https://www.1994doors.ru/metallicheskie_dveri/dveri_s_termorazryvom/vhodnaya_dver_s_termorazryvom_7.html",
       "unit": "шт"
+    },
+    {
+      "cat": "Кровля двускатная",
+      "id": "MAT-246",
+      "kind": "material",
+      "name": "Снегозадержатель трубчатый Grand Line New 3 м, комплект с крепежом",
+      "price": 4351,
+      "priceEstimated": true,
+      "priceNote": "Лемана ПРО, Волгоград, артикул 92647205: https://volgograd.lemanapro.ru/catalogue/dobornye-elementy-dlya-krovli/?page=4 . Цвет и совместимость креплений подобрать по покрытию; региональную цену и наличие проверить.",
+      "unit": "компл"
     }
   ],
   "priceMode": "reference",

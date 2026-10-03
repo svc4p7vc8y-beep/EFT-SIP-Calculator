@@ -4,6 +4,7 @@ import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
+import { calculateSnowGuards, SNOW_GUARD_SOURCE } from '../calculations/snow-guards.js';
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import { InternalEditor } from '../components/InternalEditor.jsx';
@@ -370,6 +371,9 @@ function RoofConstructionPanels({
   const roofVisibility = roofControlVisibility(project.settings.roof);
   const hasFlatSlope = isFlatRoof && (project.settings.roof.flatSlopeMode || "none") !== "none";
   const hasStructuralFlatGables = hasFlatSlope && project.settings.roof.flatSlopeMode === "structural";
+  const snowSettings = project.settings.roof.snowGuards || {};
+  const snow = calculation.roof.snowGuards || calculateSnowGuards(project.settings.roof, calculation.roof.geometry?.roofLength, [...project.priceMat, ...project.priceLab]);
+  const updateSnow = (patch) => setSetting('roof', 'snowGuards', { ...snowSettings, ...patch });
   const roofStructureTitle = isFlatRoof
     ? hasStructuralFlatGables
       ? roofVisibility.showRafterStructure
@@ -826,6 +830,26 @@ function RoofConstructionPanels({
               </strong>
             </div>
           </div>
+          {project.settings.roof.shape === 'gable' ? <div className="roof-snow-guards">
+            <h4>Снегозадержатели</h4>
+            <div className="form-grid four">
+              <SelectField label="Стороны скатов" value={snow.mode} onChange={(mode) => updateSnow({ mode })} options={[
+                { value: 'none', label: 'Не учитывать' },
+                { value: 'first', label: 'Первый скат' },
+                { value: 'second', label: 'Второй скат' },
+                { value: 'both', label: 'Оба ската' },
+              ]} />
+              {(snow.mode === 'first' || snow.mode === 'both') ? <NumberField label="Длина · первый скат" suffix="м" min={0} step={0.1} value={snow.firstLength} onChange={(firstLength) => updateSnow({ firstLength })} /> : null}
+              {(snow.mode === 'second' || snow.mode === 'both') ? <NumberField label="Длина · второй скат" suffix="м" min={0} step={0.1} value={snow.secondLength} onChange={(secondLength) => updateSnow({ secondLength })} /> : null}
+              {snow.mode !== 'none' ? <div className="readout"><span>Закупка / монтаж</span><strong>{snow.kits} компл. × 3 м / {formatNumber(snow.totalLength)} м</strong></div> : null}
+            </div>
+            {snow.mode !== 'none' ? <details><summary>Цены и ручная настройка</summary><div className="form-grid three">
+              <NumberField label="Комплект 3 м" suffix="₽/компл" min={0} value={snow.materialPrice} onChange={(materialPrice) => updateSnow({ materialPrice })} />
+              <NumberField label="Монтаж вместе с кровлей" suffix="₽/м" min={0} value={snow.laborPrice} onChange={(laborPrice) => updateSnow({ laborPrice })} />
+              <button type="button" className="button secondary" onClick={() => updateSnow({ materialPrice: null, laborPrice: null })}>Вернуть цены прайса</button>
+            </div></details> : null}
+            <p className="roof-section-note">По умолчанию длина каждой выбранной стороны равна длине кровли; задайте фактический участок вручную. Закупка округляется отдельно для каждой стороны до 3-метровых комплектов. <a href={SNOW_GUARD_SOURCE.material} target="_blank" rel="noreferrer">Комплект Grand Line — 4 351 ₽</a>; <a href={SNOW_GUARD_SOURCE.labor} target="_blank" rel="noreferrer">монтаж при устройстве кровли — от 550 ₽/м</a>. Крепление, снеговую нагрузку и число рядов подтвердить проектом; цена и наличие региональные.</p>
+          </div> : null}
         </section> : null}
       </Panel>
       <Panel

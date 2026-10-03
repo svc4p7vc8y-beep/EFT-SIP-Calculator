@@ -20,7 +20,7 @@ import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 
-export const REACT_PROJECT_VERSION = 177;
+export const REACT_PROJECT_VERSION = 178;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -614,6 +614,7 @@ export function createDefaultProject() {
         includeVergeTrim: true,
         includeRidgeSeal: true,
         includeGutter: false,
+        snowGuards: { mode: "none", firstLength: null, secondLength: null, materialPrice: null, laborPrice: null },
         gableType: "auto",
         gableCount: 2,
       },
@@ -894,6 +895,11 @@ export function migrateProject(raw) {
     if (c21 && Number(c21.price) === 620) c21.price = 800;
   }
   const normalizedPriceLab = normalizeCatalog(raw.priceLab, base.priceLab, laborUpgradeIds);
+  // Replace only the untouched old reference rate; retain a saved custom rate.
+  if (!Number.isFinite(savedVersion) || savedVersion < 178) {
+    const snowWork = normalizedPriceLab.find((item) => item.id === "LAB-037");
+    if (snowWork && Number(snowWork.price) === 2500) snowWork.price = 550;
+  }
   if (!Number.isFinite(savedVersion) || savedVersion < 173) {
     const profileWork = normalizedPriceLab.find((item) => item.id === "LAB-031");
     if (profileWork?.name === "Монтаж кровельного покрытия — профлист С-21")
@@ -965,7 +971,11 @@ export function migrateProject(raw) {
           ...(raw.settings?.nodeFasteners?.packSizes || {}),
         },
       },
-      roof: { ...base.settings.roof, ...(raw.settings?.roof || {}) },
+      roof: {
+        ...base.settings.roof,
+        ...(raw.settings?.roof || {}),
+        snowGuards: { ...base.settings.roof.snowGuards, ...(raw.settings?.roof?.snowGuards || {}) },
+      },
       productionCutting: normalizeProductionCutting(raw.settings?.productionCutting),
       delivery: {
         ...base.settings.delivery,

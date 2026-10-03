@@ -25,6 +25,7 @@ import {
   sipTimberProfile,
 } from "./sip-joinery.js";
 import { calculateConstructionNodes } from './construction-nodes.js';
+import { calculateSnowGuards } from './snow-guards.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -1921,7 +1922,8 @@ function roofSection(project, metrics, index, inputs) {
       facadeHeight / inputs.formulas.downpipeClampSpacing,
     ) +
       1);
-  const lines = applyMainRoofComplexity(compact([
+  const snowGuards = calculateSnowGuards(roof, geometry.roofLength, [...project.priceMat, ...project.priceLab]);
+  const lines = [...applyMainRoofComplexity(compact([
     makeLine(
       index,
       "roof",
@@ -2379,11 +2381,23 @@ function roofSection(project, metrics, index, inputs) {
       { key: "gable-sip-fasteners", unit: "шт", priceMultiplier: mainGableSupportScrew.kgEach, exactQuantity: true, source: "gables" },
     ),
     ...extensionLines,
-  ]), mainRoofShape);
+  ]), mainRoofShape), ...compact([
+    makeLine(index, 'roof', 'Снегозадержатель трубчатый Grand Line New 3 м', snowGuards.kits, {
+      key: 'snow-guard-kits', catalogId: 'MAT-246', unit: 'компл', exactQuantity: true,
+      projectPrice: roof.snowGuards?.materialPrice,
+      name: `Снегозадержатели · ${snowGuards.firstKits} + ${snowGuards.secondKits} комплектов по 3 м`,
+    }),
+    makeLine(index, 'roof', 'Монтаж снегозадержателей', snowGuards.totalLength, {
+      key: 'snow-guard-work', catalogId: 'LAB-037', kind: 'labor', unit: 'м.п.',
+      projectPrice: roof.snowGuards?.laborPrice,
+      name: `Монтаж снегозадержателей · ${formatNumberForName(snowGuards.totalLength)} м`,
+    }),
+  ])];
   return {
     lines,
     extensionLines,
     geometry,
+    snowGuards,
     mainRoofShape,
     includeCovering,
     sipFrameMode,
