@@ -26,3 +26,16 @@ test('unroofed and zero-size platforms have no frame', () => {
   assert.equal(platformRoofFrame({w:4,h:3}, house), null);
   assert.equal(platformRoofFrame({w:0,h:3,roof:{mode:'warm'}}, house), null);
 });
+
+test('continuation at a gable end follows the main ridge instead of creating a detached shed', () => {
+  const roof = { shape: 'gable', ridgeAxis: 'y' };
+  const frame = platformRoofFrame({ x: 1, y: 10, w: 8, h: 3, roof: { mode: 'cold', shape: 'continuation' } }, house, 0.6, roof);
+  assert.equal(frame.continuation, true);
+  assert.equal(frame.attachmentSide, 'bottom');
+  assert.deepEqual(frame.ridge, [{ x: 5, y: frame.bounds.y1 }, { x: 5, y: frame.bounds.y2 }]);
+  assert.ok(frame.rafters.every(pair => pair.some(point => point.x === 5)));
+  const eave = platformRoofFrame({ x: 10, y: 2, w: 3, h: 6, roof: { mode: 'cold', shape: 'continuation' } }, house, 0.6, roof);
+  assert.equal(eave.ridge, null);
+  assert.equal(eave.attachmentSide, 'right');
+  assert.ok(eave.rafters.every(pair => pair[0].y === pair[1].y));
+});

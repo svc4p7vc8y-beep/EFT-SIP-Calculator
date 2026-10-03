@@ -652,7 +652,7 @@ function DraftPolygonEdge({ points, hoverPoint, p }) {
 }
 
 function PlatformRoofOverlay({ platform, house, p, mainRoof }) {
-  const frame = platformRoofFrame(platform, house, platform.roof?.rafterStep ?? mainRoof?.rafterStep);
+  const frame = platformRoofFrame(platform, house, platform.roof?.rafterStep ?? mainRoof?.rafterStep, mainRoof);
   if (!frame) return null;
   const { x1, y1, x2, y2 } = frame.bounds;
   const a = p(x1, y1), b = p(x2, y2);
@@ -660,13 +660,14 @@ function PlatformRoofOverlay({ platform, house, p, mainRoof }) {
     const u = p(start.x, start.y), v = p(end.x, end.y);
     return <line key={index} x1={u.x} y1={u.y} x2={v.x} y2={v.y} />;
   };
-  return <g pointerEvents="none" aria-label={`Кровля ${platform.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
+  return <g className={frame.continuation ? 'platform-roof-continuation' : 'platform-roof-independent'} pointerEvents="none" aria-label={`Кровля ${platform.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
     <title>Схема стропил, шаг не более {frame.step} м. Сечения и узлы требуют проверки конструктора.</title>
-    <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill="#7da096" fillOpacity="0.22" stroke="#476f62" strokeWidth="2" strokeDasharray="7 4" />
-    {mainRoof?.showRafters !== false ? <g stroke="#745230" strokeWidth="2" data-platform-rafters={frame.rafters.length}>
+    <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill={frame.continuation ? '#e7eee5' : '#7da096'} fillOpacity={frame.continuation ? 1 : 0.22} stroke={frame.continuation ? 'none' : '#476f62'} strokeWidth="2" strokeDasharray={frame.continuation ? undefined : '7 4'} />
+    {mainRoof?.showRafters !== false ? <g stroke={frame.continuation ? '#394a3d' : '#745230'} strokeWidth="2" data-platform-rafters={frame.rafters.length}>
       {frame.rafters.map(line)}
       {frame.ridge ? <g stroke="#476f62" strokeWidth="3">{line(frame.ridge, 'ridge')}</g> : null}
     </g> : null}
+    {frame.continuation ? <path className="roof-overhang-outline" d={{top:`M ${a.x} ${b.y} L ${a.x} ${a.y} L ${b.x} ${a.y} L ${b.x} ${b.y}`,bottom:`M ${a.x} ${a.y} L ${a.x} ${b.y} L ${b.x} ${b.y} L ${b.x} ${a.y}`,left:`M ${b.x} ${a.y} L ${a.x} ${a.y} L ${a.x} ${b.y} L ${b.x} ${b.y}`,right:`M ${a.x} ${a.y} L ${b.x} ${a.y} L ${b.x} ${b.y} L ${a.x} ${b.y}`}[frame.attachmentSide]} /> : null}
   </g>;
 }
 
@@ -2150,7 +2151,7 @@ function PlanCanvas({
                   {formatNumber(platform.w * platform.h)} м²
                 </text>
                 <TerraceStairs platform={platform} p={p} />
-                {(visibleLayers.plan || visibleLayers.roof) ? <PlatformRoofOverlay platform={platform} house={shownPlan.house} p={p} mainRoof={roof} /> : null}
+                {(visibleLayers.plan || visibleLayers.roof) && platform.roof?.shape !== 'continuation' ? <PlatformRoofOverlay platform={platform} house={shownPlan.house} p={p} mainRoof={roof} /> : null}
                 {visibleLayers.binding && platform.binding?.mode !== "none" ? (
                   <rect
                     className="binding-guide"
@@ -2178,6 +2179,16 @@ function PlanCanvas({
       {houseDefined && visibleLayers.roof ? (
         <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} />
       ) : null}
+      {(visibleLayers.plan || visibleLayers.roof) ? (shownPlan.platforms || []).filter(platform => platform.include !== false && platform.roof?.shape === 'continuation').map(platform =>
+        <PlatformRoofOverlay key={`roof-${platform.id}`} platform={platform} house={shownPlan.house} p={p} mainRoof={roof} />
+      ) : null}
+      {(visibleLayers.plan || visibleLayers.roof) ? (shownPlan.platforms || []).filter(platform => platform.include !== false && platform.roof?.mode !== 'none' && platform.roof?.shape === 'continuation').map(platform => {
+        const q = p(platform.x + platform.w / 2, platform.y + platform.h / 2);
+        return <g key={`roof-label-${platform.id}`} className="planner-object" pointerEvents="none">
+          <text className="platform-label" x={q.x} y={q.y - 10}>{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text>
+          <text className="platform-area" x={q.x} y={q.y + 20}>{formatNumber(platform.w * platform.h)} м²</text>
+        </g>;
+      }) : null}
       {visibleLayers.plan
         ? (shownPlan.rooms || []).map((room, roomIndex) => {
             const points = roomPoints(room);
@@ -3670,6 +3681,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
                 { value: "gable", label: "Двускатная" },
               ]}
             />
+            {platform.roof.shape === 'continuation' ? <p className="inspector-note">Включите слой «Крыша» над планом, чтобы увидеть общий силуэт основной кровли и террасы.</p> : null}
             <div className="form-grid">
               <NumberField
                 label="Высота у стены"

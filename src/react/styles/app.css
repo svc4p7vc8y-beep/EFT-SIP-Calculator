@@ -3708,6 +3708,10 @@ select,
 .print-plan-svg .print-platform .print-platform-roof rect { fill: #7da096; fill-opacity: .2; stroke: #476f62; stroke-width: 2; stroke-dasharray: 7 4; }
 .print-plan-svg .print-platform-roof line { stroke: #745230; stroke-width: 2; }
 .print-plan-svg .print-platform-roof .ridge { stroke: #476f62; stroke-width: 3; }
+.print-plan-svg .print-platform-roof.continuation rect { fill: #f0eee7; stroke: none; }
+.print-plan-svg .print-platform-roof.continuation line { stroke: #52685b; }
+.print-plan-svg .print-platform-roof.continuation .ridge { stroke: #9a5f16; stroke-width: 8; }
+.print-plan-svg .print-platform-roof.continuation .continuation-outline { fill: none; stroke: #8d621f; stroke-width: 3; stroke-dasharray: 8 5; }
 .print-plan-svg .print-platform-title { font-weight: 800; }
 .print-plan-svg .print-room polygon {
   fill: #fffdf2;

@@ -51,7 +51,7 @@ function garageSwingGeometry(opening, q, size, plan) {
 function planBounds(plan, options = {}, roof = {}) {
   const platforms = (plan.platforms || []).filter(item => item.include !== false);
   const roofPoints = options.showRoof && options.showPlatforms !== false ? platforms.flatMap(item => {
-    const frame = platformRoofFrame(item, plan.house, item.roof?.rafterStep ?? roof.rafterStep);
+    const frame = platformRoofFrame(item, plan.house, item.roof?.rafterStep ?? roof.rafterStep, roof);
     return frame ? [{ x: frame.bounds.x1, y: frame.bounds.y1 }, { x: frame.bounds.x2, y: frame.bounds.y2 }] : [];
   }) : [];
   if (options.showRoof) {
@@ -69,6 +69,19 @@ function planBounds(plan, options = {}, roof = {}) {
     ...(options.showRooms === false ? [] : (plan.annotations || []).flatMap(item => [{ x: item.x, y: item.y }, { x: item.targetX, y: item.targetY }]))
   ];
   return boundsOf(points);
+}
+
+function PrintPlatformRoof({ item, frame, p }) {
+  const a = p(frame.bounds.x1, frame.bounds.y1);
+  const b = p(frame.bounds.x2, frame.bounds.y2);
+  const segment = ([start, end], key, className) => { const from = p(start.x, start.y); const to = p(end.x, end.y); return <line key={key} className={className} x1={from.x} y1={from.y} x2={to.x} y2={to.y} />; };
+  const outline = {top:`M ${a.x} ${b.y} L ${a.x} ${a.y} L ${b.x} ${a.y} L ${b.x} ${b.y}`,bottom:`M ${a.x} ${a.y} L ${a.x} ${b.y} L ${b.x} ${b.y} L ${b.x} ${a.y}`,left:`M ${b.x} ${a.y} L ${a.x} ${a.y} L ${a.x} ${b.y} L ${b.x} ${b.y}`,right:`M ${a.x} ${a.y} L ${b.x} ${a.y} L ${b.x} ${b.y} L ${a.x} ${b.y}`}[frame.attachmentSide];
+  return <g className={`print-platform-roof${frame.continuation ? ' continuation' : ''}`} aria-label={`Кровля ${item.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
+    <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} />
+    {frame.rafters.map((pair, index) => segment(pair, index))}
+    {frame.ridge ? segment(frame.ridge, 'ridge', 'ridge') : null}
+    {frame.continuation ? <path className="continuation-outline" d={outline} /> : null}
+  </g>;
 }
 
 function PrintRoofTopLayer({ plan, roof = {}, p }) {
@@ -188,24 +201,28 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
     <defs><marker id="print-plan-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" /></marker><marker id="print-note-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" /></marker></defs>
     {showPlatforms ? (plan.platforms || []).filter(item => item.include !== false).map((item) => {
       const q = p(item.x, item.y);
-      const frame = options.showRoof ? platformRoofFrame(item, plan.house, item.roof?.rafterStep ?? roofSettings?.rafterStep) : null;
-      const roofA = frame ? p(frame.bounds.x1, frame.bounds.y1) : null;
-      const roofB = frame ? p(frame.bounds.x2, frame.bounds.y2) : null;
+      const frame = options.showRoof ? platformRoofFrame(item, plan.house, item.roof?.rafterStep ?? roofSettings?.rafterStep, roofSettings) : null;
       const labelSize = Math.max(6, Math.min(13, item.w * scale / 5, item.h * scale / 3));
-      const segment = ([start, end], key, className) => { const a = p(start.x, start.y); const b = p(end.x, end.y); return <line key={key} className={className} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; };
       return <g key={item.id} className="print-platform">
         <rect x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />
-        {frame ? <g className="print-platform-roof" aria-label={`Кровля ${item.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
-          <rect x={roofA.x} y={roofA.y} width={roofB.x - roofA.x} height={roofB.y - roofA.y} />
-          {frame.rafters.map((pair, index) => segment(pair, index))}
-          {frame.ridge ? segment(frame.ridge, 'ridge', 'ridge') : null}
-        </g> : null}
+        {frame && !frame.continuation ? <PrintPlatformRoof item={item} frame={frame} p={p} /> : null}
         <text className="print-platform-title" style={{fontSize:labelSize}} x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 - labelSize / 3}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text>
         <text className="print-platform-area" style={{fontSize:labelSize * .8}} x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + labelSize}>{formatNumber(item.w * item.h)} м²</text>
       </g>;
     }) : null}
     {showContour || showRooms || options.showRoof ? <polygon className="print-house-fill" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
     {options.showRoof ? <PrintRoofTopLayer plan={plan} roof={roofSettings} p={p} /> : null}
+    {options.showRoof && showPlatforms ? (plan.platforms || []).filter(item => item.include !== false && item.roof?.shape === 'continuation').map(item => {
+      const frame = platformRoofFrame(item, plan.house, item.roof?.rafterStep ?? roofSettings?.rafterStep, roofSettings);
+      if (!frame) return null;
+      const center = p(item.x + item.w/2, item.y + item.h/2);
+      const labelSize = Math.max(6, Math.min(13, item.w * scale / 5, item.h * scale / 3));
+      return <g key={`roof-${item.id}`}>
+        <PrintPlatformRoof item={item} frame={frame} p={p} />
+        <text className="print-platform-title" style={{fontSize:labelSize}} x={center.x} y={center.y-labelSize/3}>{item.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text>
+        <text className="print-platform-area" style={{fontSize:labelSize*.8}} x={center.x} y={center.y+labelSize}>{formatNumber(item.w*item.h)} м²</text>
+      </g>;
+    }) : null}
     {showRooms ? (plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : roomBounds.x + roomBounds.w / 2, Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : roomBounds.y + roomBounds.h / 2); const clearArea = clearAreas.rooms[room.id]?.clearArea; const titleSize = Math.max(8, (Number(room.labelFontSize) || 22) * .55); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" style={{ fontSize:titleSize }} x={center.x} y={center.y - titleSize * 1.1}>{room.name}</text><text style={{fontSize:titleSize * .75}} x={center.x} y={center.y + titleSize * .2}>{formatNumber(roomBounds.w)} × {formatNumber(roomBounds.h)} м</text><text className="room-clear-area" style={{fontSize:titleSize}} x={center.x} y={center.y + titleSize * 1.45}>{clearArea != null ? `${formatNumber(clearArea,2)} м²` : 'Площадь уточнить'}</text></g>; }) : null}
     {showRooms ? (plan.annotations || []).map(item => { const label = p(item.x, item.y); const target = p(item.targetX, item.targetY); return <g key={item.id} className="print-annotation">{item.showArrow !== false ? <line x1={label.x} y1={label.y + 4} x2={target.x} y2={target.y} markerEnd="url(#print-note-arrow)" /> : null}<text x={label.x} y={label.y} style={{ fontSize: Math.max(8, (Number(item.fontSize) || 18) * .55) }}>{item.text}</text></g>; }) : null}
     {showRooms && floorOpeningArea > 0 ? <g className="print-floor-opening" aria-label="Лестничный проём между этажами">
