@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { roofOutline } from '../planner/roof-outline.js';
+import { stairStepGeometry } from '../planner/stair-steps.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { guideFromOuterWall, moveTemporaryGuide } from '../planner/temporary-guides.js';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
@@ -2217,6 +2218,7 @@ function PlanCanvas({
           const width = shownFloorOpening.width * layout.scale;
           const height = shownFloorOpening.length * layout.scale;
           const selectedNow = selected?.type === "floorOpening";
+          const steps = stairStepGeometry({ x: q.x, y: q.y, width, height }, shownFloorOpening.direction);
           return (
             <g
               className={`planner-object stair-opening ${selectedNow ? "selected" : ""}`}
@@ -2226,15 +2228,9 @@ function PlanCanvas({
               }
             >
               <rect x={q.x} y={q.y} width={width} height={height} />
-              {Array.from({ length: 6 }, (_, index) => (
-                <line
-                  key={index}
-                  x1={q.x + (width * index) / 5}
-                  y1={q.y}
-                  x2={q.x + (width * index) / 5}
-                  y2={q.y + height}
-                />
-              ))}
+              {steps.treads.map((tread, index) => <line key={index} {...tread} />)}
+              <line className="stair-direction-shaft" {...steps.arrow} />
+              <polygon className="stair-direction-head" points={steps.head} />
               <text x={q.x + width / 2} y={q.y + height / 2 - 5}>
                 Лестничный проём
               </text>
@@ -3134,6 +3130,14 @@ function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSel
         <NumberField label="Ширина" value={opening.width} suffix="м" min={0.5} step={0.1} onChange={(value) => update("width", value)} />
         <NumberField label="Длина" value={opening.length} suffix="м" min={0.5} step={0.1} onChange={(value) => update("length", value)} />
       </div>
+      <div className="door-orientation-field">
+        <span>Направление подъёма ступеней</span>
+        <div className="door-orientation-options" role="group" aria-label="Направление подъёма ступеней">
+          {[["right", "→ Вправо"], ["left", "← Влево"], ["down", "↓ Вниз"], ["up", "↑ Вверх"]].map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={opening.direction === value} className={opening.direction === value ? "active" : ""} onClick={() => update("direction", value)}>{label}</button>
+          ))}
+        </div>
+      </div>
       <div className="readout">
         <span>Площадь на каждом плане</span>
         <strong>{formatNumber(opening.width * opening.length)} м²</strong>
@@ -3141,7 +3145,7 @@ function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSel
       <button
         className="button danger-button"
         onClick={() => {
-          commitFloorOpening({ x: 0, y: 0, width: 0, length: 0 });
+          commitFloorOpening({ x: 0, y: 0, width: 0, length: 0, direction: opening.direction });
           setSelected(null);
         }}
       >
@@ -4879,8 +4883,11 @@ export default function PlanScreen({ onNavigate }) {
       commit((next) => {
         ensureProjectFloorCount(next, 2);
         const upperPlan = next.upperFloors[0];
-        upperPlan.floorOpening = fitFloorOpening(opening, upperPlan.house);
-        releasePlanLinkedQuantityOverrides(next);
+        const previous = fitFloorOpening(upperPlan.floorOpening, upperPlan.house);
+        const fitted = fitFloorOpening(opening, upperPlan.house);
+        upperPlan.floorOpening = fitted;
+        if (["x", "y", "width", "length"].some((key) => previous[key] !== fitted[key]))
+          releasePlanLinkedQuantityOverrides(next);
         return next;
       }),
     [commit],

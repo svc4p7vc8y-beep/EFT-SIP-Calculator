@@ -19,6 +19,6 @@ test('the linked opening survives a save/migration without altering the first-fl
   project.upperFloors[0].floorOpening = fitFloorOpening({ x: 2, y: 3, width: 1.2, length: 2.5 }, project.upperFloors[0].house);
   const restored = migrateProject(JSON.parse(JSON.stringify(project)));
   assert.equal(restored.meta.floors, 2);
-  assert.deepEqual(restored.upperFloors[0].floorOpening, { x: 2, y: 3, width: 1.2, length: 2.5 });
+  assert.deepEqual(restored.upperFloors[0].floorOpening, { x: 2, y: 3, width: 1.2, length: 2.5, direction: 'right' });
   assert.deepEqual(restored.plan.rooms, originalRooms);
 });

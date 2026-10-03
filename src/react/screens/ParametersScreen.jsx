@@ -35,6 +35,7 @@ const panelFamilies = [
 ];
 const roofCoverings = [
   { value: "profile", label: "Профлист С-21" },
+  { value: "profile-st15", label: "Профлист ST15" },
   { value: "metal-tile", label: "Металлочерепица" },
   { value: "soft", label: "Мягкая кровля + OSB" },
 ];

@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { stairStepGeometry } from '../planner/stair-steps.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { calculateFoundation } from '../calculations/foundation-model.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
@@ -153,6 +154,7 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
   const sharedFloorOpening = floorOpening || plan.floorOpening || {};
   const floorOpeningArea = Math.max(0, Number(sharedFloorOpening.width) || 0) * Math.max(0, Number(sharedFloorOpening.length) || 0);
   const floorOpeningStart = p(Number(sharedFloorOpening.x) || 0, Number(sharedFloorOpening.y) || 0);
+  const floorOpeningSteps = stairStepGeometry({ x: floorOpeningStart.x, y: floorOpeningStart.y, width: sharedFloorOpening.width * scale, height: sharedFloorOpening.length * scale }, sharedFloorOpening.direction);
   return <svg className="print-plan-svg" viewBox={`0 0 ${PLAN_VIEW.width} ${PLAN_VIEW.height}`} role="img" aria-label="План дома для печати">
     <defs><marker id="print-plan-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" /></marker><marker id="print-note-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" /></marker></defs>
     {showPlatforms ? (plan.platforms || []).filter(item => item.include !== false).map((item) => {
@@ -179,6 +181,9 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
     {showRooms ? (plan.annotations || []).map(item => { const label = p(item.x, item.y); const target = p(item.targetX, item.targetY); return <g key={item.id} className="print-annotation">{item.showArrow !== false ? <line x1={label.x} y1={label.y + 4} x2={target.x} y2={target.y} markerEnd="url(#print-note-arrow)" /> : null}<text x={label.x} y={label.y} style={{ fontSize: Math.max(8, (Number(item.fontSize) || 18) * .55) }}>{item.text}</text></g>; }) : null}
     {showRooms && floorOpeningArea > 0 ? <g className="print-floor-opening" aria-label="Лестничный проём между этажами">
       <rect x={floorOpeningStart.x} y={floorOpeningStart.y} width={sharedFloorOpening.width * scale} height={sharedFloorOpening.length * scale} />
+      {floorOpeningSteps.treads.map((tread, index) => <line key={index} {...tread} />)}
+      <line className="stair-direction-shaft" {...floorOpeningSteps.arrow} />
+      <polygon className="stair-direction-head" points={floorOpeningSteps.head} />
       <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 - 4}>Лестничный проём</text>
       <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 + 12}>{formatNumber(floorOpeningArea)} м²</text>
     </g> : null}

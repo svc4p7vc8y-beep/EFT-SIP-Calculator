@@ -369,7 +369,7 @@ export default function ProjectSummarySidebar({
           />
           <SummaryValue
             label="Покрытие"
-            value={project.settings.roof.covering === "metal-tile" ? "Металлочерепица" : project.settings.roof.covering === "soft" ? "Мягкая + OSB" : "Профлист С-21"}
+            value={project.settings.roof.covering === "metal-tile" ? "Металлочерепица" : project.settings.roof.covering === "soft" ? "Мягкая + OSB" : project.settings.roof.covering === "profile-st15" ? "Профлист ST15" : "Профлист С-21"}
           />
           <SummaryValue
             label="Стропила"

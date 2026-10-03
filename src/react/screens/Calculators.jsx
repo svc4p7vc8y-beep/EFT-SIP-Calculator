@@ -73,6 +73,7 @@ const PANEL_THICKNESSES = ["124", "174", "224"].map((value) => ({
 }));
 const ROOF_COVERINGS = [
   { value: "profile", label: "Профлист С-21" },
+  { value: "profile-st15", label: "Профлист ST15" },
   { value: "metal-tile", label: "Металлочерепица" },
   { value: "soft", label: "Мягкая кровля + OSB" },
 ];

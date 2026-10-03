@@ -1,3 +1,5 @@
+import { normalizeStairDirection } from "./stair-steps.js";
+
 const EPS = 0.035;
 
 export const roundCoord = (value, digits = 3) => {
@@ -39,6 +41,7 @@ export function fitFloorOpening(opening, house) {
     ),
     width: roundCoord(width),
     length: roundCoord(length),
+    direction: normalizeStairDirection(safeOpening.direction),
   };
 }
 

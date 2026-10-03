@@ -247,6 +247,15 @@ function sipPanelName(thickness, family = "pps") {
 }
 
 function roofCoveringSpec(value) {
+  if (value === "profile-st15")
+    return {
+      key: "profile-st15",
+      material: "Профлист ST15 окрашенный",
+      labor: "Монтаж кровельного покрытия — профлист",
+      label: "Профлист ST15",
+      screws: true,
+      osb: false,
+    };
   if (value === "metal-tile")
     return {
       key: "metal-tile",
@@ -268,7 +277,7 @@ function roofCoveringSpec(value) {
   return {
     key: "profile",
     material: "Профлист С-21 окрашенный",
-    labor: "Монтаж кровельного покрытия — профлист С-21",
+    labor: "Монтаж кровельного покрытия — профлист",
     label: "Профлист С-21",
     screws: true,
     osb: false,
@@ -1614,7 +1623,8 @@ function roofSection(project, metrics, index, inputs) {
         makeLine(index, "roof", covering.labor, constructionArea, {
           key: `${key}-cover-work`,
           kind: "labor",
-        name: covering.key === "profile" ? `Монтаж профлиста · кровля ${title}` : `Монтаж: ${covering.label.toLocaleLowerCase("ru")} · кровля ${title}`,
+          ...(covering.key.startsWith("profile") ? { catalogId: "LAB-031" } : {}),
+          name: covering.key.startsWith("profile") ? `Монтаж профлиста · кровля ${title}` : `Монтаж: ${covering.label.toLocaleLowerCase("ru")} · кровля ${title}`,
           unit: "м²",
           source,
         }),
@@ -2061,6 +2071,7 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, "roof", covering.labor, mainConstructionArea, {
       key: "cover-work",
       kind: "labor",
+      ...(covering.key.startsWith("profile") ? { catalogId: "LAB-031" } : {}),
       name: `Монтаж: ${covering.label.toLocaleLowerCase("ru")} · основная кровля`,
       unit: "м²",
     }),

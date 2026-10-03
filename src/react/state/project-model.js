@@ -1,4 +1,5 @@
 import catalog from "../data/default-catalog.json" with { type: "json" };
+import { normalizeStairDirection } from "../planner/stair-steps.js";
 import { EXTERIOR_MATERIALS, EXTERIOR_LABOR } from '../data/exterior-catalog.js';
 import { DEFAULT_EXTERIOR, normalizeExterior } from '../calculations/exterior-model.js';
 import { INTERNAL_MATERIALS, INTERNAL_LABOR } from '../data/internal-catalog.js';
@@ -19,7 +20,7 @@ import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 
-export const REACT_PROJECT_VERSION = 172;
+export const REACT_PROJECT_VERSION = 173;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -381,7 +382,7 @@ export function createUpperFloorPlan(basePlan = createEmptyPlan()) {
     pileRows: [],
     bindingLines: [],
     excludedPiles: [],
-    floorOpening: { x: 0, y: 0, width: 0, length: 0 },
+    floorOpening: { x: 0, y: 0, width: 0, length: 0, direction: "right" },
   };
 }
 
@@ -752,6 +753,7 @@ export function normalizePlan(plan) {
       y: Math.max(0, Math.min(floorOpeningY, Math.max(0, house.h - floorOpeningLength))),
       width: floorOpeningWidth,
       length: floorOpeningLength,
+      direction: normalizeStairDirection(plan.floorOpening?.direction),
     },
   };
 }
@@ -886,6 +888,17 @@ export function migrateProject(raw) {
     base.priceMat,
     materialUpgradeIds,
   );
+  // Only the former standard C21 price is upgraded; project-specific edits stay intact.
+  if (!Number.isFinite(savedVersion) || savedVersion < 173) {
+    const c21 = normalizedPriceMat.find((item) => item.id === "MAT-041");
+    if (c21 && Number(c21.price) === 620) c21.price = 800;
+  }
+  const normalizedPriceLab = normalizeCatalog(raw.priceLab, base.priceLab, laborUpgradeIds);
+  if (!Number.isFinite(savedVersion) || savedVersion < 173) {
+    const profileWork = normalizedPriceLab.find((item) => item.id === "LAB-031");
+    if (profileWork?.name === "Монтаж кровельного покрытия — профлист С-21")
+      profileWork.name = "Монтаж кровельного покрытия — профлист";
+  }
   const savedMaterialIds = new Set(
     (Array.isArray(raw.priceMat) ? raw.priceMat : []).map((item) => item.id),
   );
@@ -992,7 +1005,7 @@ export function migrateProject(raw) {
       ),
     },
     priceMat: normalizedPriceMat,
-    priceLab: normalizeCatalog(raw.priceLab, base.priceLab, laborUpgradeIds),
+    priceLab: normalizedPriceLab,
     request: normalizeRequest(raw.request, meta),
     estimateOverrides: Array.isArray(raw.estimateOverrides)
       ? raw.estimateOverrides

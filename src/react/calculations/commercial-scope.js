@@ -6,7 +6,7 @@ import { constructionDescription, internalDescription } from './proposal-descrip
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
 const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая' };
-const ROOF_COVERINGS = { profile: 'профлист С-21', 'metal-tile': 'металлочерепица', soft: 'мягкая кровля с OSB' };
+const ROOF_COVERINGS = { profile: 'профлист С-21', 'profile-st15': 'профлист ST15', 'metal-tile': 'металлочерепица', soft: 'мягкая кровля с OSB' };
 const CONNECTOR_TYPES = { thermal: 'термобрус', 'board-pack': 'клеёный пакет досок', solid: 'брус естественной влажности' };
 
 function openingCounts(openings = []) {

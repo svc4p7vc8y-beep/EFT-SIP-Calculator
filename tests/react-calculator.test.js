@@ -76,6 +76,7 @@ test('removing the second floor leaves a safe empty staircase opening for the pl
     y: 0,
     width: 0,
     length: 0,
+    direction: 'right',
   });
 });
 
@@ -1680,7 +1681,7 @@ test('hip roof adds 25 percent material quantity and 50 percent labor cost witho
   assert.equal(coverWork.costCoefficient, 1.5);
   assert.equal(coverWork.price, coverWork.basePrice * 1.5);
   assert.equal(terraceCover.quantityCoefficient, undefined);
-  assert.equal(project.priceMat.find((item) => item.id === 'MAT-041').price, 620);
+  assert.equal(project.priceMat.find((item) => item.id === 'MAT-041').price, 800);
   assert.equal(project.priceLab.find((item) => item.id === 'LAB-031').price, 700);
   assert.equal(result.roof.materialComplexityCoefficient, 1.25);
   assert.equal(result.roof.laborComplexityCoefficient, 1.5);

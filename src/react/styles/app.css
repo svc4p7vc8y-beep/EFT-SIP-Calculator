@@ -4227,6 +4227,18 @@ select,
   gap: 20px;
   margin-bottom: 14px;
 }
+.print-plan-svg .print-floor-opening line,
+.print-plan-svg .print-floor-opening .stair-direction-head {
+  stroke: #624413;
+  stroke-width: 1.5;
+  fill: none;
+}
+.print-plan-svg .print-floor-opening .stair-direction-shaft {
+  stroke-width: 3;
+}
+.print-plan-svg .print-floor-opening .stair-direction-head {
+  fill: #624413;
+}
 .modal.team-user-edit-dialog > header { display: block; }
 .modal.team-user-edit-dialog > header h2 { margin-bottom: 7px; }
 .modal h2 {
@@ -6612,6 +6624,14 @@ select,
   body:has(.knowledge-reader) .knowledge-table td {
     padding: 2.5mm;
   }
+}
+.stair-opening .stair-direction-shaft {
+  stroke: #362407;
+  stroke-width: 3;
+}
+.stair-opening .stair-direction-head {
+  fill: #362407;
+  stroke: none;
 }
 
 /* Balanced estimate columns: keep the specification readable without crowding figures. */
