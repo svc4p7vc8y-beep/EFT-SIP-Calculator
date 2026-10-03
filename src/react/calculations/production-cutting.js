@@ -461,7 +461,7 @@ export function calculateProductionCutting(project, calculation) {
       const geometry = subtract(rect(0, 0, width, height), holes);
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm(edge.a.x), mm(edge.a.y)], planEnd: [mm(edge.b.x), mm(edge.b.y)], thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings,
-        frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
+        topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 2)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
       const hole = plan.floorOpening;

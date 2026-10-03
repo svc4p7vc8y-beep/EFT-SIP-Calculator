@@ -48,3 +48,6 @@ test('full-height partition gaps interrupt both top and bottom plates',()=>{
 test('overlapping explicit walls do not skew the profile shares',()=>{
   const p=base();p.plan.walls=[{x1:0,y1:2,x2:5,y2:2},{x1:0,y1:2,x2:2,y2:2,bearing:true,bearingProfile:'50x150'}];const shares=partitionProfileShares(p.plan,'50x100');assert.equal(shares.find(s=>s.profile==='50x150').share,.4);assert.equal(shares.find(s=>s.profile==='50x100').share,.6);
 });
+test('saved upper plate layer count is respected by framing',()=>{
+  const p=base();p.plan.walls=[{x1:0,y1:2,x2:5,y2:2}];p.settings.formulas.partitionTopPlateLayers=3;const r=run(p),members=r.members.filter(m=>m.surfaceId?.includes('ПГ'));assert.equal(members.filter(m=>m.material==='Верхняя обвязка перегородки').length,3);assert.ok(members.filter(m=>m.material==='Стойка перегородки').every(m=>m.length===2300));
+});
