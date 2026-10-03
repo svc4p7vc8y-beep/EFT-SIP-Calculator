@@ -46,7 +46,7 @@ export function saunaLines(room, reserve=1.1, catalog=[]) {
       for(const key of CHIMNEY_KEYS)quantities[key]=0;
       Object.assign(quantities,chimneySchedule(s.chimneyDimensions).quantities);
     }else for(const key of CHIMNEY_KEYS)quantities[key]=0;
-  }else for(const item of SAUNA_EXTRA_ITEMS)quantities[item.key]=0;
+  }else for(const item of SAUNA_EXTRA_ITEMS)if(!['glassDoor','lindenWindow'].includes(item.key))quantities[item.key]=0;
   if(s.heaterType!=='wood')for(const key of CHIMNEY_KEYS)quantities[key]=0;
   if(s.heaterType!=='wood') quantities.chimney=0;
   if(!quantities.heater) for(const key of ['stones','control','shield','guard'])quantities[key]=0;
@@ -60,9 +60,9 @@ export function saunaLines(room, reserve=1.1, catalog=[]) {
     const name=`${item.name}${item.key==='liningPack'?` · ${s.liningStock?.grade==='extra'?'Экстра':'А'} · ${pack.length} м`:['lining','bench','backrest'].includes(item.key)?` · ${wood}`:item.key==='heater'?` · ${s.heaterType==='wood'?'дровяная':'электрическая'} · ${String(s.heaterModel||'модель не указана').slice(0,160)}`:''}`;
     const catalogPrice=catalog.find(row=>row.id===item.id)?.price;
     const autoPrice=s.autoEstimate?(item.key==='liningPack'?pack?.price:item.key==='heater'&&s.heaterType!=='wood'?0:SAUNA_OFFER_PRICES[item.key]??SAUNA_BUDGET_PRICES[item.key]):undefined;
-    const price=item.key==='drain'?drain.price:s.prices?.[item.key]??(s.autoEstimate?((catalogPrice>0?catalogPrice:undefined)??autoPrice??DETAILED_DEFAULT_PRICES[item.key]):(detailed&&DETAILED_DEFAULT_PRICES[item.key]!=null?(catalogPrice??DETAILED_DEFAULT_PRICES[item.key]):undefined));
+    const price=item.key==='drain'?drain.price:s.prices?.[item.key]??(s.autoEstimate?((catalogPrice>0?catalogPrice:undefined)??autoPrice??DETAILED_DEFAULT_PRICES[item.key]):(['glassDoor','lindenWindow'].includes(item.key)?(catalogPrice>0?catalogPrice:SAUNA_OFFER_PRICES[item.key]):detailed&&DETAILED_DEFAULT_PRICES[item.key]!=null?(catalogPrice??DETAILED_DEFAULT_PRICES[item.key]):undefined));
     return [{catalogId:item.id,key:`${room.floor}-${room.id}-sauna-${item.key}`,qty,group:`${room.floor} этаж · ${room.name} · Парная`,description:name,name,
-      priceMultiplier:item.key==='drain'?1+drain.markup/100:detailed&&item.kind==='material'&&item.key!=='heaterDelivery'?1+positive(s.materialMarkup??25)/100:1,
+      priceMultiplier:item.key==='drain'?1+drain.markup/100:(detailed||['glassDoor','lindenWindow'].includes(item.key))&&item.kind==='material'&&item.key!=='heaterDelivery'?1+positive(s.materialMarkup??25)/100:1,
       ...(price!=null?{projectPrice:positive(price)}:{})}];
   });
 }

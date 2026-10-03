@@ -9,6 +9,7 @@ export const SAUNA_BUDGET_PRICES = {
   chimneyRoof:4500,chimneyEnd:2500,chimneySupports:4000,chimneySeal:700,
 };
 export const SAUNA_OFFER_PRICES = {heater:42010,foilRoll:2100,tapeRoll:300,
+  glassDoor:14462,lindenWindow:3500,
   battenStock:280,counterStock:110,plinth:100,cornice:100,corner:170,casing:170,
   chimneySingle:2729,chimneyDamper:1522,chimneySandwich:2713};
 const n=v=>Number.isFinite(Number(v))?Math.max(0,Number(v)):0;
