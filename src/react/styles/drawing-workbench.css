@@ -1,0 +1,39 @@
+.drawing-workbench { --drawing-accent:#14613e; min-width:0; padding:16px!important; color:#000; background:#fff; }
+.drawing-workbench button,.drawing-workbench select { font-family:inherit; font-weight:600; font-size:12px; line-height:1.3; color:#000; }
+.drawing-workbench button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; border:1px solid #d4ddd7; border-radius:5px; padding:7px 10px; background:white; cursor:pointer; }
+.drawing-workbench button:disabled { opacity:.45; cursor:default; }.drawing-workbench button[aria-pressed=true] { background:#e3efe7; border-color:#14613e; }
+.drawing-workbench button:focus-visible,.drawing-workbench select:focus-visible { outline:2px solid #14613e; outline-offset:2px; }
+.drawing-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }.drawing-header h1 { font-size:22px; margin:0 0 4px; }.drawing-header span { font-size:12px; }
+.drawing-navigation,.drawing-tools,.drawing-layers,.drawing-views,.drawing-sheet-picker,.drawing-bottom-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:9px 0; border-bottom:1px solid #dae1dc; }
+.drawing-navigation label,.drawing-sheet-picker label { display:flex; align-items:center; gap:8px; font-size:12px; min-width:0; }.drawing-navigation select,.drawing-sheet-picker select { max-width:100%; min-width:0; padding:8px; border:1px solid #d4ddd7; border-radius:5px; background:white; }.drawing-navigation>select { flex:1; min-width:120px; }
+.drawing-tools { font-size:12px; }.drawing-layers label { display:flex; align-items:center; gap:5px; font-size:12px; }.drawing-workbench input[type=checkbox] { width:16px; height:16px; min-height:0; }
+.drawing-content { border:0; padding:0; margin:0; min-width:0; }.drawing-stage { position:relative; background:#fff; }.drawing-viewport { height:clamp(330px,53vh,720px); overflow:hidden; touch-action:pan-y; background:#fff; }.drawing-viewport.is-pan { cursor:grab; touch-action:none; }.drawing-transform { height:100%; width:100%; transform-origin:center; }.workbench-drawing { width:100%; height:100%; display:block; }.workbench-drawing text { fill:#000; stroke:none; font-family:Arial,sans-serif; }.workbench-drawing [role=button] { cursor:pointer; }.workbench-drawing [role=button]:focus { outline:2px solid #14613e; }
+.drawing-stage .drawing-locator { position:absolute; bottom:12px; right:12px; width:120px; height:90px; background:#fff; border:1px solid #ced8d0; border-radius:5px; }.drawing-locator { cursor:pointer; }
+.drawing-status { display:flex; justify-content:space-between; align-items:center; gap:8px; border-top:1px solid #dae1dc; padding:7px 0; font-size:11px; }.drawing-status button { font-size:11px; min-height:28px; }
+.drawing-bottom { border-top:2px solid #dae1dc; }.drawing-bottom-content { max-height:330px; overflow:auto; resize:vertical; min-height:160px; padding:8px; font-size:12px; }.drawing-bottom-content p { margin:7px 0; }.drawing-bottom-content .cut-table-wrap { margin:5px 0; }.drawing-bottom-content tr.selected { background:#e3efe7; }.drawing-bottom-content strong { font-size:17px; }.drawing-bottom-content h2 { font-size:16px; }.drawing-bottom-content details { margin:8px 0; }.drawing-bottom-content summary { cursor:pointer; }
+.drawing-pending { font-size:12px; background:#fff4dc; padding:8px; }.drawing-classic { margin-top:10px; font-size:11px!important; }
+.workbench-full { position:fixed!important; inset:0; z-index:1000; overflow:auto; background:white; }.workbench-full .drawing-viewport { height:58vh; }
+.drawing-sheet-picker details { width:100%; }.drawing-sheet-picker details>label { padding:5px; }.drawing-sheet-picker details[open] { max-height:230px; overflow:auto; }
+.drawing-preview { display:block; background:#eee; padding:12px; height:100%; overflow:auto; }.drawing-preview .mounting-sheet { display:flex; flex-direction:column; min-height:500px; background:white; padding:16px; border:1px solid #555; font-size:11px; }.drawing-preview .mounting-sheet>header { font-size:17px; border-bottom:1px solid #777; padding-bottom:10px; }.drawing-preview .mounting-content { flex:1; }.drawing-preview footer { border:1px solid #777; display:grid; grid-template-columns:40px 1fr 110px 100px; gap:5px; padding:6px; }.drawing-preview table { width:100%; font-size:10px; }.drawing-preview .assembly-controls { display:none; }
+.drawing-content>.cut-card { margin:0; padding:10px; }
+.cutting-screen .drawing-content { border:0; margin:0; padding:0; border-radius:0; }
+.drawing-rotation { display:flex; align-items:center; gap:12px; font-size:12px; padding:8px; }.drawing-rotation input { width:180px; }
+.drawing-special-view { max-height:65vh; overflow:auto; padding:12px; }.drawing-special-view .workbench-drawing { height:400px; }
+.drawing-content.is-pending svg { pointer-events:none; opacity:.65; }
+.drawing-viewport { height:clamp(300px,43vh,600px); }
+@media(max-width:700px){.drawing-workbench { padding:10px!important; }.drawing-navigation label { width:100%; }.drawing-navigation select { flex:1; }.drawing-tools button { min-height:40px; padding:7px; }.drawing-viewport { height:360px; }.drawing-header h1 { font-size:19px; }.drawing-status { align-items:flex-start; }.drawing-stage .drawing-locator { width:85px; height:65px; }.drawing-bottom-content { max-height:280px; }.drawing-bottom-tabs button { flex:1 1 auto; }.drawing-preview .album-columns { grid-template-columns:1fr; }.drawing-preview footer { grid-template-columns:1fr 1fr; }}
+@media(max-width:700px){
+ .drawing-tools { flex-wrap:nowrap; overflow-x:auto; padding-bottom:12px; }
+ .drawing-tools>button { flex-shrink:0; white-space:nowrap; }
+}
+@media print {
+ @page drawingA4 { size:A4 landscape; margin:8mm; }
+ .paper-A4 .mounting-sheet { page:drawingA4; height:190mm; padding:3mm; }
+ .paper-A4 .mounting-sheet>header { font-size:12pt; margin-bottom:3mm; padding-bottom:2mm; }
+ .paper-A4 .mounting-sheet>footer { font-size:7pt; margin-top:2mm; }
+ .paper-A4 .technical-drawing,.paper-A4 .roof-document-drawing,.paper-A4 .cut-assembly svg { max-height:125mm; height:125mm; }
+ .paper-A4 .roof-section { height:75mm; }.paper-A4 .binding-section { max-height:30mm; }.paper-A4 .support-elevation { height:45mm; }
+ .paper-A4 .album-parts .technical-drawing { height:40mm; }.paper-A4 .mounting-content p,.paper-A4 .mounting-content li { font-size:7pt; margin:2mm 0; }
+ .paper-A4 .album-schedule { font-size:6pt; }.paper-A4 .album-locator { height:30mm; }.paper-A4 .album-columns { gap:4mm; }
+ .mounting-content>.workbench-drawing { height:195mm; }.paper-A4 .mounting-content>.workbench-drawing { height:125mm; }
+}

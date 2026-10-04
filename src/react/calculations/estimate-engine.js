@@ -27,6 +27,7 @@ import {
 } from "./sip-joinery.js";
 import { calculateConstructionNodes } from './construction-nodes.js';
 import { calculateSnowGuards } from './snow-guards.js';
+import { productionEstimateLines } from './production-estimate.js';
 import { calculateTieredRoofGeometry, normalizeTieredRoof, resolveTieredGables } from './tiered-roof.js';
 
 const round = (value, digits = 2) => {
@@ -210,7 +211,8 @@ function applyProjectEstimateEdits(project, sections) {
     });
   });
   return sections.map((section) => {
-    const generated = section.lines.flatMap((line) => {
+    const sourceLines=section.key==='roof'?[...section.lines,...productionEstimateLines(project)]:section.lines;
+    const generated = sourceLines.flatMap((line) => {
       const override = overrides.get(line.id);
       if (override?.excluded) return [];
       if (!override) return [line];

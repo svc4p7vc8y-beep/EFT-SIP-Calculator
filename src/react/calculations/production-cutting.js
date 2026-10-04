@@ -6,6 +6,7 @@ import { sipTimberProfile } from './sip-joinery.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
 import { cuttingRevision, validateProductionSettings, parseManualPanel, reconcileCutting } from './production-controls.js';
 import { calculateAssemblyPlan, calculateCutOperations, gableFrameMembers } from './production-assembly.js';
+import { roofCoverLayout } from './roof-cover-layout.js';
 
 const mm = value => Math.round((Number(value) || 0) * 1000);
 const round = value => Math.round(value * 1000) / 1000;
@@ -617,7 +618,6 @@ export function calculateProductionCutting(project, calculation) {
         panels:parts.filter(part=>part.surfaceId===surface.id && (Math.abs(part.x-jamb.x)<.01 || Math.abs(part.x+part.width-jamb.x)<.01)).map(part=>part.id)});
     }
   }
-  if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');
   const notices = [...profileMismatches].map(value => `Сечение раскроя / сметы: ${value} мм. Смета не изменена; подтвердите проектный профиль.`);
   const ids = new Set(); let manualCount = 0;
   for (const item of settings.manualParts) {
@@ -629,9 +629,31 @@ export function calculateProductionCutting(project, calculation) {
     for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
   const assembly=calculateAssemblyPlan(project,calculation,settings);
+  const roofCover=roofCoverLayout(assembly,settings.roofSheets);
+  roofCover.issues.forEach(message=>issue('ROOF_SHEETS',message));
+  for(const [key,link] of Object.entries(settings.gableLinks)) {
+    const gable=surfaces.find(s=>s.layoutKey===key),wall=surfaces.find(s=>s.layoutKey===link?.wallKey);
+    if(!gable||(link?.wallKey&&!wall))issue('GABLE_LINK','Привязка фронтона устарела после изменения геометрии. Уточните связь стены и фронтона.',gable?.id||'');
+    if(link&&['offset','elevation'].some(k=>link[k]!=null&&(!Number.isFinite(Number(link[k]))||Math.abs(Number(link[k]))>100000)))issue('GABLE_LINK','Привязка фронтона содержит неверное смещение или высоту.',gable?.id||'');
+  }
   if(Math.abs(assembly.roofDrawing?.estimateDifference||0)>1)notices.push(`Стропила: раскрой ${assembly.rafters[0].length} мм, сметная модель ${assembly.roofDrawing.estimateLength} мм. Уклон раскроя непрерывный через свес; закупка и итог сметы не заменены автоматически.`);
   assembly.panelLayers=parts.filter(p=>p.surfaceId.endsWith('-ПТ'));
   members.push(...assembly.members);
+  // Extend the existing production override mechanism to frame/roof/binding pieces.
+  // Coordinates are retained: a manufacturing length override is not a moved support.
+  for(const member of members.filter(m=>!m.key&&m.source!=='Ручная деталь'&&m.source!=='Проектная опора')){
+    const owner=surfaces.find(s=>s.id===member.surfaceId);
+    member.key=`detail:${member.id}:${cuttingRevision([owner?.layoutKey,member.a,member.b,member.profile,member.length,member.source])}`;
+    overrideKeys.add(member.key);member.geometricLength=member.length;member.estimateProfile=member.profile;
+    const override=settings.memberOverrides[member.key]||{};
+    if(override.profile && (typeof override.profile!=='string'||!/^\d+(?:[×хx]\d+)+$/.test(override.profile.trim())||override.profile.trim().split(/[×хx]/).some(v=>Number(v)<=0))){issue('MEMBER_OVERRIDE',`${member.id}: неверное сечение`,member.key);member.excluded=true;continue;}
+    const length=presentNumber(override.length)?Number(override.length):member.length;
+    if(!(length>0&&length<=100000)){issue('MEMBER_OVERRIDE',`${member.id}: неверная производственная длина`,member.key);member.excluded=true;continue;}
+    if((override.exclude||override.profile||presentNumber(override.length))&&!override.nodeRef?.trim())issue('MEMBER_NODE',`${member.id}: для изменения или исключения укажите рабочий узел`,member.key);
+    member.length=length;member.cutLength=length+2*Number(settings.endAllowanceMm||0);
+    member.profile=override.profile?.trim()||member.profile;member.nodeRef=override.nodeRef||member.nodeRef||'';member.processing=override.processing||member.processing||'';member.excluded=override.exclude===true;
+  }
+  if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');
   assembly.issues.forEach(message=>issue('ASSEMBLY',message));
   if(services.roof && (roof.warmSlopeArea>0 || roof.rafterStructure?.system==='layered') && !assembly.supports.some(s=>s.type==='purlin'))
     issue('ROOF_SUPPORTS','Опоры кровли: задайте проектные прогоны, стойки и путь нагрузки до фундамента на вкладке «Крыша и опоры».');
@@ -644,6 +666,7 @@ export function calculateProductionCutting(project, calculation) {
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   report.cutting=calculateCutOperations(report);
+  report.roofCover=roofCover;
   report.reconciliation = reconcileCutting(report, calculation);
   report.approvalStatus = approval.revision === revision && !issues.length && approval.reviewer?.trim() && approval.nodeRef?.trim() && ['geometry','nodes','released'].includes(approval.status) ? approval.status : 'draft';
   return report;

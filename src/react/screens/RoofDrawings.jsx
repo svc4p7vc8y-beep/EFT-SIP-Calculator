@@ -11,7 +11,7 @@ function Member({a,b,profile,label,font,dashed=false}) {
   return <g><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={dashed?'#333':'#b58b52'} strokeWidth={dashed?2:depth} strokeDasharray={dashed?'7 4':undefined} vectorEffect={dashed?'non-scaling-stroke':undefined}/>{!dashed?<line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#000" strokeWidth=".6" vectorEffect="non-scaling-stroke"/>:null}{label?<text x={(a[0]+b[0])/2} y={(a[1]+b[1])/2-font*.5} fontSize={font} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.18}>{label}</text>:null}</g>;
 }
 
-export function StructuralPlan({assembly,kind='roof'}) {
+export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers={}}) {
   const binding=kind==='binding',floor=binding?assembly.floors[0]:assembly.floors.at(-1);
   const items=binding?assembly.binding:assembly.rafters;
   const all=[...floor.contour,...(!binding?assembly.roofOutline:[]),...items.flatMap(s=>[s.a,s.b]),...(binding?assembly.piles:assembly.supports.flatMap(s=>[s.a,s.b]))];
@@ -23,11 +23,11 @@ export function StructuralPlan({assembly,kind='roof'}) {
     <polygon points={pts(floor.contour)} fill="none" stroke="#777" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
     {floor.rooms.map((r,i)=><polygon key={i} points={pts(r.points)} fill="none" stroke="#ccc" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}
     {(floor.bearing||[]).map((s,i)=><Member key={i} {...s} profile="60×150" font={font}/>)}
-    {items.map(s=><Member key={s.id} {...s} label={binding?s.id:s.id.replace('КР-СТ','')} font={font}/>) }
+    {layers.frame!==false?items.map(s=><g key={s.id} role={onSelect?'button':undefined} tabIndex={onSelect?0:undefined} aria-label={`Выбрать ${s.id}`} onClick={()=>onSelect?.(s.id)} onKeyDown={e=>{if(e.key==='Enter')onSelect?.(s.id);}}><Member {...s} label={layers.labels===false?'':binding?s.id:s.id.replace('КР-СТ','')} font={font}/><line x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke={selected.includes(s.id)?'#10734c':'transparent'} strokeWidth={selected.includes(s.id)?4:14} vectorEffect="non-scaling-stroke"/></g>):null}
     {!binding?(assembly.roofTimbers||[]).filter(s=>s.id!=='КР-КН2').map(s=><Member key={s.id} {...s} label={s.id==='КР-КН1'?'КР-КН1/2':s.id} font={font}/>):null}
     {binding?assembly.piles.map((p,i)=><g key={i}><rect x={p[0]-font*.35} y={p[1]-font*.35} width={font*.7} height={font*.7} fill="white" stroke="#000"/><text x={p[0]+font*.6} y={p[1]+font} fontSize={font*.75}>СВ-{i+1}</text></g>):assembly.supports.map(s=><Member key={s.id} {...s} label={s.mark} font={font} dashed/>)}
-    <Dimensions values={dimX} y={y+h+pad*.45} font={font}/><Dimensions values={[x,x+w]} y={y+h+pad} font={font*1.2}/>
-    <g transform="rotate(90)"><Dimensions values={dimY} y={-x+pad*.5} font={font}/><Dimensions values={[y,y+h]} y={-x+pad} font={font*1.2}/></g>
+    {layers.dimensions!==false?<><Dimensions values={dimX} y={y+h+pad*.45} font={font}/><Dimensions values={[x,x+w]} y={y+h+pad} font={font*1.2}/>
+    <g transform="rotate(90)"><Dimensions values={dimY} y={-x+pad*.5} font={font}/><Dimensions values={[y,y+h]} y={-x+pad} font={font*1.2}/></g></>:null}
   </svg>;
 }
 
@@ -44,9 +44,10 @@ export function RoofSection({assembly}) {
   </svg>;
 }
 
-export function RoofPerspective({assembly}) {
+export function RoofPerspective({assembly,yaw=0}) {
   const lines=roofAxonometricLines(assembly);if(!lines.length)return null;
-  const project=p=>[(p[0]-p[1])*.866,(p[0]+p[1])*.5-p[2]];
+  const angle=yaw*Math.PI/180;
+  const project=p=>{const x=p[0]*Math.cos(angle)-p[1]*Math.sin(angle),y=p[0]*Math.sin(angle)+p[1]*Math.cos(angle);return [(x-y)*.866,(x+y)*.5-p[2]];};
   const faces=[];
   for(const l of lines){
     const d=l.b.map((v,i)=>v-l.a[i]),run=Math.hypot(d[0],d[1])||1,length=Math.hypot(...d)||1;

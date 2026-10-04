@@ -55,7 +55,7 @@ export function SurfaceLayoutControls({ surface, settings, update, NumberInput }
 }
 
 export function MemberEditor({ member, settings, update, NumberInput }) {
-  if (!member?.key) return <p>Выберите автоматический соединитель в таблице или на развёртке.</p>;
+  if (!member?.key) return <p>Выберите автоматическую деталь в таблице или на развёртке. Ручные опоры редактируются инструментом «Разместить опоры».</p>;
   const value = settings.memberOverrides[member.key] || {};
   const change = patch=>update({memberOverrides:{...settings.memberOverrides,[member.key]:{...value,...patch}}});
   return <fieldset><legend>Карточка {productionMark(member.id)}</legend><p>{member.surface} · геометрия {member.geometricLength} мм · сметный профиль {member.estimateProfile}. Исключение убирает элемент из карт хлыстов; при разложении пакета на доски сначала исключите сборочный элемент и добавьте его состав вручную.</p><div className="cut-fields">

@@ -110,7 +110,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     if(item.type==='post' && (Math.hypot(a[0]-b[0],a[1]-b[1])>.01 || b[2]<=a[2])){issues.push(`${mark}: вертикальная стойка должна иметь одинаковые X/Y сверху и снизу, отметка верха — выше низа.`);continue;}
     const support={...item,mark,a,b,length,name:item.name||`${ASSEMBLY_TYPES[item.type]} ${i+1}`};
     supports.push(support);
-    if(item.type!=='foundation'){
+    if(item.type!=='foundation'&&!item.referenceOnly){
       if(!item.nodeRef.trim())issues.push(`${mark}: укажите рабочий узел.`);
       members.push({id:mark,material:ASSEMBLY_TYPES[item.type],profile:item.profile.replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
     }
@@ -120,6 +120,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const trace=(id,visited=new Set())=>{
     const item=byId.get(id);
     if(!item)return {complete:false,text:'опора не задана'};
+    if(item.referenceOnly)return {complete:false,text:`${item.mark}: справочная линия, не несущая опора`};
     if(visited.has(id))return {complete:false,text:`${item.mark}: цикл опор`};
     if(pathCache.has(id))return pathCache.get(id);
     if(item.type==='foundation')return {complete:!!item.foundationRef.trim(),text:`${item.mark} ${item.foundationRef||'фундамент не указан'}`};
@@ -138,7 +139,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       if(pointDistance(p,target.a,target.b)>50 || Math.abs(p[2]-z)>50){item.connectionValid=false;issues.push(`${item.mark}: опирание на ${target.mark} не совпадает в плане или по высоте (расстояние более 50 мм).`);}
     }}
   }
-  supports.forEach(item=>{item.loadPath=trace(item.id);if(!item.loadPath.complete)issues.push(`${item.mark}: путь нагрузки до фундамента не заполнен, содержит цикл или несовпадающее опирание.`);});
+  supports.forEach(item=>{item.loadPath=trace(item.id);if(!item.referenceOnly&&!item.loadPath.complete)issues.push(`${item.mark}: путь нагрузки до фундамента не заполнен, содержит цикл или несовпадающее опирание.`);});
   const roofOutline=rectangular?[at(-gable,-eave),at(axisLength+gable,-eave),at(axisLength+gable,span+eave),at(-gable,span+eave)]:contour;
   const assembly={floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,roofTimbers,laths,counterLaths,supports,members,issues,binding,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
   assembly.roofDrawing=roofDrawingData(assembly,roof,project.settings.roof,settings.rafterGeometry);

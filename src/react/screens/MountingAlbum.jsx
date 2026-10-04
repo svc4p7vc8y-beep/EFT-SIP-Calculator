@@ -2,6 +2,7 @@ import { groupPanels, groupMembers, polygonBounds } from '../calculations/produc
 import { productionMark as mark } from '../calculations/production-assembly.js';
 import AssemblyCanvas from './AssemblyCanvas.jsx';
 import { BindingSection, RoofPerspective, RoofSection, StructuralPlan, SupportElevation } from './RoofDrawings.jsx';
+import { combinedWall, gableLinks } from '../calculations/drawing-workbench.js';
 
 const num=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value);
 const chunks=(list,n)=>Array.from({length:Math.ceil(list.length/n)},(_,i)=>list.slice(i*n,i*n+n));
@@ -16,7 +17,7 @@ export function TechnicalDrawing({surface,parts=[],members=[]}) {
   const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height),pad=size*.16,font=size*.022,flip=surface.horizontal?null:box.y*2+box.height;
   const yy=y=>flip==null?y:flip-y;
   const positions=new Map();groupMembers(members).forEach((g,i)=>g.instances.forEach(m=>positions.set(m.id,i+1)));
-  const xDimensions=[box.x,box.x+box.width,...parts.flatMap(p=>[p.x,p.x+p.width]),...members.filter(m=>m.a&&Math.abs(m.a[0]-m.b[0])<.1).map(m=>m.a[0])];
+  const xDimensions=[box.x,box.x+box.width,...(parts.length?parts.flatMap(p=>[p.x,p.x+p.width]):members.filter(m=>m.a&&!m.excluded&&Math.abs(m.a[0]-m.b[0])<.1).map(m=>m.a[0]))];
   return <svg className="technical-drawing" viewBox={`${box.x-pad} ${box.y-pad*.4} ${box.width+2*pad} ${box.height+pad*2.1}`} role="img" aria-label={`Монтажная развёртка ${surface.name}`}>
     {surface.geometry.map((g,i)=><path key={i} d={path(g,flip)} fill="#fff" fillRule="evenodd" stroke="#000" vectorEffect="non-scaling-stroke"/>)}
     {parts.map(p=><g key={p.id}><path d={path(p.shape,flip)} fill="#edf3e7" fillRule="evenodd" stroke="#365c24" vectorEffect="non-scaling-stroke"/><text x={p.x+p.width/2} y={yy(p.y+p.height/2)} textAnchor="middle" fontSize={Math.min(font,p.width*.17)}>{mark(p.id).replace(`${surface.id}-`,'')}</text></g>)}
@@ -33,13 +34,23 @@ export function RoofSlopePreview({assembly}) {
 }
 function Schedule({items}) {return <table className="album-schedule"><thead><tr><th>Поз.</th><th>Марка / элемент</th><th>Сечение / габарит, мм</th><th>Длина, мм</th><th>Кол.</th></tr></thead><tbody>{items.map((r,i)=><tr key={i}><td>{r.position||i+1}</td><td>{r.name}</td><td>{r.profile}</td><td>{r.length?num(r.length):'—'}</td><td>×{r.qty}</td></tr>)}</tbody></table>;}
 function Locator({assembly,surface}){const floor=assembly.floors.find(f=>f.floor===surface.floor);if(!floor||!surface.planStart)return null;const b=assembly.bounds,pad=Math.max(b.width,b.height)*.1;return <svg className="album-locator" viewBox={`${b.x-pad} ${b.y-pad} ${b.width+pad*2} ${b.height+pad*2}`}><polygon points={floor.contour.map(p=>p.join(',')).join(' ')} fill="none" stroke="#000" strokeWidth="1" vectorEffect="non-scaling-stroke"/>{floor.rooms.map((r,i)=><polygon key={i} points={r.points.map(p=>p.join(',')).join(' ')} fill="none" stroke="#999" vectorEffect="non-scaling-stroke"/>)}<line x1={surface.planStart[0]} y1={surface.planStart[1]} x2={surface.planEnd[0]} y2={surface.planEnd[1]} stroke="#000" strokeWidth="5" vectorEffect="non-scaling-stroke"/><text x={b.x+b.width/2} y={b.y-pad*.3} fontSize={pad*.4} textAnchor="middle">Выделена {surface.id}</text></svg>;}
-export default function MountingAlbum({project,report}) {
+export function buildMountingPages(report) {
   const pages=[];
   const add=(title,content)=>pages.push({title,content});
   add('Состав монтажного альбома',<><h1>ЭФТ · Монтажный альбом домокомплекта</h1><p>Планы, развёртки, марки деталей и производственные ведомости. Все размеры в мм. Ревизия {report.revision}.</p><p>Предварительная геометрическая деталировка. Сечения, пролёты, соединения, раскосы, врубки, стыки на опорах и несущая способность требуют рабочего проекта. Альбом не заменяет расчёт конструктора.</p><p>Резка панелей: {report.cutting.panelCuts} резов / {num(report.cutting.panelCutLengthM)} м. Торцовка пиломатериалов: {report.cutting.timberCuts} резов. Без выборок и врубок.</p><p>Последовательность: совмещённые планы → развёртки стен, перегородок и перекрытий → фронтоны → стропила по скатам → обвязка и опоры → каталог панелей.</p></>);
   for(const [i,list]of chunks(report.issues,12).entries())add(`Замечания перед выпуском · ${i+1}`,<ol>{list.map((r,j)=><li key={j}>{r.message}</li>)}</ol>);
   for(const floor of report.assembly.floors)add(`Монтажный план · этаж ${floor.floor}`,<AssemblyCanvas assembly={report.assembly} initialFloor={floor.floor}/>);
   const basePlan=report.assembly.floors[0];
+  if(basePlan&&report.assembly.piles.length)add('Свайное поле · оси и размеры',<StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding"/>);
+  const links=gableLinks(report,report.settings.gableLinks);
+  for(const wall of [...new Set(links.filter(l=>l.wall).map(l=>l.wall))]){
+    const combined=combinedWall(report,wall,links);
+    add(`${wall.name} с фронтоном`,<div className="album-columns"><TechnicalDrawing {...combined}/><div><Locator assembly={report.assembly} surface={wall}/><p>Совмещённый вид. Ведомости стены и фронтона на отдельных листах; детали не суммируются повторно.</p></div></div>);
+  }
+  for(const slope of report.roofCover?.slopes||[]){
+    const parts=slope.sheets.map(s=>({...s,thickness:'',shape:[[[s.x,s.y],[s.x+s.width,s.y],[s.x+s.width,s.y+s.height],[s.x,s.y+s.height],[s.x,s.y]]]}));
+    add(`Покрытие · ${slope.name}`,<><TechnicalDrawing surface={{id:'Л',name:slope.name,horizontal:true,geometry:[[[[0,0],[slope.width,0],[slope.width,slope.length],[0,slope.length],[0,0]]]]}} parts={parts}/><p>Исходный лист {slope.sheets[0].blankWidth}×{slope.sheets[0].blankLength} мм — ×{slope.sheets.length}. Рабочая ширина {report.settings.roofSheets.usefulWidth} мм, поперечный нахлёст {report.settings.roofSheets.overlap||0} мм. Без отверстий и специальных узлов примыкания.</p></>);
+  }
   if(basePlan&&report.assembly.binding.length){const rows=report.assembly.binding.map((b,i)=>({position:i+1,name:b.id,profile:b.profile,length:b.length,qty:b.layers}));
     chunks(rows,14).forEach((list,i)=>add(`План обвязки · оси свай и сечение${i?` · ведомость ${i+1}`:''}`,<><div className="album-columns"><StructuralPlan assembly={report.assembly} kind="binding"/><div><Schedule items={list}/><BindingSection assembly={report.assembly}/></div></div><p>ОБ — непрерывная линия обвязки, СВ — опора из плана. Количество — число слоёв. Размерные цепочки привязаны к осям свай; положение стыков и крепёж утверждаются отдельным узлом. Длинная линия не означает цельную заготовку допустимой длины.</p></>));}
   if(report.assembly.rafters.length){
@@ -71,5 +82,12 @@ export default function MountingAlbum({project,report}) {
   const contentsCount=Math.ceil((pages.length-1)/32);
   const contents=chunks(pages.slice(1).map((p,i)=>({title:p.title,page:i+2+contentsCount})),32).map((list,i)=>({title:`Ведомость листов монтажного альбома${i?` · ${i+1}`:''}`,content:<div className="album-contents">{chunks(list,16).map((column,j)=><table key={j}><thead><tr><th>Лист</th><th>Наименование</th></tr></thead><tbody>{column.map(row=><tr key={row.page}><td>{row.page}</td><td>{row.title}</td></tr>)}</tbody></table>)}</div>}));
   pages.splice(1,0,...contents);
-  return <div className="production-print mounting-album">{pages.map((page,i)=><section className="mounting-sheet" key={i}><header>{page.title}</header><div className="mounting-content">{page.content}</div><footer><b>ЭФТ</b><span>{project.meta.projectName||project.meta.projectNum||'Проект'} · {project.meta.customer||''}<br/>{page.title}</span><span>{report.revision}<br/>Размеры: мм</span><span>Лист {i+1} / {pages.length}<br/>А3 · без масштаба</span></footer></section>)}</div>;
+  return pages.map((page,i)=>({...page,id:String(i+1)}));
+}
+export default function MountingAlbum({project,report,pages:givenPages,selectedIds,paper='A3',preview=false}) {
+  const pages=givenPages||buildMountingPages(report);
+  const chosen=selectedIds?pages.filter(page=>selectedIds.includes(page.id)):pages;
+  return <div className={`${preview?'drawing-preview':'production-print'} mounting-album paper-${paper}`}>
+    {chosen.map(page=><section className="mounting-sheet" key={page.id}><header>{page.title}</header><div className="mounting-content">{page.content}</div><footer><b>ЭФТ</b><span>{project.meta.projectName||project.meta.projectNum||'Проект'} · {project.meta.customer||''}<br/>{page.title}</span><span>{report.revision}<br/>Размеры: мм</span><span>Лист {page.id} / {pages.length}<br/>{paper} · без масштаба</span></footer></section>)}
+  </div>;
 }

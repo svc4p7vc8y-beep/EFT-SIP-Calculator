@@ -11,6 +11,7 @@ import AssemblyPlan, { AssemblyDiagram } from './AssemblyPlan.jsx';
 import { productionMark as mark, productionFamily } from '../calculations/production-assembly.js';
 import { PRODUCTION_GUIDANCE } from '../data/production-guidance.js';
 import MountingAlbum from './MountingAlbum.jsx';
+import DrawingWorkbench from './DrawingWorkbench.jsx';
 
 const formatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 });
 const n = value => formatter.format(Number(value) || 0);
@@ -103,6 +104,7 @@ function PrintReport({ project, report, scope }) {
 }
 
 export default function CuttingScreen({ calculation }) {
+  const [classic, setClassic] = useState(false);
   const { project, commit } = useProject();
   const [tab, setTab] = useState('panels'), [surfaceId, setSurfaceId] = useState(''), [selectedId, setSelectedId] = useState(''), [printScope, setPrintScope] = useState(null);
   const [memberKey, setMemberKey] = useState(''), [showMembers, setShowMembers] = useState(true);
@@ -125,7 +127,9 @@ export default function CuttingScreen({ calculation }) {
   const update = patch => commit(next => { next.settings.productionCutting = normalizeProductionCutting({ ...next.settings.productionCutting, ...patch }); return next; });
   const print = scope => { if (pending || !report) return; if (document.querySelector('.cutting-screen input[aria-invalid="true"]')) { setPrintError('Печать остановлена: исправьте несохранённые значения в исходных данных.'); return; } setPrintError(''); flushSync(() => setPrintScope(scope)); document.body.classList.add('print-production'); window.print(); };
   useEffect(() => { const cleanup = () => { document.body.classList.remove('print-production'); setPrintScope(null); }; window.addEventListener('afterprint', cleanup); return () => { window.removeEventListener('afterprint', cleanup); document.body.classList.remove('print-production'); }; }, []);
+  if (!classic) return <DrawingWorkbench project={project} report={report} pending={pending} error={result.error} settings={settings} update={update} NumberInput={NumberInput} StarterBoardDiagram={StarterBoardDiagram} StockSheets={StockSheets} onSettings={()=>{setTab('settings');setClassic(true);}} onClassic={()=>setClassic(true)} />;
   return <section className="screen cutting-screen">
+    <button className="secondary-button" onClick={()=>setClassic(false)}>Вернуться в окно чертежей</button>
     <div className="screen-header"><div><span className="eyebrow">ПРОИЗВОДСТВО ДОМОКОМПЛЕКТА</span><h1>Раскрой</h1><p>Панели, доборы по высоте, шпонки и соединительные элементы из текущего проекта.</p><p>{pending ? 'Пересчёт… Печать временно недоступна.' : report ? `${report.revision} · ${approvalLabels[report.approvalStatus]}` : ''}</p></div><button className="secondary-button" disabled={pending || !report || (!report.parts.length && !report.members.length)} onClick={() => print('all')}><Printer size={18} />Печать комплекта</button></div>
     <div className="cut-summary"><div><small>Детали панелей</small><strong>{report?.parts.length || 0}</strong><small>Уникальных: {report?.panelGroups.length || 0}</small></div><div><small>Доборы по высоте</small><strong>{report?.upperCourseCount || 0}</strong></div><div><small>Соединители</small><strong>{report?.members.length || 0}</strong></div><div><small>Панели-заготовки</small><strong>{report?.panelStock.sheets.length || 0}</strong></div></div>
     <button className="secondary-button" disabled={pending||!report} onClick={()=>print('album')}><Printer size={18}/>Печать монтажного альбома</button>
