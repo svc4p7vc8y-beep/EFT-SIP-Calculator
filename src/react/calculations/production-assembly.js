@@ -116,6 +116,13 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     }
   }
   const byId=new Map(supports.map(s=>[s.id,s]));
+  for(const post of supports.filter(s=>s.type==='post'&&s.upperSupport)){
+    const upper=byId.get(post.upperSupport);
+    if(!upper||upper.referenceOnly||!['purlin','beam'].includes(upper.type)){issues.push(`${post.mark}: верхний прогон не найден или не является несущим элементом.`);continue;}
+    const dx=upper.b[0]-upper.a[0],dy=upper.b[1]-upper.a[1],t=Math.max(0,Math.min(1,((post.b[0]-upper.a[0])*dx+(post.b[1]-upper.a[1])*dy)/(dx*dx+dy*dy||1)));
+    const z=upper.a[2]+t*(upper.b[2]-upper.a[2]);
+    if(pointDistance(post.b,upper.a,upper.b)>50||Math.abs(post.b[2]-z)>50){issues.push(`${post.mark}: верх стойки не совпадает с ${upper.mark}.`);upper.connectionValid=false;}
+  }
   const pathCache=new Map();
   const trace=(id,visited=new Set())=>{
     const item=byId.get(id);
@@ -125,7 +132,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     if(pathCache.has(id))return pathCache.get(id);
     if(item.type==='foundation')return {complete:!!item.foundationRef.trim(),text:`${item.mark} ${item.foundationRef||'фундамент не указан'}`};
     const next=new Set([...visited,id]);
-    const refs=item.type==='post'?[item.startSupport]:[item.startSupport,item.endSupport];
+    const refs=item.type==='post'?[item.startSupport]:[item.startSupport,item.endSupport,...supports.filter(s=>s.type==='post'&&s.upperSupport===item.id&&!s.referenceOnly).map(s=>s.id)];
     const paths=refs.map(ref=>trace(ref,next));
     const path={complete:item.connectionValid!==false && paths.every(p=>p.complete),text:`${item.mark} → ${paths.map(p=>p.text.slice(0,1000)).join(' / ')}`.slice(0,2200)};
     pathCache.set(id,path);return path;

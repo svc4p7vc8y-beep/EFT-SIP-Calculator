@@ -55,5 +55,9 @@ export function snapAssemblyPoint(assembly, x, y, tolerance = 100) {
     ...assembly.rafters.flatMap(r=>[r.a,r.b]),...assembly.supports.flatMap(s=>[s.a,s.b]),...(assembly.piles||[])];
   let nearest, distance=tolerance;
   for (const p of points) { const d=Math.hypot(x-p[0],y-p[1]);if(d<distance){nearest=p;distance=d;} }
+  if(!nearest){
+    const segments=[...assembly.floors.flatMap(f=>f.bearing||[]),...(assembly.panelConnectors||[]),...assembly.supports];
+    for(const {a,b} of segments){const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy||1))),p=[a[0]+t*dx,a[1]+t*dy],d=Math.hypot(x-p[0],y-p[1]);if(d<distance){nearest=p;distance=d;}}
+  }
   return nearest ? nearest.slice(0,2) : [Math.round(x/10)*10,Math.round(y/10)*10];
 }

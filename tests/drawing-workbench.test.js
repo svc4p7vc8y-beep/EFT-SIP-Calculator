@@ -6,8 +6,21 @@ import { calculateProductionCutting } from '../src/react/calculations/production
 import { gableLinks,combinedWall,purchaseRows,drawingCategory } from '../src/react/calculations/drawing-workbench.js';
 import { productionEstimateLines } from '../src/react/calculations/production-estimate.js';
 import { roofCoverLayout } from '../src/react/calculations/roof-cover-layout.js';
+import { projectOnSupport } from '../src/react/calculations/assembly-placement.js';
+import { snapAssemblyPoint } from '../src/react/calculations/roof-drawings.js';
 const base=()=>{const p=createDefaultProject();p.plan={...p.plan,house:{w:5,h:4},wallHeight:2.5,rooms:[],walls:[],openings:[],wallGaps:[],platforms:[]};return p;};
 const run=p=>calculateProductionCutting(p,calculateProject(p));
+test('post placement projects onto beam and interpolates height without changing source',()=>{
+ const b={a:[0,0,2500],b:[4000,0,3500]};assert.deepEqual(projectOnSupport(b,2000,120),{x:2000,y:0,z:3000,t:.5});assert.equal(projectOnSupport(b,6000,0).x,4000);assert.equal(b.a[2],2500);
+});
+test('plan placement snaps to the middle of a panel connector',()=>{
+ const a={floors:[],rafters:[],supports:[],piles:[],panelConnectors:[{a:[100,0],b:[100,4000]}]};assert.deepEqual(snapAssemblyPoint(a,110,1500,50),[100,1500]);
+});
+test('plan nodes and post upper connection persist; missing upper member is diagnosed',()=>{
+ const p=base();p.settings.productionCutting.assemblyNodes=[{id:'n',x:100,y:200,floor:1,nodeRef:'КР-1'}];
+ p.settings.productionCutting.roofSupports=[{id:'post',type:'post',profile:'100×150',x1:100,y1:100,z1:0,x2:100,y2:100,z2:2500,nodeRef:'КР-1',upperSupport:'missing'}];
+ const saved=migrateProject(JSON.parse(JSON.stringify(p))),r=run(saved);assert.equal(r.assembly.nodes[0].nodeRef,'КР-1');assert.ok(r.assembly.floorPanelLayers.length);assert.equal(saved.settings.productionCutting.roofSupports[0].upperSupport,'missing');assert.ok(r.issues.some(i=>i.message.includes('верхний прогон')));
+});
 test('gable links match roof axis, highest floor, and wall width without changing parts or estimate',()=>{
  const p=base(),r=run(p),snapshot=JSON.stringify(r),total=calculateProject(p).totals.total;
  const links=gableLinks(r);assert.equal(links.filter(l=>l.wall).length,2);

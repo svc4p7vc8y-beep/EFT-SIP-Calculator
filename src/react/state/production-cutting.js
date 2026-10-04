@@ -23,6 +23,7 @@ export function normalizeProductionCutting(value = {}) {
     layouts: value.layouts && typeof value.layouts === 'object' && !Array.isArray(value.layouts) ? value.layouts : {},
     gableLinks: value.gableLinks && typeof value.gableLinks==='object' && !Array.isArray(value.gableLinks) ? value.gableLinks : {},
     roofSheets: value.roofSheets && typeof value.roofSheets==='object' && !Array.isArray(value.roofSheets) ? value.roofSheets : {},
+    assemblyNodes: Array.isArray(value.assemblyNodes)?value.assemblyNodes.filter(n=>n&&Number.isFinite(n.x)&&Number.isFinite(n.y)&&Math.abs(n.x)<=100000&&Math.abs(n.y)<=100000).slice(0,200).map((n,i)=>({id:String(n.id||`node-${i+1}`),x:n.x,y:n.y,floor:Math.max(1,Number(n.floor)||1),nodeRef:String(n.nodeRef||'').slice(0,200)})):[],
     drawingDimensions: value.drawingDimensions && typeof value.drawingDimensions==='object' && !Array.isArray(value.drawingDimensions) ? Object.fromEntries(Object.entries(value.drawingDimensions).slice(0,500).map(([key,list])=>[key,Array.isArray(list)?list.filter(d=>d&&[d.a,d.b].every(p=>Array.isArray(p)&&p.length===2&&p.every(v=>Number.isFinite(v)&&Math.abs(v)<=100000))&&(!d.offset||Array.isArray(d.offset)&&d.offset.length===2&&d.offset.every(Number.isFinite))).slice(0,100):[]])) : {},
     roofSupports: Array.isArray(value.roofSupports) ? value.roofSupports.filter(item=>item && typeof item==='object').slice(0,200).map((item,index)=>({
       ...item,id:String(item.id||`support-${index+1}`),name:String(item.name||'').slice(0,200),
@@ -31,6 +32,7 @@ export function normalizeProductionCutting(value = {}) {
       ...(item.referenceOnly===undefined?{}:{referenceOnly:item.referenceOnly===true}),
       ...(item.estimateEnabled===undefined?{}:{estimateEnabled:item.estimateEnabled===true}),
       ...(item.estimateCatalogId===undefined?{}:{estimateCatalogId:String(item.estimateCatalogId||'').slice(0,100)}),
+      ...(item.upperSupport===undefined?{}:{upperSupport:String(item.upperSupport||'').slice(0,200)}),
       startSupport:String(item.startSupport||''),endSupport:String(item.endSupport||''),foundationRef:String(item.foundationRef||'').slice(0,200),
     })) : [],
     memberOverrides: value.memberOverrides && typeof value.memberOverrides === 'object' && !Array.isArray(value.memberOverrides) ? value.memberOverrides : {},

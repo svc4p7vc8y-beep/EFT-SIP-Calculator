@@ -638,6 +638,9 @@ export function calculateProductionCutting(project, calculation) {
   }
   if(Math.abs(assembly.roofDrawing?.estimateDifference||0)>1)notices.push(`Стропила: раскрой ${assembly.rafters[0].length} мм, сметная модель ${assembly.roofDrawing.estimateLength} мм. Уклон раскроя непрерывный через свес; закупка и итог сметы не заменены автоматически.`);
   assembly.panelLayers=parts.filter(p=>p.surfaceId.endsWith('-ПТ'));
+  assembly.floorPanelLayers=parts.filter(p=>p.surfaceId.endsWith('-ПОЛ'));
+  assembly.panelConnectors=members.filter(m=>m.a&&m.b&&(m.surfaceId?.endsWith('-ПТ')||m.surfaceId?.endsWith('-ПОЛ'))&&!m.excluded);
+  assembly.nodes=settings.assemblyNodes;
   members.push(...assembly.members);
   // Extend the existing production override mechanism to frame/roof/binding pieces.
   // Coordinates are retained: a manufacturing length override is not a moved support.
