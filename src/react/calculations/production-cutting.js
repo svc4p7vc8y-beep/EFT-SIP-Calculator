@@ -629,6 +629,7 @@ export function calculateProductionCutting(project, calculation) {
     for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
   const assembly=calculateAssemblyPlan(project,calculation,settings);
+  if(Math.abs(assembly.roofDrawing?.estimateDifference||0)>1)notices.push(`Стропила: раскрой ${assembly.rafters[0].length} мм, сметная модель ${assembly.roofDrawing.estimateLength} мм. Уклон раскроя непрерывный через свес; закупка и итог сметы не заменены автоматически.`);
   assembly.panelLayers=parts.filter(p=>p.surfaceId.endsWith('-ПТ'));
   members.push(...assembly.members);
   assembly.issues.forEach(message=>issue('ASSEMBLY',message));

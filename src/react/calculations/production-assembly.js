@@ -1,7 +1,8 @@
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { bearingEdges } from './bearing-walls.js';
+import { roofDrawingData } from './roof-drawings.js';
 
-export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',foundation:'Опора фундамента'};
+export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
 export const productionFamily=family=>({'pps':'ППС','mineral-wool':'Минвата','csp-pps':'ЦСП / ППС'}[family]||family);
 const mm=value=>Math.round(Number(value)*1000);
@@ -57,7 +58,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const count=Number(frame.pairCount)||0;
   if(project.services.roof && roof.coldSlopeArea>0 && simple && rectangular && frame.system!=='truss' && count<=500){
     const runs=roof.mainRoofShape==='flat'?[{a:-eave,b:span+eave,length:g.slopeLength,name:'Односкатная'}]:roof.mainRoofShape==='tiered'?
-      [{a:0,b:mm(g.upperSpan),length:g.upperSlopeLength,name:'Верхний уровень',level:'upper'}, {a:mm(g.upperSpan),b:span,length:g.lowerSlopeLength,name:'Нижний уровень',level:'lower'}]:
+      [{a:-eave,b:mm(g.upperSpan)+mm(g.jointOverhang||0),length:g.upperSlopeLength,name:'Верхний уровень',level:'upper'}, {a:mm(g.upperSpan),b:span+eave,length:g.lowerSlopeLength,name:'Нижний уровень',level:'lower'}]:
       [{a:-eave,b:span/2,length:g.slopeLength,name:'Первый скат'},{a:span+eave,b:span/2,length:g.slopeLength,name:'Второй скат'}];
     const upperFirst=project.settings.roof?.tiered?.upperSide!=='second';
     const warmLevel=project.settings.roof?.tiered?.warmLevel||'upper';
@@ -66,19 +67,21 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       if(roof.mainRoofShape==='tiered' && roof.warmSlopeArea>0 && (warmLevel==='both'||warmLevel===run.level))continue;
       const a=roof.mainRoofShape==='tiered'&&!upperFirst?span-run.a:run.a,b=roof.mainRoofShape==='tiered'&&!upperFirst?span-run.b:run.b;
       const along=count>1?axisLength*i/(count-1):axisLength/2;
-      const id=`КР-СТ${++index}`,length=mm(run.length);
+      const id=`КР-СТ${++index}`,length=roof.mainRoofShape==='gable'&&settings.rafterGeometry!=='estimate'
+        ?Math.ceil(Math.hypot(span/2,mm(project.settings.roof.ridgeHeight))*(span/2+eave)/(span/2||1)):mm(run.length);
       const item={id,a:at(along,a),b:at(along,b),length,name:run.name,profile:String(frame.section||'').replace('x','×')};
       rafters.push(item);
       members.push({id,material:'Стропило',profile:item.profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия кровли',surface:'Кровля',panels:[],processing:'Углы и опорные врубки по рабочему узлу'});
     }
   } else if(project.services.roof && roof.coldSlopeArea>0)issues.push('Стропила сложной кровли или фермы: внесите детали по рабочему проекту.');
-  const addRoofMember=(id,material,profile,length)=>members.push({id,material,profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия кровли',surface:'Кровля',panels:[],processing:'Соединение длинных элементов и опорные узлы по проекту'});
+  const roofTimbers=[];
+  const addRoofMember=(id,material,profile,length,a,b)=>{members.push({id,material,profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия кровли',surface:'Кровля',panels:[],processing:'Соединение длинных элементов и опорные узлы по проекту'});if(a&&b)roofTimbers.push({id,material,profile,length,a,b});};
   if(project.services.roof && rectangular && roof.mauerlatLength>0){
-    const runs=roof.mauerlatLayout==='perimeter'?contour.map((a,i)=>{const b=contour[(i+1)%contour.length];return Math.hypot(b[0]-a[0],b[1]-a[1]);}):[axisLength,axisLength];
-    if(roof.mainRoofShape==='tiered')runs.push(mm(g.junctionLength));
-    runs.forEach((length,i)=>addRoofMember(`КР-М${i+1}`,'Мауэрлат','100×150',Math.ceil(length)));
+    const runs=roof.mauerlatLayout==='perimeter'?contour.map((a,i)=>[a,contour[(i+1)%contour.length]]):[[at(0,0),at(axisLength,0)],[at(0,span),at(axisLength,span)]];
+    if(roof.mainRoofShape==='tiered'){const junction=project.settings.roof?.tiered?.upperSide==='second'?span-mm(g.upperSpan):mm(g.upperSpan);runs.push([at(-gable,junction),at(axisLength+gable,junction)]);}
+    runs.forEach(([a,b],i)=>addRoofMember(`КР-М${i+1}`,'Мауэрлат','100×150',Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])),a,b));
   }
-  if(project.services.roof && roof.layeredRidgeLength>0)for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength));
+  if(project.services.roof && roof.layeredRidgeLength>0)for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength),...(roof.mainRoofShape==='gable'&&rectangular?[at(-gable,span/2),at(-gable+mm(roof.layeredRidgeLength),span/2)]:[]));
   const laths=[],counterLaths=[];
   if(project.services.roof&&roof.includeCovering&&rafters.length){
     for(const name of [...new Set(rafters.map(r=>r.name))]){
@@ -137,7 +140,12 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   }
   supports.forEach(item=>{item.loadPath=trace(item.id);if(!item.loadPath.complete)issues.push(`${item.mark}: путь нагрузки до фундамента не заполнен, содержит цикл или несовпадающее опирание.`);});
   const roofOutline=rectangular?[at(-gable,-eave),at(axisLength+gable,-eave),at(axisLength+gable,span+eave),at(-gable,span+eave)]:contour;
-  return {floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,laths,counterLaths,supports,members,issues,binding,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
+  const assembly={floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,roofTimbers,laths,counterLaths,supports,members,issues,binding,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
+  assembly.roofDrawing=roofDrawingData(assembly,roof,project.settings.roof,settings.rafterGeometry);
+  issues.push(...assembly.roofDrawing.warnings);
+  assembly.roofShape=roof.mainRoofShape;
+  assembly.rafterSystem=frame.system;
+  return assembly;
 }
 
 // Unique straight cuts on each blank map plus shaped cuts; not a CNC/toolpath forecast.
