@@ -8,9 +8,9 @@ export function roofCoverLayout(assembly, settings={}) {
  const slopes=[];
  for(const name of [...new Set(assembly.rafters.map(r=>r.name))]){
   const length=Math.max(...assembly.rafters.filter(r=>r.name===name).map(r=>r.length)),sheetLength=stock>0?stock:length;
-  const columns=Math.max(1,Math.ceil(width/useful)),rows=Math.max(1,Math.ceil((length-overlap)/(sheetLength-overlap)));
+  const columns=Math.max(1,Math.ceil(width/useful)),rows=sheetLength>=length?1:Math.max(1,Math.ceil((length-overlap)/(sheetLength-overlap)));
   if(columns*rows>5000)return {slopes:[],issues:['Покрытие: более 5000 листов, проверьте размеры.'],configured:true};
-  const sheets=Array.from({length:columns*rows},(_,i)=>{const c=i%columns,r=Math.floor(i/columns),x=c*useful,y=r*(sheetLength-overlap);return {id:`Л${i+1}`,x,y,width:Math.min(useful,width-x),height:Math.min(sheetLength,length-y),blankWidth:gross,blankLength:sheetLength};});
+  const sheets=Array.from({length:columns*rows},(_,i)=>{const c=i%columns,r=Math.floor(i/columns),x=c*useful,y=r*(sheetLength-overlap);return {id:`СК${slopes.length+1}-Л${i+1}`,x,y,width:Math.min(useful,width-x),height:Math.min(sheetLength,length-y),blankWidth:gross,blankLength:sheetLength};});
   slopes.push({name,width,length,sheets,columns,rows,stockArea:sheets.length*gross*sheetLength/1e6,netArea:width*length/1e6});
  }
  return {configured:true,slopes,issues:slopes.length?[]:['Покрытие: для этой формы нужны индивидуальные скаты; автоматическая карта не построена.']};

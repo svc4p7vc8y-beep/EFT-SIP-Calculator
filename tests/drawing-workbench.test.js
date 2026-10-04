@@ -59,5 +59,5 @@ test('generated roof member overrides retain geometry and reject invalid profile
 
 test('identical roof stock is grouped across slopes',()=>{
  const r=run(base());r.roofCover=roofCoverLayout(r.assembly,{usefulWidth:1000,grossWidth:1100,stockLength:2000,overlap:200});
- const rows=purchaseRows(r).filter(r=>r.id.startsWith('cover:'));assert.equal(rows.length,1);assert.equal(rows[0].qty,r.roofCover.slopes.reduce((n,s)=>n+s.sheets.length,0));assert.equal(rows[0].ids.length,rows[0].qty);
+ const rows=purchaseRows(r).filter(r=>r.id.startsWith('cover:'));assert.equal(rows.length,1);assert.equal(rows[0].qty,r.roofCover.slopes.reduce((n,s)=>n+s.sheets.length,0));assert.equal(rows[0].ids.length,rows[0].qty);assert.equal(new Set(rows[0].ids).size,rows[0].qty);
 });
