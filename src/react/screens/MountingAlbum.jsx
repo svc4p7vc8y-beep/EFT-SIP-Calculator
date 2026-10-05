@@ -3,6 +3,7 @@ import { productionMark as mark } from '../calculations/production-assembly.js';
 import AssemblyCanvas from './AssemblyCanvas.jsx';
 import { BindingSection, RoofPerspective, RoofSection, StructuralPlan, SupportElevation } from './RoofDrawings.jsx';
 import { combinedWall, gableLinks } from '../calculations/drawing-workbench.js';
+import { partitionProcurement } from '../calculations/partition-procurement.js';
 
 const num=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value);
 const chunks=(list,n)=>Array.from({length:Math.ceil(list.length/n)},(_,i)=>list.slice(i*n,i*n+n));
@@ -37,6 +38,8 @@ function Locator({assembly,surface}){const floor=assembly.floors.find(f=>f.floor
 export function buildMountingPages(report) {
   const pages=[];
   const add=(title,content)=>pages.push({title,content});
+  const procurement=partitionProcurement(report);
+  const partitionRows=[...procurement.boards.map(b=>({name:`Доска ${b.profile} мм`,profile:`${report.settings.stockLengthMm} мм · ${num(b.lengthM)} пог. м · ${num(b.volumeM3)} м³`,qty:b.count})),...procurement.screws.map(r=>({name:r.names.join('; '),profile:r.unit,qty:r.qty})),...procurement.manual.filter(r=>r.valid).map(r=>({name:r.name,profile:r.unit,qty:r.qty}))];
   add('Состав монтажного альбома',<><h1>ЭФТ · Монтажный альбом домокомплекта</h1><p>Планы, развёртки, марки деталей и производственные ведомости. Все размеры в мм. Ревизия {report.revision}.</p><p>Предварительная геометрическая деталировка. Сечения, пролёты, соединения, раскосы, врубки, стыки на опорах и несущая способность требуют рабочего проекта. Альбом не заменяет расчёт конструктора.</p><p>Резка панелей: {report.cutting.panelCuts} резов / {num(report.cutting.panelCutLengthM)} м. Торцовка пиломатериалов: {report.cutting.timberCuts} резов. Без выборок и врубок.</p><p>Последовательность: совмещённые планы → развёртки стен, перегородок и перекрытий → фронтоны → стропила по скатам → обвязка и опоры → каталог панелей.</p></>);
   for(const [i,list]of chunks(report.issues,12).entries())add(`Замечания перед выпуском · ${i+1}`,<ol>{list.map((r,j)=><li key={j}>{r.message}</li>)}</ol>);
   for(const floor of report.assembly.floors)add(`Монтажный план · этаж ${floor.floor}`,<AssemblyCanvas assembly={report.assembly} initialFloor={floor.floor}/>);
@@ -79,6 +82,8 @@ export function buildMountingPages(report) {
   }
   for(const [i,rows]of chunks(groupMembers(report.members.filter(m=>['Обвязка','Кровля'].includes(m.surface)||m.source==='Проектная опора')),18).entries())add(`Обвязка и несущие элементы · ${i+1}`,<Schedule items={rows.map(g=>({name:`${mark(g.member.id)} · ${g.member.material}`,profile:g.member.profile,length:g.member.length,qty:g.qty}))}/>);
   for(const [i,groups]of chunks(report.panelGroups,6).entries())add(`Каталог одинаковых панелей · ${i+1}`,<div className="album-parts">{groups.map(({part,qty})=><article key={part.id}><h3>{mark(part.id)} · ×{qty}</h3><TechnicalDrawing surface={{...part,geometry:[part.shape],horizontal:true,name:part.id}} parts={[part]}/><p>{num(part.width)}×{num(part.height)}×{part.thickness} мм</p></article>)}</div>);
+  for(const [i,rows]of chunks(partitionRows,16).entries())add(`Закупка перегородок · ${i+1}`,<><Schedule items={rows}/><p>Отдельный заказ перегородок, не суммировать повторно с общим заказом дома. Доски без дополнительного запаса; крепёж из сметы и явно заданных проектных количеств.</p>{procurement.unplaced.length?<p>Не размещены в досках: {procurement.unplaced.join(', ')}. Заказ неполный.</p>:null}{!procurement.screws.length&&!procurement.manual.some(r=>r.valid)?<p>Крепёж каркасных перегородок не задан — уточнить по рабочим узлам.</p>:null}</>);
+  for(const [i,groups]of chunks(groupMembers(report.members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded)),18).entries())add(`Сводная деталировка перегородок · ${i+1}`,<Schedule items={groups.map(g=>({name:`${g.member.material} · ${mark(g.member.id)+' и однотипные'}`,profile:g.member.profile,length:g.member.length,qty:g.qty}))}/>);
   const contentsCount=Math.ceil((pages.length-1)/32);
   const contents=chunks(pages.slice(1).map((p,i)=>({title:p.title,page:i+2+contentsCount})),32).map((list,i)=>({title:`Ведомость листов монтажного альбома${i?` · ${i+1}`:''}`,content:<div className="album-contents">{chunks(list,16).map((column,j)=><table key={j}><thead><tr><th>Лист</th><th>Наименование</th></tr></thead><tbody>{column.map(row=><tr key={row.page}><td>{row.page}</td><td>{row.title}</td></tr>)}</tbody></table>)}</div>}));
   pages.splice(1,0,...contents);

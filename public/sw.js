@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v187-plan-tools-1';
+const CACHE_NAME = 'eft-calculator-react-v188-partition-order-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

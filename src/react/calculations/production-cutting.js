@@ -670,6 +670,9 @@ export function calculateProductionCutting(project, calculation) {
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   report.cutting=calculateCutOperations(report);
   report.roofCover=roofCover;
+  report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
+  report.partitionStock=packMembers(members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded),settings.stockLengthMm,Number(settings.kerfMm||0));
+  report.partitionCatalog=(project.priceMat||[]).filter(c=>settings.partitionFasteners.some(r=>r.catalogId===c.id)).map(c=>({id:c.id,name:c.name,unit:c.unit}));
   report.reconciliation = reconcileCutting(report, calculation);
   report.approvalStatus = approval.revision === revision && !issues.length && approval.reviewer?.trim() && approval.nodeRef?.trim() && ['geometry','nodes','released'].includes(approval.status) ? approval.status : 'draft';
   return report;
