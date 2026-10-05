@@ -2,6 +2,13 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {createDefaultProject,migrateProject} from '../src/react/state/project-model.js';
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
 import {calculateDeliveryVolume} from '../src/react/calculations/delivery-volume.js';
+test('glued board packages use full section once and stay in lumber',()=>{
+ const p=createDefaultProject(),c=calculateProject(p),v=calculateDeliveryVolume(p,c),timber=v.categories.find(g=>g.key==='timber');
+ const rows=timber.rows.filter(r=>r.gluedPackage);assert.ok(rows.length>=3);
+ const floor=rows.find(r=>r.id==='sip:floor-connector');assert.ok(Math.abs(floor.volume-floor.qty*.095*.195)<1e-9);
+ assert.equal(v.categories.flatMap(g=>g.rows).filter(r=>r.id===floor.id).length,1);
+ const wall=rows.find(r=>r.id==='sip:walls-connector');assert.ok(Math.abs(wall.volume-wall.qty*.095*.145)<1e-9);
+});
 test('delivery volumes use purchased panels and lumber, keeping unknown materials visible',()=>{
  const p=createDefaultProject(),c=calculateProject(p),v=calculateDeliveryVolume(p,c),panels=v.categories.find(g=>g.key==='panels');
  assert.ok(panels.autoVolume>0);assert.equal(panels.complete,true);assert.equal(v.complete,false);
