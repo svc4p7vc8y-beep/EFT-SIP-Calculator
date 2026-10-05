@@ -1,3 +1,4 @@
+import { normalizeCargoVolumes } from '../calculations/delivery-volume.js';
 import catalog from "../data/default-catalog.json" with { type: "json" };
 import { normalizeStairDirection } from "../planner/stair-steps.js";
 import { EXTERIOR_MATERIALS, EXTERIOR_LABOR } from '../data/exterior-catalog.js';
@@ -21,7 +22,7 @@ import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 188;
+export const REACT_PROJECT_VERSION = 189;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -625,6 +626,7 @@ export function createDefaultProject() {
       },
       delivery: {
         distance: 30,
+        volumeGroups: {},
         trips: 2,
         cargoVolume: 40,
         baseTrip: 7000,
@@ -990,6 +992,7 @@ export function migrateProject(raw) {
       delivery: {
         ...base.settings.delivery,
         ...(raw.settings?.delivery || {}),
+        volumeGroups: normalizeCargoVolumes(raw.settings?.delivery?.volumeGroups),
       },
       engineering: {
         ...normalizeEngineering({

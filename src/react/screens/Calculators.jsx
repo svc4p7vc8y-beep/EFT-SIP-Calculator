@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import DeliveryVolume from '../components/DeliveryVolume.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
@@ -1898,6 +1899,7 @@ export default function Calculators({ type, onNavigate }) {
       ) : null}
       {type === "delivery" ? (
         <>
+          <Panel title="Объём материалов по категориям"><DeliveryVolume project={sourceProject} calculation={calculation} onChange={value=>setSetting('delivery','volumeGroups',value)}/></Panel>
           <Panel title="Логистика">
             <div className="form-grid four">
               <NumberField
