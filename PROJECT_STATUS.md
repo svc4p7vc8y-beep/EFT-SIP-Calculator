@@ -51,7 +51,10 @@ Browser plugin отсутствует: Playwright production-preview 1600/768/39
 на desktop — фактический экспорт/импорт .eft.json. JSON-миграция/совместимость
 проверены тестами. QA Temp/eft-attic-*. Физический
 iPad, авторизованное облако и печатный PDF в этом проходе не проверялись.
-Публикация: ожидается финальная проверка и отправка кода.
+Публикация подтверждена: 762cd2d в main; Beget 37439420888 и Pages 37439420885
+успешны. Production sw.js содержит v190-attic-floor-1; react.html, новые
+ParametersScreen/PlanScreen и production-cutting.worker отвечают HTTP 200.
+Живой авторизованный production-сеанс сотрудника не проверялся.
 
 ## v189 — объём материалов в доставке (05.10.2026)
 
