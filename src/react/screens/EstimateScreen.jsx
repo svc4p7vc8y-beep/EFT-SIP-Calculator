@@ -134,6 +134,7 @@ export default function EstimateScreen() {
           <div><dt>Перегородки 1 / 2 этаж</dt><dd>{formatNumber(calculation.metrics.firstFloorPartitionNetArea)} / {formatNumber(calculation.metrics.secondFloorPartitionNetArea)} м²</dd></div>
           <div><dt>Второй свет</dt><dd>{formatNumber(calculation.metrics.openCeilingArea)} м²</dd></div>
           <div><dt>Высота стен</dt><dd>{calculation.metrics.floorPlans.map(({ floor, plan }) => `${floor} эт. ${formatNumber(plan.wallHeight)} м`).join(' · ')}</dd></div>
+          {project.upperFloors?.[0]?.floorType === 'attic' && calculation.metrics.floorCount > 1 ? <div><dt>Мансардный этаж</dt><dd>Наружные стены {formatNumber(project.upperFloors[0].wallHeight)} м · перегородки {formatNumber(project.upperFloors[0].partitionHeight)} м · {project.upperFloors[0].atticHorizontalCeiling ? 'горизонтальный SIP-потолок' : 'потолок по скатам'}</dd></div> : null}
           <div><dt>Наружные / внутренние стены</dt><dd>{project.plan.wallThickness * 1000} / {project.plan.partitionThickness * 1000} мм</dd></div>
         </dl>
       </div>

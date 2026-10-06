@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { NODE_HOUSE_LAYERS as LAYERS, groupNodesAtAnchors, layerForNode, nextNodeAtAnchor } from './node-house-layers.js';
@@ -63,7 +64,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
     const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     const span = Math.max(4, maxX - minX, maxY - minY);
-    const heights = plans.map(item => Math.max(1.8, Number(item.plan?.wallHeight) || 2.5));
+    const heights = plans.map(item => Math.max(0, Number(item.plan?.wallHeight ?? 2.5)));
     const top = heights.reduce((sum, value) => sum + value, 0);
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, Math.max(300, span * 30));
     camera.position.set(span * 1.15, top + span * 1.1, span * 1.25);
@@ -138,7 +139,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
         const end = points[(index + 1) % points.length];
         const dx = end.x - start.x, dy = end.y - start.y;
         const length = Math.hypot(dx, dy);
-        if (!length) return;
+        if (!length || floorHeight === 0) return;
         const wall = new THREE.Mesh(new THREE.BoxGeometry(length, floorHeight, 0.07), new THREE.MeshStandardMaterial({ color: 0x78a893, transparent: true, opacity: 0.27, side: THREE.DoubleSide, depthWrite: false }));
         wall.position.set((start.x + end.x) / 2 - cx, level + floorHeight / 2, (start.y + end.y) / 2 - cy);
         wall.rotation.y = -Math.atan2(dy, dx);
@@ -156,7 +157,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
           addBeam(details.walls, [x, level, z], [x, level + floorHeight, z], 0.065, timberLight);
         }
       });
-      if (floorIndex === plans.length - 1 && project.services?.sipCeiling !== false) addPanelSurface(groups.ceiling, details.ceiling, level + floorHeight, project.settings?.sip?.ceilingPanelWidth, 0xdce5d2);
+      if (floorIndex === plans.length - 1 && project.services?.sipCeiling !== false && hasHorizontalCeiling(item.plan)) addPanelSurface(groups.ceiling, details.ceiling, level + floorHeight, project.settings?.sip?.ceilingPanelWidth, 0xdce5d2);
       level += floorHeight;
     });
     points.forEach((start, index) => {

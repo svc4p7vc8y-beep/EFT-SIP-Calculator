@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
 import { roomBearingEdges } from '../calculations/bearing-walls.js';
 import BearingRoomControls from './BearingRoomControls.jsx';
@@ -6041,7 +6042,7 @@ export default function PlanScreen({ onNavigate }) {
             min={3}
             onChange={(value) => resizeHouse(plan.house.w, value)}
           />
-          <NumberField
+          {activeFloor === 1 ? <NumberField
             label="Высота стен"
             value={plan.wallHeight}
             suffix="м"
@@ -6051,7 +6052,7 @@ export default function PlanScreen({ onNavigate }) {
                 next.wallHeight = value;
               })
             }
-          />
+          /> : <div style={{ gridColumn: '1 / -1' }}><UpperFloorControls plan={plan} onChange={patch => commitPlan(next => Object.assign(next, patch))} /></div>}
           <SelectField
             label="Наружная стена"
             value={String(Math.round((plan.wallThickness || 0.174) * 1000))}

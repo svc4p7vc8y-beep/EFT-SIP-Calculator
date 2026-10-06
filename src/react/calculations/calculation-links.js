@@ -167,13 +167,13 @@ export function calculationFlowRows(project, calculation) {
   const partitionFormula = floorMetricRows
     .map(
       ({ floor, plan, metrics: floorMetrics }) =>
-        `${floor} эт.: ${floorMetrics.partitionLength} × ${plan.wallHeight} − ${floorMetrics.interiorOpeningsArea}`,
+        `${floor} эт.: ${floorMetrics.partitionLength} × ${plan.floorType === 'attic' ? plan.partitionHeight : plan.wallHeight} − ${floorMetrics.interiorOpeningsArea}`,
     )
     .join("; ");
   return [
     { group: 'Геометрия', source: 'Контуры всех этажей', formula: floorMetricRows.map(({ floor, metrics: floorMetrics }) => `${floor} эт.: ${floorMetrics.floorArea} м²`).join('; '), result: metrics.totalFloorArea, unit: 'м²', target: 'Пол 1 этажа, межэтажное перекрытие и пол 2 этажа' },
     { group: 'Геометрия', source: 'Лестничный проём между этажами', formula: `${metrics.secondFloorOpeningWidth || 0} × ${metrics.secondFloorOpeningLength || 0}`, result: metrics.secondFloorOpeningArea || 0, unit: 'м²', target: 'Вычет из межэтажного SIP-перекрытия; обозначение и полезная площадь обоих этажей' },
-    { group: 'Геометрия', source: 'Комнаты «Второй свет»', formula: `${metrics.floorArea} − ${metrics.openCeilingArea}`, result: metrics.ceilingArea, unit: 'м²', target: 'Горизонтальный СИП-потолок' },
+    { group: 'Геометрия', source: metrics.floorPlans?.at(-1)?.plan.floorType === 'attic' ? 'Потолок мансарды по выбранному режиму' : 'Комнаты «Второй свет»', formula: metrics.floorPlans?.at(-1)?.plan.floorType === 'attic' && !metrics.floorPlans.at(-1).plan.atticHorizontalCeiling ? 'Горизонтальный потолок отключён; скаты — отдельная кровля' : `${metrics.floorPlans?.at(-1)?.metrics.floorArea || metrics.floorArea} − ${metrics.openCeilingArea}`, result: metrics.ceilingArea, unit: 'м²', target: 'Горизонтальный СИП-потолок' },
     { group: 'Геометрия', source: 'Комнаты плана', formula: 'Сумма площадей включённых комнат', result: metrics.roomArea, unit: 'м²', target: 'Отделка и инженерия' },
     { group: 'Геометрия', source: 'Периметр × высота − окна/двери', formula: exteriorWallFormula, result: metrics.exteriorWallNetArea, unit: 'м²', target: 'СИП-стены обоих этажей, фасад' },
     { group: 'Геометрия', source: 'Уникальные перегородки каждого этажа', formula: partitionFormula, result: metrics.partitionNetArea, unit: 'м²', target: 'Перегородки обоих этажей, внутренняя отделка' },

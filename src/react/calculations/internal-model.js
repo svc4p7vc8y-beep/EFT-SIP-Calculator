@@ -1,4 +1,5 @@
 import { polygonArea } from '../../calculations/plan-metrics.js';
+import { hasHorizontalCeiling, partitionHeight } from '../../calculations/floor-height.js';
 import { isInteriorDoor } from './opening-types.js';
 import { saunaLines } from './sauna-model.js';
 import { roomDrainLines } from './room-drain.js';
@@ -121,12 +122,15 @@ export function buildInternalRooms(project, metrics, settingsInput) {
     return records.map(record=>{
       const weight=(record.perimeter||Math.sqrt(record.area)*4)/denominator;
       const openingShare=n(openingAreaByFloor[floorIndex])*weight;
-      const finishWallArea=Math.max(0,n(finishWallByFloor[floorIndex])*weight);
+      const atticTop=floorIndex===plans.length-1 && plan.floorType==='attic' && !hasHorizontalCeiling(plan);
+      const finishWallArea=Math.max(0,(n(finishWallByFloor[floorIndex])+(atticTop?n(metrics.atticGableFinishArea):0))*weight);
       const openingWidth=n(openingWidthByFloor[floorIndex])*weight;
       const floorOpening=floorCount>1?stairArea*(record.area/(floorArea||totalArea||1)):0;
       const usableArea=Math.max(0,record.area-floorOpening);
-      const ceilingArea=record.ceilingMode==='open-rafter'?0:usableArea;
-      return {...record,saunaGeometry:{height:n(plan.wallHeight,2.5),upperHeight:plans.slice(floorIndex+1).reduce((sum,p)=>sum+n(p.wallHeight,2.5)+.224,0),ridgeHeight:n(project.settings.roof?.ridgeHeight),passages:plans.length-floorIndex},area:round(usableArea,3),wallArea:round(finishWallArea,3),ceilingArea:round(ceilingArea,3),openingArea:round(openingShare,3),openingWidth:round(openingWidth,3),settings:resolveInternalRoom(settings,record)};
+      // Top roof finish covers the stair void too; it is not an interfloor deck.
+      const ceilingArea=record.ceilingMode==='open-rafter'?0:atticTop
+        ? n(metrics.atticRoofFinishArea)*record.area/(floorArea||1) : usableArea;
+      return {...record,saunaGeometry:{height:partitionHeight(plan),upperHeight:plans.slice(floorIndex+1).reduce((sum,p)=>sum+n(p.wallHeight,2.5)+.224,0),ridgeHeight:n(project.settings.roof?.ridgeHeight),passages:plans.length-floorIndex},area:round(usableArea,3),wallArea:round(finishWallArea,3),ceilingArea:round(ceilingArea,3),openingArea:round(openingShare,3),openingWidth:round(openingWidth,3),settings:resolveInternalRoom(settings,record)};
     });
   });
 }

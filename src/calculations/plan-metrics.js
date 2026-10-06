@@ -1,3 +1,4 @@
+import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from './floor-height.js';
 const DEFAULT_TOLERANCE = 0.04;
 
 const round = (value, digits = 3) => {
@@ -199,7 +200,7 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
     }
   });
 
-  const wallHeight = Math.max(0, Number(plan.wallHeight) || 2.5);
+  const wallHeight = exteriorHeight(plan);
   let exteriorGapLength = 0;
   let interiorGapLength = 0;
   (plan.wallGaps || []).forEach((gap) => {
@@ -215,8 +216,8 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
     : 0;
   const floorArea = contourDefined ? polygonArea(houseContour) + extensionArea : 0;
   openCeilingArea = Math.min(floorArea, openCeilingArea);
-  const ceilingArea = Math.max(0, floorArea - openCeilingArea);
-  const partitionGrossArea = partitionLength * wallHeight;
+  const ceilingArea = hasHorizontalCeiling(plan) ? Math.max(0, floorArea - openCeilingArea) : 0;
+  const partitionGrossArea = partitionLength * partitionHeight(plan);
   const platformArea = (plan.platforms || []).reduce(
     (sum, platform) =>
       platform.include === false

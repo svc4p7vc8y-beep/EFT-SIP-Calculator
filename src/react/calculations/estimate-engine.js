@@ -16,6 +16,7 @@ import { calculateExterior } from './exterior-model.js';
 import { calculateInternal } from './internal-model.js';
 import { saunaIncomplete } from './sauna-details.js';
 import { calculateEngineering } from './engineering-model.js';
+import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import {
   calculateSipConsumables,
   calculateFramePartitionAssembly,
@@ -437,7 +438,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     plan
       ? calculateWallCutLength(
           housePerimeterRuns(plan),
-          plan.wallHeight,
+          exteriorHeight(plan),
           f.panelWidth,
           f.panelLength,
           openingCutLength(plan, true),
@@ -447,7 +448,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     plan
       ? calculateWallCutLength(
           [length],
-          plan.wallHeight,
+          partitionHeight(plan),
           f.panelWidth,
           f.panelLength,
           openingCutLength(plan, false),
@@ -1998,7 +1999,7 @@ function roofSection(project, metrics, index, inputs) {
   ];
   const facadeHeight = activeFloorPlans.reduce(
     (sum, floorPlan) =>
-      sum + Math.max(0, Number(floorPlan?.wallHeight) || 2.5),
+      sum + exteriorHeight(floorPlan),
     0,
   );
   const downpipeLength = gutterOutlets * facadeHeight;
@@ -2521,6 +2522,7 @@ function roofSection(project, metrics, index, inputs) {
     sipRidgePlateCount: mainSipRidgePlateCount,
     sipRidgePlateScrewCount: mainSipRidgePlateScrewCount,
     mainGableType,
+    mainGableArea: round(mainGableArea),
     rafterStructure,
     coldSlopeArea: round(coldSlopeArea),
     warmSlopeArea: round(warmSlopeArea),
@@ -2999,6 +3001,22 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   const index = catalogIndex(project);
   const foundation = foundationSection(project, index, inputs);
   const roof = roofSection(project, metrics, index, inputs);
+  const topFloor = metrics.floorPlans.at(-1);
+  if (topFloor.plan.floorType === 'attic' && !hasHorizontalCeiling(topFloor.plan)) {
+    const contour = houseContourPoints(topFloor.plan);
+    const rectangular = contour.length === 4 && contour.every((a, i) => {
+      const b = contour[(i + 1) % contour.length];
+      return Math.abs(a.x - b.x) < .0001 || Math.abs(a.y - b.y) < .0001;
+    });
+    const simple = ['gable', 'flat'].includes(roof.mainRoofShape) && rectangular;
+    metrics.atticRoofFinishArea = simple && project.services.roof
+      ? round(topFloor.metrics.floorArea * roof.geometry.slopeCoefficient, 3) : null;
+    metrics.atticGableFinishArea = simple && project.services.roof ? roof.mainGableArea || 0 : 0;
+    if (inputs.links.internalFinishFromPlan) {
+      inputs.internal.ceilingArea = metrics.atticRoofFinishArea || 0;
+      inputs.internal.wallArea += metrics.atticGableFinishArea;
+    }
+  }
   const sip = sipSection(project, metrics, index, inputs, roof);
   const terrace = terraceSection(project, index, inputs);
   const openings = openingSection(project, index);

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { CheckCircle2, CircleAlert, Home } from "lucide-react";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
@@ -201,9 +202,6 @@ export default function ParametersScreen() {
       }
       if (path === "plan.wallHeight") {
         next.plan.wallHeight = value;
-        (next.upperFloors || []).forEach((floorPlan) => {
-          floorPlan.wallHeight = value;
-        });
         releasePlanLinkedQuantityOverrides(next);
         return next;
       }
@@ -545,6 +543,18 @@ export default function ParametersScreen() {
                 ],
               },
             ])}
+            {floorCount > 1 && project.upperFloors?.[0] ? <UpperFloorControls plan={project.upperFloors[0]} onChange={patch => commit(next => {
+              Object.assign(next.upperFloors[0], patch);
+              releasePlanLinkedQuantityOverrides(next);
+              return next;
+            })} onWarmRoof={() => commit(next => {
+              next.services.roof = true;
+              next.settings.roof.type = 'sip';
+              next.settings.roof.gableType = 'sip';
+              releasePlanLinkedQuantityOverrides(next);
+              return next;
+            })} /> : null}
+            {project.upperFloors?.[0]?.floorType === 'attic' && floorCount > 1 ? <p className="inspector-note">Текущая кровля: {project.services.roof ? project.settings.roof.type === 'sip' ? 'SIP, утеплённые скаты' : project.settings.roof.type === 'combo' ? 'комбинированная — проверьте тёплую часть' : 'холодная — для жилой мансарды необходимо утепление скатов' : 'не включена в смету'}. Отделка наклонного потолка: {calculation.metrics.atticRoofFinishArea == null ? 'ручной расчёт либо горизонтальный потолок' : `${formatNumber(calculation.metrics.atticRoofFinishArea)} м² без свесов`}. Лестничный проём: {formatNumber(metrics.secondFloorOpeningArea)} м² — задаётся на плане второго этажа.</p> : null}
             <div className="parameter-readouts">
               <div className="readout">
                 <span>Пол</span>

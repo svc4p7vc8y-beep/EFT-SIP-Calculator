@@ -1,3 +1,4 @@
+import { exteriorHeight, partitionHeight } from '../../calculations/floor-height.js';
 import { normalizeCargoVolumes } from '../calculations/delivery-volume.js';
 import catalog from "../data/default-catalog.json" with { type: "json" };
 import { normalizeStairDirection } from "../planner/stair-steps.js";
@@ -22,7 +23,7 @@ import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 189;
+export const REACT_PROJECT_VERSION = 190;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -725,6 +726,10 @@ export function normalizePlan(plan) {
     ...fallback,
     ...plan,
     house,
+    floorType: plan.floorType === 'attic' ? 'attic' : 'regular',
+    wallHeight: exteriorHeight(plan),
+    partitionHeight: plan.floorType === 'attic' ? partitionHeight(plan) : exteriorHeight(plan),
+    atticHorizontalCeiling: plan.atticHorizontalCeiling === true,
     rooms: plan.rooms.map((room, index) => ({
       include: true,
       bearing: false,

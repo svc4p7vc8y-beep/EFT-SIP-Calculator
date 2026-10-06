@@ -1,3 +1,4 @@
+import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 const round = (value, digits = 3) => {
   const factor = 10 ** digits;
   return Math.round((Number(value) || 0) * factor) / factor;
@@ -200,7 +201,7 @@ const openingStructuralFastenerCount = (plan, spacing, formulas = {}) =>
 
 export function calculateFramePartitionAssembly(plan, partitionLength, formulas = {}, section = "50x100") {
   const length = Math.max(0, Number(partitionLength) || 0);
-  const wallHeight = Math.max(0, Number(plan?.wallHeight) || 2.5);
+  const wallHeight = partitionHeight(plan);
   const boardWidth = 0.05;
   const boardDepth = section === "50x150" ? 0.15 : 0.1;
   const clearSpacing = positive(formulas.partitionStudClearSpacingM, 0.59);
@@ -514,7 +515,7 @@ export function calculateSipJoinery(
 ) {
   const width = Math.max(0, Number(plan.house?.w) || 0);
   const height = Math.max(0, Number(plan.house?.h) || 0);
-  const wallHeight = Math.max(0, Number(plan.wallHeight) || 2.5);
+  const wallHeight = exteriorHeight(plan);
   const panelWidth = Math.max(0.2, Number(formulas.panelWidth) || 1.25);
   const panelLength = Math.max(0.5, Number(formulas.panelLength) || 2.5);
   const floorLayoutWidth = Math.min(
@@ -563,7 +564,7 @@ export function calculateSipJoinery(
       const currentPlan = item?.plan || plan;
       const currentWidth = Math.max(0, Number(currentPlan.house?.w) || 0);
       const currentHeight = Math.max(0, Number(currentPlan.house?.h) || 0);
-      const currentWallHeight = Math.max(0, Number(currentPlan.wallHeight) || 2.5);
+      const currentWallHeight = exteriorHeight(currentPlan);
       const currentPerimeter = perimeterFor(currentPlan);
       const openingFasteners = openingStructuralFastenerCount(
         currentPlan,
@@ -651,7 +652,7 @@ export function calculateSipJoinery(
           tNodeCount: firstWallAssembly.tNodeCount,
         }
       : null,
-    services.sipWalls && floorPlans.length > 1
+    services.sipWalls && floorPlans.length > 1 && exteriorHeight(secondPlan) > 0
       ? {
           key: "wallsSecondFloor",
           label: "Наружные стены 2 этажа",
@@ -699,7 +700,7 @@ export function calculateSipJoinery(
           supportPanelThickness: sipSettings.secondFloorThickness,
         }
       : null,
-    services.sipCeiling
+    services.sipCeiling && hasHorizontalCeiling(topPlan)
       ? {
           key: "ceiling",
           label: "Потолок",
@@ -731,10 +732,10 @@ export function calculateSipJoinery(
                   panelWidth,
               ) -
                 1,
-            ) * wallHeight,
+            ) * partitionHeight(plan),
           endBoardLength:
             (Number(metrics.firstFloorPartitionLength ?? metrics.partitionLength) || 0) * 2 +
-            wallHeight * 2,
+            partitionHeight(plan) * 2,
           tNodeCount: firstWallAssembly.tNodeCount,
         }
       : null,
@@ -751,10 +752,10 @@ export function calculateSipJoinery(
               Math.ceil(
                 (Number(metrics.secondFloorPartitionLength) || 0) / panelWidth,
               ) - 1,
-            ) * Math.max(0, Number(secondPlan?.wallHeight) || wallHeight),
+            ) * partitionHeight(secondPlan),
           endBoardLength:
             (Number(metrics.secondFloorPartitionLength) || 0) * 2 +
-            Math.max(0, Number(secondPlan?.wallHeight) || wallHeight) * 2,
+            partitionHeight(secondPlan) * 2,
           tNodeCount: secondWallAssembly.tNodeCount,
         }
       : null,

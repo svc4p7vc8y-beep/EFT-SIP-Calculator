@@ -1,4 +1,5 @@
 import clipping from 'polygon-clipping';
+import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { bearingEdges, bearingForSegment, splitAtBearingEdges, splitConnectorsAtBearing } from './bearing-walls.js';
 import { partitionFrameMembers } from './partition-cutting.js';
 import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints } from '../planner/geometry.js';
@@ -396,6 +397,8 @@ export function calculateProductionCutting(project, calculation) {
   if (settings.kerfMm === '') issue('KERF', 'Укажите ширину пропила оборудования, мм.');
   if (settings.endAllowanceMm === '') issue('ALLOWANCE', 'Укажите припуск на каждый торец соединительного элемента, мм (0 — без припуска).');
   const plans = calculation.metrics?.floorPlans?.map(item => item.plan) || [project.plan];
+  if (calculation.metrics?.floorPlans?.some(item => item.plan.floorType === 'attic' && item.metrics.partitionLength > 0) && services.partitions)
+    issue('ATTIC_PARTITIONS', 'Мансарда: перегородки рассчитаны прямоугольными заготовками по отдельной высоте. Подрезка под скаты и верхние узлы требуют рабочей развёртки; выпуск без проверки этих узлов не допускается.');
   const addSurface = data => {
     const surface = { family: 'pps', ...data };
     surface.layoutKey = `${surface.id}:${cuttingRevision([surface.geometry, surface.planStart, surface.planEnd])}`;
@@ -409,7 +412,7 @@ export function calculateProductionCutting(project, calculation) {
   plans.forEach((plan, floorIndex) => {
     const floor = floorIndex + 1, contour = houseContourPoints(plan), shape = polygon(contour);
     if (plan.house?.contourDefined === false) { issue('CONTOUR', `${floor} этаж: задайте контур дома на плане.`); return; }
-    const h = mm(plan.wallHeight);
+    const h = mm(exteriorHeight(plan));
     const edges = contour.map((a, i) => ({ a, b: contour[(i + 1) % contour.length], id: `Э${floor}-С${i + 1}`, outer: true }));
     if (services.partitions) {
       const segments = splitAtBearingEdges(plan,mergeWalls([...unifiedWallSegments({ ...plan, rooms: (plan.rooms || []).filter(r => r.include !== false) }).map(lineEndpoints), ...(plan.walls || []).filter(w => w.include !== false).map(w => [{ x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }])]));
@@ -443,9 +446,11 @@ export function calculateProductionCutting(project, calculation) {
       if (edge.outer && !services.sipWalls) continue;
       const wallKey = `${edge.id}@${mm(edge.a.x)},${mm(edge.a.y)}:${mm(edge.b.x)},${mm(edge.b.y)}`;
       const addition = Number(settings.wallAdditions[wallKey]) || 0;
-      const height = h + addition, width = mm(Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y));
+      const baseHeight = edge.outer ? h : mm(partitionHeight(plan));
+      const height = baseHeight + addition, width = mm(Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y));
+      if (edge.outer && height === 0 && !assigned.get(edge.id).length) continue;
       const holes = [], selectedOpenings = assigned.get(edge.id); let blocked = blockedWalls.has(edge.id);
-      walls.push({ id: edge.id, key: wallKey, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, baseHeight: h, addition });
+      walls.push({ id: edge.id, key: wallKey, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, baseHeight, addition });
       if (height <= 0 || width <= 0 || height > 30000 || width > 100000 || addition < 0) { issue('WALL_SIZE', `${edge.id}: проверьте размеры стены и добавочную высоту.`, edge.id); continue; }
       for (const o of selectedOpenings) {
         if (o.gap) o.height = height;
@@ -471,7 +476,7 @@ export function calculateProductionCutting(project, calculation) {
       if (blocked) issue('STAIR_BOUNDS', `${floor} этаж: лестничный проём имеет неполный размер или выходит за контур. Перекрытие заблокировано.`, `Э${floor}-ПОЛ`);
       addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes), blocked });
     }
-    if (floorIndex === plans.length - 1 && services.sipCeiling) {
+    if (floorIndex === plans.length - 1 && services.sipCeiling && hasHorizontalCeiling(plan)) {
       let blocked = false;
       const holes = (plan.rooms || []).filter(r => r.include !== false && ['open', 'open-rafter'].includes(r.ceilingMode)).flatMap(r => {
         const hole = polygon(roomPoints(r)), area = polygonAreaMm(hole) / 1e6;
