@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { polygonBounds } from '../calculations/production-cutting.js';
 import { productionMark as mark } from '../calculations/production-assembly.js';
-import { DimensionChain } from './MountingAlbum.jsx';
+import DimensionChain from '../components/DrawingDimensions.jsx';
+import { surfaceDimensions } from '../calculations/drawing-dimensions.js';
 
 const path=shape=>shape.map(r=>r.map((p,i)=>`${i?'L':'M'}${p.join(',')}`).join(' ')+'Z').join(' ');
 export function DrawingCanvas({surface,parts=[],members=[],layers,selected=[],onSelect,fontScale=1,dimensions=[],draft,onPick,onHover,onLabelMove}) {
@@ -9,7 +10,8 @@ export function DrawingCanvas({surface,parts=[],members=[],layers,selected=[],on
   const labelDrag=useRef(null);
   useEffect(()=>{const update=()=>setPixelWidth(svgRef.current?.getBoundingClientRect().width||800);const observer=new ResizeObserver(update);if(svgRef.current?.parentElement)observer.observe(svgRef.current.parentElement);update();return()=>observer.disconnect();},[]);
   if(!surface?.geometry?.length)return <p>Выберите конструкцию с геометрией.</p>;
-  const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height,1000),pad=size*.17,font=Math.max(size*.022,12*(box.width+pad*2)/pixelWidth)*fontScale;
+  const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height,1000),pad=size*.24,font=Math.max(size*.022,12*(box.width+pad*2)/pixelWidth)*fontScale;
+  const drawingDimensions=surfaceDimensions(surface,parts,members),hasOpenings=!!surface.openings?.length;
   const yy=y=>surface.horizontal?y:2*box.y+box.height-y;
   const shape=s=>s.map(r=>r.map(([x,y])=>[x,yy(y)]));
   const select=(event,id)=>{if(onPick)return;event.stopPropagation();onSelect?.(id);};
@@ -20,7 +22,7 @@ export function DrawingCanvas({surface,parts=[],members=[],layers,selected=[],on
     {surface.geometry.map((g,i)=><path key={i} d={path(shape(g))} fill="white" fillRule="evenodd" stroke="#000" vectorEffect="non-scaling-stroke"/>)}
     {layers.panels?parts.map(p=><g key={p.id} {...handlers(p.id)} aria-label={`Панель ${mark(p.id)}`}><path d={path(shape(p.shape))} fill={selected.includes(p.id)?'#a9cdb6':'#e5efdf'} fillRule="evenodd" stroke={selected.includes(p.id)?'#075b37':'#577448'} strokeWidth={selected.includes(p.id)?3:1} vectorEffect="non-scaling-stroke"/>{layers.labels?<text x={p.x+p.width/2} y={yy(p.y+p.height/2)} textAnchor="middle" fontSize={font}>{mark(p.id).replace(`${mark(surface.id)}-`,'')}</text>:null}<title>{mark(p.id)} · {Math.round(p.width)} × {Math.round(p.height)} × {p.thickness} мм</title></g>):null}
     {layers.frame?visibleMembers.map(m=><g key={m.id} {...handlers(m.id)} aria-label={`Элемент ${mark(m.id)}`}><line x1={m.a[0]} y1={yy(m.a[1])} x2={m.b[0]} y2={yy(m.b[1])} stroke={selected.includes(m.id)?'#07633b':'#ad824b'} strokeWidth={Math.max(20,Number(m.profile?.split(/[×xх]/)[0])||35)}/><line x1={m.a[0]} y1={yy(m.a[1])} x2={m.b[0]} y2={yy(m.b[1])} stroke="transparent" strokeWidth="12" vectorEffect="non-scaling-stroke"/>{layers.labels&&selected.includes(m.id)?<text x={(m.a[0]+m.b[0])/2} y={yy((m.a[1]+m.b[1])/2)-font} fontSize={font} textAnchor="middle">{mark(m.id)} · {m.length} мм</text>:null}<title>{mark(m.id)} · {m.profile} · {m.length} мм</title></g>):null}
-    {layers.dimensions?<><DimensionChain values={[box.x,box.x+box.width,...parts.flatMap(p=>[p.x,p.x+p.width])]} y={box.y+box.height+pad*.4} font={font*.8}/><DimensionChain values={[box.x,box.x+box.width]} y={box.y+box.height+pad*.85} font={font}/><g transform="rotate(90)"><DimensionChain values={[box.y,box.y+box.height]} y={-box.x+pad*.65} font={font}/></g></>:null}
+    {layers.dimensions?<><DimensionChain values={drawingDimensions.x} y={box.y+box.height+pad*.4} font={font*.8}/>{hasOpenings?<DimensionChain values={drawingDimensions.openingX} y={box.y+box.height+pad*.85} font={font*.8}/>:null}<DimensionChain values={[box.x,box.x+box.width]} y={box.y+box.height+pad*(hasOpenings?1.3:.85)} font={font} label="Габарит конструкции"/><g transform="rotate(90)"><DimensionChain values={[box.y,box.y+box.height]} y={-box.x+pad*.65} font={font}/><DimensionChain values={drawingDimensions.openingY.map(yy)} y={-box.x-box.width-pad*.65} font={font*.8} label={hasOpenings?'Высоты проёмов':''}/></g></>:null}
     {(surface.openings||[]).map(o=><text key={o.key} x={o.x+o.width/2} y={yy(Number(o.sill)+o.height/2)} textAnchor="middle" fontSize={font*.75}>{o.width}×{o.height}</text>)}
     {[...dimensions,...(draft?[{...draft,id:'draft'}]:[])].map(d=><g key={d.id}><line x1={d.a[0]} y1={yy(d.a[1])} x2={d.b[0]} y2={yy(d.b[1])} stroke="#000" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/><text x={(d.a[0]+d.b[0])/2+(d.offset?.[0]||0)} y={yy((d.a[1]+d.b[1])/2+(d.offset?.[1]||0))-font*.4} fontSize={font} textAnchor="middle" onPointerDown={e=>{if(onLabelMove&&d.id!=='draft'&&!onPick){e.stopPropagation();e.preventDefault();labelDrag.current=d.id;svgRef.current.setPointerCapture(e.pointerId);}}}>{Math.round(Math.hypot(d.b[0]-d.a[0],d.b[1]-d.a[1]))} мм</text></g>)}
   </svg>;

@@ -5706,6 +5706,13 @@ select,
   color: #285f83;
   background: #e4f3fc;
 }
+.sip-guide-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.sip-guide-tabs button { padding:10px 14px; border:1px solid var(--border); border-radius:10px; background:white; color:#000; cursor:pointer; }
+.sip-guide-tabs button[aria-pressed="true"] { background:#e6efdf; border-color:#647d48; }
+.sip-reference-figure { margin:16px 0; color:#000; }
+.sip-reference-figure svg { display:block; width:100%; height:auto; background:white; border:1px solid var(--border); border-radius:8px; }
+.sip-reference-figure figcaption { margin:8px 0; font-size:12px; }
+.sip-reference-figure ol { padding-left:24px; margin:8px 0; font-size:13px; line-height:1.5; }
 .sip-guide-index {
   display: grid;
   gap: 5px;

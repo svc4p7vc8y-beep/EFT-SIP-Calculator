@@ -21,6 +21,7 @@
 .drawing-special-view { max-height:65vh; overflow:auto; padding:12px; }.drawing-special-view .workbench-drawing { height:400px; }
 .drawing-content.is-pending svg { pointer-events:none; opacity:.65; }
 .drawing-viewport { height:clamp(300px,43vh,600px); }
+.drawing-transform>.roof-document-drawing { height:100%; max-height:none; min-height:0; }
 @media(max-width:700px){.drawing-workbench { padding:10px!important; }.drawing-navigation label { width:100%; }.drawing-navigation select { flex:1; }.drawing-tools button { min-height:40px; padding:7px; }.drawing-viewport { height:360px; }.drawing-header h1 { font-size:19px; }.drawing-status { align-items:flex-start; }.drawing-stage .drawing-locator { width:85px; height:65px; }.drawing-bottom-content { max-height:280px; }.drawing-bottom-tabs button { flex:1 1 auto; }.drawing-preview .album-columns { grid-template-columns:1fr; }.drawing-preview footer { grid-template-columns:1fr 1fr; }}
 @media(max-width:700px){
  .drawing-tools { flex-wrap:nowrap; overflow-x:auto; padding-bottom:12px; }

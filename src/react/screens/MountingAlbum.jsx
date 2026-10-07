@@ -4,26 +4,29 @@ import AssemblyCanvas from './AssemblyCanvas.jsx';
 import { BindingSection, RoofPerspective, RoofSection, StructuralPlan, SupportElevation } from './RoofDrawings.jsx';
 import { combinedWall, gableLinks } from '../calculations/drawing-workbench.js';
 import { partitionProcurement } from '../calculations/partition-procurement.js';
+import { surfaceDimensions } from '../calculations/drawing-dimensions.js';
+import DrawingDimensions from '../components/DrawingDimensions.jsx';
 
 const num=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value);
 const chunks=(list,n)=>Array.from({length:Math.ceil(list.length/n)},(_,i)=>list.slice(i*n,i*n+n));
 const path=(shape,flip)=>shape.map(r=>r.map(([x,y],i)=>`${i?'L':'M'}${x},${flip==null?y:flip-y}`).join(' ')+'Z').join(' ');
 export function DimensionChain({values,y,font}) {
-  const all=[...new Set(values.map(v=>Math.round(v)))].sort((a,b)=>a-b);
-  const xs=all.filter((v,i)=>i===0||i===all.length-1||(v-all[0]>font*1.5&&all.at(-1)-v>font*1.5));
-  return <g stroke="#000" strokeWidth=".6" fill="#000">{xs.slice(1).map((b,i)=>{const a=xs[i];return <g key={i}><path d={`M${a},${y-font*.4}V${y+font*.4}M${a},${y}H${b}M${b},${y-font*.4}V${y+font*.4}`} vectorEffect="non-scaling-stroke"/><text x={(a+b)/2} y={y-font*.2} textAnchor="middle" stroke="none" fontSize={font}>{b-a}</text></g>;})}</g>;
+  return <DrawingDimensions values={values} y={y} font={font}/>;
 }
 export function TechnicalDrawing({surface,parts=[],members=[]}) {
   if(!surface.geometry?.length)return <p>Нет геометрии.</p>;
   const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height),pad=size*.16,font=size*.022,flip=surface.horizontal?null:box.y*2+box.height;
   const yy=y=>flip==null?y:flip-y;
   const positions=new Map();groupMembers(members).forEach((g,i)=>g.instances.forEach(m=>positions.set(m.id,i+1)));
-  const xDimensions=[box.x,box.x+box.width,...(parts.length?parts.flatMap(p=>[p.x,p.x+p.width]):members.filter(m=>m.a&&!m.excluded&&Math.abs(m.a[0]-m.b[0])<.1).map(m=>m.a[0]))];
-  return <svg className="technical-drawing" viewBox={`${box.x-pad} ${box.y-pad*.4} ${box.width+2*pad} ${box.height+pad*2.1}`} role="img" aria-label={`Монтажная развёртка ${surface.name}`}>
+  const dimensions=surfaceDimensions(surface,parts,members),hasOpenings=!!surface.openings?.length;
+  return <svg className="technical-drawing" viewBox={`${box.x-pad} ${box.y-pad*.4} ${box.width+pad*2.5} ${box.height+pad*(hasOpenings?2.6:2.1)}`} role="img" aria-label={`Монтажная развёртка ${surface.name}`}>
     {surface.geometry.map((g,i)=><path key={i} d={path(g,flip)} fill="#fff" fillRule="evenodd" stroke="#000" vectorEffect="non-scaling-stroke"/>)}
     {parts.map(p=><g key={p.id}><path d={path(p.shape,flip)} fill="#edf3e7" fillRule="evenodd" stroke="#365c24" vectorEffect="non-scaling-stroke"/><text x={p.x+p.width/2} y={yy(p.y+p.height/2)} textAnchor="middle" fontSize={Math.min(font,p.width*.17)}>{mark(p.id).replace(`${surface.id}-`,'')}</text></g>)}
-    {members.filter(m=>m.a&&!m.excluded).map(m=><g key={m.id}><line x1={m.a[0]} y1={yy(m.a[1])} x2={m.b[0]} y2={yy(m.b[1])} stroke="#805728" strokeWidth={m.role==='frame'?Math.min(60,Number(m.profile.split('×')[0])||40):15}/><text x={(m.a[0]+m.b[0])/2} y={yy((m.a[1]+m.b[1])/2)-font*.3} fontSize={font*.8} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.15} fill="#000">{positions.get(m.id)}</text></g>)}
-    <DimensionChain values={xDimensions} y={box.y+box.height+pad*.45} font={font*.75}/><DimensionChain values={[box.x,box.x+box.width]} y={box.y+box.height+pad} font={font}/>
+    {members.filter(m=>m.a&&!m.excluded).map(m=><g key={m.id}><line x1={m.a[0]} y1={yy(m.a[1])} x2={m.b[0]} y2={yy(m.b[1])} stroke="#805728" strokeWidth={m.role==='frame'?(Number(m.profile.split(/[×xх]/)[0])||40):15}/><text x={(m.a[0]+m.b[0])/2} y={yy((m.a[1]+m.b[1])/2)-font*.3} fontSize={font*.8} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.15} fill="#000">{positions.get(m.id)}</text></g>)}
+    <DimensionChain values={dimensions.x} y={box.y+box.height+pad*.45} font={font*.75}/>
+    {hasOpenings?<DimensionChain values={dimensions.openingX} y={box.y+box.height+pad*.95} font={font*.85}/>:null}
+    <DrawingDimensions values={[box.x,box.x+box.width]} y={box.y+box.height+pad*(hasOpenings?1.5:1)} font={font} label="Габарит конструкции"/>
+    <g transform="rotate(90)"><DrawingDimensions values={dimensions.openingY.map(yy)} y={-box.x-box.width-pad*.5} font={font*.8} label={hasOpenings?'Высоты проёмов':'Габарит'}/></g>
     <text x={box.x-pad*.65} y={box.y+box.height/2} textAnchor="middle" fontSize={font} transform={`rotate(-90 ${box.x-pad*.65} ${box.y+box.height/2})`}>{num(box.height)} мм</text>
     {(surface.openings||[]).map(o=><text key={o.key} x={o.x+o.width/2} y={yy(Number(o.sill)+o.height/2)} fontSize={font*.8} textAnchor="middle">{o.width}×{o.height} · низ {o.sill}</text>)}
   </svg>;

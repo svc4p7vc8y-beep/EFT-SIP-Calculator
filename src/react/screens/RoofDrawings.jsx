@@ -1,13 +1,11 @@
 import { roofAxonometricLines } from '../calculations/roof-drawings.js';
+import { structuralDimensions, bearingPlanWidth } from '../calculations/drawing-dimensions.js';
+import Dimensions from '../components/DrawingDimensions.jsx';
 
 const round=n=>Math.round(n);
 const pts=list=>list.map(p=>p.join(',')).join(' ');
-function Dimensions({values,y,font}) {
-  const xs=[...new Set(values.map(round))].sort((a,b)=>a-b);
-  return <g fill="#000" stroke="#000">{xs.slice(1).map((b,i)=>{const a=xs[i];return <g key={i}><path d={`M${a},${y-font*.35}v${font*.7}M${a},${y}H${b}M${b},${y-font*.35}v${font*.7}`} strokeWidth=".6" vectorEffect="non-scaling-stroke"/><text x={(a+b)/2} y={y-font*.25} fontSize={font} stroke="none" textAnchor="middle">{b-a}</text></g>;})}</g>;
-}
-function Member({a,b,profile,label,font,dashed=false}) {
-  const depth=Number(String(profile).split(/[×xх]/)[0])||50;
+function Member({a,b,profile,label,font,dashed=false,width}) {
+  const depth=width??(Number(String(profile).split(/[×xх]/)[0])||50);
   return <g><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={dashed?'#333':'#b58b52'} strokeWidth={dashed?2:depth} strokeDasharray={dashed?'7 4':undefined} vectorEffect={dashed?'non-scaling-stroke':undefined}/>{!dashed?<line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#000" strokeWidth=".6" vectorEffect="non-scaling-stroke"/>:null}{label?<text x={(a[0]+b[0])/2} y={(a[1]+b[1])/2-font*.5} fontSize={font} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.18}>{label}</text>:null}</g>;
 }
 
@@ -16,18 +14,18 @@ export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers
   const items=binding?assembly.binding:assembly.rafters;
   const all=[...floor.contour,...(!binding?assembly.roofOutline:[]),...items.flatMap(s=>[s.a,s.b]),...(binding?assembly.piles:assembly.supports.flatMap(s=>[s.a,s.b]))];
   const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y,size=Math.max(w,h,1000),pad=size*.17,font=size*.015;
-  const dimX=binding?[...floor.contour.map(p=>p[0]),...assembly.piles.map(p=>p[0])]:assembly.axis==='x'?items.map(r=>r.a[0]):floor.contour.map(p=>p[0]);
-  const dimY=binding?[...floor.contour.map(p=>p[1]),...assembly.piles.map(p=>p[1])]:assembly.axis==='y'?items.map(r=>r.a[1]):floor.contour.map(p=>p[1]);
-  return <svg className="roof-document-drawing" viewBox={`${x-pad} ${y-pad*.3} ${w+pad*2} ${h+pad*1.8}`} role="img" aria-label={binding?'Чертёж обвязки с осями опор':'План стропильной системы с привязками'}>
+  const dimensions=structuralDimensions(assembly,binding),house=dimensions.house,roof=dimensions.roof;
+  return <svg className="roof-document-drawing" viewBox={`${x-pad*1.25} ${y-pad*.3} ${w+pad*2.5} ${h+pad*2.25}`} role="img" aria-label={binding?'Чертёж обвязки с осями опор':'План стропильной системы с привязками'}>
     {!binding?<polygon points={pts(assembly.roofOutline)} fill="#fafafa" stroke="#000" strokeDasharray="6 4" vectorEffect="non-scaling-stroke"/>:null}
     <polygon points={pts(floor.contour)} fill="none" stroke="#777" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
     {floor.rooms.map((r,i)=><polygon key={i} points={pts(r.points)} fill="none" stroke="#ccc" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}
-    {(floor.bearing||[]).map((s,i)=><Member key={i} {...s} profile="60×150" font={font}/>)}
+    {(floor.bearing||[]).map((s,i)=><Member key={i} {...s} width={bearingPlanWidth(s.profile)??50} label={layers.labels===false?'':s.profile?`Несущая ${s.profile}`:'Несущая · сечение не задано'} font={font}/>)}
     {layers.frame!==false?items.map(s=><g key={s.id} role={onSelect?'button':undefined} tabIndex={onSelect?0:undefined} aria-label={`Выбрать ${s.id}`} onClick={()=>onSelect?.(s.id)} onKeyDown={e=>{if(e.key==='Enter')onSelect?.(s.id);}}><Member {...s} label={layers.labels===false?'':binding?s.id:s.id.replace('КР-СТ','')} font={font}/><line x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke={selected.includes(s.id)?'#10734c':'transparent'} strokeWidth={selected.includes(s.id)?4:14} vectorEffect="non-scaling-stroke"/></g>):null}
     {!binding?(assembly.roofTimbers||[]).filter(s=>s.id!=='КР-КН2').map(s=><Member key={s.id} {...s} label={s.id==='КР-КН1'?'КР-КН1/2':s.id} font={font}/>):null}
     {binding?assembly.piles.map((p,i)=><g key={i}><rect x={p[0]-font*.35} y={p[1]-font*.35} width={font*.7} height={font*.7} fill="white" stroke="#000"/><text x={p[0]+font*.6} y={p[1]+font} fontSize={font*.75}>СВ-{i+1}</text></g>):assembly.supports.map(s=><Member key={s.id} {...s} label={s.mark} font={font} dashed/>)}
-    {layers.dimensions!==false?<><Dimensions values={dimX} y={y+h+pad*.45} font={font}/><Dimensions values={[x,x+w]} y={y+h+pad} font={font*1.2}/>
-    <g transform="rotate(90)"><Dimensions values={dimY} y={-x+pad*.5} font={font}/><Dimensions values={[y,y+h]} y={-x+pad} font={font*1.2}/></g></>:null}
+    {layers.dimensions!==false?<><Dimensions values={dimensions.x} y={y+h+pad*.45} font={font}/><Dimensions values={[house.x,house.x+house.width]} y={y+h+pad*.95} font={font*1.2} label="Габарит дома"/>
+    {!binding?<Dimensions values={[roof.x,roof.x+roof.width]} y={y+h+pad*1.45} font={font} label="Габарит кровли со свесами"/>:null}
+    <g transform="rotate(90)"><Dimensions values={dimensions.y} y={-x+pad*.45} font={font}/><Dimensions values={[house.y,house.y+house.height]} y={-x+pad*.9} font={font*1.2}/>{!binding?<Dimensions values={[roof.y,roof.y+roof.height]} y={-x+pad*1.15} font={font}/>:null}</g></>:null}
   </svg>;
 }
 
