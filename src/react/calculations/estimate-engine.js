@@ -895,6 +895,7 @@ function foundationSection(project, index, inputs) {
     }),
   ]) };
   const count = foundation.totalPiles;
+  const concretePiles = project.settings.piles?.pileType === 'reinforcedConcrete';
   const bindingPackSpacing = Math.max(0.05, Number(inputs.formulas.bindingPackScrewSpacingM) || 0.5);
   const bindingPackInterfaces = Math.max(0, foundation.bindingLayers - 1);
   const bindingPackScrewCount = Math.ceil(foundation.bindingLength / bindingPackSpacing) * bindingPackInterfaces;
@@ -902,31 +903,34 @@ function foundationSection(project, index, inputs) {
   return {
     foundation,
     lines: compact([
-      makeLine(
+      concretePiles ? makeLine(index, 'foundation', 'Свая железобетонная забивная (С30.15)', count, {
+        key: 'concrete-piles', catalogId: 'MAT-JB-C30-15', exactQuantity: true,
+        name: 'Свая железобетонная забивная (С30.15) · с оголовком и установкой',
+      }) : makeLine(
         index,
         "foundation",
         "Разбивка осей фундамента (1 свая)",
         count,
         { key: "axes", kind: "labor" },
       ),
-      makeLine(index, "foundation", "Монтаж свай", count, {
+      !concretePiles && makeLine(index, "foundation", "Монтаж свай", count, {
         key: "pile-work",
         kind: "labor",
       }),
-      makeLine(index, "foundation", "Винтовые сваи 108мм", count, {
+      !concretePiles && makeLine(index, "foundation", "Винтовые сваи 108мм", count, {
         key: "piles",
       }),
-      makeLine(
+      !concretePiles && makeLine(
         index,
         "foundation",
         "Пескобетон М300",
         count * inputs.formulas.pileConcreteM3,
         { key: "concrete", unit: "м³", digits: 3 },
       ),
-      makeLine(index, "foundation", "Оголовок для свай", count, {
+      !concretePiles && makeLine(index, "foundation", "Оголовок для свай", count, {
         key: "heads",
       }),
-      makeLine(index, "foundation", "Монтаж оголовков", count, {
+      !concretePiles && makeLine(index, "foundation", "Монтаж оголовков", count, {
         key: "heads-work",
         kind: "labor",
       }),
@@ -3041,7 +3045,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   const sections = applyProjectEstimateEdits(project, [
     {
       key: "foundation",
-      title: project.services.foundation ? "Свайно-винтовой фундамент и обвязка" : "Обвязка по готовому бетонному основанию",
+      title: project.services.foundation ? (project.settings.piles?.pileType==='reinforcedConcrete' ? "Фундамент на железобетонных забивных сваях и обвязка" : "Свайно-винтовой фундамент и обвязка") : "Обвязка по готовому бетонному основанию",
       lines: foundation.lines,
     },
     { key: "sip", title: "СИП-конструкции и перегородки", lines: sip.lines },

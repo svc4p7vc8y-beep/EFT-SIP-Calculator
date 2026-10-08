@@ -1191,6 +1191,8 @@ export default function Calculators({ type, onNavigate }) {
           <Panel title="Параметры основания">
             <div className="form-grid three">
               {project.services.foundation ? <>
+              <label>Тип свай<select aria-label="Тип свай" value={project.settings.piles.pileType||'screw'} onChange={e=>setSetting('piles','pileType',e.target.value)}><option value="screw">Винтовая свая 108 мм</option><option value="reinforcedConcrete">Свая железобетонная забивная (С30.15)</option></select></label>
+              {project.settings.piles.pileType==='reinforcedConcrete'?<p className="inspector-note">Сечение 150×150 мм, длина 3 м. Цена в прайсе — {formatNumber(project.priceMat.find(item=>item.id==='MAT-JB-C30-15')?.price||0)} ₽/шт. с оголовком 200×200 с ушками, работой и установкой. Повторный монтаж не начисляется; обвязка отдельно. Длина и несущая способность подтверждаются по грунтам и проекту.</p>:null}
               <label>Конструкция обвязки<select value={project.settings.piles.bindingType||'boards'} onChange={e=>setSetting('piles','bindingType',e.target.value)}><option value="boards">Пакет досок · по умолчанию 3×50×150</option><option value="timber">Цельный брус 150×150</option></select></label>
               <NumberField
                 label="Предельный шаг свай"

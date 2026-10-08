@@ -1,5 +1,5 @@
 export const PRICE_ADJUSTMENT_GROUPS = [
-  { key: "foundation", label: "Свайно-винтовой фундамент и обвязка" },
+  { key: "foundation", label: "Свайный фундамент и обвязка" },
   { key: "sip", label: "СИП-конструкции и перегородки" },
   { key: "roof", label: "Кровля и фронтоны" },
   { key: "terrace", label: "Терраса и крыльцо" },
