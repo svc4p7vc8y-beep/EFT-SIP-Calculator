@@ -57,6 +57,8 @@
 .technical-drawing text { fill:#000; }
 .album-columns { display:grid; grid-template-columns: 1.7fr 1fr; gap:8mm; }
 .album-locator { width:65mm; height:45mm; display:block; margin:4mm auto; }
+.album-locator .drawing-locator { width:100%; height:calc(100% - 8mm); display:block; }
+.album-locator p { margin:1mm 0; font-size:7pt; text-align:center; }
 .album-parts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5mm; }
 .album-parts article { border:1px solid #aaa; padding:3mm; }
 .album-parts .technical-drawing { height:65mm; }

@@ -6,6 +6,8 @@ import { combinedWall, gableLinks } from '../calculations/drawing-workbench.js';
 import { partitionProcurement } from '../calculations/partition-procurement.js';
 import { surfaceDimensions } from '../calculations/drawing-dimensions.js';
 import DrawingDimensions from '../components/DrawingDimensions.jsx';
+import PartitionDrawing from '../components/PartitionDrawing.jsx';
+import { WallLocator } from './DrawingCanvas.jsx';
 
 const num=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value);
 const chunks=(list,n)=>Array.from({length:Math.ceil(list.length/n)},(_,i)=>list.slice(i*n,i*n+n));
@@ -14,6 +16,7 @@ export function DimensionChain({values,y,font}) {
   return <DrawingDimensions values={values} y={y} font={font}/>;
 }
 export function TechnicalDrawing({surface,parts=[],members=[]}) {
+  if(surface.frameOnly&&surface.id?.includes('-ПГ'))return <PartitionDrawing surface={surface} members={members}/>;
   if(!surface.geometry?.length)return <p>Нет геометрии.</p>;
   const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height),pad=size*.16,font=size*.022,flip=surface.horizontal?null:box.y*2+box.height;
   const yy=y=>flip==null?y:flip-y;
@@ -37,7 +40,7 @@ export function RoofSlopePreview({assembly}) {
   })}</div>;
 }
 function Schedule({items}) {return <table className="album-schedule"><thead><tr><th>Поз.</th><th>Марка / элемент</th><th>Сечение / габарит, мм</th><th>Длина, мм</th><th>Кол.</th></tr></thead><tbody>{items.map((r,i)=><tr key={i}><td>{r.position||i+1}</td><td>{r.name}</td><td>{r.profile}</td><td>{r.length?num(r.length):'—'}</td><td>×{r.qty}</td></tr>)}</tbody></table>;}
-function Locator({assembly,surface}){const floor=assembly.floors.find(f=>f.floor===surface.floor);if(!floor||!surface.planStart)return null;const b=assembly.bounds,pad=Math.max(b.width,b.height)*.1;return <svg className="album-locator" viewBox={`${b.x-pad} ${b.y-pad} ${b.width+pad*2} ${b.height+pad*2}`}><polygon points={floor.contour.map(p=>p.join(',')).join(' ')} fill="none" stroke="#000" strokeWidth="1" vectorEffect="non-scaling-stroke"/>{floor.rooms.map((r,i)=><polygon key={i} points={r.points.map(p=>p.join(',')).join(' ')} fill="none" stroke="#999" vectorEffect="non-scaling-stroke"/>)}<line x1={surface.planStart[0]} y1={surface.planStart[1]} x2={surface.planEnd[0]} y2={surface.planEnd[1]} stroke="#000" strokeWidth="5" vectorEffect="non-scaling-stroke"/><text x={b.x+b.width/2} y={b.y-pad*.3} fontSize={pad*.4} textAnchor="middle">Выделена {surface.id}</text></svg>;}
+function Locator({assembly,surface}){const floor=assembly.floors.find(f=>f.floor===surface.floor);if(!floor||!surface.planStart)return null;return <div className="album-locator"><WallLocator report={{assembly,surfaces:[surface]}} surface={surface}/><p>Выделена {surface.id}. Стрелка — направление взгляда.</p></div>;}
 export function buildMountingPages(report) {
   const pages=[];
   const add=(title,content)=>pages.push({title,content});
@@ -73,7 +76,7 @@ export function buildMountingPages(report) {
     const rows=groupMembers(members).map((g,i)=>({position:i+1,name:`${mark(g.member.id)} · ${g.member.material}`,profile:g.member.profile,length:g.member.length,qty:g.qty}));
     const panels=groupPanels(parts).map(g=>({name:mark(g.part.id),profile:`${num(g.part.width)}×${num(g.part.height)}×${g.part.thickness}`,qty:g.qty}));
     const lists=chunks([...rows,...panels],16);if(!lists.length)lists.push([]);
-    lists.forEach((list,i)=>add(`${s.name}${i?` · ведомость ${i+1}`:''}`,<><div className="album-columns"><div><TechnicalDrawing surface={s} parts={parts} members={members}/><p>{s.blocked?'РАСКЛАДКА ЗАБЛОКИРОВАНА: уточните геометрию и замечания.':s.frameOnly?`Каркас ${s.frameProfile||report.settings.gableFrameProfile} мм. Схема обрамления проёмов, перемычки и усиление — на проверку.`:'Панели и соединители по геометрии проекта.'}</p></div><div><Schedule items={list}/><Locator assembly={report.assembly} surface={s}/></div></div></>));
+    lists.forEach((list,i)=>add(`${s.name}${i?` · ведомость ${i+1}`:''}`,<><div className="album-columns"><div><TechnicalDrawing surface={s} parts={parts} members={members}/><p>{s.blocked?'РАСКЛАДКА ЗАБЛОКИРОВАНА: уточните геометрию и замечания.':s.frameOnly?`Каркас ${s.frameProfile||report.settings.gableFrameProfile} мм. Схема обрамления проёмов, перемычки и усиление — на проверку.`:'Панели и соединители по геометрии проекта.'}</p></div><div>{s.id?.includes('-ПГ')?<h3>Пиломатериалы · позиции на чертеже</h3>:null}<Schedule items={list}/>{s.frameOnly&&s.id?.includes('-ПГ')?<p>Всего: {members.length} деталей · {num(members.reduce((sum,m)=>sum+m.length,0)/1000)} пог. м. Одинаковые детали объединены, количество указано в ведомости. Номера повторяются на каждой детали группы.</p>:null}<Locator assembly={report.assembly} surface={s}/></div></div></>));
   }
   for(const name of [...new Set(report.assembly.rafters.map(r=>r.name))]){
     const rafters=report.assembly.rafters.filter(r=>r.name===name),along=report.assembly.axis==='x'?0:1,origin=Math.min(...rafters.map(r=>r.a[along])),width=Math.max(...rafters.map(r=>r.a[along]))-origin,height=Math.max(...rafters.map(r=>r.length));
