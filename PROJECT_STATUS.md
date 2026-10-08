@@ -36,7 +36,10 @@ Browser plugin отсутствует, использован Playwright product
 eft-partition-sheets-*; физический iPad и авторизованное облако не проверены.
 Сохраняются прежние предупреждения npm ci (1 high dev) и размера 3D-чанка.
 
-Публикация: ожидается push и подтверждение CI/live после проверки.
+Публикация подтверждена: 3245cbf в main; Beget 37747636459 и Pages
+37747636476 completed/success. Production sw.js содержит v192-partition-sheets-1;
+react.html и CuttingScreen-Cp8RZLnR.js HTTP 200, опубликованный чанк содержит
+partition-document-drawing. Авторизованный сеанс сотрудника не проверялся.
 Посторонние untracked не затронуты. Большое поручение о полном конструктиве
 крыши и проектных узлах остаётся отдельным незавершённым этапом ниже.
 
