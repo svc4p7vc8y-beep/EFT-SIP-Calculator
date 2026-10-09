@@ -17,6 +17,9 @@ export function ConstructionSourceInfo({surface}) {
   return <div className="cut-note no-print" aria-label="Исходная конструкция" style={{overflowWrap:'anywhere'}}>
     <p>{surface.sourceRoleLabel ? `Сторона: ${surface.sourceRoleLabel}. ` : ''}{surface.sourceIdentityStatus==='registered-source' ? 'Исходная конструкция зарегистрирована.' : surface.sourceIdentityStatus==='needs-registration' ? 'Регистрация исходной стены…' : 'Привязка требует проверки.'}</p>
     {surface.constructionSourceId ? <small>ID: {surface.constructionSourceId}</small> : <small>{surface.sourceIdentityReason}</small>}
+    {surface.sourceTopologyLabel ? <p>Текущее построение: {surface.sourceTopologyLabel}.</p> : null}
+    {surface.sourceContributors?.length ? <ul>{surface.sourceContributors.map((r,i)=><li key={i}>{r.name} · {r.roleLabel||'линия'} · {r.complete?'целиком':'частично'} <small>({r.id||'ID отсутствует'})</small></li>)}</ul> : null}
+    {surface.sourceContributors ? <small>Это диагностика текущих источников, не история изменений и не подтверждение идентичности отдельных панелей.</small> : null}
     <p>Ручные настройки применяются по прежнему геометрическому ключу, не по этому ID.</p>
   </div>;
 }
