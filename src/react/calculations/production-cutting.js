@@ -11,6 +11,7 @@ import { calculateAssemblyPlan, calculateCutOperations, gableFrameMembers } from
 import { roofCoverLayout } from './roof-cover-layout.js';
 import { exteriorWallConstruction } from './wall-construction.js';
 import { partitionSegments, partitionBacking } from './partition-construction.js';
+import { buildFirstFloorWallGeometry, compareWallGeometry, openingWallCandidates } from './wall-geometry-adapter.js';
 
 const mm = value => Math.round((Number(value) || 0) * 1000);
 const round = value => Math.round(value * 1000) / 1000;
@@ -450,12 +451,7 @@ export function calculateProductionCutting(project, calculation) {
       const outer = typeof opening.outer === 'boolean' ? opening.outer : null;
       if ((outer === true && !services.sipWalls) || (outer === false && !services.partitions)) continue;
       const eligible = edges.filter(edge => (outer == null || edge.outer === outer) && (!edge.outer || services.sipWalls));
-      const choices = eligible.filter(edge => opening.orientation === 'h' ? Math.abs(edge.a.y - edge.b.y) < .001 : opening.orientation === 'v' ? Math.abs(edge.a.x - edge.b.x) < .001 : true).map(edge => {
-        const dx = edge.b.x - edge.a.x, dy = edge.b.y - edge.a.y, length = Math.hypot(dx, dy);
-        const u = length ? ((opening.x - edge.a.x) * dx + (opening.y - edge.a.y) * dy) / length : 0;
-        const distance = Math.hypot(opening.x - edge.a.x - Math.max(0, Math.min(length, u)) * dx / (length || 1), opening.y - edge.a.y - Math.max(0, Math.min(length, u)) * dy / (length || 1));
-        return { edge, u, distance };
-      }).sort((a, b) => a.distance - b.distance);
+      const choices = openingWallCandidates(opening, eligible);
       const nearest = choices[0], key = `${floor}:${opening.id}`;
       const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : settings.windowSillMm);
       const row = { key, id: opening.id, type: opening.type, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Дверь'} ${++openingNumber}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
@@ -732,6 +728,8 @@ export function calculateProductionCutting(project, calculation) {
   const { approval, ...revisionSettings } = settings;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
+  const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
+  report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };
   report.cutting=calculateCutOperations(report);
   report.roofCover=roofCover;
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
