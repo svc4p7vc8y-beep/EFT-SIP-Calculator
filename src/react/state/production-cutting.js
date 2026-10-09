@@ -1,5 +1,6 @@
 import { normalizeMarkRegistry } from './production-identities.js';
 import { normalizeConstructionSources } from './construction-sources.js';
+import { normalizeSourceBaseline } from './source-baseline.js';
 
 export function normalizeProductionCutting(value = {}) {
   value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -10,6 +11,7 @@ export function normalizeProductionCutting(value = {}) {
   return {
     markRegistry: normalizeMarkRegistry(value.markRegistry),
     constructionSources: normalizeConstructionSources(value.constructionSources),
+    sourceBaseline: normalizeSourceBaseline(value.sourceBaseline),
     frameStepMm: number('frameStepMm', 625, 100, 2500),
     detailedFrameEstimate: value.detailedFrameEstimate !== false,
     partitionBracing: value.partitionBracing !== false,

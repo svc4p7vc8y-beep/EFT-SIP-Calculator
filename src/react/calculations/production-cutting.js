@@ -734,6 +734,7 @@ export function calculateProductionCutting(project, calculation) {
   const { approval, ...revisionSettings } = settings;
   delete revisionSettings.markRegistry; // Derived metadata does not change geometry approval.
   delete revisionSettings.constructionSources;
+  delete revisionSettings.sourceBaseline; // An explicit comparison checkpoint is not geometry approval.
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
