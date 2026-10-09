@@ -8,19 +8,20 @@ export function useSharedPriceCatalog(user, csrf) {
   currentUser.current = user?.id;
   const latestRevision = useRef(0);
   const pendingRead = useRef(null);
-  const accept = useCallback((result) => {
+  const accessEpoch = useRef(0);
+  const accept = useCallback((result, acceptAccess = true) => {
     if (!Array.isArray(result.payload?.priceMat) || !Array.isArray(result.payload?.priceLab) || !(result.revision > 0)) throw new Error('Сервер вернул некорректный прайс');
     if (result.revision < latestRevision.current) return;
     latestRevision.current = result.revision;
-    setPriceCatalog(previous => ({ ...previous, ...result, payload: previous.revision === result.revision ? previous.payload || result.payload : result.payload, status: 'ready', error: '', checkedAt: new Date().toISOString() }));
+    setPriceCatalog(previous => ({ ...previous, ...result, canEdit: acceptAccess ? result.canEdit : previous.canEdit, payload: previous.revision === result.revision ? previous.payload || result.payload : result.payload, status: 'ready', error: '', checkedAt: new Date().toISOString() }));
   }, []);
   const refreshPriceCatalog = useCallback(() => {
     if (!user) return Promise.resolve(null);
     if (pendingRead.current?.userId === user.id) return pendingRead.current.promise;
-    const request = { userId: user.id };
+    const request = { userId: user.id, accessEpoch: accessEpoch.current };
     request.promise = eftApi('price-catalog').then(result => {
       if (currentUser.current !== user.id) throw new Error('Сеанс прайса изменился');
-      accept(result); return result;
+      accept(result, request.accessEpoch === accessEpoch.current); return result;
     }).catch(error => {
       if (currentUser.current === user.id) setPriceCatalog(previous => ({ ...previous, status: 'error', error: error.message }));
       throw error;
@@ -41,10 +42,13 @@ export function useSharedPriceCatalog(user, csrf) {
     return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
   }, [user?.id, refreshPriceCatalog]);
   const setPriceAccess = useCallback(async (lock, password = '') => {
+    ++accessEpoch.current;
     const result = await eftApi('price-access', { method: 'POST', csrf, body: { lock, password } });
+    if (currentUser.current !== user?.id) throw new Error('Сеанс прайса изменился');
+    ++accessEpoch.current;
     setPriceCatalog(previous => ({ ...previous, canEdit: result.canEdit }));
     return result.canEdit;
-  }, [csrf]);
+  }, [csrf, user?.id]);
   const savePriceCatalog = useCallback(async (changes) => {
     setPriceCatalog(previous => ({ ...previous, saving: true }));
     try {
