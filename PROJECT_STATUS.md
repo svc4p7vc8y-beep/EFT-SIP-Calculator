@@ -40,7 +40,11 @@ Console errors/warnings0, overlay0, горизонтальный overflow0. По
 Печать A4/A3 повторно не проверялась: новая карточка no-print, формат не менялся.
 Физический iPad и авторизованное/конкурентное серверное сохранение не проверены.
 dev5186 восстановлен, preview5187 остановить после проверки публикации.
-Публикация: ожидается отправка и проверка live ниже.
+Опубликованоfc11fa9/main. Beget37983785198 и Pages37983785159 completed/success.
+calc.eftsip.ru: cachev204-source-selection, root/main/CuttingScreen/Worker HTTP200.
+main react-NxcT-hWt.js, UI CuttingScreen-DH5BClwk.js содержит выбор источника,
+Worker6_NYJlpo содержит проверку неприменимой ручной привязки.
+preview5187 остановлен после QA; dev5186 сохранён работающим.
 
 ## v203 — этап 5: источники комнатных перегородок и текущая топология
 
