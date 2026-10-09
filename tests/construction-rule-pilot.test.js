@@ -119,6 +119,7 @@ test('blank new parameter retains the old production revision; a project value r
   const calculation = calculateProject(p), report = calculateProductionCutting(p, calculation);
   const { approval, ...oldSettings } = report.settings;
   delete oldSettings.bindingJointToleranceMm;
+  delete oldSettings.markRegistry; // v199 did not contain derived mark metadata.
   const oldRevision = cuttingRevision({ plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
     services: p.services, formulas: p.settings.formulas, roof: p.settings.roof, settings: oldSettings,
     nodes: p.nodes, construction: p.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });

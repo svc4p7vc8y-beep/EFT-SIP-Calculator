@@ -15,11 +15,13 @@ import {
 } from "./project-model.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { applySharedPriceCatalog } from '../cloud/price-catalog.js';
+import { recordProductionRegistry } from './production-identities.js';
 
 const ProjectContext = createContext(null);
 const HISTORY_LIMIT = 60;
 
 function reducer(state, action) {
+  if (action.type === 'production-registry') return recordProductionRegistry(state, action.expectedPresent, action.registry);
   if (action.type === "undo") {
     if (!state.past.length) return state;
     return {
@@ -97,6 +99,7 @@ export function ProjectProvider({ children }) {
     (update) => dispatch({ type: "commit", update }),
     [],
   );
+  const recordMarks = useCallback(registry => dispatch({ type: 'production-registry', expectedPresent: history.present, registry }), [history.present]);
   const replace = useCallback(
     (project) => dispatch({ type: "replace", project }),
     [],
@@ -133,6 +136,7 @@ export function ProjectProvider({ children }) {
     () => ({
       project,
       commit,
+      recordMarks,
       replace,
       undo,
       redo,
@@ -141,7 +145,7 @@ export function ProjectProvider({ children }) {
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
     }),
-    [history, project, commit, replace, undo, redo, checkpoint, saveState],
+    [history, project, commit, recordMarks, replace, undo, redo, checkpoint, saveState],
   );
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

@@ -13,6 +13,7 @@ import { exteriorWallConstruction } from './wall-construction.js';
 import { partitionSegments, partitionBacking } from './partition-construction.js';
 import { buildFirstFloorWallGeometry, compareWallGeometry, openingWallCandidates } from './wall-geometry-adapter.js';
 import { evaluateBindingStraightSupport } from './construction-rules.js';
+import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
 
 const mm = value => Math.round((Number(value) || 0) * 1000);
 const round = value => Math.round(value * 1000) / 1000;
@@ -285,21 +286,23 @@ export function groupPanels(parts = []) {
       part.shape.map(ring => ringKey(ring, part.x, part.y)).sort()]);
     const group = groups.get(key);
     if (group) { group.qty++; group.instances.push(part.id); }
-    else groups.set(key, { id: part.id, part, qty: 1, instances: [part.id] });
+    else groups.set(key, { id: part.id, definitionKey: `panel:${key}`, part, qty: 1, instances: [part.id] });
   }
   return [...groups.values()];
 }
 
 export const MARK_LEGEND={П:'СИП-панель',У:'Укосина',С:'Стойка',Д:'Доска / обвязка / перемычка',Ш:'Шпонка / соединитель',Б:'Брус / балка',СТ:'Стропило',О:'Обрешётка',К:'Контробрешётка',ПР:'Прогон',Р:'Прочая проектная деталь'};
-export function assignProductionMarks(parts,members) {
+export function assignProductionMarks(parts,members,savedRegistry) {
+  const {registry,allocate}=createMarkAllocator(savedRegistry);
   const byId=new Map(parts.map(p=>[p.id,p]));
-  groupPanels(parts).forEach((g,i)=>g.instances.forEach(id=>{byId.get(id).displayMark=`П${i+1}`;}));
-  const counts={};
+  groupPanels(parts).forEach(g=>{const mark=allocate(g.definitionKey,'П');g.instances.forEach(id=>{byId.get(id).displayMark=mark;});});
   for(const g of groupMembers(members)){
     const name=g.member.material||'',prefix=/укосин/i.test(name)?'У':/стойк/i.test(name)?'С':/контробреш/i.test(name)?'К':/обреш/i.test(name)?'О':/стропил/i.test(name)?'СТ':/прогон/i.test(name)?'ПР':/шпонк|соединител|термобрус/i.test(name)?'Ш':/брус|балк/i.test(name)?'Б':/доск|обвяз|перемыч/i.test(name)?'Д':'Р';
-    const mark=`${prefix}${counts[prefix]=(counts[prefix]||0)+1}`;
+    const mark=allocate(g.definitionKey,prefix);
     g.instances.forEach(m=>{m.displayMark=mark;});
   }
+  for(const item of [...parts,...members]) if(!item.persistentId)item.identityStatus='derived-position';
+  return registry;
 }
 
 export function groupMembers(members = []) {
@@ -309,7 +312,7 @@ export function groupMembers(members = []) {
       member.source,member.processing || '',member.nodeRef || '',member.excluded === true,(member.notches||[]).map(n=>[n.type,n.offsetMm,n.lengthMm,n.depthMm])]);
     const group = groups.get(key);
     if (group) { group.qty++; group.instances.push(member); }
-    else groups.set(key,{ id:member.id, member, qty:1, instances:[member] });
+    else groups.set(key,{ id:member.id, definitionKey:`member:${key}`, member, qty:1, instances:[member] });
   }
   return [...groups.values()];
 }
@@ -617,7 +620,7 @@ export function calculateProductionCutting(project, calculation) {
       for (let i=0;i<quantity;i++) {
         const id = `РП-${settings.manualPanels.indexOf(item)+1}-${i+1}`;
         addSurface({ id, name: item.name, thickness: Number(item.thickness), family: item.family, geometry, horizontal: true, manual: true });
-        parts.push({ id: `${id}-P1`, surfaceId: id, surface: item.name, thickness: Number(item.thickness), family: item.family, shape: geometry[0], ...polygonBounds(geometry[0]), area: polygonAreaMm(geometry[0]), upperCourse: false });
+        parts.push({ id: `${id}-P1`, ...(item.hasStableSourceId===false?{}:sourceIdentity('manual-panel',item.id,i+1)), surfaceId: id, surface: item.name, thickness: Number(item.thickness), family: item.family, shape: geometry[0], ...polygonBounds(geometry[0]), area: polygonAreaMm(geometry[0]), upperCourse: false });
       }
     } catch (error) { issue('MANUAL_PANEL', `Ручная панель ${item?.name || ''}: ${error.message}`); }
   }
@@ -683,7 +686,7 @@ export function calculateProductionCutting(project, calculation) {
     const quantity = Math.min(1000, Math.floor(Number(item.quantity)));
     manualCount += quantity;
     if (manualCount > 10000) { issue('MANUAL_LIMIT', 'Более 10 000 ручных деталей: разделите комплект на партии.'); break; }
-    for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
+    for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, ...(item.hasStableSourceId===false?{}:sourceIdentity('manual-timber',item.id,i+1)), material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
   const assembly=calculateAssemblyPlan(project,calculation,settings);
   const roofCover=roofCoverLayout(assembly,settings.roofSheets);
@@ -718,7 +721,7 @@ export function calculateProductionCutting(project, calculation) {
   assembly.issues.forEach(message=>issue('ASSEMBLY',message));
   if(services.roof && (roof.warmSlopeArea>0 || roof.rafterStructure?.system==='layered') && !assembly.supports.some(s=>s.type==='purlin'))
     issue('ROOF_SUPPORTS','Опоры кровли: задайте проектные прогоны, стойки и путь нагрузки до фундамента на вкладке «Крыша и опоры».');
-  assignProductionMarks(parts,members);
+  const markRegistry=assignProductionMarks(parts,members,settings.markRegistry);
   const marked=new Map(members.map(m=>[m.id,m.displayMark]));
   for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[])m.displayMark=marked.get(m.id)||m.id;
   const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
@@ -727,6 +730,7 @@ export function calculateProductionCutting(project, calculation) {
   if (timberStock.unplaced.length) issue('MEMBER_SIZE', `Длиннее хлыста: ${timberStock.unplaced.join(', ')}. Нужен проект стыковки или другая длина заготовки.`);
   if (!surfaces.length && !members.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
   const { approval, ...revisionSettings } = settings;
+  delete revisionSettings.markRegistry; // Derived metadata does not change geometry approval.
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
@@ -739,6 +743,7 @@ export function calculateProductionCutting(project, calculation) {
     supports: assembly.piles, toleranceMm: settings.bindingJointToleranceMm,
   }) };
   report.cutting=calculateCutOperations(report);
+  report.markRegistry=markRegistry;
   report.roofCover=roofCover;
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
   report.partitionStock=packMembers(members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded),settings.stockLengthMm,Number(settings.kerfMm||0));

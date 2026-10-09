@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v200-binding-rule-pilot';
+const CACHE_NAME = 'eft-calculator-react-v201-persistent-marks';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

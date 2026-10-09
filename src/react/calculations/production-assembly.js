@@ -1,6 +1,7 @@
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { bearingEdges } from './bearing-walls.js';
 import { roofDrawingData } from './roof-drawings.js';
+import { sourceIdentity } from '../state/production-identities.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -109,11 +110,11 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     const length=Math.ceil(Math.hypot(...a.map((value,j)=>b[j]-value)));
     if(item.type!=='foundation' && (!length || !/^\d+(?:[×хx]\d+)+$/.test(item.profile) || item.profile.split(/[×хx]/).some(value=>!(Number(value)>0)))){issues.push(`${mark}: задайте длину геометрией и положительное сечение в формате 100×150.`);continue;}
     if(item.type==='post' && (Math.hypot(a[0]-b[0],a[1]-b[1])>.01 || b[2]<=a[2])){issues.push(`${mark}: вертикальная стойка должна иметь одинаковые X/Y сверху и снизу, отметка верха — выше низа.`);continue;}
-    const support={...item,mark,a,b,length,name:item.name||`${ASSEMBLY_TYPES[item.type]} ${i+1}`};
+    const support={...item,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',item.id)),mark,a,b,length,name:item.name||`${ASSEMBLY_TYPES[item.type]} ${i+1}`};
     supports.push(support);
     if(item.type!=='foundation'&&!item.referenceOnly){
       if(!item.nodeRef.trim())issues.push(`${mark}: укажите рабочий узел.`);
-      members.push({id:mark,material:ASSEMBLY_TYPES[item.type],profile:item.profile.replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
+      members.push({id:mark,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',item.id)),material:ASSEMBLY_TYPES[item.type],profile:item.profile.replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
     }
   }
   const byId=new Map(supports.map(s=>[s.id,s]));
