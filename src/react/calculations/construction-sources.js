@@ -26,7 +26,7 @@ export function rectangleRole(plan,a,b) {
   return null;
 }
 // Identity of a source construction, not the identity of its generated parts.
-export function constructionSource(plan,edge,saved,floor=1) {
+function automaticConstructionSource(plan,edge,saved,floor=1) {
   const unresolved=reason=>({sourceIdentityStatus:'needs-review',sourceIdentityReason:reason});
   if(floor!==1)return unresolved('Исходные ID верхних этажей — следующий этап.');
   if(edge.outer) {
@@ -79,4 +79,26 @@ export function constructionSource(plan,edge,saved,floor=1) {
   return {constructionSourceId:`partition:${encodeURIComponent(source.id)}`,sourceIdentityStatus:'registered-source',
     sourceTopology:'single-wall',sourceTopologyLabel:'Целая исходная линия',sourceContributors,
     constructionSourceRef:{kind:'plan-wall',id:source.id}};
+}
+
+// Lookup is deliberately geometry-bound: it does not transfer a declaration to a moved wall.
+export function sourceBindingKey(edge,floor=1) {
+  return JSON.stringify([floor,[edge.a,edge.b].map(p=>[p.x,p.y]).sort((a,b)=>a[0]-b[0]||a[1]-b[1])]);
+}
+export function constructionSource(plan,edge,saved,floor=1) {
+  const result=automaticConstructionSource(plan,edge,saved,floor);
+  if(edge.outer||floor!==1)return result;
+  const sourceBinding=normalizeConstructionSources(saved).selections?.[sourceBindingKey(edge,floor)];
+  const base={...result,sourceBindingKey:sourceBindingKey(edge,floor)};
+  if(!sourceBinding)return base;
+  const matches=(result.sourceContributors||[]).filter(r=>r.kind===sourceBinding.kind&&r.id===sourceBinding.id&&r.role===sourceBinding.role);
+  const collection=sourceBinding.kind==='plan-wall'?(plan.walls||[]).filter(w=>w.include!==false):(plan.rooms||[]).filter(r=>r.include!==false&&!r.extension);
+  const valid=matches.length===1&&matches[0].complete&&collection.filter(r=>r.id===sourceBinding.id).length===1;
+  if(!valid){
+    const {constructionSourceId,constructionSourceRef,...rest}=base;
+    return {...rest,sourceBinding,sourceIdentityStatus:'needs-review',sourceIdentityReason:'Ручная привязка больше не применима: источник отсутствует, неоднозначен или не покрывает участок целиком.'};
+  }
+  const constructionSourceId=sourceBinding.kind==='plan-wall'?`partition:${encodeURIComponent(sourceBinding.id)}`:`room-boundary:${JSON.stringify([[sourceBinding.id,sourceBinding.role]])}`;
+  return {...base,sourceBinding,constructionSourceId,constructionSourceRef:sourceBinding,
+    sourceIdentityStatus:'registered-source',sourceIdentityReason:undefined,sourceSelectionLabel:'Источник выбран вручную; остальные совпадающие линии не удалены.'};
 }

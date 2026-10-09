@@ -45,7 +45,13 @@ export function recordProductionRegistry(state, expectedPresent, value, requests
   const sources=registerConstructionSources(state.present.settings?.productionCutting?.constructionSources,requests,allocate);
   const currentSources=normalizeConstructionSources(state.present.settings?.productionCutting?.constructionSources);
   if (JSON.stringify(current) === JSON.stringify(registry)&&JSON.stringify(sources)===JSON.stringify(currentSources)) return state;
-  const merge = project => ({ ...project, settings: { ...project.settings,
-    productionCutting: { ...project.settings.productionCutting, markRegistry: registry, constructionSources:sources } } });
+  const merge = project => {
+    // Only automatic reservations propagate through history. User declarations remain undoable.
+    const {selections,...automaticSources}=sources;
+    const own=normalizeConstructionSources(project.settings?.productionCutting?.constructionSources);
+    return { ...project, settings: { ...project.settings,
+      productionCutting: { ...project.settings.productionCutting, markRegistry: registry,
+        constructionSources:{...automaticSources,...(own.selections?{selections:own.selections}:{})} } } };
+  };
   return { present: merge(state.present), past: state.past.map(merge), future: state.future.map(merge) };
 }
