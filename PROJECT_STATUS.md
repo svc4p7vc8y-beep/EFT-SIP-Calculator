@@ -69,7 +69,10 @@ QA/PNG/PDF только Temp; источник PDFs в репозиторий н
 автоматических деталей; контролируемая миграция override-ключей; серверная
 конкурентность. Следующий малый этап — источники комнатных перегородок и
 явная диагностика изменений топологии, без произвольного переноса правок.
-Публикация v202: ожидает push и проверки действующей версии.
+Опубликовано1daf7a5/main. Beget37980668196 и Pages37980668121 completed/success.
+calc.eftsip.ru: cachev202-construction-sources, root/main/CuttingScreen/Worker HTTP200;
+WorkerkIwMx1JS содержит constructionSourceId/constructionSourceRequests,
+в UI подтверждена «Исходная конструкция». preview5187 остановлен, dev5186 сохранён.
 
 ## v201 — этап 3: сохраняемый реестр марок и исходные позиции
 
