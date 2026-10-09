@@ -14,7 +14,7 @@ export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers
   const binding=kind==='binding',floor=binding?assembly.floors[0]:assembly.floors.at(-1);
   const items=binding?assembly.binding:assembly.rafters;
   const all=[...floor.contour,...(!binding?assembly.roofOutline:[]),...items.flatMap(s=>[s.a,s.b]),...(binding?assembly.piles:assembly.supports.flatMap(s=>[s.a,s.b]))];
-  const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y,size=Math.max(w,h,1000),pad=size*.17,font=size*.015;
+  const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y,size=Math.max(w,h,1000),pad=size*.17,font=size*.021;
   const dimensions=structuralDimensions(assembly,binding),house=dimensions.house,roof=dimensions.roof;
   return <svg className="roof-document-drawing" viewBox={`${x-pad*1.25} ${y-pad*.3} ${w+pad*2.5} ${h+pad*2.25}`} role="img" aria-label={binding?'Чертёж обвязки с осями опор':'План стропильной системы с привязками'}>
     {!binding?<polygon points={pts(assembly.roofOutline)} fill="#fafafa" stroke="#000" strokeDasharray="6 4" vectorEffect="non-scaling-stroke"/>:null}

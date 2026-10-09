@@ -4,7 +4,7 @@ import { pointBounds } from '../calculations/drawing-dimensions.js';
 
 export default function WallPanelPlan({report,floor=1,onSelect}) {
   const walls=report.surfaces.filter(s=>s.planStart&&s.floor===floor&&!s.partitionFrame&&!s.id.includes('-ПГ'));
-  const contour=report.assembly.floors.find(f=>f.floor===floor)?.contour||[],box=pointBounds(contour),size=Math.max(box.width,box.height,1000),pad=size*.16,font=size*.018;
+  const contour=report.assembly.floors.find(f=>f.floor===floor)?.contour||[],box=pointBounds(contour),size=Math.max(box.width,box.height,1000),pad=size*.16,font=size*.025;
   return <svg className="workbench-drawing technical-drawing" viewBox={`${box.x-pad} ${box.y-pad} ${box.width+2.5*pad} ${box.height+2.6*pad}`} role="img" aria-label={`Расположение стеновых панелей · этаж ${floor}`}>
     <polygon points={contour.map(p=>p.join(',')).join(' ')} fill="none" stroke="#888" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>
     {walls.map(w=>{const [a,b]=[w.planStart,w.planEnd],angle=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;
@@ -17,7 +17,7 @@ export default function WallPanelPlan({report,floor=1,onSelect}) {
       </g>;
     })}
     <Dimensions values={[box.x,box.x+box.width]} y={box.y+box.height+pad*.8} font={font} label="Наружный габарит"/>
-    <g transform="rotate(90)"><Dimensions values={[box.y,box.y+box.height]} y={-box.x+pad*.7} font={font}/></g>
+    <g transform="rotate(90)"><Dimensions values={[box.y,box.y+box.height]} y={-box.x+pad*.9} font={font}/></g>
     <text x={box.x+box.width/2} y={box.y+box.height+pad*1.35} fontSize={font*.8} textAnchor="middle">Н2 — угловое сопряжение; П — марка панели; ряды раскрыты на развёртках</text>
   </svg>;
 }
