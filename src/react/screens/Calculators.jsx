@@ -854,8 +854,8 @@ function RoofConstructionPanels({
               {snow.mode !== 'none' ? <div className="readout"><span>Закупка / монтаж</span><strong>{snow.kits} компл. × 3 м / {formatNumber(snow.totalLength)} м</strong></div> : null}
             </div>
             {snow.mode !== 'none' ? <details><summary>Цены и ручная настройка</summary><div className="form-grid three">
-              <NumberField label="Комплект 3 м" suffix="₽/компл" min={0} value={snow.materialPrice} onChange={(materialPrice) => updateSnow({ materialPrice })} />
-              <NumberField label="Монтаж вместе с кровлей" suffix="₽/м" min={0} value={snow.laborPrice} onChange={(laborPrice) => updateSnow({ laborPrice })} />
+              <NumberField label="Комплект 3 м" suffix="₽/компл" min={0} disabled={Boolean(project.sharedPriceCatalog)} value={project.sharedPriceCatalog ? Number(project.priceMat.find(row=>row.id==='MAT-246')?.price)||0 : snow.materialPrice} onChange={(materialPrice) => updateSnow({ materialPrice })} />
+              <NumberField label="Монтаж вместе с кровлей" suffix="₽/м" min={0} disabled={Boolean(project.sharedPriceCatalog)} value={project.sharedPriceCatalog ? Number(project.priceLab.find(row=>row.id==='LAB-037')?.price)||0 : snow.laborPrice} onChange={(laborPrice) => updateSnow({ laborPrice })} />
               <button type="button" className="button secondary" onClick={() => updateSnow({ materialPrice: null, laborPrice: null })}>Вернуть цены прайса</button>
             </div></details> : null}
             <p className="roof-section-note">По умолчанию длина каждой выбранной стороны равна длине кровли; задайте фактический участок вручную. Закупка округляется отдельно для каждой стороны до 3-метровых комплектов. <a href={SNOW_GUARD_SOURCE.material} target="_blank" rel="noreferrer">Комплект Grand Line — 4 351 ₽</a>; <a href={SNOW_GUARD_SOURCE.labor} target="_blank" rel="noreferrer">монтаж при устройстве кровли — от 550 ₽/м</a>. Крепление, снеговую нагрузку и число рядов подтвердить проектом; цена и наличие региональные.</p>
@@ -1928,21 +1928,24 @@ export default function Calculators({ type, onNavigate }) {
               />
               <NumberField
                 label="База рейса"
-                value={project.settings.delivery.baseTrip}
+                disabled={Boolean(project.sharedPriceCatalog)}
+                value={project.sharedPriceCatalog ? Number(project.priceMat.find(row=>row.id==='MAT-088')?.price)||0 : project.settings.delivery.baseTrip}
                 suffix="₽"
                 step={100}
                 onChange={(value) => setSetting("delivery", "baseTrip", value)}
               />
               <NumberField
                 label="Цена километра"
-                value={project.settings.delivery.perKm}
+                disabled={Boolean(project.sharedPriceCatalog)}
+                value={project.sharedPriceCatalog ? Number(project.priceMat.find(row=>row.id==='MAT-089')?.price)||0 : project.settings.delivery.perKm}
                 suffix="₽"
                 step={1}
                 onChange={(value) => setSetting("delivery", "perKm", value)}
               />
               <NumberField
                 label="Разгрузка"
-                value={project.settings.delivery.unloadingPerM3}
+                disabled={Boolean(project.sharedPriceCatalog)}
+                value={project.sharedPriceCatalog ? Number(project.priceMat.find(row=>row.id==='MAT-093')?.price)||0 : project.settings.delivery.unloadingPerM3}
                 suffix="₽/м³"
                 step={10}
                 onChange={(value) =>

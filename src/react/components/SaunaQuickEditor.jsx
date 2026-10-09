@@ -3,9 +3,9 @@ import { SAUNA_ITEMS } from '../data/sauna-catalog.js';
 import { SAUNA_BUDGET_PRICES } from '../calculations/sauna-auto.js';
 import { chimneySchedule } from '../calculations/sauna-details.js';
 
-export function SaunaQuickEditor({s,raw,update,room,active,prices,drainQuantity}) {
+export function SaunaQuickEditor({s,raw,update,room,active,prices,drainQuantity,sharedPrices=false}) {
   const schedule=chimneySchedule(s.chimneyDimensions);
-  const priced=active.map(line=>{const item=SAUNA_ITEMS.find(i=>i.id===line.catalogId);return {...line,item,price:line.projectPrice??prices.find(i=>i.id===line.catalogId)?.price??0};});
+  const priced=active.map(line=>{const item=SAUNA_ITEMS.find(i=>i.key===line.saunaItemKey||i.id===line.catalogId);return {...line,item,price:line.projectPrice??prices.find(i=>i.id===line.catalogId)?.price??0};});
   const total=priced.reduce((sum,l)=>sum+l.qty*l.price*(l.priceMultiplier||1),0);
   const lining=priced.find(l=>l.item.key==='liningPack'||l.item.key==='lining');
   return <section className="sauna-quick">
@@ -25,7 +25,7 @@ export function SaunaQuickEditor({s,raw,update,room,active,prices,drainQuantity}
     <details><summary>Допущения и источники автоматического режима</summary>
       <p>По просьбе пользователя от 30.09.2026: предварительные сметные допущения, не монтажные нормы. Вагонка липа А, рабочая ширина 88 мм; длина ближайшая не меньше высоты, максимум 3 м. Упаковки по покрываемой площади с запасом проекта, без оптимизации отдельных резов потолка и проёмов. Утепление 50 мм; шаг каркаса 600 мм, контррейки 400 мм. Фольга по площади; лента 1,5 м/м². Плинтус и галтель по периметру, 4 угла по высоте, наличник 5 м. Полки 2×0,6 м, два яруса. Можно изменить ниже.</p>
       <p>Дымоход: высота этажа + верхние этажи (перекрытие условно 224 мм) + высота конька + 0,5 м − условная отметка патрубка 0,65 м, минимум 5 м от патрубка для бюджета. Монтажные длины условно 0,95/0,45 м, шибер со стартом 0,3 м. Это НЕ правило безопасной высоты: выход, отступы, стыки, опоры, тягу и проходки определяет монтажник. {room.ceilingMode==='open-rafter'?'Второй свет требует отдельной проверки маршрута.':''}</p>
-      <p>Цены вагонки, печи, фольги, бруска, погонажа и трёх деталей дымохода — сохранённые предложения от 29.09.2026. Остальные — бюджетные суммы, не проверенные рыночные средние. Сохранённые проектные цены и количества имеют приоритет.</p>
+      <p>Цены вагонки, печи, фольги, бруска, погонажа и трёх деталей дымохода — сохранённые предложения от 29.09.2026. Остальные — бюджетные суммы, не проверенные рыночные средние. {sharedPrices ? 'Цены берутся только из актуального общего прайса; проектные количества сохраняются.' : 'Сохранённые проектные цены и количества имеют приоритет.'}</p>
       <ul>{Object.entries(SAUNA_BUDGET_PRICES).map(([key,price])=>{const item=SAUNA_ITEMS.find(i=>i.key===key);return <li key={key}>{item.name}: {price.toLocaleString('ru-RU')} ₽/{item.unit} до наценки</li>;})}</ul>
     </details>
   </section>;

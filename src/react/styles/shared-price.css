@@ -1,0 +1,12 @@
+.shared-price-table { min-width: 650px; table-layout: auto; }
+.shared-price-table th:nth-child(3), .shared-price-table td:nth-child(3) { width: 42%; }
+.shared-price-table th:nth-child(5), .shared-price-table td:nth-child(5) { min-width: 110px; }
+.shared-price-input { width: 110px; max-width: 100%; padding: 8px; background: #fff; border: 1px solid #aab6a6; border-radius: 6px; color: #000; font: inherit; }
+.shared-price-input:disabled { background: #f5f7f3; opacity: 1; }
+.shared-price-unlock, .shared-price-new { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 12px 0; }
+.shared-price-new label, .shared-price-unlock label { display: grid; gap: 6px; }
+.shared-price-new input { padding: 8px; border: 1px solid #aab6a6; border-radius: 6px; }
+.shared-price-history { min-width: 650px; }
+.shared-price-history small { display: block; }
+.shared-price-screen details > summary { cursor: pointer; padding: 10px 0; }
+@media(max-width: 600px) { .shared-price-new label, .shared-price-unlock label { width: 100%; } .shared-price-screen .price-toolbar { gap: 10px; } }

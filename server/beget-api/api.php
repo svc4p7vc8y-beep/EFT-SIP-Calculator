@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
 require __DIR__ . '/mail-client.php';
+require __DIR__ . '/price-catalog.php';
 
 eft_origin_headers();
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
@@ -123,6 +124,7 @@ if ($action === 'login' && $method === 'POST') {
     }
     eft_login_rate_clear($pdo, $rateKeys);
     session_regenerate_id(true);
+    unset($_SESSION['price_editor_unlocked'], $_SESSION['price_editor_locked']);
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
     $_SESSION['user'] = ['id' => (int)$row['id'], 'username' => $row['username'], 'displayName' => $row['display_name'], 'role' => $row['role']];
     $_SESSION['auth_tag'] = eft_session_tag($row);
@@ -188,6 +190,51 @@ if ($action === 'logout' && $method === 'POST') {
     $_SESSION = [];
     session_destroy();
     eft_json(['ok' => true]);
+}
+
+if ($action === 'price-access' && $method === 'POST') {
+    $input = eft_input(65536);
+    if (!empty($input['lock'])) {
+        unset($_SESSION['price_editor_unlocked']);
+        $_SESSION['price_editor_locked'] = true;
+    } else {
+        if ($user['role'] !== 'admin') {
+            $keys = eft_login_rate_keys($user['username']);
+            if (eft_login_rate_blocked($pdo, $keys)) eft_json(['ok' => false, 'code' => 'rate_limited', 'message' => 'Слишком много попыток. Повторите через 15 минут.'], 429);
+            $statement = $pdo->prepare('SELECT password_hash FROM eft_users WHERE id = ?');
+            $statement->execute([(int)$user['id']]);
+            if (!password_verify((string)($input['password'] ?? ''), (string)$statement->fetchColumn())) {
+                eft_login_rate_failure($pdo, $keys);
+                eft_json(['ok' => false, 'code' => 'invalid_credentials', 'message' => 'Неверный пароль учётной записи.'], 403);
+            }
+            eft_login_rate_clear($pdo, $keys);
+        }
+        $_SESSION['price_editor_unlocked'] = true;
+        unset($_SESSION['price_editor_locked']);
+    }
+    eft_json(['ok' => true, 'canEdit' => eft_price_can_edit($user)]);
+}
+
+if ($action === 'price-catalog' && $method === 'GET') {
+    eft_json(['ok' => true, 'canEdit' => eft_price_can_edit($user)] + eft_price_read($pdo));
+}
+if ($action === 'price-catalog' && $method === 'PUT') {
+    eft_price_require_edit($user);
+    $result = eft_price_update($pdo, $user, eft_input(2097152));
+    eft_json(['ok' => true, 'canEdit' => eft_price_can_edit($user)] + $result);
+}
+if ($action === 'price-history' && $method === 'GET') {
+    eft_price_require_edit($user);
+    $cursor = max(0, (int)($_GET['before'] ?? 0));
+    $catalogId = mb_substr((string)($_GET['catalogId'] ?? ''), 0, 100);
+    $statement = $pdo->prepare('SELECT h.*, u.display_name AS author, u.username FROM eft_price_history h JOIN eft_users u ON u.id = h.changed_by WHERE (? = 0 OR h.id < ?) AND (? = \'\' OR h.catalog_id = ?) ORDER BY h.id DESC LIMIT 51');
+    $statement->execute([$cursor, $cursor, $catalogId, $catalogId]);
+    $rows = $statement->fetchAll();
+    $hasMore = count($rows) > 50;
+    $rows = array_slice($rows, 0, 50);
+    foreach ($rows as &$row) { $row['before'] = $row['before_row'] === null ? null : json_decode($row['before_row'], true); $row['after'] = json_decode($row['after_row'], true); unset($row['before_row'], $row['after_row']); }
+    unset($row);
+    eft_json(['ok' => true, 'entries' => $rows, 'nextCursor' => $hasMore ? (string)$rows[count($rows)-1]['id'] : null]);
 }
 
 if ($action === 'files' && $method === 'GET') {
@@ -373,7 +420,7 @@ if ($action === 'project' && $method === 'GET') {
     $statement->execute([$id]);
     $row = $statement->fetch();
     if (!$row) eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Проект не найден.'], 404);
-    $row['payload'] = json_decode($row['payload'], true);
+    $row['payload'] = eft_price_project($pdo, json_decode($row['payload'], true));
     eft_json(['ok' => true, 'project' => $row]);
 }
 
@@ -381,6 +428,7 @@ if ($action === 'projects' && $method === 'POST') {
     $input = eft_input();
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
     if (!$payload) eft_json(['ok' => false, 'code' => 'missing_project', 'message' => 'Нет данных проекта.'], 422);
+    $payload = eft_price_project($pdo, $payload);
     $id = eft_uuid();
     $pdo->beginTransaction();
     $number = eft_next_project_number();
@@ -411,6 +459,7 @@ if ($action === 'project' && $method === 'PUT') {
     $revision = (int)($input['revision'] ?? 0);
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
     $statement = $pdo->prepare('SELECT revision, payload, updated_at FROM eft_projects WHERE id = ? FOR UPDATE');
+    $payload = eft_price_project($pdo, $payload);
     $pdo->beginTransaction();
     $statement->execute([$id]);
     $current = $statement->fetch();

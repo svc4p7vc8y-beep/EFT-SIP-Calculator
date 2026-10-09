@@ -149,7 +149,7 @@ export function calculateInternal(project, metrics, inputs) {
     const original=room.settings;
     const s=original.sauna?.enabled?{...original,wallsFinish:'none',ceilingFinish:'none'}:original;
     if(s.enabled===false)continue;
-    lines.push(...saunaLines(room,reserve,[...project.priceMat,...project.priceLab]));
+    lines.push(...saunaLines(room,reserve,[...project.priceMat,...project.priceLab],project.sharedPriceCatalog?.source==='server'));
     lines.push(...roomDrainLines(room,project.priceMat));
     lines.push(...showerCabinLines(room,[...project.priceMat,...project.priceLab]));
     const floorArea=Math.max(0,s.floorArea==null?room.area:n(s.floorArea));

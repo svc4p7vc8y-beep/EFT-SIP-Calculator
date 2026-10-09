@@ -6,6 +6,7 @@ import { createDefaultPriceLists, migrateProject, REACT_PROJECT_VERSION } from '
 import { formatMoney, uid } from '../utils/format.js';
 import { isPriceEditorUnlocked, setPriceEditorUnlocked, verifyPricePasscode } from '../security/price-access.js';
 import { useTeam } from '../cloud/TeamContext.jsx';
+import SharedPriceEditor from './SharedPriceEditor.jsx';
 
 function downloadCatalog(project) {
   const blob = new Blob([JSON.stringify({ format: 'eft-price-catalog', appVersion: REACT_PROJECT_VERSION, priceMat: project.priceMat, priceLab: project.priceLab }, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -17,6 +18,11 @@ function downloadCatalog(project) {
 }
 
 export default function PriceScreen() {
+  const team = useTeam();
+  return team.user ? <SharedPriceEditor /> : <LocalPriceScreen />;
+}
+
+function LocalPriceScreen() {
   const { project, commit, checkpoint } = useProject();
   const team = useTeam();
   const admin = team.user?.role === 'admin';

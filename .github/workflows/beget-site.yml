@@ -16,6 +16,8 @@ on:
       - 'vite.public.config.js'
       - 'package.json'
       - 'package-lock.json'
+      - 'tests/price-catalog.integration.php'
+      - '.github/workflows/beget-site.yml'
 
 permissions:
   contents: read
@@ -28,6 +30,14 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: eft-test
+          MYSQL_DATABASE: eft_price_test
+        ports: ['33306:3306']
+        options: --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,11 +53,17 @@ jobs:
       - name: Add server API and lint PHP
         run: |
           sudo apt-get update
-          sudo apt-get install --yes php-cli
+          sudo apt-get install --yes php-cli php-mysql php-mbstring
           find server/beget-api -name '*.php' -print0 | xargs -0 -n1 php -l
           cp -R server/beget-api dist-public/api
           test ! -e dist-public/react.html
           test ! -e dist-public/legacy-v45.html
+      - name: Test transactional price catalog on isolated MySQL
+        env:
+          EFT_PRICE_TEST_DSN: mysql:host=127.0.0.1;port=33306;dbname=eft_price_test;charset=utf8mb4
+          EFT_PRICE_TEST_USER: root
+          EFT_PRICE_TEST_PASSWORD: eft-test
+        run: php tests/price-catalog.integration.php
       - name: Validate deployment secrets
         env:
           HOST: ${{ secrets.BEGET_SSH_HOST }}

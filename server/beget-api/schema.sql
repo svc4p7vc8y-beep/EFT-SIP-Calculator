@@ -129,6 +129,20 @@ CREATE TABLE IF NOT EXISTS eft_mail_links (
   CONSTRAINT fk_eft_mail_link_user FOREIGN KEY (linked_by) REFERENCES eft_users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS eft_price_history (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  revision INT UNSIGNED NOT NULL,
+  catalog_key VARCHAR(20) NOT NULL,
+  catalog_id VARCHAR(100) NOT NULL,
+  before_row LONGTEXT NULL,
+  after_row LONGTEXT NOT NULL,
+  changed_by BIGINT UNSIGNED NOT NULL,
+  changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_eft_price_history_item (catalog_id, id),
+  CONSTRAINT fk_eft_price_history_user FOREIGN KEY (changed_by) REFERENCES eft_users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS eft_login_attempts (
   scope_name ENUM('ip','account') NOT NULL,
   key_hash CHAR(64) NOT NULL,

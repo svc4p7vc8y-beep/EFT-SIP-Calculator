@@ -7,6 +7,7 @@ on:
     paths:
       - 'server/beget-api/**'
       - '.github/workflows/beget-api-migrate.yml'
+      - 'tests/price-catalog.integration.php'
 
 permissions:
   contents: read
@@ -19,6 +20,14 @@ jobs:
   migrate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: eft-test
+          MYSQL_DATABASE: eft_price_test
+        ports: ['33306:3306']
+        options: --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - name: Configure SSH
@@ -30,8 +39,14 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
           sudo apt-get update
-          sudo apt-get install --yes sshpass php-cli
+          sudo apt-get install --yes sshpass php-cli php-mysql php-mbstring
           find server/beget-api -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Test transactional price catalog on isolated MySQL
+        env:
+          EFT_PRICE_TEST_DSN: mysql:host=127.0.0.1;port=33306;dbname=eft_price_test;charset=utf8mb4
+          EFT_PRICE_TEST_USER: root
+          EFT_PRICE_TEST_PASSWORD: eft-test
+        run: php tests/price-catalog.integration.php
       - name: Upload API and run idempotent migration
         env:
           HOST: ${{ secrets.BEGET_SSH_HOST }}

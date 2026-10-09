@@ -4,6 +4,7 @@ import { resolveShowerCabin, SHOWER_CABIN_OFFER } from '../calculations/shower-c
 export function ShowerCabinEditor({room,values,updateRoom,project}) {
   const raw=values.showerCabin||{};
   const cabin=resolveShowerCabin({...room,settings:values},[...project.priceMat,...project.priceLab]);
+  if (project.sharedPriceCatalog) { cabin.materialPrice=Number(project.priceMat.find(row=>row.id==='MAT-234')?.price)||0; cabin.workPrice=Number(project.priceLab.find(row=>row.id==='LAB-130')?.price)||0; }
   const update=patch=>updateRoom({showerCabin:{...raw,...patch}});
   const total=cabin.quantity*(cabin.materialPrice*(1+cabin.markup/100)+cabin.workPrice);
   return <section className="shower-cabin-editor" aria-label="Душевая кабина">
@@ -17,12 +18,12 @@ export function ShowerCabinEditor({room,values,updateRoom,project}) {
     <p>Сборка и монтаж на готовые выводы не добавляют повторно точки водоснабжения и канализации. Их количество и подключение проверьте в «Инженерии». Трап, гидроизоляция и подготовка основания — отдельные позиции.</p>
     <details><summary>Цена, наценка и ручная настройка</summary>
       <div className="form-grid three">
-        <NumberField label="Закупочная цена кабины" suffix="₽/шт" min={0} value={cabin.materialPrice} onChange={materialPrice=>update({materialPrice})}/>
+        <NumberField label="Закупочная цена кабины" suffix="₽/шт" min={0} disabled={Boolean(project.sharedPriceCatalog)} value={cabin.materialPrice} onChange={materialPrice=>update({materialPrice})}/>
         <NumberField label="Наценка материала" suffix="%" min={0} value={cabin.markup} onChange={markup=>update({markup})}/>
-        <NumberField label="Сборка и монтаж" suffix="₽/шт" min={0} value={cabin.workPrice} onChange={workPrice=>update({workPrice})}/>
+        <NumberField label="Сборка и монтаж" suffix="₽/шт" min={0} disabled={Boolean(project.sharedPriceCatalog)} value={cabin.workPrice} onChange={workPrice=>update({workPrice})}/>
       </div>
       <button type="button" className="button secondary" onClick={()=>update({materialPrice:null,workPrice:null,markup:SHOWER_CABIN_OFFER.markup})}>Вернуть цены из прайса</button>
-      <p>Ручные цены сохраняются только в этом помещении; общий прайс-лист не меняется. Наценка применяется один раз к материалу, к работе — нет.</p>
+      <p>{project.sharedPriceCatalog ? 'Цены кабины и монтажа берутся из общего прайса. Изменить их можно в разделе «Прайс-лист».' : 'Ручные цены сохраняются только в этом помещении; общий прайс-лист не меняется.'} Наценка применяется один раз к материалу, к работе — нет.</p>
     </details>
   </section>;
 }

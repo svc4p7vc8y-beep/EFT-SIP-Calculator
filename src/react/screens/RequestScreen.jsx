@@ -12,10 +12,13 @@ import {
   switchRequestType,
 } from '../state/request-model.js';
 import { formatMoney, formatNumber } from '../utils/format.js';
+import { useTeam } from '../cloud/TeamContext.jsx';
+import { useCurrentPriceAction } from '../cloud/useCurrentPriceAction.js';
 
 const kindLabel = (kind) => kind === 'labor' ? 'Работа' : 'Материал';
 
 function RequestItemsEditor({ request, updateRequest, catalogById }) {
+  const sharedPrices = Boolean(useTeam().user);
   const updateItem = (id, changes) => updateRequest((draft) => {
     const item = draft.items.find((entry) => entry.id === id);
     if (item) Object.assign(item, changes);
@@ -26,11 +29,11 @@ function RequestItemsEditor({ request, updateRequest, catalogById }) {
   };
   if (!request.items.length) return <div className="request-empty"><strong>Заявка пока пустая</strong><span>Найдите позиции в прайс-листе и добавьте их в документ.</span></div>;
   return <div className="table-wrap request-items-wrap"><table className="data-table request-items-table"><thead><tr><th>Позиция</th><th>Вид</th><th>Ед.</th><th>Количество</th><th>Цена</th><th>Сумма</th><th /></tr></thead><tbody>{request.items.map((item) => <tr key={item.id}>
-    <td><input aria-label={`Наименование: ${item.name}`} value={item.name} onChange={(event) => updateItem(item.id, { name: event.target.value })} /><small>{item.catalogId || item.category}</small></td>
-    <td><select aria-label={`Вид: ${item.name}`} value={item.kind} onChange={(event) => updateItem(item.id, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select></td>
-    <td><input className="request-unit-input" aria-label={`Единица: ${item.name}`} value={item.unit} onChange={(event) => updateItem(item.id, { unit: event.target.value })} /></td>
+    <td>{sharedPrices && !item.catalogId ? <select aria-label={`Позиция общего прайса: ${item.name}`} value="" onChange={event => { const row = catalogById.get(event.target.value); if (row) updateItem(item.id, { catalogId: row.id, name: row.name, kind: row.kind, unit: row.unit }); }}><option value="">Выберите позицию общего прайса</option>{[...catalogById.values()].map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select> : null}<input aria-label={`Наименование: ${item.name}`} value={item.name} onChange={(event) => updateItem(item.id, { name: event.target.value })} /><small>{item.catalogId || item.category}</small></td>
+    <td><select aria-label={`Вид: ${item.name}`} value={item.kind} disabled={sharedPrices} onChange={(event) => updateItem(item.id, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select></td>
+    <td><input className="request-unit-input" aria-label={`Единица: ${item.name}`} value={item.unit} disabled={sharedPrices} onChange={(event) => updateItem(item.id, { unit: event.target.value })} /></td>
     <td><NumericInput min={0} step={0.01} value={item.qty} ariaLabel={`Количество: ${item.name}`} onChange={(qty) => updateItem(item.id, { qty })} /></td>
-    <td><NumericInput min={0} step={1} showSteppers={false} value={item.price} ariaLabel={`Цена: ${item.name}`} onChange={(price) => updateItem(item.id, { price })} /></td>
+    <td><NumericInput min={0} step={1} showSteppers={false} disabled={sharedPrices} title={sharedPrices ? 'Цена из общего прайса' : ''} value={item.price} ariaLabel={`Цена: ${item.name}`} onChange={(price) => updateItem(item.id, { price })} /></td>
     <td><strong>{formatMoney(item.qty * item.price)}</strong></td>
     <td><div className="request-row-actions">{item.catalogId ? <button title="Вернуть цену из прайс-листа" aria-label={`Вернуть цену из прайс-листа: ${item.name}`} onClick={() => resetPrice(item)}><RotateCcw /></button> : null}<button className="danger" title="Удалить" aria-label={`Удалить: ${item.name}`} onClick={() => updateRequest((draft) => { draft.items = draft.items.filter((entry) => entry.id !== item.id); })}><Trash2 /></button></div></td>
   </tr>)}</tbody></table></div>;
@@ -75,10 +78,12 @@ export default function RequestScreen() {
   };
   const print = () => {
     if (!request.items.length) return window.alert('Добавьте хотя бы одну позицию в заявку.');
+    if (project.sharedPriceCatalog && request.items.some(item => !(item.price > 0))) return window.alert('Привяжите позиции к общему прайсу и заполните недостающие цены.');
     window.print();
   };
   const share = async () => {
     if (!request.items.length) return window.alert('Добавьте хотя бы одну позицию в заявку.');
+    if (project.sharedPriceCatalog && request.items.some(item => !(item.price > 0))) return window.alert('Привяжите позиции к общему прайсу и заполните недостающие цены.');
     const blob = createRequestWorkbook(project, request);
     const file = typeof File === 'function'
       ? new File([blob], `${requestFileName(request)}.xlsx`, { type: blob.type })
@@ -95,7 +100,13 @@ export default function RequestScreen() {
     downloadRequestWorkbook(project, request);
     setNotice('Excel-файл скачан — его можно приложить к письму или сообщению');
   };
-  return <div className="screen request-screen"><ScreenHeader title="Заявка" description="Соберите отдельный документ из позиций прайс-листа, не меняя смету проекта" actions={<><button className="button secondary no-print" onClick={() => downloadRequestWorkbook(project, request)} disabled={!request.items.length}><FileSpreadsheet />Excel</button><button className="button secondary no-print" onClick={share} disabled={!request.items.length}><Send />Отправить</button><button className="button primary no-print" onClick={print} disabled={!request.items.length}><Printer />Печать / PDF</button></>} />
+  const exportCurrent = useCurrentPriceAction(() => {
+    if (project.sharedPriceCatalog && request.items.some(item => !(item.price > 0))) { window.alert('Привяжите позиции к общему прайсу и заполните недостающие цены.'); return; }
+    downloadRequestWorkbook(project, request);
+  });
+  const shareCurrent = useCurrentPriceAction(share);
+  const printCurrent = useCurrentPriceAction(print);
+  return <div className="screen request-screen"><ScreenHeader title="Заявка" description="Соберите отдельный документ из позиций прайс-листа, не меняя смету проекта" actions={<><button className="button secondary no-print" onClick={exportCurrent} disabled={!request.items.length}><FileSpreadsheet />Excel</button><button className="button secondary no-print" onClick={shareCurrent} disabled={!request.items.length}><Send />Отправить</button><button className="button primary no-print" onClick={printCurrent} disabled={!request.items.length}><Printer />Печать / PDF</button></>} />
     <div className="request-mode-bar no-print"><div><strong>Тип документа</strong><span>{notice}. Входящая анкета EFT-…, проект № … и этот документ КП-/З-… имеют разные номера. Ручной номер сохраняется.</span></div><div className="segmented"><button className={request.documentType === 'commercial' ? 'active' : ''} onClick={() => setDocumentType('commercial')}>Коммерческое предложение</button><button className={request.documentType === 'internal' ? 'active' : ''} onClick={() => setDocumentType('internal')}>Внутренняя заявка</button></div></div>
     <div className="stats-row no-print"><Stat label="Позиций" value={`${request.items.length}`} /><Stat label="Материалы" value={formatMoney(totals.materials)} /><Stat label="Работы" value={formatMoney(totals.labor)} /><Stat label="Итого заявки" value={formatMoney(totals.total)} tone="accent" /></div>
     <div className="request-editor-grid no-print"><Panel title="Реквизиты документа" description="Эти данные относятся только к текущей заявке"><div className="form-grid"><label className="field"><span>Номер</span><input value={request.number} onChange={(event) => setField('number', event.target.value)} /></label><label className="field"><span>Дата</span><input type="date" value={request.date} onChange={(event) => setField('date', event.target.value)} /></label><label className="field"><span>Заказчик / объект</span><input value={request.customer} onChange={(event) => setField('customer', event.target.value)} placeholder={project.meta.customer || 'Название или ФИО'} /></label><label className="field"><span>Получатель / ответственный</span><input value={request.recipient} onChange={(event) => setField('recipient', event.target.value)} placeholder="Контакт или подразделение" /></label><label className="field span-2"><span>Адрес объекта</span><input value={request.address} onChange={(event) => setField('address', event.target.value)} placeholder={project.meta.address || 'Адрес'} /></label><label className="field"><span>Подготовил</span><input value={request.manager} onChange={(event) => setField('manager', event.target.value)} /></label>{request.documentType === 'commercial' ? <label className="field"><span>Предложение действует</span><NumericInput min={0} step={1} suffix="дней" value={request.validDays} ariaLabel="Срок действия предложения" onChange={(value) => setField('validDays', value)} /></label> : null}<label className="field span-2"><span>Примечание</span><textarea rows="3" value={request.note} onChange={(event) => setField('note', event.target.value)} placeholder="Комментарий к комплектации, срокам или согласованию" /></label>{request.documentType === 'commercial' ? <><label className="field"><span>Условия оплаты</span><textarea rows="2" value={request.paymentTerms} onChange={(event) => setField('paymentTerms', event.target.value)} /></label><label className="field"><span>Условия поставки</span><textarea rows="2" value={request.deliveryTerms} onChange={(event) => setField('deliveryTerms', event.target.value)} /></label></> : null}</div></Panel>

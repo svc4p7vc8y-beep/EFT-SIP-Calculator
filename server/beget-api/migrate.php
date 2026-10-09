@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
+require __DIR__ . '/price-catalog.php';
 $isCli = PHP_SAPI === 'cli';
 if (!$isCli) {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { http_response_code(404); exit; }
@@ -36,6 +37,7 @@ $maximumApplication = 0;
 foreach ($rows as $row) $maximumApplication = max($maximumApplication, (int)substr((string)$row['public_number'], 4));
 $statement = $pdo->prepare("UPDATE eft_counters SET next_value = GREATEST(next_value, ?) WHERE counter_key = 'application'");
 $statement->execute([max($existingApplications, $maximumApplication) + 1]);
+eft_price_seed($pdo);
 if ($isCli) echo "EFT database migration complete\n";
 else {
     header('Content-Type: application/json; charset=utf-8');

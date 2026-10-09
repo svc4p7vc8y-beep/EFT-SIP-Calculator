@@ -3,9 +3,10 @@ import { CHIMNEY_KEYS, DETAILED_DEFAULT_PRICES, SAUNA_EXTRA_ITEMS } from '../dat
 import { chimneySchedule, liningOptions } from './sauna-details.js';
 import { resolveSauna, automaticLining, SAUNA_BUDGET_PRICES, SAUNA_OFFER_PRICES } from './sauna-auto.js';
 import { resolveRoomDrain } from './room-drain.js';
+import { liningCatalogId } from '../data/shared-price-variants.js';
 
 const positive = value => Number.isFinite(Number(value)) ? Math.max(0,Number(value)) : 0;
-export function saunaLines(room, reserve=1.1, catalog=[]) {
+export function saunaLines(room, reserve=1.1, catalog=[], sharedPrices=false) {
   const s=resolveSauna(room);
   if(!s?.enabled || room.settings.enabled===false) return [];
   const wall=positive(room.settings.wallArea??room.wallArea);
@@ -61,8 +62,10 @@ export function saunaLines(room, reserve=1.1, catalog=[]) {
     const catalogPrice=catalog.find(row=>row.id===item.id)?.price;
     const autoPrice=s.autoEstimate?(item.key==='liningPack'?pack?.price:item.key==='heater'&&s.heaterType!=='wood'?0:SAUNA_OFFER_PRICES[item.key]??SAUNA_BUDGET_PRICES[item.key]):undefined;
     const price=item.key==='drain'?drain.price:s.prices?.[item.key]??(s.autoEstimate?((catalogPrice>0?catalogPrice:undefined)??autoPrice??DETAILED_DEFAULT_PRICES[item.key]):(['glassDoor','lindenWindow'].includes(item.key)?(catalogPrice>0?catalogPrice:SAUNA_OFFER_PRICES[item.key]):detailed&&DETAILED_DEFAULT_PRICES[item.key]!=null?(catalogPrice??DETAILED_DEFAULT_PRICES[item.key]):undefined));
-    return [{catalogId:item.id,key:`${room.floor}-${room.id}-sauna-${item.key}`,qty,group:`${room.floor} этаж · ${room.name} · Парная`,description:name,name,
+    const catalogId = sharedPrices && item.key === 'liningPack' && pack?.length ? liningCatalogId(pack.length, s.liningStock?.grade) : item.id;
+    const actualPrice = sharedPrices ? Number(catalog.find(row => row.id === catalogId)?.price) || 0 : price;
+    return [{catalogId,saunaItemKey:item.key,key:`${room.floor}-${room.id}-sauna-${item.key}`,qty,group:`${room.floor} этаж · ${room.name} · Парная`,description:name,name,
       priceMultiplier:item.key==='drain'?1+drain.markup/100:(detailed||['glassDoor','lindenWindow'].includes(item.key))&&item.kind==='material'&&item.key!=='heaterDelivery'?1+positive(s.materialMarkup??25)/100:1,
-      ...(price!=null?{projectPrice:positive(price)}:{})}];
+      ...(actualPrice!=null?{projectPrice:positive(actualPrice)}:{})}];
   });
 }

@@ -44,6 +44,7 @@ function catalogIndex(project) {
   const entries = [...project.priceMat, ...project.priceLab];
   return {
     entries,
+    authoritative: project.sharedPriceCatalog?.source === 'server',
     byId: new Map(entries.map((item) => [item.id, item])),
     exact: new Map(
       entries.map((item) => [item.name.toLocaleLowerCase("ru"), item]),
@@ -66,6 +67,7 @@ function makeLine(index, section, query, qty, options = {}) {
   const amount = Math.max(0, Number(qty) || 0);
   if (!amount) return null;
   const item = options.catalogId ? index.byId.get(options.catalogId) : findCatalog(index, query, options.kind);
+  const price = index.authoritative ? (Number(item?.price) || 0) : (options.projectPrice != null ? Math.max(0, Number(options.projectPrice) || 0) : (Number(item?.price) || Number(options.price) || 0));
   return {
     id: `${section}:${options.key || query}`,
     section,
@@ -73,13 +75,11 @@ function makeLine(index, section, query, qty, options = {}) {
     name: options.name || item?.name || query,
     unit: options.unit || item?.unit || "шт",
     qty: round(amount, options.digits ?? 2),
-    price:
-      (options.projectPrice != null ? Math.max(0, Number(options.projectPrice) || 0) : (Number(item?.price) || Number(options.price) || 0)) *
-      (Number(options.priceMultiplier) || 1),
+    price: price * (Number(options.priceMultiplier) || 1),
     kind: item?.kind || options.kind || "material",
     source: options.source || section,
     estimateGroup: options.estimateGroup,
-    ...(item?.pricePending === true && !(options.projectPrice != null ? Number(options.projectPrice)>0 : Number(item?.price)>0 || Number(options.price)>0) ? { pricePending: true } : {}),
+    ...((index.authoritative ? !(price > 0) : item?.pricePending === true && !(price > 0)) ? { pricePending: true } : {}),
     ...(options.exactQuantity === true ? { exactQuantity: true } : {}),
   };
 }
@@ -228,12 +228,12 @@ function applyProjectEstimateEdits(project, sections) {
         {
           ...line,
           ...Object.fromEntries(
-            ["name", "kind", "unit", "qty", "price"]
+            (project.sharedPriceCatalog?.source === 'server' ? ["name", "qty"] : ["name", "kind", "unit", "qty", "price"])
               .filter((key) => override[key] !== undefined)
               .map((key) => [key, override[key]]),
           ),
           projectOverride: true,
-          pricePending: !(Number(override.price ?? line.price) > 0),
+          pricePending: !(Number(project.sharedPriceCatalog?.source === 'server' ? line.price : override.price ?? line.price) > 0),
         },
       ];
     });

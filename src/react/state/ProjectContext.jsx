@@ -14,6 +14,7 @@ import {
   REACT_BACKUPS_KEY,
 } from "./project-model.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
+import { applySharedPriceCatalog } from '../cloud/price-catalog.js';
 
 const ProjectContext = createContext(null);
 const HISTORY_LIMIT = 60;
@@ -59,12 +60,13 @@ export function ProjectProvider({ children }) {
     status: "saved",
     message: "Автосохранение включено",
   });
+  const project = useMemo(() => applySharedPriceCatalog(history.present, team.user ? team.priceCatalog.payload : null, team.priceCatalog.revision), [history.present, team.user?.id, team.priceCatalog.payload, team.priceCatalog.revision]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
         const snapshot = {
-          ...history.present,
+          ...project,
           savedAt: new Date().toISOString(),
         };
         localStorage.setItem(REACT_AUTOSAVE_KEY, JSON.stringify(snapshot));
@@ -80,16 +82,16 @@ export function ProjectProvider({ children }) {
       }
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [history.present]);
+  }, [project]);
 
   useEffect(() => {
     if (!team.user || !team.current) return undefined;
     const timer = window.setTimeout(
-      () => team.saveProject(history.present).catch(() => {}),
+      () => team.saveProject(project).catch(() => {}),
       1500,
     );
     return () => window.clearTimeout(timer);
-  }, [history.present, team.user, team.current?.id]);
+  }, [project, team.user, team.current?.id]);
 
   const commit = useCallback(
     (update) => dispatch({ type: "commit", update }),
@@ -107,7 +109,7 @@ export function ProjectProvider({ children }) {
         localStorage.getItem(REACT_BACKUPS_KEY) || "[]",
       );
       const snapshot = {
-        ...history.present,
+        ...project,
         backupId: Date.now(),
         savedAt: new Date().toISOString(),
       };
@@ -116,7 +118,7 @@ export function ProjectProvider({ children }) {
         JSON.stringify([snapshot, ...existing].slice(0, 10)),
       );
       if (team.user && team.current)
-        team.saveProject(history.present, true).catch(() => {});
+        team.saveProject(project, true).catch(() => {});
       setSaveState({ status: "saved", message: "Создана резервная копия" });
       return snapshot;
     } catch (error) {
@@ -126,10 +128,10 @@ export function ProjectProvider({ children }) {
       });
       return null;
     }
-  }, [history.present, team]);
+  }, [project, team]);
   const value = useMemo(
     () => ({
-      project: history.present,
+      project,
       commit,
       replace,
       undo,
@@ -139,7 +141,7 @@ export function ProjectProvider({ children }) {
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
     }),
-    [history, commit, replace, undo, redo, checkpoint, saveState],
+    [history, project, commit, replace, undo, redo, checkpoint, saveState],
   );
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

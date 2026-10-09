@@ -3,13 +3,14 @@ import { chimneySchedule, liningOptions, positive } from '../calculations/sauna-
 import { SAUNA_SOURCES } from '../data/sauna-options.js';
 import { LINING_OFFERS } from '../data/sauna-options.js';
 import { automaticLining } from '../calculations/sauna-auto.js';
+import { liningCatalogId } from '../data/shared-price-variants.js';
 
 export function SaunaDetailsEditor({s,update,room,values,project}) {
   const stock=s.liningStock||{}, c=s.chimneyDimensions||{};
   const stockUpdate=patch=>update({liningStock:{...stock,...patch}});
   const chimneyUpdate=patch=>s.chimneyMode==='auto'?update({chimneyOverrides:{...s.chimneyOverrides,...patch}}):update({chimneyDimensions:{...c,...patch}});
   const area=positive(values.wallArea??room.wallArea)+positive(values.ceilingArea??room.ceilingArea);
-  const options=liningOptions(area,stock,Math.max(1,Number(project.settings.internal.reserve)||1.1));
+  const options=liningOptions(area,stock,Math.max(1,Number(project.settings.internal.reserve)||1.1)).map(offer => project.sharedPriceCatalog ? { ...offer, price: Number(project.priceMat.find(row => row.id === liningCatalogId(offer.length,stock.grade))?.price) || 0 } : offer);
   const schedule=chimneySchedule(c);
   return <>
     <Toggle label="Подробная банная комплектация · материалы +25%" checked={s.detailVersion===1} onChange={enabled=>update({detailVersion:enabled?1:0,...(!enabled?{autoEstimate:false}:{})})}/>
@@ -54,9 +55,9 @@ export function SaunaDetailsEditor({s,update,room,values,project}) {
       <p>Фольга — по площади стен и потолка с запасом. Лента, скобы, крепёж, погонаж, термопровод, лампа и вентиляция задаются ниже отдельно. Нулевые количества не входят в смету.</p>
       <Toggle label="Закупать фольгу и ленту рулонами, каркас хлыстами 3 м" checked={s.stockMaterials===true} onChange={stockMaterials=>update({stockMaterials})}/>
       {s.stockMaterials?<><p>Вместо дробных м²/метров: фольга 80 мкм по 10 м², лента по 30 м, брусок 50×50 и контррейка 20×40 по 3 м. Количество округляется вверх. Профили и пригодность материалов подтвердите рабочим узлом.</p>
-        <button type="button" onClick={()=>update({prices:{...s.prices,foilRoll:2100,tapeRoll:300,battenStock:280,counterStock:110}})}>Применить закупочные цены: 2 100 / 300 / 280 / 110 ₽</button>
+        <button type="button" disabled={Boolean(project.sharedPriceCatalog)} onClick={()=>update({prices:{...s.prices,foilRoll:2100,tapeRoll:300,battenStock:280,counterStock:110}})}>Применить закупочные цены: 2 100 / 300 / 280 / 110 ₽</button>
         <p><a href="https://lipa-osina.ru/category/aksessuary-dlya-bani/folga/" target="_blank" rel="noreferrer">Фольга и лента</a> · <a href="https://lipa-osina.ru/category/brusok-khvoya-strogannyy/" target="_blank" rel="noreferrer">Брусок и рейка</a> · 29.09.2026. Утеплитель — отдельная проектная позиция, не огнезащита дымохода.</p></>:null}
-      <button type="button" onClick={()=>update({prices:{...s.prices,plinth:100,cornice:100,corner:170,casing:170}})}>Применить цены погонажа липы: 100 / 100 / 170 / 170 ₽ за м</button>
+      <button type="button" disabled={Boolean(project.sharedPriceCatalog)} onClick={()=>update({prices:{...s.prices,plinth:100,cornice:100,corner:170,casing:170}})}>Применить цены погонажа липы: 100 / 100 / 170 / 170 ₽ за м</button>
       <p><a href={SAUNA_SOURCES.trim} target="_blank" rel="noreferrer">Источник погонажа</a> · 29.09.2026. Кнопка заменяет только четыре проектные цены, количества остаются ручными.</p>
       <h4>Печь Везувий Скиф Ковка 16 Панорама М</h4>
       <p>Цена производителя 42 010 ₽ → 52 512,50 ₽ при +25%; доставка сверху 7 000 ₽. Выход Ø115 мм, заявленный объём 8–18 м³. Это вариант выбора, а не автоматическое подтверждение мощности и защиты.</p>
@@ -76,7 +77,7 @@ export function SaunaDetailsEditor({s,update,room,values,project}) {
           {schedule.valid?<p className="assembly-info">От патрубка до устья требуется {schedule.length.toFixed(2)} м; набрано {schedule.purchased.toFixed(2)} м. Сэндвич-модулей: {schedule.quantities.chimneySandwich} шт.</p>:<p className="assembly-warning">Дымоход пока НЕ включён: не хватает корректных размеров.</p>}
           {schedule.warnings.map(w=><p className="assembly-warning" key={w}>{w}</p>)}
           {!positive(c.passages)?<p className="assembly-warning">Проходы перекрытий не учтены. Укажите их количество.</p>:null}
-          <button type="button" onClick={()=>update({prices:{...s.prices,chimneySingle:2729,chimneyDamper:1522,chimneySandwich:2713}})}>Применить цены Везувий: труба 2 729 ₽, шибер 1 522 ₽, сэндвич 2 713 ₽</button>
+          <button type="button" disabled={Boolean(project.sharedPriceCatalog)} onClick={()=>update({prices:{...s.prices,chimneySingle:2729,chimneyDamper:1522,chimneySandwich:2713}})}>Применить цены Везувий: труба 2 729 ₽, шибер 1 522 ₽, сэндвич 2 713 ₽</button>
           <p><a href={SAUNA_SOURCES.single} target="_blank" rel="noreferrer">Труба и шибер Ø115</a> · <a href={SAUNA_SOURCES.sandwich} target="_blank" rel="noreferrer">Сэндвич Ø115/200</a> · <a href={SAUNA_SOURCES.chimney} target="_blank" rel="noreferrer">Инструкция</a>. Цены на 29.09.2026; остальные цены запросить. Рабочие узлы проходок, противопожарные отступы и опоры обязательны; калькулятор не разрешает монтаж.</p>
         </>:null}
       </>:null}

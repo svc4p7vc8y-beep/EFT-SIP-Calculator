@@ -394,6 +394,7 @@ export function App() {
   }, [backupOpen]);
 
   if (!team.ready || (team.required && !team.user)) return <TeamLogin />;
+  if (team.user && !team.priceCatalog.payload) return <div className="screen"><h1>Загрузка общего прайса</h1><p>{team.priceCatalog.error || 'Получаем актуальные цены с сервера…'}</p><button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Повторить</button><button className="button secondary" onClick={team.logout}>Выйти</button></div>;
 
   return (
     <div
@@ -415,19 +416,19 @@ export function App() {
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
             <span>Материалы</span>
-            <strong>{formatMoney(calculation.totals.materials)}</strong>
+            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(calculation.totals.materials)}</strong>
           </div>
           <div>
             <span>Работы</span>
-            <strong>{formatMoney(calculation.totals.labor)}</strong>
+            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(calculation.totals.labor)}</strong>
           </div>
           <div className="grand">
             <span>Итого</span>
-            <strong>{formatMoney(calculation.totals.total)}</strong>
+            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(calculation.totals.total)}</strong>
           </div>
           <div className="adjusted">
             <span>Изменённая цена</span>
-            <strong>{formatMoney(adjustedPrice.total)}</strong>
+            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(adjustedPrice.total)}</strong>
           </div>
         </div>
         <div className="header-actions">
@@ -596,6 +597,7 @@ export function App() {
           />
         ) : null}
         <main className="workspace">
+          {team.user && team.priceCatalog.status !== 'ready' ? <div className="notice no-print" role="alert">Не удалось подтвердить актуальные цены: {team.priceCatalog.error}. Планы доступны; смета станет доступна после обновления прайса. <button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Обновить прайс</button></div> : null}
           {appUpdateReady ? <div className="notice no-print" role="status">Доступна новая версия калькулятора. Сохраните проект, затем обновите страницу. <button className="button secondary" onClick={() => window.location.reload()}>Обновить версию</button></div> : null}
           {team.refreshError || team.mailError ? <div className="notice no-print" role="alert">
             {team.refreshError ? `Общие проекты и анкеты могут быть неактуальны: ${team.refreshError}. ` : ""}
@@ -624,6 +626,7 @@ export function App() {
                 </small>
               </span>
             </button><button className="button secondary no-print" onClick={() => {
+              if (team.user) { setActive('price'); setNotice('Базовые цены общего прайса восстанавливаются в его редакторе'); return; }
               if (!isPriceEditorUnlocked()) {
                 const code = window.prompt('Введите код доступа к прайс-листу');
                 if (code === null) return;
@@ -637,7 +640,7 @@ export function App() {
             <Suspense
               fallback={<div className="screen-loader">Загружаю раздел…</div>}
             >
-              <Screen
+              {team.user && team.priceCatalog.status !== 'ready' && !['plan','parameters','team','files','mail','knowledge','sip-guide','price','cutting'].includes(active) ? <div className="notice">Для расчёта и печати необходимо получить актуальный серверный прайс.</div> : <Screen
                 active={active}
                 calculation={calculation}
                 onNavigate={setActive}
@@ -653,15 +656,15 @@ export function App() {
                   onImportIntake: importTeamIntake,
                   focusTab: teamFocus,
                 }}
-              />
+              />}
             </Suspense>
           </ScreenErrorBoundary>
         </main>
-        <ProjectSummarySidebar
+        {team.user && team.priceCatalog.status !== 'ready' ? null : <ProjectSummarySidebar
           project={project}
           calculation={calculation}
           onNavigate={setActive}
-        />
+        />}
       </div>
       {newProjectOpen ? (
         <ResidentialPresetDialog

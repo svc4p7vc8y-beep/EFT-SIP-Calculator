@@ -16,6 +16,7 @@ import { readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
 import { mergeLibraryEntries } from "./library-sync.js";
 import { normalizeNodeTypeRules } from "./node-type-rules.js";
 import { getSavedProjectVersion, restoreSavedProjectVersion } from "./project-versions.js";
+import { useSharedPriceCatalog } from './useSharedPriceCatalog.js';
 
 const TeamContext = createContext(null);
 const isProductionCalculator = () =>
@@ -30,6 +31,7 @@ export function TeamProvider({ children }) {
     error: "",
   });
   const [projects, setProjects] = useState([]);
+  const priceStore = useSharedPriceCatalog(session.user, session.csrf);
   const [intakes, setIntakes] = useState([]);
   const [unreadIntakes, setUnreadIntakes] = useState(0);
   const [unreadMail, setUnreadMail] = useState(0);
@@ -494,6 +496,7 @@ export function TeamProvider({ children }) {
   const value = useMemo(
     () => ({
       ...session,
+      ...priceStore,
       required: isProductionCalculator(),
       projects,
       intakes,
@@ -529,6 +532,7 @@ export function TeamProvider({ children }) {
     }),
     [
       session,
+      priceStore,
       projects,
       intakes,
       unreadIntakes,
