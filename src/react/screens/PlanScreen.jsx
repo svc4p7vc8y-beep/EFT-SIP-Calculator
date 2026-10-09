@@ -100,6 +100,7 @@ import {
   planKeyboardCommand,
 } from "../planner/interactions.js";
 import {
+  PLAN_LIBRARY_KEY,
   createPlanLibraryEntry,
   readPlanLibrary,
   restorePlanLibraryEntry,
@@ -4785,7 +4786,7 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
     <div className="plan-library-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="plan-library-modal" role="dialog" aria-modal="true" aria-label="Библиотека планов">
         <header>
-          <div><h2>Библиотека планов</h2><p>Каждая сохранённая карточка содержит план, конструктивные параметры, комплектацию и цену на момент сохранения.</p></div>
+          <div><h2>Библиотека планов</h2><p>Текущий план автоматически сохраняется в проекте. Именованные копии создаются кнопкой «В библиотеку»; у сотрудников они синхронизируются с сервером примерно раз в 45 секунд. Карточка содержит план, параметры и цену на момент сохранения.</p></div>
           <button type="button" aria-label="Закрыть библиотеку планов" onClick={onClose}><X /></button>
         </header>
         <div className="plan-library-grid">
@@ -4911,6 +4912,13 @@ export default function PlanScreen({ onNavigate }) {
       plannerCanvasRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
     );
   const [libraryPlans, setLibraryPlans] = useState(readPlanLibrary);
+  useEffect(() => {
+    const readLatest = () => setLibraryPlans(readPlanLibrary());
+    const onStorage = (event) => { if (event.key === PLAN_LIBRARY_KEY) readLatest(); };
+    window.addEventListener('eft:plan-library-synced', readLatest);
+    window.addEventListener('storage', onStorage);
+    return () => { window.removeEventListener('eft:plan-library-synced', readLatest); window.removeEventListener('storage', onStorage); };
+  }, []);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [editingLibraryId, setEditingLibraryId] = useState(null);
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));

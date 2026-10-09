@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v194-construction-geometry-2';
+const CACHE_NAME = 'eft-calculator-react-v195-cutting-numbers-plans';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

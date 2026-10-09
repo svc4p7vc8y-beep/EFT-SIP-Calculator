@@ -33,7 +33,13 @@ createRoot(document.getElementById("root")).render(
 );
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  window.addEventListener("load", () =>
-    navigator.serviceWorker.register("./sw.js").catch(() => {}),
-  );
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").then((registration) => {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => window.dispatchEvent(new Event('eft:app-update-ready')));
+      }
+      window.setInterval(() => registration.update().catch(() => {}), 5 * 60 * 1000);
+      window.addEventListener('focus', () => registration.update().catch(() => {}));
+    }).catch(() => {});
+  });
 }

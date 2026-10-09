@@ -46,7 +46,7 @@ export function normalizeProductionCutting(value = {}) {
     approval: value.approval && typeof value.approval === 'object' ? value.approval : {},
     openingSills: record(value.openingSills),
     wallAdditions: record(value.wallAdditions),
-    manualParts: Array.isArray(value.manualParts) ? value.manualParts.filter(item => item && typeof item === 'object').slice(0, 500).map((item, index) => ({ id: String(item.id || `manual-${index + 1}`), name: String(item.name || '').slice(0, 200), profile: String(item.profile || '').slice(0, 100), length: item.length !== '' && Number.isFinite(Number(item.length)) ? Number(item.length) : '', quantity: item.quantity !== '' && Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : '' })) : [],
+    manualParts: Array.isArray(value.manualParts) ? value.manualParts.filter(item => item && typeof item === 'object').slice(0, 500).map((item, index) => ({ id: String(item.id || `manual-${index + 1}`), name: String(item.name || '').slice(0, 200), profile: String(item.profile || '').slice(0, 100), length: item.length !== '' && Number.isFinite(Number(item.length)) ? Number(item.length) : '', quantity: item.quantity !== '' && Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : '', ...(item.estimateEnabled === undefined ? {} : { estimateEnabled: item.estimateEnabled === true }), ...(item.estimateCatalogId === undefined ? {} : { estimateCatalogId: String(item.estimateCatalogId || '').slice(0, 100) }) })) : [],
     notes: typeof value.notes === 'string' ? value.notes.slice(0, 10000) : '',
   };
 }

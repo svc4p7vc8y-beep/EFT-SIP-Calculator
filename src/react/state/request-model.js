@@ -6,6 +6,13 @@ const positiveNumber = (value, fallback = 0) => {
   return Number.isFinite(number) && number >= 0 ? number : fallback;
 };
 
+export function switchRequestType(request, type, projectNum) {
+  const oldPrefix = request.documentType === 'internal' ? 'З-' : 'КП-';
+  const nextPrefix = type === 'internal' ? 'З-' : 'КП-';
+  const oldAuto = `${oldPrefix}${cleanText(projectNum, 'без-номера')}`;
+  return { ...request, documentType: type, number: request.number === oldAuto ? `${nextPrefix}${cleanText(projectNum, 'без-номера')}` : request.number };
+}
+
 export function createDefaultRequest(meta = {}) {
   return {
     documentType: 'commercial',

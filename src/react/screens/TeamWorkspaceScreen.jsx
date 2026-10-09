@@ -151,6 +151,8 @@ export default function TeamWorkspaceScreen({
       <div className={`cloud-status ${team.syncState.status}`}>
         {team.syncState.message}
       </div>
+      <p className="no-print">Проекты, анкеты и общие библиотеки проверяются каждые 45 секунд. Последняя успешная проверка: {team.lastRefreshAt ? new Date(team.lastRefreshAt).toLocaleTimeString('ru-RU') : 'ожидание'}.</p>
+      <p className="no-print">Номера разные: EFT-… — входящая анкета; № проекта — отдельная последовательность; КП-/З-… — номер документа внутри проекта. Архивные записи могут давать пропуски в видимом списке.</p>
       {team.refreshError ? <div className="notice" role="alert">Не удалось обновить проекты и анкеты: {team.refreshError}</div> : null}
       {team.mailError ? <div className="notice" role="alert">Не удалось обновить статус почты: {team.mailError}</div> : null}
       <div className="team-tabs">

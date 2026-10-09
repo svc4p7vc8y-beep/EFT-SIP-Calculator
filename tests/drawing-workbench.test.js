@@ -5,6 +5,7 @@ import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting } from '../src/react/calculations/production-cutting.js';
 import { gableLinks,combinedWall,purchaseRows,drawingCategory } from '../src/react/calculations/drawing-workbench.js';
 import { productionEstimateLines } from '../src/react/calculations/production-estimate.js';
+import { calculateDeliveryVolume } from '../src/react/calculations/delivery-volume.js';
 import { roofCoverLayout } from '../src/react/calculations/roof-cover-layout.js';
 import { projectOnSupport } from '../src/react/calculations/assembly-placement.js';
 import { snapAssemblyPoint } from '../src/react/calculations/roof-drawings.js';
@@ -48,6 +49,23 @@ test('support material is opt-in, follows geometry, and never changes the global
  const row=productionEstimateLines(p)[0];assert.equal(row.qty,.06);assert.equal(row.price,26400);assert.ok(Math.abs(calculateProject(p).totals.total-total-1584)<.01);
  s.x2=6000;assert.equal(productionEstimateLines(p)[0].qty,.09);assert.equal(JSON.stringify(p.priceMat),prices);
  s.referenceOnly=true;assert.equal(productionEstimateLines(p).length,0);assert.equal(run(p).members.some(m=>m.source==='Проектная опора'),false);
+});
+test('manual cutting part is opt-in, survives migration, and enters estimate and cargo volume once',()=>{
+ const p=base(),price=p.priceMat.find(row=>row.id==='MAT-018');
+ p.settings.productionCutting.manualParts=[{id:'special',name:'Доска усиления',profile:'145×90',length:1200,quantity:2,estimateCatalogId:price.id}];
+ const before=calculateProject(p).totals.total;
+ assert.equal(productionEstimateLines(p).length,0);
+ p.settings.productionCutting.manualParts[0].estimateEnabled=true;
+ const saved=migrateProject(JSON.parse(JSON.stringify(p)));
+ const rows=productionEstimateLines(saved);
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].qty,.03132);
+ assert.equal(rows[0].price,price.price);
+ const result=calculateProject(saved);
+ assert.ok(Math.abs(result.totals.total-before-.03132*price.price)<.01);
+ const cargo=calculateDeliveryVolume(saved,result);
+ assert.ok(cargo.categories.some(group=>group.key==='timber'&&group.rows.some(row=>row.id==='production-manual-special'&&row.volume===.03132)));
+ assert.equal(saved.priceMat.find(row=>row.id===price.id).price,price.price);
 });
 test('roof sheet rows use useful width and overlap; stock is distinct from covered area',()=>{
  const r=run(base()),blank=roofCoverLayout(r.assembly,{});assert.equal(blank.configured,false);

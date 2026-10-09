@@ -182,6 +182,12 @@ export function App() {
   const [briefPreview, setBriefPreview] = useState(null);
   const [teamFocus, setTeamFocus] = useState("projects");
   const [notice, setNotice] = useState("Готово");
+  const [appUpdateReady, setAppUpdateReady] = useState(false);
+  useEffect(() => {
+    const ready = () => setAppUpdateReady(true);
+    window.addEventListener('eft:app-update-ready', ready);
+    return () => window.removeEventListener('eft:app-update-ready', ready);
+  }, []);
   const fileRef = useRef(null);
   const briefFileRef = useRef(null);
   const calculation = useMemo(() => calculateProject(project, { nodeTypeRules: team.nodeTypeRules }), [project, team.nodeTypeRules]);
@@ -590,6 +596,7 @@ export function App() {
           />
         ) : null}
         <main className="workspace">
+          {appUpdateReady ? <div className="notice no-print" role="status">Доступна новая версия калькулятора. Сохраните проект, затем обновите страницу. <button className="button secondary" onClick={() => window.location.reload()}>Обновить версию</button></div> : null}
           {team.refreshError || team.mailError ? <div className="notice no-print" role="alert">
             {team.refreshError ? `Общие проекты и анкеты могут быть неактуальны: ${team.refreshError}. ` : ""}
             {team.mailError ? `Статус почты может быть неактуален: ${team.mailError}.` : ""}

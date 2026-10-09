@@ -35,6 +35,7 @@ export function TeamProvider({ children }) {
   const [unreadMail, setUnreadMail] = useState(0);
   const [mailStatus, setMailStatus] = useState(null);
   const [refreshError, setRefreshError] = useState("");
+  const [lastRefreshAt, setLastRefreshAt] = useState(null);
   const [mailError, setMailError] = useState("");
   const [users, setUsers] = useState([]);
   const [nodeTypeRules, setNodeTypeRules] = useState({});
@@ -144,6 +145,7 @@ export function TeamProvider({ children }) {
     setUnreadIntakes(Number(intakeResult.unread || 0));
     setUsers(userResult?.users || []);
     setRefreshError("");
+    setLastRefreshAt(new Date().toISOString());
   }, [session.user]);
 
   const syncLibraries = useCallback(async () => {
@@ -499,6 +501,7 @@ export function TeamProvider({ children }) {
       unreadMail,
       mailStatus,
       refreshError,
+      lastRefreshAt,
       mailError,
       users,
       nodeTypeRules,
@@ -532,6 +535,7 @@ export function TeamProvider({ children }) {
       unreadMail,
       mailStatus,
       refreshError,
+      lastRefreshAt,
       mailError,
       users,
       nodeTypeRules,

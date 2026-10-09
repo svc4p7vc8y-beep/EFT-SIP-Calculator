@@ -70,8 +70,10 @@ export function writePlanLibrary(entries, storage = localStorage, { notify = tru
     .filter((item) => !item.preset);
   storage.setItem(PLAN_LIBRARY_KEY, JSON.stringify(persistent));
   storage.removeItem?.(LEGACY_SKETCHES_KEY);
-  if (notify && typeof localStorage !== "undefined" && storage === localStorage)
-    window.dispatchEvent(new CustomEvent("eft:plan-library-changed"));
+  if (typeof localStorage !== "undefined" && storage === localStorage) {
+    window.dispatchEvent(new CustomEvent("eft:plan-library-synced"));
+    if (notify) window.dispatchEvent(new CustomEvent("eft:plan-library-changed"));
+  }
   return persistent;
 }
 

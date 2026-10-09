@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDefaultProject, migrateProject, REACT_PROJECT_VERSION } from '../src/react/state/project-model.js';
-import { addCatalogItem, addCustomRequestItem, normalizeRequest, requestFileName, requestTotals } from '../src/react/state/request-model.js';
+import { addCatalogItem, addCustomRequestItem, normalizeRequest, requestFileName, requestTotals, switchRequestType } from '../src/react/state/request-model.js';
+
+test('document type changes only its automatic number and preserves custom numbers', () => {
+  const commercial = { documentType: 'commercial', number: 'КП-0123' };
+  assert.equal(switchRequestType(commercial, 'internal', '0123').number, 'З-0123');
+  assert.equal(switchRequestType({ ...commercial, number: 'МОЙ-7' }, 'internal', '0123').number, 'МОЙ-7');
+  assert.equal(switchRequestType({ documentType: 'internal', number: 'З-0123' }, 'commercial', '0123').number, 'КП-0123');
+});
 import { createRequestWorkbook } from '../src/react/export/xlsx.js';
 
 test('old projects receive an empty manual request without changing their price lists', () => {

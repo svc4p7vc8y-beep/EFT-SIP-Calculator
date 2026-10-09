@@ -214,7 +214,7 @@ function applyProjectEstimateEdits(project, sections) {
     });
   });
   return sections.map((section) => {
-    const sourceLines=section.key==='roof'?[...section.lines,...productionEstimateLines(project)]:section.lines;
+    const sourceLines=['roof','sip'].includes(section.key)?[...section.lines,...productionEstimateLines(project).filter(line=>line.section===section.key)]:section.lines;
     const generated = sourceLines.flatMap((line) => {
       const override = overrides.get(line.id);
       if (override?.excluded) return [];

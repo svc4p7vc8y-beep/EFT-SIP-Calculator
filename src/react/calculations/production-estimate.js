@@ -15,5 +15,17 @@ export function productionEstimateLines(project) {
   const qty=Math.ceil((['м³','м3'].includes(catalog.unit)?length*section[0]*section[1]/1e6:length)*1e6)/1e6;
   lines.push({id:`production-support-${item.id}`,section:'roof',catalogId:catalog.id,name:`${item.name||'Проектный элемент'} · ${item.profile} · ${Math.round(length*1000)} мм`,kind:'material',unit:catalog.unit,qty,price:Number(catalog.price)||0,pricePending:!(Number(catalog.price)>0),source:'Проектные элементы · чистый объём без запаса'});
  }
+ for(const item of project.settings?.productionCutting?.manualParts||[]){
+  if(!item.estimateEnabled||seen.has(`manual-${item.id}`))continue;
+  seen.add(`manual-${item.id}`);
+  const section=String(item.profile||'').split(/[×xх]/).map(Number);
+  const length=Number(item.length),count=Number(item.quantity);
+  if(section.length!==2||!section.every(n=>Number.isFinite(n)&&n>0&&n<=10000)||!Number.isFinite(length)||length<=0||length>30000||!Number.isInteger(count)||count<1||count>1000)continue;
+  const catalog=(project.priceMat||[]).find(row=>row.id===item.estimateCatalogId);
+  if(!catalog||!['м³','м3','м.п.','м'].includes(catalog.unit))continue;
+  const meters=length*count/1000;
+  const qty=Math.ceil((['м³','м3'].includes(catalog.unit)?meters*section[0]*section[1]/1e6:meters)*1e6)/1e6;
+  lines.push({id:`production-manual-${item.id}`,section:'sip',catalogId:catalog.id,name:`${item.name||'Ручная деталь'} · ${item.profile} · ${length} мм ×${count}`,kind:'material',unit:catalog.unit,qty,price:Number(catalog.price)||0,pricePending:!(Number(catalog.price)>0),source:'Раскрой · ручная деталь, чистый объём без запаса и монтажа'});
+ }
  return lines;
 }

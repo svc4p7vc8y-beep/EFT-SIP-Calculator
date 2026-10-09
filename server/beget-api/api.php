@@ -385,9 +385,17 @@ if ($action === 'projects' && $method === 'POST') {
     $pdo->beginTransaction();
     $number = eft_next_project_number();
     $payload['meta'] = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+    $previousNumber = (string)($payload['meta']['projectNum'] ?? '');
     $payload['meta']['projectNum'] = $number;
     $payload['meta']['date'] = (new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow')))->format('Y-m-d');
-    if (is_array($payload['request'] ?? null)) $payload['request']['number'] = 'КП-' . $number;
+    if (is_array($payload['request'] ?? null)) {
+        $document = &$payload['request'];
+        $oldDocumentNumber = (string)($document['number'] ?? '');
+        if ($oldDocumentNumber === '' || $oldDocumentNumber === 'КП-' . $previousNumber || $oldDocumentNumber === 'З-' . $previousNumber) {
+            $document['number'] = (($document['documentType'] ?? '') === 'internal' ? 'З-' : 'КП-') . $number;
+        }
+        unset($document);
+    }
     $name = mb_substr(trim(eft_project_name($payload)), 0, 255) ?: 'Новый проект';
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     $pdo->prepare('INSERT INTO eft_projects (id, name, payload, owner_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)')->execute([$id, $name, $encoded, (int)$user['id'], (int)$user['id'], (int)$user['id']]);
@@ -412,7 +420,6 @@ if ($action === 'project' && $method === 'PUT') {
     if (is_array($savedPayload['meta'] ?? null)) {
         $payload['meta'] = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
         $payload['meta']['projectNum'] = $savedPayload['meta']['projectNum'] ?? $payload['meta']['projectNum'] ?? '';
-        if (is_array($payload['request'] ?? null)) $payload['request']['number'] = 'КП-' . $payload['meta']['projectNum'];
     }
     $nextRevision = $revision + 1;
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
