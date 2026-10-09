@@ -115,7 +115,7 @@ export default function CuttingScreen({ calculation }) {
   const [result, setResult] = useState({});
   useEffect(()=>{
     const worker = new Worker(new URL('../calculations/production-cutting.worker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = ({data})=>{setResult({...data,inputKey});if(data.report?.markRegistry)recordMarks(data.report.markRegistry);};
+    worker.onmessage = ({data})=>{setResult({...data,inputKey});if(data.report?.markRegistry)recordMarks(data.report.markRegistry,data.report.constructionSourceRequests);};
     worker.onerror = ()=>setResult({error:'Ошибка фонового расчёта. Перезагрузите раздел.',inputKey});
     worker.postMessage(JSON.parse(inputKey));
     return ()=>worker.terminate();

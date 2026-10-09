@@ -1,4 +1,5 @@
 import { normalizeMarkRegistry } from './production-identities.js';
+import { normalizeConstructionSources } from './construction-sources.js';
 
 export function normalizeProductionCutting(value = {}) {
   value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -8,6 +9,7 @@ export function normalizeProductionCutting(value = {}) {
   const jointTolerance = value.bindingJointToleranceMm;
   return {
     markRegistry: normalizeMarkRegistry(value.markRegistry),
+    constructionSources: normalizeConstructionSources(value.constructionSources),
     frameStepMm: number('frameStepMm', 625, 100, 2500),
     detailedFrameEstimate: value.detailedFrameEstimate !== false,
     partitionBracing: value.partitionBracing !== false,

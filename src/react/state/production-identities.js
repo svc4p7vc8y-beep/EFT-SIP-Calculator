@@ -1,3 +1,4 @@
+import { normalizeConstructionSources, registerConstructionSources } from './construction-sources.js';
 // Group identity is NOT the identity of a physical installed part.
 // Keys contain the complete existing grouping definition, not a geometry hash.
 const markPattern = /^(П|У|С|Д|Ш|Б|СТ|О|К|ПР|Р)([1-9]\d*)$/;
@@ -37,12 +38,14 @@ export function sourceIdentity(kind, sourceId, ordinal = 1) {
 }
 // No undo checkpoint or cleared redo. Reserve marks in every history snapshot.
 // Reject late Worker results after any edit or project replacement.
-export function recordProductionRegistry(state, expectedPresent, value) {
+export function recordProductionRegistry(state, expectedPresent, value, requests = [], allocate) {
   if (state.present !== expectedPresent) return state;
   const registry = normalizeMarkRegistry(value);
   const current = normalizeMarkRegistry(state.present.settings?.productionCutting?.markRegistry);
-  if (JSON.stringify(current) === JSON.stringify(registry)) return state;
+  const sources=registerConstructionSources(state.present.settings?.productionCutting?.constructionSources,requests,allocate);
+  const currentSources=normalizeConstructionSources(state.present.settings?.productionCutting?.constructionSources);
+  if (JSON.stringify(current) === JSON.stringify(registry)&&JSON.stringify(sources)===JSON.stringify(currentSources)) return state;
   const merge = project => ({ ...project, settings: { ...project.settings,
-    productionCutting: { ...project.settings.productionCutting, markRegistry: registry } } });
+    productionCutting: { ...project.settings.productionCutting, markRegistry: registry, constructionSources:sources } } });
   return { present: merge(state.present), past: state.past.map(merge), future: state.future.map(merge) };
 }

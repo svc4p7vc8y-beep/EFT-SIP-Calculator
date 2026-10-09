@@ -2,6 +2,7 @@ import { boundsOf, houseContourPoints } from '../planner/geometry.js';
 import { exteriorWallConstruction } from './wall-construction.js';
 import { partitionSegments } from './partition-construction.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
+import { constructionSource } from './construction-sources.js';
 
 const mm = value => Math.round(Number(value) * 1000) || 0;
 const point = p => [mm(p.x), mm(p.y)];
@@ -50,6 +51,7 @@ export function buildFirstFloorWallGeometry({ plan, sip = {}, roof = {}, service
     const start = point(w.start), end = point(w.end), thickness = mm(w.thickness);
     return {
       id, sourceRef: { floor: 1, contourEdge: w.index, legacyWallKey: key },
+      ...constructionSource(plan,{...w,outer:true},settings.constructionSources),
       outerStart: point(w.a), outerEnd: point(w.b), start, end,
       axisStart: start.map((v, i) => v + inward[i] * thickness / 2),
       axisEnd: end.map((v, i) => v + inward[i] * thickness / 2),
@@ -109,9 +111,11 @@ export function buildFirstFloorWallGeometry({ plan, sip = {}, roof = {}, service
     }
   }
   return { schemaVersion: 1, units: 'mm', floor: 1, supported,
-    identityStatus: 'legacy-position-refs',
+    identityStatus: walls.some(w=>w.constructionSourceId) ? 'source-constructions-with-legacy-details' : 'legacy-position-refs',
     outerContour: contour.map(point), bounds: { x: mm(bounds.x), y: mm(bounds.y), width: mm(bounds.w), length: mm(bounds.h) },
-    walls, openings, corners: walls.map((w, i) => ({ point: w.outerStart, previousWallId: walls[(i + walls.length - 1) % walls.length].id, nextWallId: w.id, scheme: 'horizontal-through-vertical-butt' })), issues };
+    walls, openings, partitionSources:edges.filter(edge=>!edge.outer).map(edge=>({id:edge.id,
+      ...constructionSource(plan,edge,settings.constructionSources)})),
+    corners: walls.map((w, i) => ({ point: w.outerStart, previousWallId: walls[(i + walls.length - 1) % walls.length].id, nextWallId: w.id, scheme: 'horizontal-through-vertical-butt' })), issues };
 }
 
 export function wallLocalToWorld(wall, x, height = 0, depth = 0) {
@@ -135,6 +139,7 @@ export function compareWallGeometry(model, surfaces, { framedSlope = false } = {
     for (const [field, expected, actual] of [
       ['length', wall.length, surface.width], ['start', wall.start, surface.planStart], ['end', wall.end, surface.planEnd],
       ['heightStart', wall.heightStart, surface.heightStart], ['heightEnd', wall.heightEnd, surface.heightEnd],
+      ['constructionSourceId',wall.constructionSourceId,surface.constructionSourceId],
     ]) if (JSON.stringify(expected) !== JSON.stringify(actual)) differences.push({ wallId: wall.id, field, expected, actual,
       reason: framedSlope && field.startsWith('height') ? 'Холодный каркас уклона отделён от SIP-стены в действующем раскрое.' : null });
     for (const opening of wall.openings) {

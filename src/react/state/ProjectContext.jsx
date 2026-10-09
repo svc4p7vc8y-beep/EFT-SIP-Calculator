@@ -21,7 +21,7 @@ const ProjectContext = createContext(null);
 const HISTORY_LIMIT = 60;
 
 function reducer(state, action) {
-  if (action.type === 'production-registry') return recordProductionRegistry(state, action.expectedPresent, action.registry);
+  if (action.type === 'production-registry') return recordProductionRegistry(state, action.expectedPresent, action.registry, action.requests);
   if (action.type === "undo") {
     if (!state.past.length) return state;
     return {
@@ -99,7 +99,7 @@ export function ProjectProvider({ children }) {
     (update) => dispatch({ type: "commit", update }),
     [],
   );
-  const recordMarks = useCallback(registry => dispatch({ type: 'production-registry', expectedPresent: history.present, registry }), [history.present]);
+  const recordMarks = useCallback((registry,requests) => dispatch({ type: 'production-registry', expectedPresent: history.present, registry,requests }), [history.present]);
   const replace = useCallback(
     (project) => dispatch({ type: "replace", project }),
     [],

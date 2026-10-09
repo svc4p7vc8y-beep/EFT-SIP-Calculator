@@ -14,6 +14,7 @@ import { partitionSegments, partitionBacking } from './partition-construction.js
 import { buildFirstFloorWallGeometry, compareWallGeometry, openingWallCandidates } from './wall-geometry-adapter.js';
 import { evaluateBindingStraightSupport } from './construction-rules.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
+import { constructionSource } from './construction-sources.js';
 
 const mm = value => Math.round((Number(value) || 0) * 1000);
 const round = value => Math.round(value * 1000) / 1000;
@@ -499,8 +500,9 @@ export function calculateProductionCutting(project, calculation) {
       }
       const geometry = subtract(wallShape, holes);
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
+      const source=constructionSource(plan,edge,settings.constructionSources,floor);
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm((edge.start||edge.a).x), mm((edge.start||edge.a).y)], planEnd: [mm((edge.end||edge.b).x), mm((edge.end||edge.b).y)], externalLength:edge.outer?mm(edge.externalLength):width,heightStart,heightEnd, thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings,
-        ...(!edge.outer?partitionBacking(plan,edge.a,edge.b):{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
+        ...source,...(!edge.outer?partitionBacking(plan,edge.a,edge.b):{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
       const hole = plan.floorOpening;
@@ -731,6 +733,7 @@ export function calculateProductionCutting(project, calculation) {
   if (!surfaces.length && !members.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
   const { approval, ...revisionSettings } = settings;
   delete revisionSettings.markRegistry; // Derived metadata does not change geometry approval.
+  delete revisionSettings.constructionSources;
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
@@ -744,6 +747,7 @@ export function calculateProductionCutting(project, calculation) {
   }) };
   report.cutting=calculateCutOperations(report);
   report.markRegistry=markRegistry;
+  report.constructionSourceRequests=[...new Set(surfaces.filter(s=>s.sourceIdentityStatus==='needs-registration').map(s=>s.sourceRole))];
   report.roofCover=roofCover;
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
   report.partitionStock=packMembers(members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded),settings.stockLengthMm,Number(settings.kerfMm||0));

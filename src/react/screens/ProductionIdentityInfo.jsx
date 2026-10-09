@@ -6,6 +6,17 @@ export default function ProductionIdentityInfo({ report }) {
     <p>Одинаковые детали получают одну короткую марку. Добавление и перестановка групп не меняют сохранённые марки; удалённые номера не используются для других деталей. При изменении материала, размеров или обработки создаётся новая марка группы.</p>
     <p>Постоянная привязка к исходной проектной позиции: {stable}. Автоматические позиции раскладки: {items.length - stable}. После разделения или объединения автоматических деталей их прежняя идентичность не подтверждена; ручные переопределения не переносятся по совпадению марки.</p>
     <p>Реестр сохраняется в проекте и .eft.json. Марка группы, исходная позиция и технический ID — разные обозначения.</p>
+    <p>Исходные конструкции: {report.surfaces.filter(s=>s.sourceIdentityStatus==='registered-source').length} с постоянной привязкой. Остальные участки требуют регистрации или проверки. ID конструкции не подтверждает идентичность её панелей после изменения раскладки.</p>
+    {report.settings.constructionSources?.invalid ? <p role="alert">Реестр исходных стен содержит некорректные или повторяющиеся ID. Проверьте привязки перед выпуском листов.</p> : null}
     {report.markRegistry?.invalid ? <p role="alert">В сохранённом реестре обнаружены некорректные или повторяющиеся записи. Проверьте марки перед выпуском новых листов; старые листы могут содержать другие обозначения.</p> : null}
   </details>;
+}
+
+export function ConstructionSourceInfo({surface}) {
+  if(!surface?.sourceIdentityStatus)return null;
+  return <div className="cut-note no-print" aria-label="Исходная конструкция" style={{overflowWrap:'anywhere'}}>
+    <p>{surface.sourceRoleLabel ? `Сторона: ${surface.sourceRoleLabel}. ` : ''}{surface.sourceIdentityStatus==='registered-source' ? 'Исходная конструкция зарегистрирована.' : surface.sourceIdentityStatus==='needs-registration' ? 'Регистрация исходной стены…' : 'Привязка требует проверки.'}</p>
+    {surface.constructionSourceId ? <small>ID: {surface.constructionSourceId}</small> : <small>{surface.sourceIdentityReason}</small>}
+    <p>Ручные настройки применяются по прежнему геометрическому ключу, не по этому ID.</p>
+  </div>;
 }
