@@ -29,3 +29,22 @@ export function bearingPlanWidth(profile) {
   const values=String(profile).split(/[×xх]/).map(Number);
   return values.length===2&&values.every(v=>Number.isFinite(v)&&v>0)?values[1]:null;
 }
+
+// Check diagonals join actual contour/support points, not invented bounding corners.
+export function checkDiagonals(assembly) {
+  const points=assembly.floors[0]?.contour||[],pairs=[];
+  const pairKey=(a,b)=>[a,b].map(p=>p.map(v=>Math.round(v)).join(',')).sort().join('|');
+  const add=(a,b,kind)=>{if(Math.abs(a[0]-b[0])<1||Math.abs(a[1]-b[1])<1)return;
+    const length=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    if(!pairs.some(p=>pairKey(p.a,p.b)===pairKey(a,b)))pairs.push({a,b,length,kind});};
+  for(let i=0;i<points.length;i++)for(let j=i+2;j<points.length;j++)add(points[i],points[j],'Контур');
+  const longest=pairs.sort((a,b)=>b.length-a.length).slice(0,2);
+  const supports=assembly.piles||[];
+  const candidates=[];
+  for(let i=0;i<supports.length;i++)for(let j=i+1;j<supports.length;j++){
+    const a=supports[i],b=supports[j];
+    if(Math.abs(a[0]-b[0])>1&&Math.abs(a[1]-b[1])>1&&!longest.some(p=>pairKey(p.a,p.b)===pairKey(a,b)))candidates.push({a,b,length:Math.hypot(b[0]-a[0],b[1]-a[1]),kind:'Опоры'});
+  }
+  if(candidates.length)longest.push(candidates.sort((a,b)=>b.length-a.length)[0]);
+  return longest;
+}

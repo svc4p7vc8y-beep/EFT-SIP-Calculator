@@ -19,6 +19,10 @@ export function calculateDeliveryVolume(project,calculation){
   const section=text.match(/(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм/i);
   const num=s=>Number(s.replace(',','.'));let volume=null,formula='Нет габаритов или объёма упаковки';
   if(['м³','м3'].includes(line.unit)){volume=line.qty;formula='Объём из закупочной строки сметы';}
+  else if(line.catalogId==='MAT-FOUNDATION-BLOCK'){
+    const d=project.settings.piles.blockDimensions||{},sizes=[d.widthMm,d.lengthMm,d.heightMm];
+    if(sizes.every(positive)){volume=line.qty*sizes.reduce((v,n)=>v*Number(n),1)/1e9;formula='Количество блоков × редактируемые габариты блока';}
+  }
   else if(panel&&dimensions&&['шт','шт.'].includes(line.unit)){volume=line.qty*num(dimensions[1])*num(dimensions[2])*num(dimensions[3])/1e9;formula='Количество × длина × ширина × полная толщина';}
   else if(timber&&section&&['м.п.','м','пог.м','пог. м'].includes(line.unit)){volume=line.qty*num(section[1])*num(section[2])/1e6;formula='Закупочная длина × сечение';}
   if(volume===null)group.unknown++;else group.autoVolume+=volume;

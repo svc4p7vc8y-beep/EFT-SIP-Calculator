@@ -15,6 +15,11 @@ export function roofDrawingData(assembly, roof, roofSettings = {}, geometryMode=
       z2=Number(roofSettings.ridgeHeight)*1000;
     }
     if (roof.mainRoofShape === 'flat' && ['back', 'right'].includes(roof.flatSlopeDirection)) [z1,z2] = [rise,0];
+    if(roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='structural'){
+      const slope=Number(roofSettings.flatSlopePercent||0)/100,negative=['back','right'].includes(roof.flatSlopeDirection);
+      const height=x=>negative?(span-x)*slope:x*slope;
+      z1=height(r.a[across]-origin[across]);z2=height(r.b[across]-origin[across]);
+    }
     if (roof.mainRoofShape === 'tiered') {
       const upper = name === 'Верхний уровень';
       const toward = (tier[upper ? 'upperSlopeDirection' : 'lowerSlopeDirection'] || (upper ? 'towardJunction' : 'awayJunction')) === 'towardJunction';

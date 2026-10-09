@@ -8,6 +8,8 @@ import {
 } from "../../calculations/plan-metrics.js";
 import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { bearingEdges, partitionProfileShares } from './bearing-walls.js';
+import { exteriorWallConstruction, wallTrimLength } from './wall-construction.js';
+import { partitionReinforcements, reinforcementBoardCount } from './partition-construction.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation, calculateConcreteBase } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
@@ -327,7 +329,14 @@ function calculateBuildingMetrics(project) {
   const floorPlans = plans.map((plan, index) => ({
     floor: index + 1,
     plan,
-    metrics: calculatePlanMetrics(plan),
+    metrics: (()=>{
+      const original=calculatePlanMetrics(plan);
+      const walls=exteriorWallConstruction(plan,project.settings.sip,project.settings.roof,index===plans.length-1,project.services.roof);
+      const roofSettings=project.settings.roof;
+      const frameSlope=roofSettings.shape==='flat'&&roofSettings.flatSlopeMode==='structural'&&(roofSettings.gableType==='cold'||(roofSettings.gableType==='auto'&&roofSettings.type!=='sip'));
+      const gross=plan.house?.contourDefined===false?0:walls.reduce((s,w)=>s+w.length*(frameSlope?w.baseHeight:(w.heightStart+w.heightEnd)/2),0);
+      return {...original,exteriorWallGrossArea:round(gross),exteriorWallNetArea:round(Math.max(0,gross-original.exteriorOpeningsArea)),wallConstruction:frameSlope?walls.map(w=>({...w,heightStart:w.baseHeight,heightEnd:w.baseHeight})):walls};
+    })(),
   }));
   const base = floorPlans[0].metrics;
   const top = floorPlans.at(-1).metrics;
@@ -436,13 +445,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     .reduce((sum, room) => sum + roomPerimeter(room), 0);
   const wallCutLengthFor = (plan) =>
     plan
-      ? calculateWallCutLength(
-          housePerimeterRuns(plan),
-          exteriorHeight(plan),
-          f.panelWidth,
-          f.panelLength,
-          openingCutLength(plan, true),
-        )
+      ? wallTrimLength(metrics.floorPlans.find(item=>item.plan===plan)?.metrics.wallConstruction||exteriorWallConstruction(plan,sip,project.settings.roof,plan===topPlan,project.services.roof),f.panelWidth,f.panelLength)+openingCutLength(plan,true)
       : 0;
   const partitionCutLengthFor = (plan, length) =>
     plan
@@ -708,6 +711,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     }
   });
   if (project.services.partitions && sip.partitionType !== "sip") {
+    const detailed=project.settings.productionCutting.detailedFrameEstimate!==false&&sip.partitionCalculationMode!=='area';
     const partitionFrameSection = sip.partitionFrameSection === "50x150" ? "50x150" : "50x100";
     const partitionBoardQuery = partitionFrameSection === "50x150"
       ? "Доска ест. влажн. сосна 50х150мм"
@@ -742,7 +746,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         : area * f.partitionBoardM3PerM2 * partitionVolumeFactor;
       const shares=partitionProfileShares(partitionPlan,partitionFrameSection);
       const customProfiles=shares.some(s=>s.profile!==partitionFrameSection);
-      if(customProfiles){
+      if(!detailed&&customProfiles){
         for(const share of shares){
           const depth=Number(share.profile.split('x')[1])/1000;
           const requiredLength=linearMode?assembly.requiredLength:boardVolume/(.05*Number(partitionFrameSection.split('x')[1])/1000);
@@ -750,7 +754,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
           const query={'50x100':'Доска ест.влажн. сосна 50*100мм','50x150':'Доска ест. влажн. сосна 50х150мм','50x200':'Доска ест. влажн. сосна 50х200мм'}[share.profile];
           lines.push(makeLine(index,'sip',query,round(boardCount*assembly.stockLength*.05*depth,3),{key:`partition-board${suffix}-${share.profile}`,unit:'м³',source:key,estimateGroup:groupNames[key],name:`Каркас перегородок · доска ${share.profile.replace('x','×')} мм · ${boardCount} шт × ${assembly.stockLength} м · распределение по длинам стен`}));
         }
-      } else lines.push(
+      } else if(!detailed) lines.push(
         makeLine(
           index,
           "sip",
@@ -783,6 +787,22 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         ),
       );
     });
+    const extras=new Map();
+    for(const item of metrics.floorPlans)for(const member of partitionReinforcements(project,item.plan,item.floor,detailed)){
+      const key=member.profile,group=extras.get(key)||{length:0,count:0,members:[]};group.length+=member.cutLength/1000;group.count++;group.members.push(member);extras.set(key,group);
+    }
+    for(const [profile,group]of extras){
+      const catalogId={'25×100':'MAT-025','25×150':'MAT-026','50×100':'MAT-027','50×150':'MAT-023','50×200':'MAT-024'}[profile];
+      const stock=Number(project.settings.productionCutting.stockLengthMm)/1000||6;
+      const boards=reinforcementBoardCount(group.members,stock*1000,Number(project.settings.productionCutting.kerfMm)||0),[width,depth]=profile.split('×').map(Number);
+      const oversize=group.members.filter(m=>m.cutLength>stock*1000).length;
+      const key=detailed?(profile===partitionFrameSection.replace('x','×')?'partition-board':`partition-board-${profile}`):`partition-reinforcement-${profile}`;
+      lines.push(makeLine(index,'sip','Доска каркаса перегородок',boards*stock*width*depth/1e6,{key,catalogId,unit:'м³',digits:4,source:detailed?'partition-detail':'partition-reinforcement',estimateGroup:detailed?'Каркас и усиление перегородок':'Усиление и закладные перегородок',name:`${detailed?'Каркас перегородок по деталировке':'Усиление перегородок'} ${profile} мм · ${boards} шт × ${stock} м · ${group.count} деталей${oversize?` · предварительно: ${oversize} деталей длиннее хлыста; стыки по проекту`:''}`}));
+    }
+    for(const [i,row]of (project.settings.productionCutting.partitionFasteners||[]).entries()){
+      const c=index.byId.get(row.catalogId);if(!c||row.qty===''||!(Number(row.qty)>0))continue;
+      lines.push(makeLine(index,'sip',c.name,Number(row.qty),{key:`partition-project-fastener-${row.id||i}`,catalogId:c.id,unit:c.unit,source:'partition-project-fastener',estimateGroup:'Каркас и усиление перегородок',name:`${c.name} · крепёж перегородок по проекту`}));
+    }
   }
   joinery.rows.forEach((row) => {
     const key = `${row.key}-connector`;
@@ -896,6 +916,8 @@ function foundationSection(project, index, inputs) {
   ]) };
   const count = foundation.totalPiles;
   const concretePiles = project.settings.piles?.pileType === 'reinforcedConcrete';
+  const blocks = project.settings.piles?.pileType === 'concreteBlock';
+  const installedPackage = concretePiles || blocks;
   const bindingPackSpacing = Math.max(0.05, Number(inputs.formulas.bindingPackScrewSpacingM) || 0.5);
   const bindingPackInterfaces = Math.max(0, foundation.bindingLayers - 1);
   const bindingPackScrewCount = Math.ceil(foundation.bindingLength / bindingPackSpacing) * bindingPackInterfaces;
@@ -903,7 +925,10 @@ function foundationSection(project, index, inputs) {
   return {
     foundation,
     lines: compact([
-      concretePiles ? makeLine(index, 'foundation', 'Свая железобетонная забивная (С30.15)', count, {
+      blocks ? makeLine(index, 'foundation', 'Блок фундаментный бетонный', count, {
+        key: 'concrete-blocks', catalogId: 'MAT-FOUNDATION-BLOCK', exactQuantity: true,
+        name: 'Блок фундаментный бетонный · с монтажом',
+      }) : concretePiles ? makeLine(index, 'foundation', 'Свая железобетонная забивная (С30.15)', count, {
         key: 'concrete-piles', catalogId: 'MAT-JB-C30-15', exactQuantity: true,
         name: 'Свая железобетонная забивная (С30.15) · с оголовком и установкой',
       }) : makeLine(
@@ -913,24 +938,24 @@ function foundationSection(project, index, inputs) {
         count,
         { key: "axes", kind: "labor" },
       ),
-      !concretePiles && makeLine(index, "foundation", "Монтаж свай", count, {
+      !installedPackage && makeLine(index, "foundation", "Монтаж свай", count, {
         key: "pile-work",
         kind: "labor",
       }),
-      !concretePiles && makeLine(index, "foundation", "Винтовые сваи 108мм", count, {
+      !installedPackage && makeLine(index, "foundation", "Винтовые сваи 108мм", count, {
         key: "piles",
       }),
-      !concretePiles && makeLine(
+      !installedPackage && makeLine(
         index,
         "foundation",
         "Пескобетон М300",
         count * inputs.formulas.pileConcreteM3,
         { key: "concrete", unit: "м³", digits: 3 },
       ),
-      !concretePiles && makeLine(index, "foundation", "Оголовок для свай", count, {
+      !installedPackage && makeLine(index, "foundation", "Оголовок для свай", count, {
         key: "heads",
       }),
-      !concretePiles && makeLine(index, "foundation", "Монтаж оголовков", count, {
+      !installedPackage && makeLine(index, "foundation", "Монтаж оголовков", count, {
         key: "heads-work",
         kind: "labor",
       }),
@@ -962,7 +987,7 @@ function foundationSection(project, index, inputs) {
           name: `Саморезы 6×120 для сборки ${foundation.bindingLayers}-слойной обвязки · ${bindingPackScrewCount} шт`,
         },
       ),
-      makeLine(
+      !blocks && makeLine(
         index,
         "foundation",
         "Глухари",
@@ -1085,11 +1110,24 @@ function roofSection(project, metrics, index, inputs) {
     supportsMainGables
       ? Math.min(2, Math.max(0, Math.round(Number(roof.gableCount) || 0)))
       : 0;
+  const topPlan=metrics.floorPlans.at(-1).plan;
+  const constructedWalls=exteriorWallConstruction(topPlan,project.settings.sip,roof,true,true);
+  const triangleArea=(wall)=>{
+    const full=wall.externalLength,h=Number(roof.ridgeHeight)||0;
+    const removed=trim=>h*Math.max(0,trim)**2/(full||1);
+    return Math.max(0,full*h/2-removed(wall.trimStart)-removed(wall.trimEnd));
+  };
+  const endAxis=roofAxes.ridgeAxis==='y'?'y':'x';
+  const endWalls=constructedWalls.filter(w=>Math.abs(w.a[endAxis]-w.b[endAxis])<.001).sort((a,b)=>a.a[endAxis]-b.a[endAxis]);
+  const gableAreas=mainRoofShape==='gable'&&endWalls.length===2?endWalls.map(triangleArea):[geometry.gableArea/2,geometry.gableArea/2];
+  const flatSides=constructedWalls.filter(w=>Math.abs(w.heightStart-w.heightEnd)>.0001).slice(0,mainGableCount);
+  const actualFlatSideArea=flatSides.reduce((s,w)=>s+w.length*((w.heightStart+w.heightEnd)/2-w.baseHeight),0);
+  const actualFlatHighArea=constructedWalls.filter(w=>Math.abs(w.heightStart-w.heightEnd)<=.0001).reduce((s,w)=>s+w.length*Math.max(0,w.heightStart-w.baseHeight),0);
   const mainFlatSideWallArea = hasStructuralFlatGables
-    ? ((geometry.slopeSideWallArea || 0) * mainGableCount) / 2
+    ? actualFlatSideArea
     : 0;
   const mainFlatHighWallArea = hasStructuralFlatGables
-    ? geometry.slopeHighWallArea || 0
+    ? actualFlatHighArea
     : 0;
   const tieredGables = mainRoofShape === 'tiered' ? resolveTieredGables(roof, geometry) : null;
   const gableSideTypes = roof.gableSideTypes || {};
@@ -1098,7 +1136,7 @@ function roofSection(project, metrics, index, inputs) {
       const selected = gableSideTypes[index ? 'second' : 'first'];
       const type = mainGableType === 'none' ? 'none'
         : selected === 'sip' ? 'sip' : selected === 'frame' ? 'cold' : mainGableType;
-      return { type, area: geometry.gableArea / 2 };
+      return { type, area: gableAreas[index] };
     }) : null;
   const mainGableArea = tieredGables ? tieredGables.totalArea : mixedGableAreas
     ? mixedGableAreas.reduce((sum, item) => sum + (item.type === 'none' ? 0 : item.area), 0) :
@@ -1106,13 +1144,13 @@ function roofSection(project, metrics, index, inputs) {
       ? 0
       : hasStructuralFlatGables
         ? mainFlatSideWallArea + mainFlatHighWallArea
-        : (geometry.gableArea * mainGableCount) / 2;
+        : gableAreas.slice(0,mainGableCount).reduce((s,a)=>s+a,0);
   const mainColdGableArea = tieredGables ? tieredGables.coldArea : mixedGableAreas
     ? mixedGableAreas.filter(item => item.type === 'cold').reduce((sum, item) => sum + item.area, 0)
     : mainGableType === "cold" ? mainGableArea : 0;
   const mainWarmGableArea = tieredGables ? tieredGables.warmArea : mixedGableAreas
     ? mixedGableAreas.filter(item => item.type === 'sip').reduce((sum, item) => sum + item.area, 0)
-    : mainGableType === "sip" ? mainGableArea : 0;
+    : mainGableType === "sip" && !hasStructuralFlatGables ? mainGableArea : 0;
   let coldGableArea = mainColdGableArea;
   let warmGableArea = mainWarmGableArea;
   terraceRoofs.forEach(({ result }) => {
@@ -3045,7 +3083,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   const sections = applyProjectEstimateEdits(project, [
     {
       key: "foundation",
-      title: project.services.foundation ? (project.settings.piles?.pileType==='reinforcedConcrete' ? "Фундамент на железобетонных забивных сваях и обвязка" : "Свайно-винтовой фундамент и обвязка") : "Обвязка по готовому бетонному основанию",
+      title: project.services.foundation ? (project.settings.piles?.pileType==='concreteBlock' ? 'Фундамент на бетонных блоках и обвязка' : project.settings.piles?.pileType==='reinforcedConcrete' ? "Фундамент на железобетонных забивных сваях и обвязка" : "Свайно-винтовой фундамент и обвязка") : "Обвязка по готовому бетонному основанию",
       lines: foundation.lines,
     },
     { key: "sip", title: "СИП-конструкции и перегородки", lines: sip.lines },

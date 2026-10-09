@@ -3,7 +3,7 @@ import { bearingEdges } from './bearing-walls.js';
 import { roofDrawingData } from './roof-drawings.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
-export const productionMark=id=>String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
+export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
 export const productionFamily=family=>({'pps':'ППС','mineral-wool':'Минвата','csp-pps':'ЦСП / ППС'}[family]||family);
 const mm=value=>Math.round(Number(value)*1000);
 const finite=value=>value!=='' && value!=null && Number.isFinite(Number(value));
@@ -46,7 +46,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const at=(along,across)=>axis==='x'?[bounds.x+along,bounds.y+across]:[bounds.x+across,bounds.y+along];
   const rafters=[],members=[],issues=[];
   const binding=[];
-  if(project.services.foundation){for(const [index,line] of (project.plan.bindingLines||[]).filter(l=>l.include!==false).entries()){
+  issues.push(...(calculation.foundation?.bindingIssues||[]));
+  if(project.services.foundation){for(const [index,line] of (calculation.foundation?.bindingLines||project.plan.bindingLines||[]).filter(l=>l.include!==false).entries()){
     const a=[mm(line.x1),mm(line.y1)],b=[mm(line.x2),mm(line.y2)],length=Math.round(Math.hypot(b[0]-a[0],b[1]-a[1]));
     if(!length)continue;const profile=calculation.foundation?.bindingProfile||'50×150',layers=calculation.foundation?.bindingLayers||3;
     binding.push({id:`ОБ-${index+1}`,a,b,length,profile,layers});
@@ -148,7 +149,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   }
   supports.forEach(item=>{item.loadPath=trace(item.id);if(!item.referenceOnly&&!item.loadPath.complete)issues.push(`${item.mark}: путь нагрузки до фундамента не заполнен, содержит цикл или несовпадающее опирание.`);});
   const roofOutline=rectangular?[at(-gable,-eave),at(axisLength+gable,-eave),at(axisLength+gable,span+eave),at(-gable,span+eave)]:contour;
-  const assembly={floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,roofTimbers,laths,counterLaths,supports,members,issues,binding,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
+  const assembly={floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,roofTimbers,laths,counterLaths,supports,members,issues,binding,foundationType:project.settings.piles?.pileType||'screw',blockDimensions:project.settings.piles?.blockDimensions,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
   assembly.roofDrawing=roofDrawingData(assembly,roof,project.settings.roof,settings.rafterGeometry);
   issues.push(...assembly.roofDrawing.warnings);
   assembly.roofShape=roof.mainRoofShape;

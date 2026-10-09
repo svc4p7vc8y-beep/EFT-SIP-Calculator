@@ -1234,6 +1234,7 @@ function RoofPlanCaption({ plan, roof, p }) {
 
 function PlanCanvas({
   plan,
+  pileSettings,
   floorOpening,
   commitFloorOpening,
   roof,
@@ -1335,11 +1336,8 @@ function PlanCanvas({
   }, [layoutPlan, viewportPan]);
   const foundation = useMemo(
     () =>
-      calculateFoundation(shownPlan, {
-        spacing: 2.5,
-        boardVolumePerMeter: 0.0225,
-      }),
-    [shownPlan],
+      calculateFoundation(shownPlan, pileSettings),
+    [shownPlan,pileSettings],
   );
   const unifiedWalls = useMemo(
     () => unifiedWallSegments(shownPlan),
@@ -2226,7 +2224,7 @@ function PlanCanvas({
                     .map((point) => `${point.x},${point.y}`)
                     .join(" ")}
                 />
-                {roomBearingEdges(room).filter(e=>e.bearing).map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y);return <line key={edge.key} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#277249" strokeWidth="3" pointerEvents="none"><title>Несущая сторона {edge.index+1} · {edge.profile||'общее сечение'}</title></line>;})}
+                {roomBearingEdges(room).filter(e=>e.bearing).map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y);return <line key={edge.key} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#138447" strokeWidth="4" pointerEvents="none"><title>{edge.label} · несущая · {edge.profile||'общее сечение'}</title></line>;})}
                 {room.extension ? (
                   <>
                     <polygon className="outer-wall outer-wall-border extension-wall" points={screen.map((point) => `${point.x},${point.y}`).join(" ")} style={{ strokeWidth: outerWallWidth + 5 }} />
@@ -2600,7 +2598,7 @@ function PlanCanvas({
           })
         : null}
       {visibleLayers.binding && shownPlan.showBinding !== false
-        ? (shownPlan.bindingLines || []).map((binding) => {
+        ? (foundation.bindingLines || shownPlan.bindingLines || []).map((binding) => {
             const q = line(binding);
             const selectedNow =
               selected?.type === "bindingLine" && selected.id === binding.id;
@@ -2613,7 +2611,7 @@ function PlanCanvas({
                 key={binding.id}
                 className="planner-object binding-object"
                 onPointerDown={(event) =>
-                  objectDown(event, "bindingLine", binding.id)
+                  (shownPlan.bindingLines||[]).some(l=>l.id===binding.id)&&objectDown(event, "bindingLine", binding.id)
                 }
               >
                 <line
@@ -5817,6 +5815,7 @@ export default function PlanScreen({ onNavigate }) {
         <PlanCanvas
           floorKey={activeFloor}
           plan={plan}
+          pileSettings={project.settings.piles}
           floorOpening={floorOpening}
           commitFloorOpening={commitFloorOpening}
           roof={project.settings.roof}
@@ -6311,6 +6310,7 @@ export default function PlanScreen({ onNavigate }) {
             </button>
           </div>
           <PlanCanvas
+            pileSettings={project.settings.piles}
             floorKey={activeFloor}
             plan={plan}
             floorOpening={floorOpening}

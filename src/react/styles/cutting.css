@@ -73,11 +73,11 @@
 .album-contents th:first-child { width:12%; }
 @media print {
   @page mounting { size:A3 landscape; margin:8mm; }
-  .mounting-sheet { page:mounting; width:100%; height:278mm; box-sizing:border-box; border:1px solid #000; padding:5mm; break-after:page; break-inside:avoid; display:flex; flex-direction:column; }
+  .mounting-sheet { page:mounting; width:100%; height:278mm; box-sizing:border-box; border:0; padding:5mm; break-after:page; break-inside:avoid; display:flex; flex-direction:column; }
   .mounting-sheet:last-child { break-after:auto; }
   .mounting-sheet>header { font-size:17pt; border-bottom:1px solid #000; padding-bottom:3mm; margin-bottom:5mm; }
   .mounting-content { flex:1; min-height:0; }
-  .mounting-sheet>footer { display:grid; grid-template-columns:20mm 1fr 45mm 40mm; border:1px solid #000; margin-top:3mm; font-size:9pt; }
+  .mounting-sheet>footer { display:block; border:0; margin-top:3mm; font-size:9pt; text-align:center; }
   .mounting-sheet>footer>* { padding:2mm; border-right:1px solid #000; overflow-wrap:anywhere; }
   .mounting-album .assembly-controls { display:none; }
   .mounting-album .cut-assembly svg { height:205mm; max-height:205mm; border:0; }
@@ -90,3 +90,7 @@
   .mounting-album .binding-section { height:48mm; max-height:48mm; }
   .mounting-album .support-elevation { height:68mm; max-height:68mm; }
 }
+.construction-node svg { display:block; width:100%; max-height:350px; }
+.construction-node h3 { font-size:14px; }
+.construction-node p { font-size:11px; }
+@media print { .construction-node svg { max-height:90mm; } .paper-A4 .construction-node svg { max-height:65mm; } }

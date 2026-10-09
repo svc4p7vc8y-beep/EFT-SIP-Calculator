@@ -30,7 +30,7 @@ test('solid binding uses existing timber price, no pack screws and one productio
 });
 test('bearing profile changes split runs and estimate catalogue without double counting',()=>{
   const p=base(),r={id:'r',x:0,y:0,w:2.5,h:4};p.plan.rooms=[r];const a={x:2.5,y:0},b={x:2.5,y:4};r.bearingWalls={[bearingWallKey(a,b)]:{enabled:true,profile:'50x150'}};
-  assert.deepEqual(partitionProfileShares(p.plan,'50x100'),[{profile:'50x150',share:1}]);const c=calculateProject(p);const lines=c.lines.filter(l=>l.id.includes('partition-board'));assert.equal(lines.length,1);assert.equal(lines[0].catalogId,'MAT-023');
+  assert.deepEqual(partitionProfileShares(p.plan,'50x100'),[{profile:'50x150',share:1}]);const c=calculateProject(p);const lines=c.lines.filter(l=>l.id.includes('partition-board'));assert.equal(lines.length,2);assert.ok(lines.some(l=>l.catalogId==='MAT-023'));assert.ok(lines.some(l=>l.catalogId==='MAT-026'));
   const split=splitAtBearingEdges(p.plan,[[{x:2.5,y:-1},{x:2.5,y:5}]]);assert.equal(split.length,3);
 });
 test('frame opening outside wall blocks its members rather than drawing a false frame',()=>{

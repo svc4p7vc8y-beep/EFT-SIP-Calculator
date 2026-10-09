@@ -565,15 +565,16 @@ export function calculateSipJoinery(
       const currentWidth = Math.max(0, Number(currentPlan.house?.w) || 0);
       const currentHeight = Math.max(0, Number(currentPlan.house?.h) || 0);
       const currentWallHeight = exteriorHeight(currentPlan);
-      const currentPerimeter = perimeterFor(currentPlan);
+      const construction=item?.metrics?.wallConstruction;
+      const currentPerimeter = construction?.length?construction.reduce((s,w)=>s+w.length,0):perimeterFor(currentPlan);
       const openingFasteners = openingStructuralFastenerCount(
         currentPlan,
         bindingSpacing,
         formulas,
       );
       const bindingCount = closedRunFastenerCount(currentPlan, bindingSpacing);
-      const cornerCount = contourPointsFor(currentPlan).length *
-        (Math.ceil(currentWallHeight / cornerSpacing) + 1);
+      const cornerHeights=construction?.length?construction.map(w=>w.heightStart+(w.heightEnd-w.heightStart)*(-w.trimStart)/(w.length||1)):contourPointsFor(currentPlan).map(()=>currentWallHeight);
+      const cornerCount = cornerHeights.reduce((s,h)=>s+Math.ceil(h/cornerSpacing)+1,0);
       const wallSeams = (wallLength) =>
         Math.max(0, Math.ceil(wallLength / panelWidth) - 1) * currentWallHeight +
         Math.max(0, Math.ceil(currentWallHeight / panelLength) - 1) * wallLength;
@@ -588,13 +589,22 @@ export function calculateSipJoinery(
         0,
       );
       return {
-        joints: contourPointsFor(currentPlan).reduce((sum, point, index) => {
+        joints: construction?.length?construction.reduce((sum,w)=>{
+          const top=x=>w.heightStart+(w.heightEnd-w.heightStart)*x/w.length;
+          let joints=0;
+          for(let x=panelWidth;x<w.length-.001;x+=panelWidth)joints+=Math.max(0,top(x));
+          for(let y=panelLength;y<Math.max(w.heightStart,w.heightEnd)-.001;y+=panelLength){
+            const low=Math.min(w.heightStart,w.heightEnd),high=Math.max(w.heightStart,w.heightEnd);
+            joints+=y<=low?w.length:w.length*(high-y)/(high-low);
+          }
+          return sum+joints;
+        },0):contourPointsFor(currentPlan).reduce((sum, point, index) => {
           const next = contourPointsFor(currentPlan)[
             (index + 1) % contourPointsFor(currentPlan).length
           ];
           return sum + wallSeams(Math.hypot(next.x - point.x, next.y - point.y));
         }, 0),
-        edges: 2 * currentPerimeter + 4 * currentWallHeight + openingEdges,
+        edges: construction?.length?construction.reduce((s,w)=>s+w.length+Math.hypot(w.length,w.heightEnd-w.heightStart),0)+cornerHeights.reduce((s,h)=>s+h,0)+openingEdges:2 * currentPerimeter + 4 * currentWallHeight + openingEdges,
         sealLength: 2 * currentPerimeter,
         structuralCount: 2 * bindingCount + cornerCount + openingFasteners,
         bottomBindingCount: bindingCount,

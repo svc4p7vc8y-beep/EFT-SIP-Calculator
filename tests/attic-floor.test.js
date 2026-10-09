@@ -33,9 +33,9 @@ test('zero means zero; absent values retain legacy defaults', () => {
 });
 test('zero-height mansard removes only knee walls and horizontal ceiling, not gables or roof', () => {
   const p = house(), old = calculateProject(p), next = calculateProject(attic(p));
-  assert.equal(old.metrics.secondFloorExteriorWallNetArea, 70);
+  assert.equal(old.metrics.secondFloorExteriorWallNetArea, 68.26); // (28 − 4×.174) × 2.5
   assert.equal(next.metrics.secondFloorExteriorWallNetArea, 0);
-  assert.equal(next.metrics.firstFloorExteriorWallNetArea, 70);
+  assert.equal(next.metrics.firstFloorExteriorWallNetArea, 68.26);
   assert.equal(next.metrics.ceilingArea, 0);
   assert.equal(next.roof.warmSlopeArea, old.roof.warmSlopeArea);
   assert.equal(next.roof.warmGableArea, old.roof.warmGableArea);
@@ -49,9 +49,9 @@ test('any positive knee height remains independent from the first floor and part
   p.upperFloors[0].wallHeight = .8;
   p.upperFloors[0].walls = [{ id: 'p1', x1: 1, y1: 3, x2: 7, y2: 3 }];
   const c = calculateProject(p);
-  assert.equal(c.metrics.secondFloorExteriorWallNetArea, 22.4);
+  assert.equal(c.metrics.secondFloorExteriorWallNetArea, 21.84); // (28 − 4×.174) × .8, rounded.
   assert.equal(c.metrics.secondFloorPartitionNetArea, 15);
-  assert.equal(c.metrics.firstFloorExteriorWallNetArea, 70);
+  assert.equal(c.metrics.firstFloorExteriorWallNetArea, 68.26);
 });
 test('stairs deduct the interfloor deck only; whole roof and optional top ceiling stay', () => {
   const p = attic(house()), before = calculateProject(p);
@@ -98,7 +98,10 @@ test('frame partition timber uses independent attic partition height', () => {
   const after = calculateProject(p);
   const boards = c => c.lines.filter(r => /перегород/i.test(r.name) && r.kind === 'material').reduce((sum, r) => sum + r.qty * r.price, 0);
   assert.equal(after.metrics.secondFloorPartitionNetArea, 18);
-  assert.ok(boards(after) > boards(before));
+  assert.ok(boards(after) >= boards(before)); // Two studs still fit in a 6m stock board.
+  const lengths=c=>calculateProductionCutting(p,c).members.filter(m=>m.surfaceId?.startsWith('Э2-ПГ')).reduce((s,m)=>s+m.length,0);
+  const tall=lengths(after);p.upperFloors[0].partitionHeight=2.5;
+  assert.ok(tall>lengths(before));
 });
 
 test('sloped interior ceiling uses actual slope coefficient, no eaves or stair deduction', () => {

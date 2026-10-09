@@ -239,8 +239,8 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
     {showRooms ? (plan.walls || []).map((wall) => { const a = p(wall.x1, wall.y1); const b = p(wall.x2, wall.y2); return <line className="print-inner-wall" style={{strokeWidth:(Number(plan.partitionThickness)||.1)*scale}} key={wall.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />; }) : null}
     {showOpenings ? (plan.wallGaps || []).map(gap => <line key={gap.id} className="print-wall-gap" {...gapLine(gap)} />) : null}
     {showBinding ? <g className="print-binding" aria-label="Обвязка на печатном плане">
-      {(plan.bindingLines || []).filter((item) => item.include !== false).map((item) => { const q = line(item); return <line key={item.id} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; })}
-      {(plan.platforms || []).filter((item) => item.include !== false && item.binding?.mode !== 'none').map((item) => { const q = p(item.x, item.y); return <rect key={item.id} x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />; })}
+      {(foundation.bindingLines || plan.bindingLines || []).filter((item) => item.include !== false).map((item) => { const q = line(item); return <line key={item.id} x1={q.a.x} y1={q.a.y} x2={q.b.x} y2={q.b.y} />; })}
+      {pileSettings?.pileType!=='concreteBlock'?(plan.platforms || []).filter((item) => item.include !== false && item.binding?.mode !== 'none').map((item) => { const q = p(item.x, item.y); return <rect key={item.id} x={q.x} y={q.y} width={item.w * scale} height={item.h * scale} />; }):null}
     </g> : null}
     {showOpenings ? (plan.openings || []).map(renderOpening) : null}
     {showPiles ? <g className="print-piles" aria-label="Сваи на печатном плане">{foundation.points.map((point, index) => { const q = p(point.x, point.y); return <circle key={index} cx={q.x} cy={q.y} r="5" />; })}</g> : null}

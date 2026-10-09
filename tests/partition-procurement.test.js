@@ -17,7 +17,7 @@ test('SIP fasteners retain estimate quantities and units; disabling partitions r
  assert.ok(r.partitionFasteners.length);for(const f of r.partitionFasteners){const l=c.lines.find(l=>l.id===f.id);assert.equal(f.qty,l.qty);assert.equal(f.unit,l.unit);}
  p.services.partitions=false;const off=run(p);assert.equal(off.partitionFasteners.length,0);assert.equal(off.partitionStock.bars.length,0);
 });
-test('manual fastener quantity survives migration without changing price or estimate',()=>{
+test('manual fastener quantity survives migration and reaches estimate without changing unit price',()=>{
  const p=createDefaultProject(),item=p.priceMat.find(c=>/саморез/i.test(c.name)),total=calculateProject(p).totals.total;
- p.settings.productionCutting.partitionFasteners=[{id:'f',catalogId:item.id,qty:5}];const saved=migrateProject(JSON.parse(JSON.stringify(p))),s=partitionProcurement(run(saved));assert.equal(s.manual[0].qty,5);assert.equal(s.manual[0].unit,item.unit);assert.equal(s.manual[0].valid,true);assert.equal(calculateProject(saved).totals.total,total);
+ p.settings.productionCutting.partitionFasteners=[{id:'f',catalogId:item.id,qty:5}];const saved=migrateProject(JSON.parse(JSON.stringify(p))),s=partitionProcurement(run(saved));assert.equal(s.manual[0].qty,5);assert.equal(s.manual[0].unit,item.unit);assert.equal(s.manual[0].valid,true);assert.equal(calculateProject(saved).totals.total,total+5*item.price);
 });

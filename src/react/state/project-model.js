@@ -23,7 +23,7 @@ import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 193;
+export const REACT_PROJECT_VERSION = 194;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -545,6 +545,7 @@ export function createDefaultProject() {
     settings: {
       piles: {
         pileType: "screw",
+        blockDimensions: { widthMm: '', lengthMm: '', heightMm: '' },
         spacing: 2.5,
         autoLayoutMode: "uniform",
         autoRowSpacing: 2.5,

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v193-concrete-piles-1';
+const CACHE_NAME = 'eft-calculator-react-v194-construction-geometry-1';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

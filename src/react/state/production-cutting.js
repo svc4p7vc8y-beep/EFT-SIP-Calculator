@@ -5,6 +5,11 @@ export function normalizeProductionCutting(value = {}) {
   const record = source => source && typeof source === 'object' && !Array.isArray(source) ? Object.fromEntries(Object.entries(source).slice(0, 2000).map(([key, item]) => [key, item !== '' && item != null && Number.isFinite(Number(item)) && Number(item) >= 0 && Number(item) <= 30000 ? Number(item) : ''])) : {};
   return {
     frameStepMm: number('frameStepMm', 625, 100, 2500),
+    detailedFrameEstimate: value.detailedFrameEstimate !== false,
+    partitionBracing: value.partitionBracing !== false,
+    partitionBraceProfile: typeof value.partitionBraceProfile==='string'?value.partitionBraceProfile.trim().replace(/[хx]/g,'×'):'25×150',
+    bearingEdgeBoard: value.bearingEdgeBoard !== false,
+    partitionCornerBacking: value.partitionCornerBacking !== false,
     wallPanelMode: value.wallPanelMode === 'grid' ? 'grid' : 'full',
     gableFrameProfile: typeof value.gableFrameProfile==='string' ? value.gableFrameProfile.trim().replace(/[хx]/g,'×') : '50×150',
     windowSillMm: number('windowSillMm', 850),

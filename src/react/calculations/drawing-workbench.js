@@ -15,6 +15,7 @@ export function gableLinks(report, saved = {}) {
     let wall=override ? walls.find(s=>s.layoutKey===override.wallKey&&s.floor===gable.floor) : null;
     if(override&&['offset','elevation'].some(k=>override[k]!=null&&(!Number.isFinite(Number(override[k]))||Math.abs(Number(override[k]))>100000)))wall=null;
     let automatic=false;
+    if(!override&&gable.parentWallId){wall=walls.find(s=>s.id===gable.parentWallId);automatic=!!wall;}
     if(!override && report.assembly.roofShape==='gable' && ends.length===2 && /^ФР-[12]$/.test(gable.id)) {
       wall=ends[Number(gable.id.slice(-1))-1];
       const box=polygonBounds(gable.geometry.flat());

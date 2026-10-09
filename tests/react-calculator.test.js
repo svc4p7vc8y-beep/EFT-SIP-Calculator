@@ -378,7 +378,7 @@ test('frame partitions on the second floor reach materials, labor, finishing and
   const result = calculateProject(project);
   const upperMetrics = result.metrics.floorPlans[1].metrics;
   const frameMaterial = result.lines.find(
-    (line) => line.id === 'sip:partition-board-secondFloor',
+    (line) => line.source === 'partition-detail', // Stock grouped across both floors.
   );
   const frameLabor = result.lines.find(
     (line) => line.id === 'sip:partition-work-secondFloor',
@@ -653,7 +653,7 @@ test('cold roof defaults to 50x150 rafters and includes cold gables', () => {
   assert.match(rafters.name, /50×150/);
   assert.equal(rafters.catalogId, 'MAT-023');
   assert.ok(result.roof.gableArea > 0);
-  assert.equal(result.roof.coldGableArea, result.roof.geometry.gableArea);
+  assert.equal(result.roof.coldGableArea, 23.34); // Actual gable width after butt corners.
   assert.ok(result.lines.some((line) => line.id === 'roof:gable-frame-work' && line.catalogId === 'LAB-027'));
   const coverWork = result.lines.find((line) => line.id === 'roof:cover-work');
   assert.equal(coverWork.catalogId, 'LAB-031');
@@ -804,7 +804,7 @@ test('structurally inclined flat roof adds two triangular sides and the high wal
 
   const expectedRise = project.plan.house.w * 0.05;
   const expectedSideArea = project.plan.house.w * expectedRise;
-  const expectedHighWallArea = project.plan.house.h * expectedRise;
+  const expectedHighWallArea = (project.plan.house.h-2*Number(project.settings.sip.wallThickness)/1000) * expectedRise;
   assert.equal(result.roof.ridgeAxis, 'y');
   assert.ok(Math.abs(result.roof.flatRise - expectedRise) < 0.001);
   assert.ok(Math.abs(result.roof.flatSideWallArea - expectedSideArea) < 0.01);
@@ -832,7 +832,7 @@ test('main roof can count one exposed gable instead of two', () => {
   const project = createDefaultProject();
   project.settings.roof.gableCount = 1;
   const result = calculateProject(project);
-  assert.equal(result.roof.gableArea, result.roof.geometry.gableArea / 2);
+  assert.equal(result.roof.gableArea, 11.67); // One actual trimmed gable.
 });
 
 test('warm gables use wall SIP panels instead of a cold timber frame', () => {
@@ -841,7 +841,7 @@ test('warm gables use wall SIP panels instead of a cold timber frame', () => {
   project.settings.roof.gableType = 'auto';
   project.settings.sip.wallThickness = '174';
   const result = calculateProject(project);
-  assert.equal(result.roof.warmGableArea, result.roof.geometry.gableArea);
+  assert.equal(result.roof.warmGableArea, 23.34);
   assert.ok(result.lines.some((line) => line.id === 'roof:gable-sip-panel' && line.name.includes('174')));
   assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
   const gableCutting = result.sip.cutting.find((row) => row.key === 'gables');
@@ -1057,7 +1057,7 @@ test('SIP estimate is grouped by floor, walls, ceiling and partitions', () => {
   const project = createDefaultProject();
   const result = calculateProject(project);
   const sipLines = result.sections.find((section) => section.key === 'sip').lines;
-  assert.deepEqual([...new Set(sipLines.map((line) => line.estimateGroup))], ['Пол', 'Потолок', 'Наружные стены 1 этажа', 'Перегородки 1 этажа']);
+  assert.deepEqual([...new Set(sipLines.map((line) => line.estimateGroup))], ['Пол', 'Потолок', 'Наружные стены 1 этажа', 'Перегородки 1 этажа', 'Каркас и усиление перегородок']);
   assert.ok(sipLines.some((line) => line.estimateGroup === 'Пол' && line.name.includes('Пеноклей')));
   assert.ok(sipLines.some((line) => line.estimateGroup === 'Наружные стены 1 этажа' && line.source === 'sip-walls-joints'));
 });

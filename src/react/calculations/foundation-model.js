@@ -64,6 +64,22 @@ export function bindingLinesFromPileRows(rows = []) {
   }));
 }
 
+// Connect neighbouring actual block centres on each orthogonal axis. Do not
+// create ghost end supports from excluded row endpoints or triangulate a floor.
+export function bindingLinesFromBlockPoints(points=[]) {
+  const lines=[];
+  for(const axis of ['x','y']){
+    const fixed=axis==='x'?'y':'x',groups=new Map();
+    for(const p of points){const key=Math.round(p[fixed]*1000);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
+    for(const group of groups.values()){
+      const sorted=group.toSorted((a,b)=>a[axis]-b[axis]);
+      for(let i=1;i<sorted.length;i++){const a=sorted[i-1],b=sorted[i];if(Math.hypot(b.x-a.x,b.y-a.y)<.015)continue;
+        lines.push({id:`block-binding-${axis}-${lines.length+1}`,name:'Обвязка между блоками',x1:a.x,y1:a.y,x2:b.x,y2:b.y,group:a.source==='platform'||b.source==='platform'?'platform':'house',include:true,auto:true});}
+    }
+  }
+  return lines;
+}
+
 export function generateAutoBindingLines(plan, verticalRows = 4, horizontalRows = 5) {
   const w = Math.max(0.5, Number(plan?.house?.w) || 0.5);
   const h = Math.max(0.5, Number(plan?.house?.h) || 0.5);
@@ -233,9 +249,16 @@ export function calculateFoundation(plan, settings = {}) {
   const sharedPiles = points.filter((point) => point.source === 'shared').length;
   const housePiles = points.filter((point) => point.source === 'house' || point.source === 'shared').length;
   const platformPiles = points.filter((point) => point.source === 'platform' || point.source === 'shared').length;
-  const bindingLines = Array.isArray(plan.bindingLines) ? plan.bindingLines : bindingLinesFromPileRows(houseRows);
-  const houseBindingLength = bindingLines.filter((line) => line.include !== false).reduce((sum, line) => sum + Math.hypot(line.x2 - line.x1, line.y2 - line.y1), 0);
-  const platformBinding = (plan.platforms || []).filter((platform) => platform.include !== false).reduce((sum, platform) => sum + platformBindingLength(platform, plan.house), 0);
+  const blocks=settings.pileType==='concreteBlock';
+  const footprint=[houseContourPoints(plan),...platforms.filter(p=>p.binding?.mode!=='none').map(p=>[{x:p.x,y:p.y},{x:p.x+p.w,y:p.y},{x:p.x+p.w,y:p.y+p.h},{x:p.x,y:p.y+p.h}])];
+  const inFootprint=p=>footprint.some(contour=>pointInPolygon(p,contour)||contour.some((a,i)=>pointOnSegment(p,a,contour[(i+1)%contour.length])));
+  const automaticBlocks=blocks&&settings.autoSyncBinding!==false;
+  const bindingLines = automaticBlocks
+    ? bindingLinesFromBlockPoints(points).filter(l=>[.1,.25,.5,.75,.9].every(t=>inFootprint({x:l.x1+(l.x2-l.x1)*t,y:l.y1+(l.y2-l.y1)*t})))
+    : Array.isArray(plan.bindingLines) ? plan.bindingLines : bindingLinesFromPileRows(houseRows);
+  const lineLength=line=>Math.hypot(line.x2-line.x1,line.y2-line.y1);
+  const houseBindingLength = bindingLines.filter((line) => line.include !== false&&(!automaticBlocks||line.group!=='platform')).reduce((sum, line) => sum + lineLength(line), 0);
+  const platformBinding = automaticBlocks?bindingLines.filter(l=>l.include!==false&&l.group==='platform').reduce((s,l)=>s+lineLength(l),0):(plan.platforms || []).filter((platform) => platform.include !== false).reduce((sum, platform) => sum + platformBindingLength(platform, plan.house), 0);
   const bindingLength = houseBindingLength + platformBinding;
   const bindingType=settings.bindingType==='timber'?'timber':'boards';
   const boardWidth = bindingType==='timber'?0.15:Math.max(0.01, (Number(settings.bindingBoardWidthMm) || 50) / 1000);
@@ -246,7 +269,10 @@ export function calculateFoundation(plan, settings = {}) {
   const boardCount = requiredBoardLength ? Math.ceil(requiredBoardLength / boardStockLength) : 0;
   const purchaseBoardLength = boardCount * boardStockLength;
   return {
+    foundationType:settings.pileType||'screw',
     points,
+    bindingLines,
+    bindingIssues:blocks?points.filter(p=>p.source!=='platform'&&!bindingLines.some(l=>Math.hypot(p.x-l.x1,p.y-l.y1)<.015||Math.hypot(p.x-l.x2,p.y-l.y2)<.015)).map(p=>`Блок (${p.x}; ${p.y}) не связан с обвязкой: задайте проектную линию или выровняйте опоры.`):[],
     totalPiles: points.length,
     housePiles,
     platformPiles,

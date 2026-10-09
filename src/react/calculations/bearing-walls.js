@@ -2,10 +2,20 @@ import { roomPoints, unifiedWallSegments, lineEndpoints } from '../planner/geome
 
 // Geometry-bound keys deliberately expire when a wall is moved or resized.
 export const bearingWallKey=(a,b)=>[a,b].map(p=>`${Math.round(p.x*1000)},${Math.round(p.y*1000)}`).sort().join(':');
+export function bearingSideLabels(points) {
+  const cx=points.reduce((s,p)=>s+p.x,0)/(points.length||1),cy=points.reduce((s,p)=>s+p.y,0)/(points.length||1);
+  const labels=points.map((a,i)=>{const b=points[(i+1)%points.length],dx=b.x-a.x,dy=b.y-a.y;
+    if(Math.abs(dy)<.001)return (a.y+b.y)/2<=cy?'Верх':'Низ';
+    if(Math.abs(dx)<.001)return (a.x+b.x)/2<=cx?'Лево':'Право';
+    return `Наклонная ${i+1}`;
+  });
+  return labels.map((label,i)=>labels.filter(l=>l===label).length>1?`${label} · участок ${labels.slice(0,i+1).filter(l=>l===label).length}`:label);
+}
 export function roomBearingEdges(room) {
   const points=roomPoints(room);
+  const labels=bearingSideLabels(points);
   return points.map((a,i)=>{const b=points[(i+1)%points.length],key=bearingWallKey(a,b),value=room.bearingWalls?.[key];
-    return {a,b,key,index:i,bearing:value?.enabled??(room.bearing===true),profile:String(value?.profile||room.bearingProfile||'')};
+    return {a,b,key,index:i,label:labels[i],bearing:value?.enabled??(room.bearing===true),profile:String(value?.profile||room.bearingProfile||'')};
   }).filter(e=>Math.hypot(e.b.x-e.a.x,e.b.y-e.a.y)>.001);
 }
 export const bearingEdges=plan=>[...(plan.rooms||[]).filter(r=>r.include!==false).flatMap(roomBearingEdges),...(plan.walls||[]).filter(w=>w.include!==false).map(w=>({a:{x:w.x1,y:w.y1},b:{x:w.x2,y:w.y2},bearing:w.bearing,profile:w.bearingProfile||''}))].filter(e=>e.bearing);
