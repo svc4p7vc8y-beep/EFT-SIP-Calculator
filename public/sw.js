@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v197-partition-framing';
+const CACHE_NAME = 'eft-calculator-react-v198-wall-plan-navigator';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
