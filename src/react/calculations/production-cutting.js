@@ -747,7 +747,7 @@ export function calculateProductionCutting(project, calculation) {
   }) };
   report.cutting=calculateCutOperations(report);
   report.markRegistry=markRegistry;
-  report.constructionSourceRequests=[...new Set(surfaces.filter(s=>s.sourceIdentityStatus==='needs-registration').map(s=>s.sourceRole))];
+  report.constructionSourceRequests=[...new Map(surfaces.filter(s=>s.sourceIdentityStatus==='needs-registration').map(s=>[`${s.floor}:${s.sourceRole}`,s.floor===1?s.sourceRole:{floor:s.floor,role:s.sourceRole}])).values()];
   report.roofCover=roofCover;
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
   report.partitionStock=packMembers(members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded),settings.stockLengthMm,Number(settings.kerfMm||0));

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v204-source-selection';
+const CACHE_NAME = 'eft-calculator-react-v205-upper-sources';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

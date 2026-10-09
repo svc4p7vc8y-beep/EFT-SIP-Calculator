@@ -15,6 +15,7 @@ export default function ProductionIdentityInfo({ report }) {
 export function ConstructionSourceInfo({surface}) {
   if(!surface?.sourceIdentityStatus)return null;
   return <div className="cut-note no-print" aria-label="Исходная конструкция" style={{overflowWrap:'anywhere'}}>
+    <p>Этаж {surface.floor}. Привязки разных этажей независимы.</p>
     <p>{surface.sourceRoleLabel ? `Сторона: ${surface.sourceRoleLabel}. ` : ''}{surface.sourceIdentityStatus==='registered-source' ? 'Исходная конструкция зарегистрирована.' : surface.sourceIdentityStatus==='needs-registration' ? 'Регистрация исходной стены…' : 'Привязка требует проверки.'}</p>
     {surface.constructionSourceId ? <small>ID: {surface.constructionSourceId}</small> : <small>{surface.sourceIdentityReason}</small>}
     {surface.sourceTopologyLabel ? <p>Текущее построение: {surface.sourceTopologyLabel}.</p> : null}

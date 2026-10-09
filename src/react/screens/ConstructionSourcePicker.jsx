@@ -23,6 +23,7 @@ export default function ConstructionSourcePicker({surface,plan,settings,update})
   const reset=()=>{const selections={...settings.constructionSources.selections};delete selections[surface.sourceBindingKey];update({constructionSources:{...settings.constructionSources,selections}});};
   return <details className="cut-note no-print" aria-label="Выбор источника на плане">
     <summary>Выбрать исходную конструкцию на плане</summary>
+    <p>Этаж {surface.floor}{plan.floorType==='attic'?' · мансардный':''}. Источники и ручной выбор относятся только к этому этажу.</p>
     <p>Красный участок — выбранная перегородка. Нажмите его для перебора совпадающих источников или выберите источник ниже. Затем подтвердите выбор.</p>
     <svg role="img" aria-label="План выбора источника перегородки" viewBox={`${bounds.x-pad} ${bounds.y-pad} ${bounds.w+2*pad} ${bounds.h+2*pad}`} style={{width:'100%',height:220,background:'#fff',touchAction:'manipulation'}}>
       <polygon points={points(contour)} fill="none" stroke="#111" strokeWidth=".025"/>

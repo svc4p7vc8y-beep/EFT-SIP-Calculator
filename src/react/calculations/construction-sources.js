@@ -4,6 +4,7 @@ import {normalizeConstructionSources,ROLE_LABELS} from '../state/construction-so
 const near=(a,b)=>Math.abs(a-b)<1e-8;
 const same=(a,b)=>near(a.x,b.x)&&near(a.y,b.y);
 const sameSegment=(a,b,c,d)=>(same(a,c)&&same(b,d))||(same(a,d)&&same(b,c));
+const scopedId=(id,floor)=>floor===1?id:`floor:${floor}:${id}`;
 const contains=(p,r)=>{const dx=r.b.x-r.a.x,dy=r.b.y-r.a.y,l2=dx*dx+dy*dy;
   const t=((p.x-r.a.x)*dx+(p.y-r.a.y)*dy)/(l2||1);return t>=-1e-8&&t<=1+1e-8;};
 function overlaps(a,b,c,d) {
@@ -28,13 +29,14 @@ export function rectangleRole(plan,a,b) {
 // Identity of a source construction, not the identity of its generated parts.
 function automaticConstructionSource(plan,edge,saved,floor=1) {
   const unresolved=reason=>({sourceIdentityStatus:'needs-review',sourceIdentityReason:reason});
-  if(floor!==1)return unresolved('Исходные ID верхних этажей — следующий этап.');
+  if(![1,2].includes(floor))return unresolved('Номер этажа не поддерживается.');
   if(edge.outer) {
     const role=rectangleRole(plan,edge.a,edge.b);
     if(!role)return unresolved('Непрямоугольный контур: нужна явная идентичность рёбер.');
-    const id=normalizeConstructionSources(saved).exterior[role];
+    const registry=normalizeConstructionSources(saved);
+    const id=(floor===1?registry.exterior:registry.upperExterior?.[floor])?.[role];
     return {sourceIdentityStatus:id?'registered-source':'needs-registration',sourceRole:role,
-      sourceRoleLabel:ROLE_LABELS[role],...(id?{constructionSourceId:`exterior:${id}`}:{})};
+      sourceRoleLabel:ROLE_LABELS[role],...(id?{constructionSourceId:scopedId(`exterior:${id}`,floor)}:{})};
   }
   const walls=(plan.walls||[]).filter(w=>w.include!==false);
   const contributors=walls.filter(w=>overlaps(edge.a,edge.b,{x:w.x1,y:w.y1},{x:w.x2,y:w.y2}));
@@ -62,10 +64,10 @@ function automaticConstructionSource(plan,edge,saved,floor=1) {
     if(roomSources.length===2&&(roomSources[0].id===roomSources[1].id||opposite[roomSources[0].role]!==roomSources[1].role))
       return diagnose('ambiguous-sources','Наложение комнат','Совпадающие границы не являются противоположными сторонами двух комнат.');
     const pairs=roomSources.map(r=>[r.id,r.role]).sort((a,b)=>JSON.stringify(a)<JSON.stringify(b)?-1:1);
-    return {constructionSourceId:`room-boundary:${JSON.stringify(pairs)}`,sourceIdentityStatus:'registered-source',
+    return {constructionSourceId:scopedId(`room-boundary:${JSON.stringify(pairs)}`,floor),sourceIdentityStatus:'registered-source',
       sourceTopology:roomSources.length===2?'shared-room-boundary':'single-room-side',
       sourceTopologyLabel:roomSources.length===2?'Общая сторона двух комнат':'Целая сторона комнаты',sourceContributors,
-      constructionSourceRef:{kind:'room-boundary',sides:pairs}};
+      constructionSourceRef:{kind:'room-boundary',sides:pairs,...(floor!==1?{floor}:{})}};
   }
   const source=contributors[0];
   if(!source)return diagnose('unresolved-source','Источник не найден','Нет соответствующей исходной линии.');
@@ -76,9 +78,9 @@ function automaticConstructionSource(plan,edge,saved,floor=1) {
     const split=refs.every(r=>contains(edge.a,r)&&contains(edge.b,r));
     return diagnose(split?'split-source':'merged-sources',split?'Часть исходной линии':'Объединённые исходные линии','Объединённый или разделённый участок: прежний ID не назначен.');
   }
-  return {constructionSourceId:`partition:${encodeURIComponent(source.id)}`,sourceIdentityStatus:'registered-source',
+  return {constructionSourceId:scopedId(`partition:${encodeURIComponent(source.id)}`,floor),sourceIdentityStatus:'registered-source',
     sourceTopology:'single-wall',sourceTopologyLabel:'Целая исходная линия',sourceContributors,
-    constructionSourceRef:{kind:'plan-wall',id:source.id}};
+    constructionSourceRef:{kind:'plan-wall',id:source.id,...(floor!==1?{floor}:{})}};
 }
 
 // Lookup is deliberately geometry-bound: it does not transfer a declaration to a moved wall.
@@ -87,7 +89,7 @@ export function sourceBindingKey(edge,floor=1) {
 }
 export function constructionSource(plan,edge,saved,floor=1) {
   const result=automaticConstructionSource(plan,edge,saved,floor);
-  if(edge.outer||floor!==1)return result;
+  if(edge.outer||![1,2].includes(floor))return result;
   const sourceBinding=normalizeConstructionSources(saved).selections?.[sourceBindingKey(edge,floor)];
   const base={...result,sourceBindingKey:sourceBindingKey(edge,floor)};
   if(!sourceBinding)return base;
@@ -99,6 +101,6 @@ export function constructionSource(plan,edge,saved,floor=1) {
     return {...rest,sourceBinding,sourceIdentityStatus:'needs-review',sourceIdentityReason:'Ручная привязка больше не применима: источник отсутствует, неоднозначен или не покрывает участок целиком.'};
   }
   const constructionSourceId=sourceBinding.kind==='plan-wall'?`partition:${encodeURIComponent(sourceBinding.id)}`:`room-boundary:${JSON.stringify([[sourceBinding.id,sourceBinding.role]])}`;
-  return {...base,sourceBinding,constructionSourceId,constructionSourceRef:sourceBinding,
+  return {...base,sourceBinding,constructionSourceId:scopedId(constructionSourceId,floor),constructionSourceRef:{...sourceBinding,...(floor!==1?{floor}:{})},
     sourceIdentityStatus:'registered-source',sourceIdentityReason:undefined,sourceSelectionLabel:'Источник выбран вручную; остальные совпадающие линии не удалены.'};
 }
