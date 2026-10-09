@@ -3,7 +3,7 @@ import { refreshPartitionNotches } from './partition-geometry.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { bearingEdges, bearingForSegment, splitAtBearingEdges, splitConnectorsAtBearing } from './bearing-walls.js';
 import { partitionFrameMembers } from './partition-cutting.js';
-import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints } from '../planner/geometry.js';
+import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints, planIssues } from '../planner/geometry.js';
 import { sipTimberProfile } from './sip-joinery.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
 import { cuttingRevision, validateProductionSettings, parseManualPanel, reconcileCutting } from './production-controls.js';
@@ -11,6 +11,8 @@ import { calculateAssemblyPlan, calculateCutOperations, gableFrameMembers } from
 import { roofCoverLayout } from './roof-cover-layout.js';
 import { exteriorWallConstruction } from './wall-construction.js';
 import { partitionSegments, partitionBacking } from './partition-construction.js';
+import { localWallSettings } from '../planner/wall-layout.js';
+import { fullSpanBearingCuts, connectorSupportCheck } from './ceiling-supports.js';
 import { buildFirstFloorWallGeometry, compareWallGeometry, openingWallCandidates } from './wall-geometry-adapter.js';
 import { evaluateBindingStraightSupport } from './construction-rules.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
@@ -209,7 +211,7 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
   if(surface.bearingCuts?.length && !surface.bearingTiled){
     const bounds=polygonBounds(surface.geometry.flat());
     const xs=[bounds.x,bounds.x+bounds.width],ys=[bounds.y,bounds.y+bounds.height];
-    for(const e of surface.bearingCuts){if(Math.abs(e.a.x-e.b.x)<.001)xs.push(mm(e.a.x));else if(Math.abs(e.a.y-e.b.y)<.001)ys.push(mm(e.a.y));}
+    for(const e of fullSpanBearingCuts(surface)){if(Math.abs(e.a.x-e.b.x)<.001)xs.push(mm(e.a.x));else if(Math.abs(e.a.y-e.b.y)<.001)ys.push(mm(e.a.y));}
     const clean=(values,min,max)=>[...new Set(values.filter(v=>v>=min&&v<=max))].sort((a,b)=>a-b);
     const xx=clean(xs,bounds.x,bounds.x+bounds.width),yy=clean(ys,bounds.y,bounds.y+bounds.height),parts=[];
     for(let i=0;i<xx.length-1;i++)for(let j=0;j<yy.length-1;j++){
@@ -443,6 +445,8 @@ export function calculateProductionCutting(project, calculation) {
     const floor = floorIndex + 1, contour = houseContourPoints(plan), shape = polygon(contour);
     if (plan.house?.contourDefined === false) { issue('CONTOUR', `${floor} этаж: задайте контур дома на плане.`); return; }
     const h = mm(exteriorHeight(plan));
+    for(const conflict of planIssues(plan))issue('PLAN_GEOMETRY',`${floor} этаж: ${conflict.message}`,`floor-${floor}`);
+    if(plan.wallLayoutIssue)issue('PLAN_GEOMETRY',`${floor} этаж: ${plan.wallLayoutIssue}`,`floor-${floor}`);
     const edges = exteriorWallConstruction(plan,sip,project.settings.roof,floorIndex===plans.length-1,services.roof).map(wall=>({ ...wall,a:wall.a,b:wall.b,id:`Э${floor}-С${wall.index+1}`,outer:true }));
     if (services.partitions) {
       const segments = partitionSegments(plan);
@@ -502,14 +506,15 @@ export function calculateProductionCutting(project, calculation) {
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
       const source=constructionSource(plan,edge,settings.constructionSources,floor);
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm((edge.start||edge.a).x), mm((edge.start||edge.a).y)], planEnd: [mm((edge.end||edge.b).x), mm((edge.end||edge.b).y)], externalLength:edge.outer?mm(edge.externalLength):width,heightStart,heightEnd, thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings,
-        ...source,...(!edge.outer?partitionBacking(plan,edge.a,edge.b):{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
+        ...source,...(!edge.outer?partitionBacking(plan,edge.a,edge.b):{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||(!edge.outer&&localWallSettings(plan,edge.a,edge.b)?.frameProfile)||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
       const hole = plan.floorOpening;
       const holes = floorIndex > 0 && Number(hole?.width) > 0 && Number(hole?.length) > 0 ? [rect(mm(hole.x), mm(hole.y), mm(hole.width), mm(hole.length))] : [];
       const blocked = holes.some(h => clipping.difference(h, shape).reduce((sum, poly) => sum + polygonAreaMm(poly), 0) > 1) || (floorIndex > 0 && ((Number(hole?.width) > 0) !== (Number(hole?.length) > 0)));
       if (blocked) issue('STAIR_BOUNDS', `${floor} этаж: лестничный проём имеет неполный размер или выходит за контур. Перекрытие заблокировано.`, `Э${floor}-ПОЛ`);
-      addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes), blocked });
+      const deck=addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes), blocked });
+      if(floorIndex>0&&settings.ceilingBearingAlignment){deck.bearingCuts=bearingEdges(plans[floorIndex-1]);deck.supportFloor=floor-1;deck.supportOuterThickness=mm(plans[floorIndex-1].wallThickness);}
     }
     if (floorIndex === plans.length - 1 && services.sipCeiling && hasHorizontalCeiling(plan)) {
       let blocked = false;
@@ -524,7 +529,9 @@ export function calculateProductionCutting(project, calculation) {
       if(settings.ceilingBearingAlignment){
         ceiling.bearingCuts=bearingEdges(plan);
         if(ceiling.bearingCuts.some(e=>Math.abs(e.a.x-e.b.x)>.001&&Math.abs(e.a.y-e.b.y)>.001))issue('CEILING_SUPPORT','Наклонная несущая перегородка: стыки потолка требуют индивидуальной раскладки.',ceiling.id);
-        if(ceiling.bearingCuts.length)issue('CEILING_SUPPORT_CHECK','Сетка потолка разделена по осям несущих стен. Пролёты, неполные опоры, стыки шпонок вне стен и узлы опирания проверить по проекту.',ceiling.id);
+        ceiling.supportFloor=floor;
+        ceiling.supportOuterThickness=mm(plan.wallThickness);
+        if(ceiling.bearingCuts.length)issue('CEILING_SUPPORT_CHECK','Сетка выравнивается только по несущим стенам на весь пролёт. Короткие опоры не продлеваются. Концы и стыки соединителей проверяются отдельно; пролёты и узлы — по проекту.',ceiling.id);
       }
     }
     if ((plan.rooms || []).some(room => room.extension && room.include !== false)) issue('COMPLEX_PLAN', `${floor} этаж: пристроенные помещения требуют отдельной карты — внесите детали вручную.`, `floor-${floor}`);
@@ -640,7 +647,7 @@ export function calculateProductionCutting(project, calculation) {
       }
       members.push(...frame);continue;
     }
-    const segments = splitConnectorsAtBearing(connectionSegments(parts.filter(part => part.surfaceId === surface.id), settings.continuousMembers),surface.bearingCuts);
+    const segments = splitConnectorsAtBearing(connectionSegments(parts.filter(part => part.surfaceId === surface.id), settings.continuousMembers || !!surface.supportFloor),surface.bearingCuts);
     const profile = sipTimberProfile(surface.thickness);
     const jambs = !surface.blocked && !surface.horizontal && surface.openings?.length ? surface.openings.filter(opening => !opening.gap && ['window','door'].includes(opening.type))
       .flatMap(opening => [{opening,side:'left',x:opening.x},{opening,side:'right',x:opening.x+opening.width}]) : [];
@@ -737,6 +744,7 @@ export function calculateProductionCutting(project, calculation) {
   delete revisionSettings.sourceBaseline; // An explicit comparison checkpoint is not geometry approval.
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
+  if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
@@ -750,6 +758,7 @@ export function calculateProductionCutting(project, calculation) {
   report.markRegistry=markRegistry;
   report.constructionSourceRequests=[...new Map(surfaces.filter(s=>s.sourceIdentityStatus==='needs-registration').map(s=>[`${s.floor}:${s.sourceRole}`,s.floor===1?s.sourceRole:{floor:s.floor,role:s.sourceRole}])).values()];
   report.roofCover=roofCover;
+  report.ceilingSupportChecks=surfaces.filter(s=>s.horizontal&&s.supportFloor).flatMap(s=>members.filter(m=>m.surfaceId===s.id&&m.seam&&!m.excluded).map(m=>connectorSupportCheck(m,s,plans[s.supportFloor-1],settings)));
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
   report.partitionStock=packMembers(members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded),settings.stockLengthMm,Number(settings.kerfMm||0));
   report.partitionCatalog=(project.priceMat||[]).filter(c=>settings.partitionFasteners.some(r=>r.catalogId===c.id)).map(c=>({id:c.id,name:c.name,unit:c.unit}));

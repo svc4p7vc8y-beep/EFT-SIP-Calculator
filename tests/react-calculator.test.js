@@ -1328,9 +1328,8 @@ test('version 64 projects receive the uploaded default price list once', () => {
 test('plan geometry drives roof, engineering, finishing and delivery inputs', () => {
   const project = createDefaultProject();
   const before = calculateProject(project);
-  project.plan.house.w += 2;
-  project.plan.rooms[0].points[1].x += 1;
-  project.plan.rooms[0].points[2].x += 1;
+  // Resize the actual plan, not one room into an already occupied neighbouring room.
+  resizeProjectHouse(project, project.plan.house.w + 2, project.plan.house.h);
   const after = calculateProject(project);
   assert.equal(after.inputs.roof.ridgeLength, before.inputs.roof.ridgeLength + 2);
   assert.ok(after.inputs.engineering.cableRoute > before.inputs.engineering.cableRoute);

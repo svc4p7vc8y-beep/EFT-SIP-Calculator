@@ -1,4 +1,4 @@
-import { unifiedWallSegments, lineEndpoints } from '../planner/geometry.js';
+import { partitionRuns, partitionDepth } from '../planner/geometry.js';
 import { bearingForSegment, splitAtBearingEdges } from './bearing-walls.js';
 import { partitionHeight } from '../../calculations/floor-height.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
@@ -7,6 +7,7 @@ import { houseContourPoints } from '../planner/geometry.js';
 import { cuttingRevision } from './production-controls.js';
 import clipping from 'polygon-clipping';
 import { refreshPartitionNotches } from './partition-geometry.js';
+import { localWallSettings } from '../planner/wall-layout.js';
 
 export function mergePartitionSegments(segments) {
   const groups=new Map();
@@ -24,7 +25,7 @@ export function mergePartitionSegments(segments) {
   return result;
 }
 export function partitionSegments(plan) {
-  return splitAtBearingEdges(plan,mergePartitionSegments([...unifiedWallSegments({...plan,rooms:(plan.rooms||[]).filter(r=>r.include!==false)}).map(lineEndpoints),...(plan.walls||[]).filter(w=>w.include!==false).map(w=>[{x:w.x1,y:w.y1},{x:w.x2,y:w.y2}])]));
+  return splitAtBearingEdges(plan,partitionRuns(plan));
 }
 export function partitionBacking(plan,a,b,segments=partitionSegments(plan)) {
   const contour=houseContourPoints(plan),all=[...segments,...contour.map((p,i)=>[p,contour[(i+1)%contour.length]])];
@@ -32,7 +33,9 @@ export function partitionBacking(plan,a,b,segments=partitionSegments(plan)) {
     const dx=v.x-u.x,dy=v.y-u.y,l=Math.hypot(dx,dy),wallDx=b.x-a.x,wallDy=b.y-a.y;
     if(!l||Math.abs(dx*wallDy-dy*wallDx)<.0001)return false;
     const t=((p.x-u.x)*dx+(p.y-u.y)*dy)/(l*l);
-    return t>=-.001&&t<=1.001&&Math.abs(dx*(p.y-u.y)-dy*(p.x-u.x))/l<.015;
+    const distance=Math.abs(dx*(p.y-u.y)-dy*(p.x-u.x))/l;
+    const outer=contour.some((q,i)=>q===u&&contour[(i+1)%contour.length]===v);
+    return t>=-.001&&t<=1.001&&(outer?Math.abs(distance-(Number(plan.wallThickness)||.174))<.015:distance<.015||(plan.partitionJunctions==='butt'&&Math.abs(distance-partitionDepth(plan,u,v)/2)<.015));
   });
   return {startBacking:connects(a),endBacking:connects(b)};
 }
@@ -60,7 +63,7 @@ export function partitionReinforcements(project,plan,floor=1,all=false) {
     const length=Math.hypot(b.x-a.x,b.y-a.y),bearing=bearingForSegment(plan,a,b),openings=[];
     openings.push(...assigned.get(i));
     const id=`Э${floor}-ПГ${i+1}`,start=[a.x,a.y].map(v=>Math.round(v*1000)),end=[b.x,b.y].map(v=>Math.round(v*1000)),wallKey=`${id}@${start.join(',')}:${end.join(',')}`;
-    const s={id,name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(bearing?.profile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
+    const s={id,name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(bearing?.profile||localWallSettings(plan,a,b)?.frameProfile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
     openings.filter(o=>o.gap).forEach(o=>o.height=s.height);
     if(!Number.isFinite(s.width)||!Number.isFinite(s.height)||blocked.has(i)||openings.some(o=>o.x< -1||o.x+o.width>s.width+1||!(o.width>0&&o.height>0)||o.sill===''||!Number.isFinite(Number(o.sill))||Number(o.sill)<0||Number(o.sill)+o.height>s.height+1))return;
     const rectangle=(x,y,w,h)=>[[[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]]];

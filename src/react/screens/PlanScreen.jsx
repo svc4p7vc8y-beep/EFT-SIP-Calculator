@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react"
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
 import { roomBearingEdges } from '../calculations/bearing-walls.js';
+import { convertToWallLayout, rebuildWallRooms, addRoomWalls, wallDepth } from '../planner/wall-layout.js';
 import BearingRoomControls from './BearingRoomControls.jsx';
 import { normalizeTieredRoof } from '../calculations/tiered-roof.js';
 import { stairStepGeometry } from '../planner/stair-steps.js';
@@ -125,6 +126,8 @@ import {
   shouldClosePolygon,
   moveConnectedWall,
   nudgePlanSelection,
+  preservePlanAttachments,
+  partitionRuns,
   resizeProjectHouse,
   resizePlanToHouse,
   snapPoint,
@@ -265,9 +268,11 @@ function previewPlan(source, gesture) {
     return plan;
   }
   if (gesture.type === "room") {
+    const before=structuredClone(plan);
     const room = itemFor("rooms");
     room.points = movePoints(roomPoints(room), dx, dy, plan, axes);
     Object.assign(room, boundsOf(room.points));
+    preservePlanAttachments(plan,before);
   } else if (gesture.type === "roomLabel") {
     const room = itemFor("rooms");
     if (room) {
@@ -323,7 +328,9 @@ function previewPlan(source, gesture) {
             : "pileRows";
     const item = itemFor(key);
     if (item && gesture.type === "wall") {
+      const before=structuredClone(plan);
       moveConnectedWall(plan, gesture.id, dx, dy);
+      preservePlanAttachments(plan,before);
     } else if (item) {
       const first = snapPoint({ x: item.x1 + dx, y: item.y1 + dy }, axes);
       const delta = { x: first.x - item.x1, y: first.y - item.y1 };
@@ -1444,6 +1451,10 @@ function PlanCanvas({
   };
   const deleteObject = (type, id) =>
     commitPlan((next) => {
+      if(type==='room'&&next.layoutMode==='walls'){
+        window.alert('В режиме построения стенами комната определяется стенами. Для объединения комнат выберите и удалите разделяющую стену.');
+        return;
+      }
       if (type === "derivedPile") {
         const [x, y] = id.split(":").map(Number);
         next.excludedPiles = [...(next.excludedPiles || []), { x, y }];
@@ -1498,6 +1509,9 @@ function PlanCanvas({
       return;
     }
     if (tool !== "select") return;
+    if(type==='room'&&plan.layoutMode==='walls'){
+      event.stopPropagation();selectExisting({type,id});return;
+    }
     if (event.pointerType === "touch") {
       event.stopPropagation();
       if (isSamePlanSelection(selected, type, id)) {
@@ -1968,6 +1982,7 @@ function PlanCanvas({
     const [a, b] = lineEndpoints(segment);
     const q1 = p(a.x, a.y);
     const q2 = p(b.x, b.y);
+    const localWidth=wallDepth(shownPlan,a,b)*layout.scale;
     return (
       <g key={key} className="wall-band">
         <line
@@ -1976,7 +1991,7 @@ function PlanCanvas({
           y1={q1.y}
           x2={q2.x}
           y2={q2.y}
-          style={{ strokeWidth: partitionWidth, strokeLinecap:'butt' }}
+          style={{ strokeWidth: localWidth, strokeLinecap:'butt' }}
         />
         <line
           className="wall-band-hatch"
@@ -1984,7 +1999,7 @@ function PlanCanvas({
           y1={q1.y}
           x2={q2.x}
           y2={q2.y}
-          style={{ strokeWidth: Math.max(0,partitionWidth - 2), strokeLinecap:'butt' }}
+          style={{ strokeWidth: Math.max(0,localWidth - 2), strokeLinecap:'butt' }}
         />
       </g>
     );
@@ -2178,6 +2193,7 @@ function PlanCanvas({
             .join(" ")}
         />
       ) : null}
+      {visibleLayers.plan?planIssues(shownPlan).filter(issue=>issue.point).map((issue,i)=>{const q=p(issue.point.x,issue.point.y);return <circle key={`gap-check-${i}`} cx={q.x} cy={q.y} r="7" stroke="#b91c1c" strokeWidth="2" fill="none" pointerEvents="none"><title>{issue.message}</title></circle>;}):null}
       {houseDefined && visibleLayers.roof ? (
         <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} />
       ) : null}
@@ -2390,7 +2406,9 @@ function PlanCanvas({
       ) : null}
       {visibleLayers.plan
         ? (shownPlan.walls || []).map((wall) => {
-            const q = line(wall);
+            const actual=partitionRuns(shownPlan).find(([a,b])=>Math.abs((wall.x2-wall.x1)*((a.y+b.y)/2-wall.y1)-(wall.y2-wall.y1)*((a.x+b.x)/2-wall.x1))<.001&&((a.x+b.x)/2)>=Math.min(wall.x1,wall.x2)-.001&&((a.x+b.x)/2)<=Math.max(wall.x1,wall.x2)+.001&&((a.y+b.y)/2)>=Math.min(wall.y1,wall.y2)-.001&&((a.y+b.y)/2)<=Math.max(wall.y1,wall.y2)+.001);
+            const q = actual?{a:p(actual[0].x,actual[0].y),b:p(actual[1].x,actual[1].y)}:line(wall);
+            const localWidth=wallDepth(shownPlan,{x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2})*layout.scale;
             const selectedNow =
               selected?.type === "wall" && selected.id === wall.id;
             return (
@@ -2405,7 +2423,7 @@ function PlanCanvas({
                   y1={q.a.y}
                   x2={q.b.x}
                   y2={q.b.y}
-                  style={{ strokeWidth: partitionWidth, strokeLinecap:'butt' }}
+                  style={{ strokeWidth: localWidth, strokeLinecap:'butt', stroke:wall.bearing?'#267044':undefined }}
                 />
                 <line
                   className="wall-band-hatch"
@@ -2413,7 +2431,7 @@ function PlanCanvas({
                   y1={q.a.y}
                   x2={q.b.x}
                   y2={q.b.y}
-                  style={{ strokeWidth: Math.max(0,partitionWidth - 2), strokeLinecap:'butt' }}
+                  style={{ strokeWidth: Math.max(0,localWidth - 2), strokeLinecap:'butt',opacity:wall.bearing ? 0.35 : 1 }}
                 />
                 <line
                   className="wide-hit"
@@ -3257,6 +3275,10 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
       if (item) mutate(item);
     });
   const remove = () => {
+    if(selected.type==='room'&&plan.layoutMode==='walls'){
+      window.alert('В режиме построения стенами удалите разделяющую стену, а не комнату.');
+      return;
+    }
     const key =
       selected.type === "room"
         ? "rooms"
@@ -3438,7 +3460,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
         <h3>{room.name}</h3>
         <RoomNameField value={room.name} onChange={(name) => update("rooms", (item) => { item.name = name; })} />
         <NumberField label="Размер названия на плане" value={room.labelFontSize || 22} suffix="px" min={10} max={64} step={1} onChange={(value) => update("rooms", item => { item.labelFontSize = value; })} />
-        <div className="form-grid">
+        {plan.layoutMode==='walls'?<p className="inspector-note">Границы комнаты определяются стенами. Для изменения размеров выберите стену на плане.</p>:<div className="form-grid">
           <NumberField
             label="Размер X"
             value={roundCoord(bounds.w)}
@@ -3453,7 +3475,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
             min={0.5}
             onChange={(value) => resize("h", value)}
           />
-        </div>
+        </div>}
         <div className="readout">
           <span>Площадь по контуру</span>
           <strong>{formatNumber(area)} м²</strong>
@@ -3494,7 +3516,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
             }
           />
         ) : null}
-        <Toggle
+        {plan.layoutMode!=='walls'?<Toggle
           label="Несущие стороны по умолчанию"
           checked={room.bearing}
           onChange={(value) =>
@@ -3502,8 +3524,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
               item.bearing = value;
             })
           }
-        />
-        <BearingRoomControls room={room} onChange={(key,value)=>update('rooms',item=>{item.bearingWalls={...item.bearingWalls,[key]:value};})}/>
+        />:null}
+        {plan.layoutMode!=='walls'?<BearingRoomControls room={room} onChange={(key,value)=>update('rooms',item=>{item.bearingWalls={...item.bearingWalls,[key]:value};})}/>:<p className="inspector-note">Несущие участки и сечение выбираются в карточке стены на плане.</p>}
         <Toggle
           label="Учитывать в расчёте"
           checked={room.include !== false}
@@ -3999,6 +4021,15 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
     return (
       <div className="inspector-form">
         <h3>{wall ? "Перегородка" : "Размерная линия"}</h3>
+        {wall ? <>
+          <Toggle label="Учитывать перегородку" checked={wall.include!==false} onChange={value=>update('walls',item=>{item.include=value;})}/>
+          <Toggle label="Несущая перегородка" checked={!!wall.bearing} onChange={value=>update('walls',item=>{item.bearing=value;})}/>
+          <SelectField label="Сечение каркаса" value={wall.bearing?wall.bearingProfile||'':wall.frameProfile||''} options={[{value:'',label:'По общим параметрам'},{value:'50x100',label:'50×100 мм'},{value:'50x150',label:'50×150 мм'},{value:'50x200',label:'50×200 мм'}]} onChange={value=>update('walls',item=>{if(item.bearing)item.bearingProfile=value;else item.frameProfile=value;})}/>
+          <p className="inspector-note">Сечение каркасной перегородки задаёт её толщину на плане. Несущая способность и узлы — по проекту. SIP-перегородки задаются в разделе SIP.</p>
+          <div className="form-grid">{['x1','y1','x2','y2'].map(key=><NumberField key={key} label={`${key.toUpperCase()} · ось`} value={wall[key]} suffix="м" step={.001} onChange={value=>update('walls',item=>{item[key]=value;})}/>)}</div>
+          <div className="readout"><span>Изготовляемая длина</span><strong>{formatNumber(partitionRuns(plan).filter(([a,b])=>Math.abs((wall.x2-wall.x1)*((a.y+b.y)/2-wall.y1)-(wall.y2-wall.y1)*((a.x+b.x)/2-wall.x1))<.001&&Math.min(wall.x1,wall.x2)-.001<=(a.x+b.x)/2&&Math.max(wall.x1,wall.x2)+.001>=(a.x+b.x)/2&&Math.min(wall.y1,wall.y2)-.001<=(a.y+b.y)/2&&Math.max(wall.y1,wall.y2)+.001>=(a.y+b.y)/2).reduce((sum,[a,b])=>sum+Math.hypot(b.x-a.x,b.y-a.y),0))} м</strong></div>
+          {(plan.openings||[]).filter(o=>o.wallRef===`wall:${wall.id}`).map(o=><button key={o.id} className="button secondary" onClick={()=>setSelected({type:'opening',id:o.id})}>{o.type==='door'?'Дверь':'Окно'} · от начала {formatNumber(Math.hypot(o.x-wall.x1,o.y-wall.y1))} м</button>)}
+        </>:null}
         <div className="readout">
           <span>Длина</span>
           <strong>
@@ -4241,6 +4272,10 @@ function MobileSelectionAdjuster({
                     : "piles";
   const deleteSelected = () => {
     if (!selected) return;
+    if(selected.type==='room'&&plan.layoutMode==='walls'){
+      window.alert('В режиме построения стенами удалите разделяющую стену, а не комнату.');
+      return;
+    }
     if (selected.type === "floorOpening") {
       commitFloorOpening({ x: 0, y: 0, width: 0, length: 0 });
       setSelected(null);
@@ -4318,7 +4353,7 @@ function MobileSelectionAdjuster({
     controls = (
       <>
         <RoomNameField value={room.name} onChange={(name) => update("rooms", (item) => { item.name = name; })} />
-        <MobileStepper
+        {plan.layoutMode!=='walls'?<><MobileStepper
           label="Ширина"
           value={b.w}
           onMinus={() => resizeRoom("w", -step)}
@@ -4330,7 +4365,7 @@ function MobileSelectionAdjuster({
           onMinus={() => resizeRoom("h", -step)}
           onPlus={() => resizeRoom("h", step)}
         />
-        <BearingRoomControls room={room} onChange={(key,value)=>update('rooms',item=>{item.bearingWalls={...item.bearingWalls,[key]:value};})}/>
+        <BearingRoomControls room={room} onChange={(key,value)=>update('rooms',item=>{item.bearingWalls={...item.bearingWalls,[key]:value};})}/></>:<p>Границы и несущие участки изменяются выбором стен на плане.</p>}
       </>
     );
     detail = (
@@ -4940,10 +4975,14 @@ export default function PlanScreen({ onNavigate }) {
   const commitPlan = useCallback(
     (mutate) =>
       commit((next) => {
-        if (activeFloor === 1) mutate(next.plan);
+        if (activeFloor === 1) { const before=structuredClone(next.plan);mutate(next.plan);if(next.plan.layoutMode==='walls'&&before.layoutMode==='walls')for(const room of next.plan.rooms.filter(r=>!before.rooms.some(old=>old.id===r.id)))addRoomWalls(next.plan,room,()=>uid('wall'));preservePlanAttachments(next.plan,before);rebuildWallRooms(next.plan,()=>uid('room')); }
         else {
           ensureProjectFloorCount(next, Math.max(2, activeFloor));
+          const before=structuredClone(next.upperFloors[activeFloor-2]);
           mutate(next.upperFloors[activeFloor - 2]);
+          if(next.upperFloors[activeFloor-2].layoutMode==='walls'&&before.layoutMode==='walls')for(const room of next.upperFloors[activeFloor-2].rooms.filter(r=>!before.rooms.some(old=>old.id===r.id)))addRoomWalls(next.upperFloors[activeFloor-2],room,()=>uid('wall'));
+          preservePlanAttachments(next.upperFloors[activeFloor-2],before);
+          rebuildWallRooms(next.upperFloors[activeFloor-2],()=>uid('room'));
         }
         releasePlanLinkedQuantityOverrides(next);
         return next;
@@ -5496,6 +5535,10 @@ export default function PlanScreen({ onNavigate }) {
         !editing
       ) {
         event.preventDefault();
+        if(selected.type==='room'&&plan.layoutMode==='walls'){
+          window.alert('В режиме построения стенами удалите разделяющую стену, а не комнату.');
+          return;
+        }
         if (selected.type === "floorOpening") {
           commitFloorOpening({ x: 0, y: 0, width: 0, length: 0 });
           setSelected(null);
@@ -6035,6 +6078,16 @@ export default function PlanScreen({ onNavigate }) {
           )}
         </div>
         <div className="plan-house-fields">
+          <div style={{gridColumn:'1 / -1'}}>
+            <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
+            <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions==='butt'} onChange={value=>commitPlan(next=>{next.partitionJunctions=value?'butt':'axes';})}/>
+            <p className="inspector-note">В Т-узле непрерывная стена проходит, примыкающая заканчивается у её грани. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются. Для старых проектов схема включается явно.</p>
+            {plan.wallLayoutIssue?<p className="assembly-warning">{plan.wallLayoutIssue}</p>:null}
+            {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{
+              if(!window.confirm('Преобразовать границы комнат в отдельные стены? Размеры дома сохранятся; комнаты будут определяться между стенами. Привязки раскроя нужно перепроверить. Исходная планировка сохранится в резерве, действие можно отменить.'))return;
+              try{commitPlan(next=>convertToWallLayout(next,()=>uid('wall')));setSelected(null);setTool('wall');}catch(error){window.alert(error.message);}
+            }}>Перейти к построению стенами</button>:<p className="inspector-note">Инструмент «Перегородка»: рисуйте стены, замкнутые комнаты определяются автоматически. Нажмите стену для настройки. Изменения можно отменять.</p>}
+          </div>
           <NumberField
             label="Длина"
             value={plan.house.w}

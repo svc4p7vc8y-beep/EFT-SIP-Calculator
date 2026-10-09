@@ -119,6 +119,7 @@ test('blank new parameter retains the old production revision; a project value r
   const calculation = calculateProject(p), report = calculateProductionCutting(p, calculation);
   const { approval, ...oldSettings } = report.settings;
   delete oldSettings.bindingJointToleranceMm;
+  delete oldSettings.ceilingMaxSpanMm; // v207 unset project-only diagnostic parameter.
   delete oldSettings.markRegistry; // v199 did not contain derived mark metadata.
   delete oldSettings.constructionSources;
   delete oldSettings.sourceBaseline; // Explicit comparison metadata was also absent in v199.

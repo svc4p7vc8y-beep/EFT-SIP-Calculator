@@ -1,6 +1,9 @@
 import clipping from 'polygon-clipping';
 import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints } from '../planner/geometry.js';
 import { polygonArea } from '../../calculations/plan-metrics.js';
+import { partitionRuns } from '../planner/geometry.js';
+import { bearingForSegment, splitAtBearingEdges } from './bearing-walls.js';
+import { wallDepth } from '../planner/wall-layout.js';
 
 const shape=points=>[points.map(p=>[p.x,p.y])];
 const area=multi=>multi.reduce((sum,poly)=>sum+poly.reduce((s,ring,i)=>s+(i?-1:1)*polygonArea(ring.map(([x,y])=>({x,y}))),0),0);
@@ -22,8 +25,9 @@ export function calculateClearAreas(plan) {
     const wall=Math.max(0,Number(plan.wallThickness)||.174);
     const partition=Math.max(0,Number(plan.partitionThickness)||.1);
     const outer=contour.map((a,i)=>band(a,contour[(i+1)%contour.length],wall)).filter(Boolean);
-    const inner=[...unifiedWallSegments(plan).map(lineEndpoints),...(plan.walls||[]).map(w=>[{x:w.x1,y:w.y1},{x:w.x2,y:w.y2}])]
-      .map(([a,b])=>band(a,b,partition/2)).filter(Boolean);
+    const inner=splitAtBearingEdges(plan,partitionRuns(plan)).map(([a,b])=>{
+      return band(a,b,wallDepth(plan,a,b)/2);
+    }).filter(Boolean);
     const house=shape(contour);
     let occupied=clipping.union(...outer,...inner);
     const passages=[...(plan.wallGaps||[]),...(plan.openings||[]).filter(o=>o.type==='door')].map(o=>{

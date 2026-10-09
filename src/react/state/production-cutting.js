@@ -34,6 +34,7 @@ export function normalizeProductionCutting(value = {}) {
     edgeWidthMm: number('edgeWidthMm', 45, 20, 300),
     staggered: value.staggered !== false,
     ceilingBearingAlignment: value.ceilingBearingAlignment !== false,
+    ceilingMaxSpanMm: value.ceilingMaxSpanMm==null?'':value.ceilingMaxSpanMm,
     counterLathProfile: typeof value.counterLathProfile==='string'?value.counterLathProfile.trim().replace(/[xх]/g,'×'):'',
     rafterGeometry: value.rafterGeometry==='estimate'?'estimate':'wallSlope',
     profileMode: value.profileMode === 'estimate' ? 'estimate' : 'saved',

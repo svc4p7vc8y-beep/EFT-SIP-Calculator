@@ -1,4 +1,6 @@
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from './floor-height.js';
+import { partitionRuns } from '../react/planner/geometry.js';
+import clipping from 'polygon-clipping';
 const DEFAULT_TOLERANCE = 0.04;
 
 const round = (value, digits = 3) => {
@@ -172,16 +174,9 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
     addSegment({ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }),
   );
 
-  let partitionLength = 0;
-  horizontal.forEach((intervals) => {
-    partitionLength += mergeIntervals(intervals, tolerance);
-  });
-  vertical.forEach((intervals) => {
-    partitionLength += mergeIntervals(intervals, tolerance);
-  });
-  diagonal.forEach((length) => {
-    partitionLength += length;
-  });
+  let partitionLength = partitionRuns(plan).reduce((sum,[a,b])=>sum+Math.hypot(b.x-a.x,b.y-a.y),0);
+  const roomShapes=(plan.rooms||[]).filter(r=>r.include!==false).map(r=>[roomPoints(r).map(p=>[p.x,p.y])]);
+  if(roomShapes.length)roomArea=clipping.union(...roomShapes).reduce((sum,poly)=>sum+poly.reduce((s,ring,i)=>s+(i?-1:1)*polygonArea(ring.map(([x,y])=>({x,y}))),0),0);
 
   let exteriorOpeningsArea = 0;
   let interiorOpeningsArea = 0;

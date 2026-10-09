@@ -1,4 +1,5 @@
 import { normalizeStairDirection } from "./stair-steps.js";
+import clipping from 'polygon-clipping';
 
 const EPS = 0.035;
 
@@ -109,7 +110,7 @@ export function collectSnapAxes(plan, excludeRoomId) {
     });
   }
   for (const room of plan.rooms || []) {
-    if (room.id === excludeRoomId) continue;
+    if (room.id === excludeRoomId || plan.layoutMode==='walls') continue;
     for (const point of roomPoints(room)) addPoint(point);
   }
   for (const wallLine of plan.walls || []) { addPoint({ x: wallLine.x1, y: wallLine.y1 }); addPoint({ x: wallLine.x2, y: wallLine.y2 }); }
@@ -270,17 +271,18 @@ export function resizeProjectHouse(project, width, height) {
 }
 
 /** Moves a partition and keeps every partition joined to either endpoint connected. */
-export function moveConnectedWall(plan, wallId, dx, dy, tolerance = 0.08) {
+export function moveConnectedWall(plan, wallId, dx, dy, tolerance = 0.001, normalOnly = true) {
   const wall = (plan.walls || []).find((item) => item.id === wallId);
   if (!wall) return null;
   const oldA = { x: Number(wall.x1) || 0, y: Number(wall.y1) || 0 };
   const oldB = { x: Number(wall.x2) || 0, y: Number(wall.y2) || 0 };
   const horizontal = Math.abs(oldB.x - oldA.x) >= Math.abs(oldB.y - oldA.y);
-  const moveX = horizontal ? 0 : Number(dx) || 0;
-  const moveY = horizontal ? Number(dy) || 0 : 0;
+  const moveX = normalOnly && horizontal ? 0 : Number(dx) || 0;
+  const moveY = normalOnly && !horizontal ? 0 : Number(dy) || 0;
   const newA = { x: roundCoord(oldA.x + moveX), y: roundCoord(oldA.y + moveY) };
   const newB = { x: roundCoord(oldB.x + moveX), y: roundCoord(oldB.y + moveY) };
   const near = (point, target) => Math.hypot(point.x - target.x, point.y - target.y) <= tolerance;
+  const onLine=point=>{const x=oldB.x-oldA.x,y=oldB.y-oldA.y,L=Math.hypot(x,y),t=((point.x-oldA.x)*x+(point.y-oldA.y)*y)/(L*L||1);return L>0&&t>=0&&t<=1&&Math.abs(x*(point.y-oldA.y)-y*(point.x-oldA.x))/L<=tolerance;};
 
   for (const neighbor of plan.walls || []) {
     if (neighbor.id === wallId) continue;
@@ -288,8 +290,10 @@ export function moveConnectedWall(plan, wallId, dx, dy, tolerance = 0.08) {
     const second = { x: Number(neighbor.x2) || 0, y: Number(neighbor.y2) || 0 };
     if (near(first, oldA)) { neighbor.x1 = newA.x; neighbor.y1 = newA.y; }
     else if (near(first, oldB)) { neighbor.x1 = newB.x; neighbor.y1 = newB.y; }
+    else if(onLine(first)){neighbor.x1=roundCoord(first.x+moveX);neighbor.y1=roundCoord(first.y+moveY);}
     if (near(second, oldA)) { neighbor.x2 = newA.x; neighbor.y2 = newA.y; }
     else if (near(second, oldB)) { neighbor.x2 = newB.x; neighbor.y2 = newB.y; }
+    else if(onLine(second)){neighbor.x2=roundCoord(second.x+moveX);neighbor.y2=roundCoord(second.y+moveY);}
   }
   Object.assign(wall, { x1: newA.x, y1: newA.y, x2: newB.x, y2: newB.y });
   return wall;
@@ -302,6 +306,7 @@ const axialSegment = (a, b, source = {}) => {
 };
 
 export function roomWallSegments(plan) {
+  if (plan.layoutMode === 'walls') return [];
   const wall = Number(plan.wallThickness) || 0.174;
   const contour = houseContourPoints(plan);
   const pointSegmentDistance = (point, a, b) => {
@@ -312,11 +317,11 @@ export function roomWallSegments(plan) {
   };
   const segments = [];
   for (const room of plan.rooms || []) {
-    if (room.extension) continue;
+    if (room.extension || room.include === false) continue;
     const points = roomPoints(room);
     points.forEach((point, index) => {
       const next = points[(index + 1) % points.length];
-      const segment = axialSegment(point, next, { roomId: room.id });
+      const segment = axialSegment(point, next, { roomId: room.id, ref:`room:${room.id}:${index}` });
       const outerFace = contour.some((edgeStart, edgeIndex) => {
         const edgeEnd = contour[(edgeIndex + 1) % contour.length];
         return pointSegmentDistance(point, edgeStart, edgeEnd) <= wall + EPS && pointSegmentDistance(next, edgeStart, edgeEnd) <= wall + EPS;
@@ -332,20 +337,101 @@ export function unifiedWallSegments(plan) {
   const diagonal = roomWallSegments(plan).filter((segment) => segment.axis === 'd');
   const groups = new Map();
   for (const segment of axial) {
-    const key = `${segment.axis}:${roundCoord(segment.fixed, 2)}`;
+    const key = `${segment.axis}:${roundCoord(segment.fixed, 3)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(segment);
   }
   const merged = [];
-  for (const list of groups.values()) {
-    list.sort((left, right) => left.start - right.start);
+  for (const [,list] of [...groups].sort(([a],[b])=>a.localeCompare(b))) {
+    list.sort((left, right) => left.start - right.start || left.fixed - right.fixed || left.end - right.end);
     for (const segment of list) {
       const last = merged.at(-1);
-      if (last && last.axis === segment.axis && Math.abs(last.fixed - segment.fixed) <= EPS && segment.start <= last.end + EPS) last.end = Math.max(last.end, segment.end);
+      if (last && last.axis === segment.axis && Math.abs(last.fixed - segment.fixed) <= .001 && segment.start <= last.end + .001) { last.end = Math.max(last.end, segment.end); last.fixed = Math.min(last.fixed, segment.fixed); }
       else merged.push({ ...segment });
     }
   }
   return [...merged, ...diagonal];
+}
+
+// One shared interval model for plan, quantities, clear areas and production.
+// Millimetre rounding follows saved plan precision; it is not an installation allowance.
+export function partitionRuns(plan, rawAxes = false) {
+  const groups = new Map();
+  const contour=houseContourPoints(plan),wall=Number(plan.wallThickness)||.174;
+  const isOuter=([a,b])=>contour.some((u,i)=>{const v=contour[(i+1)%contour.length],dx=v.x-u.x,dy=v.y-u.y,l2=dx*dx+dy*dy;
+    const distance=p=>{const t=Math.max(0,Math.min(1,((p.x-u.x)*dx+(p.y-u.y)*dy)/(l2||1)));return Math.hypot(p.x-u.x-t*dx,p.y-u.y-t*dy);};
+    return distance(a)<=wall+EPS&&distance(b)<=wall+EPS;
+  });
+  const lines = [...unifiedWallSegments(plan).map(lineEndpoints), ...(plan.walls || []).filter(w => w.include !== false).map(w => [{x:w.x1,y:w.y1},{x:w.x2,y:w.y2}]).filter(line=>!isOuter(line))];
+  for (const [a,b] of lines) {
+    const length = Math.hypot(b.x-a.x,b.y-a.y); if (!(length > .0001)) continue;
+    let ux=(b.x-a.x)/length, uy=(b.y-a.y)/length;
+    if(ux < -1e-8 || (Math.abs(ux)<1e-8 && uy<0)){ux=-ux;uy=-uy;}
+    const offset=-uy*a.x+ux*a.y, key=`${ux.toFixed(6)}:${uy.toFixed(6)}:${offset.toFixed(3)}`;
+    if(!groups.has(key))groups.set(key,{ux,uy,offset,spans:[]});
+    groups.get(key).spans.push([Math.min(ux*a.x+uy*a.y,ux*b.x+uy*b.y),Math.max(ux*a.x+uy*a.y,ux*b.x+uy*b.y)]);
+  }
+  const result=[];
+  for(const {ux,uy,offset,spans} of groups.values()) {
+    const merged=[];
+    for(const span of spans.sort((a,b)=>a[0]-b[0])){const last=merged.at(-1);if(last&&span[0]<=last[1]+.001)last[1]=Math.max(last[1],span[1]);else merged.push([...span]);}
+    for(const [start,end] of merged)result.push([{x:ux*start-uy*offset,y:uy*start+ux*offset},{x:ux*end-uy*offset,y:uy*end+ux*offset}]);
+  }
+  if(rawAxes || plan.partitionJunctions!=='butt')return result;
+  return result.map(([a,b],index)=>{
+    const L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L;
+    const trim=(p,end)=>{
+      let inset=0;
+      result.forEach(([c,d],other)=>{
+        if(other===index)return;
+        const dx=d.x-c.x,dy=d.y-c.y,l=Math.hypot(dx,dy),t=((p.x-c.x)*dx+(p.y-c.y)*dy)/(l*l||1);
+        if(!l||Math.abs(ux*dy-uy*dx)/l<.999||t<-.001||t>1.001||Math.abs(dx*(p.y-c.y)-dy*(p.x-c.x))/l>.001)return;
+        const interior=t>.001&&t<.999;
+        // At a corner horizontal wall is through; at a T the uninterrupted wall is through.
+        if(interior || Math.abs(uy)>.999){inset=Math.max(inset,partitionDepth(plan,c,d)/2);}
+      });
+      return {x:roundCoord(p.x+ux*inset*end),y:roundCoord(p.y+uy*inset*end)};
+    };
+    return [trim(a,1),trim(b,-1)];
+  }).filter(([a,b])=>Math.hypot(b.x-a.x,b.y-a.y)>.001);
+}
+
+export function partitionDepth(plan,a,b){
+  // Supported finished SIP thicknesses are not replaced by a frame board depth.
+  if([.124,.174,.224].includes(Number(plan.partitionThickness)))return Number(plan.partitionThickness);
+  const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+  const covers=(u,v)=>{const dx=v.x-u.x,dy=v.y-u.y,l=Math.hypot(dx,dy),L=Math.hypot(b.x-a.x,b.y-a.y),t=((mid.x-u.x)*dx+(mid.y-u.y)*dy)/(l*l||1);return l>0&&t>=0&&t<=1&&Math.abs(dx*(mid.y-u.y)-dy*(mid.x-u.x))/l<.015&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))/(l*L||1)<.001;};
+  const profiles=[];
+  for(const w of plan.walls||[])if(w.include!==false&&covers({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}))profiles.push(w.bearing?w.bearingProfile:w.frameProfile);
+  for(const r of plan.rooms||[])if(r.include!==false){const points=roomPoints(r);points.forEach((p,i)=>{const q=points[(i+1)%points.length],setting=r.bearingWalls?.[edgeKey(p,q)];if(covers(p,q)&&(setting?.enabled??r.bearing))profiles.push(setting?.profile||r.bearingProfile);});}
+  return Math.max(0,...profiles.map(p=>Number(String(p||'').split(/[×xх]/)[1])/1000||0))||Number(plan.partitionThickness)||.1;
+}
+
+const edgeKey=(a,b)=>[a,b].map(p=>`${Math.round(p.x*1000)},${Math.round(p.y*1000)}`).sort().join(':');
+const sourceEdges=plan=>[
+  ...(plan.rooms||[]).flatMap(room=>roomPoints(room).map((a,i,points)=>({ref:`room:${room.id}:${i}`,a,b:points[(i+1)%points.length]}))),
+  ...(plan.walls||[]).map(w=>({ref:`wall:${w.id}`,a:{x:w.x1,y:w.y1},b:{x:w.x2,y:w.y2}}))
+];
+
+export function preservePlanAttachments(plan,before) {
+  const oldEdges=sourceEdges(before), newEdges=new Map(sourceEdges(plan).map(e=>[e.ref,e]));
+  for(const key of ['openings','wallGaps'])for(const opening of plan[key]||[]){
+    if(opening.outer===true)continue;
+    const saved=(before[key]||[]).find(o=>o.id===opening.id);
+    if(!saved || saved.x!==opening.x || saved.y!==opening.y || saved.wallRef!==opening.wallRef)continue;
+    const choices=oldEdges.map(e=>{const dx=e.b.x-e.a.x,dy=e.b.y-e.a.y,l2=dx*dx+dy*dy,t=l2?((opening.x-e.a.x)*dx+(opening.y-e.a.y)*dy)/l2:0;
+      return {...e,t,distance:Math.hypot(opening.x-e.a.x-dx*t,opening.y-e.a.y-dy*t)};
+    }).filter(e=>e.t>=0&&e.t<=1&&e.distance<.015).sort((a,b)=>a.distance-b.distance||a.ref.localeCompare(b.ref));
+    const old=choices.find(e=>e.ref===opening.wallRef)||choices[0], next=old&&newEdges.get(old.ref);
+    if(next){const oldLength=Math.hypot(old.b.x-old.a.x,old.b.y-old.a.y),newLength=Math.hypot(next.b.x-next.a.x,next.b.y-next.a.y),offset=old.t*oldLength;
+      if(newLength>0){opening.x=roundCoord(next.a.x+(next.b.x-next.a.x)*offset/newLength);opening.y=roundCoord(next.a.y+(next.b.y-next.a.y)*offset/newLength);opening.wallRef=old.ref;}}
+  }
+  for(const room of plan.rooms||[]){
+    const old=(before.rooms||[]).find(r=>r.id===room.id);if(!old?.bearingWalls)continue;
+    const a=roomPoints(old),b=roomPoints(room);if(a.length!==b.length)continue;
+    room.bearingWalls={...room.bearingWalls};
+    a.forEach((p,i)=>{const oldKey=edgeKey(p,a[(i+1)%a.length]),newKey=edgeKey(b[i],b[(i+1)%b.length]);if(oldKey!==newKey&&old.bearingWalls[oldKey]){delete room.bearingWalls[oldKey];room.bearingWalls[newKey]={...old.bearingWalls[oldKey]};}});
+  }
 }
 
 export function allOpeningSegments(plan) {
@@ -354,7 +440,7 @@ export function allOpeningSegments(plan) {
   const segments = [
     ...outerSegments,
     ...unifiedWallSegments(plan).filter((segment) => segment.axis !== 'd').map((segment) => ({ ...segment, outer: false })),
-    ...(plan.walls || []).map((wall) => ({ ...axialSegment({ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }), outer: false })).filter((segment) => segment.axis !== 'd')
+    ...(plan.walls || []).filter(w=>w.include!==false).map((wall) => ({ ...axialSegment({ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }), outer: false,ref:`wall:${wall.id}` })).filter((segment) => segment.axis !== 'd')
   ];
   return segments;
 }
@@ -389,6 +475,7 @@ export function projectOpeningToWall(opening, point, plan, options = {}) {
     ...opening,
     orientation: segment.axis,
     outer: segment.outer,
+    wallRef: segment.ref || '',
     x: segment.axis === 'v' ? segment.fixed : projected,
     y: segment.axis === 'v' ? projected : segment.fixed
   };
@@ -404,10 +491,13 @@ export function nudgePlanSelection(plan, selected, dx, dy) {
   if (!selected) return false;
   const byId = (key) => (plan[key] || []).find((item) => item.id === selected.id);
   if (selected.type === 'room') {
+    if(plan.layoutMode==='walls')return false;
     const room = byId('rooms');
     if (!room) return false;
+    const before=structuredClone(plan);
     room.points = roomPoints(room).map((point) => ({ x: roundCoord(point.x + dx), y: roundCoord(point.y + dy) }));
     Object.assign(room, boundsOf(room.points));
+    preservePlanAttachments(plan,before);
     return true;
   }
   if (selected.type === 'roomLabel') {
@@ -474,10 +564,15 @@ export function nudgePlanSelection(plan, selected, dx, dy) {
   if (!key) return false;
   const line = byId(key);
   if (!line) return false;
+  if(selected.type==='wall'){
+    const before=structuredClone(plan);moveConnectedWall(plan,line.id,dx,dy,.001,false);preservePlanAttachments(plan,before);return true;
+  }
+  const before=selected.type==='wall'?structuredClone(plan):null;
   line.x1 = roundCoord(line.x1 + dx);
   line.y1 = roundCoord(line.y1 + dy);
   line.x2 = roundCoord(line.x2 + dx);
   line.y2 = roundCoord(line.y2 + dy);
+  if(before)preservePlanAttachments(plan,before);
   return true;
 }
 
@@ -512,10 +607,17 @@ export function planIssues(plan) {
     for (let j = i + 1; j < plan.rooms.length; j += 1) {
       const left = plan.rooms[i]; const right = plan.rooms[j];
       const a = roomPoints(left); const b = roomPoints(right);
-      if (a.some((point) => pointInPolygon(point, b)) || b.some((point) => pointInPolygon(point, a))) {
+      const overlap=clipping.intersection([a.map(p=>[p.x,p.y])],[b.map(p=>[p.x,p.y])]);
+      const overlapArea=overlap.reduce((sum,poly)=>sum+poly.reduce((s,ring,i)=>s+(i?-1:1)*Math.abs(ring.reduce((v,p,k)=>{const q=ring[(k+1)%ring.length];return v+p[0]*q[1]-q[0]*p[1];},0))/2,0),0);
+      if (overlapArea > .000001) {
         issues.push({ type: 'overlap', roomIds: [left.id, right.id], message: `${left.name} и ${right.name}: помещения пересекаются` });
       }
     }
+  }
+  for(const [a,b] of partitionRuns(plan))for(const p of [a,b]){
+    const outerDistances=contour.map((u,i)=>{const v=contour[(i+1)%contour.length],dx=v.x-u.x,dy=v.y-u.y,l=Math.hypot(dx,dy),t=((p.x-u.x)*dx+(p.y-u.y)*dy)/(l*l||1);return t>=0&&t<=1?Math.abs(dx*(p.y-u.y)-dy*(p.x-u.x))/(l||1):Infinity;});
+    const gap=Math.min(...outerDistances)-wall;
+    if(gap>.001&&gap<.1)issues.push({type:'junction-gap',point:p,roomIds:[],message:`Перегородка (${p.x.toFixed(3)}; ${p.y.toFixed(3)}): до грани наружной стены ${Math.round(gap*1000)} мм. Проверьте примыкание.`});
   }
   const internalEdges = roomWallSegments(plan).filter((edge) => edge.axis !== 'd');
   const gapRooms = new Set();
@@ -527,7 +629,7 @@ export function planIssues(plan) {
       const overlap = Math.min(left.end, right.end) - Math.max(left.start, right.start);
       // Two almost-parallel room faces indicate a drawing gap. A deliberately
       // open zone has no close opposing face and therefore remains valid.
-      if (separation > EPS && separation <= 0.35 && overlap > 0.2) {
+      if (separation > .001 && separation <= 0.35 && overlap > 0.2) {
         gapRooms.add(left.roomId); gapRooms.add(right.roomId);
       }
     }
