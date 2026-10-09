@@ -11,10 +11,10 @@ test('bearing side selection persists and does not silently follow moved geometr
   const restored=migrateProject(JSON.parse(JSON.stringify(p)));assert.deepEqual(restored.plan.rooms[0].bearingWalls,room.bearingWalls);
   assert.equal(roomBearingEdges(restored.plan.rooms[0]).filter(e=>e.bearing).length,1);room.x=1;assert.equal(roomBearingEdges(room).filter(e=>e.bearing).length,0);
 });
-test('framed partition has two jambs, no board through door, two top plates, no SIP parts',()=>{
+test('framed partition has two jambs, no board through door, one top plate, no SIP parts',()=>{
   const p=base();p.plan.walls=[{x1:0,y1:2,x2:5,y2:2,bearing:true,bearingProfile:'50x150'}];p.plan.openings=[{id:'d',type:'door',outer:false,x:2.5,y:2,width:.8,height:2,orientation:'h'}];const r=run(p),s=r.surfaces.find(s=>s.partitionFrame),m=r.members.filter(m=>m.surfaceId===s.id);
   assert.equal(s.frameProfile,'50×150');assert.equal(r.parts.filter(p=>p.surfaceId===s.id).length,0);
-  assert.equal(m.filter(m=>m.material==='Верхняя обвязка перегородки').length,2);
+  assert.equal(m.filter(m=>m.material==='Верхняя обвязка перегородки').length,1);
   assert.ok(m.filter(m=>m.material==='Нижняя обвязка перегородки').every(m=>m.b[0]<=2100||m.a[0]>=2900));
   for(const x of [2075,2925])assert.ok(m.some(m=>m.material==='Стойка перегородки'&&m.a[0]===x));
 });

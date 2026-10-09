@@ -13,6 +13,7 @@ export const productionLimits = {
 };
 
 export function validateProductionSettings(settings) {
+  for(const key of ['partitionBraceNotchDepthMm','bearingEdgeNotchDepthMm'])if(settings[key]!==''&&settings[key]!=null&&(!Number.isFinite(settings[key])||settings[key]<0||settings[key]>300))throw new Error('Глубина врезки: допустимо 0–300 мм; несущая допустимость проверяется проектировщиком.');
   if(!/^\d+[×хx]\d+$/.test(settings.partitionBraceProfile)||settings.partitionBraceProfile.split(/[×хx]/).some(v=>!(Number(v)>0)))throw new Error('Укосины: задайте положительное проектное сечение, например 25×150 мм.');
   if(!/^\d+[×хx]\d+$/.test(settings.gableFrameProfile)||settings.gableFrameProfile.split(/[×хx]/).some(value=>!(Number(value)>0)))throw new Error('Каркас фронтонов: задайте положительное сечение в формате 50×150 мм.');
   for (const [key, [min, max]] of Object.entries(productionLimits)) {

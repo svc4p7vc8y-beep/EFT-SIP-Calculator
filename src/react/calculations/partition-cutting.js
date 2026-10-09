@@ -1,7 +1,10 @@
 // Geometric framing proposal. Header capacity, bracing and connections require project nodes.
+import clipping from 'polygon-clipping';
+import { braceFootprint, partitionNotches } from './partition-geometry.js';
+
 export function partitionFrameMembers(surface,settings) {
   if(surface.blocked)return [];
-  const profile=surface.frameProfile, [t]=profile.split(/[×xх]/).map(Number),W=surface.width,H=surface.height,layers=surface.topPlateLayers||2;
+  const profile=surface.frameProfile, [t]=profile.split(/[×xх]/).map(Number),W=surface.width,H=surface.height,layers=surface.topPlateLayers||1;
   if(!(t>0&&H>(layers+1)*t))return [];
   const members=[],holes=surface.openings||[];
   const add=(a,b,material,extra={})=>{const length=Math.round(Math.hypot(b[0]-a[0],b[1]-a[1]));if(length<=0)return;
@@ -26,28 +29,35 @@ export function partitionFrameMembers(surface,settings) {
   const depth=Number(profile.split(/[×xх]/)[1]);
   if(surface.bearing&&settings.bearingEdgeBoard){
     const y=H-layers*t-depth/2;let start=t;
-    for(const [a,b]of gaps){if(a>start)add([start,y],[a,y],'Опорная доска на ребре',{faceWidth:depth,reinforcement:true,processing:'Врезки в стойки и крепёж — по проекту'});start=Math.max(start,b);}
-    if(start<W-t)add([start,y],[W-t,y],'Опорная доска на ребре',{faceWidth:depth,reinforcement:true,processing:'Врезки в стойки и крепёж — по проекту'});
+    const edgeDetails={role:'edge-board',faceWidth:depth,reinforcement:true,notchDepthMm:settings.bearingEdgeNotchDepthMm??'',processing:'Доска на ребре под верхней обвязкой; врезки в стойки и крепёж — по проекту'};
+    for(const [a,b]of gaps){if(a>start)add([start,y],[a,y],'Опорная доска на ребре',edgeDetails);start=Math.max(start,b);}
+    if(start<W-t)add([start,y],[W-t,y],'Опорная доска на ребре',edgeDetails);
   }
   if(settings.partitionCornerBacking)for(const [x,backing]of [[t*1.5,surface.startBacking],[W-t*1.5,surface.endBacking]]){
     if(backing&&!holes.some(o=>x+t/2>o.x&&x-t/2<o.x+o.width))add([x,t],[x,H-layers*t],'Угловая стойка под обшивку',{reinforcement:true,backing:true,processing:'Угол / Т-примыкание; положение доски и крепёж по узлу'});
   }
   if(surface.bearing&&settings.partitionBracing){
     const braceProfile=settings.partitionBraceProfile||'25×150',faceWidth=Number(braceProfile.split(/[×xх]/)[1]);
-    const low=t,high=H-layers*t-(settings.bearingEdgeBoard?depth:0);
-    const intersectsOpening=(a,b)=>holes.some(o=>{
-      const left=o.x-faceWidth/2,right=o.x+o.width+faceWidth/2,bottom=Number(o.sill)-faceWidth/2,top=Number(o.sill)+o.height+faceWidth/2;
-      const lo=Math.max(Math.min(a[0],b[0]),left),hi=Math.min(Math.max(a[0],b[0]),right);
-      if(lo>hi)return false;
-      const y=x=>a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0]);
-      return Math.max(y(lo),y(hi))>=bottom&&Math.min(y(lo),y(hi))<=top;
-    });
-    if(high>low)for(const side of ['left','right']){
+    const low=t,high=H-layers*t;
+    const intersectsOpening=outline=>holes.some(o=>clipping.intersection([[...outline,outline[0]]],[[[o.x,Number(o.sill)],[o.x+o.width,Number(o.sill)],[o.x+o.width,Number(o.sill)+o.height],[o.x,Number(o.sill)+o.height],[o.x,Number(o.sill)]]]).length);
+    const sides=settings.partitionBraceDirection==='right-left'?['right']:settings.partitionBraceDirection==='left-right'?['left']:['left','right'];
+    if(high>low)for(const side of sides){
       const x=side==='left'?t/2:W-t/2;
       const targets=[...positions].filter(v=>side==='left'?v>x+t:v<x-t).sort((a,b)=>Math.abs(Math.abs(a-x)-(high-low))-Math.abs(Math.abs(b-x)-(high-low)));
-      const target=targets.find(v=>!intersectsOpening([x,high],[v,low]));
-      if(target!=null)add([x,high],[target,low],'Укосина перегородки',{profile:braceProfile,faceWidth,reinforcement:true,processing:`Укосина ${braceProfile}; торцы ${side==='left'?'Л':'П'} / ${Math.atan2(high-low,Math.abs(target-x))*180/Math.PI}°; врезки и крепёж по рабочему узлу`});
+      // Prefer the bottom stud nearest the 45-degree reference. Do not evade an
+      // opening by manufacturing an almost vertical, ineffective short brace.
+      const target=targets[0];
+      if(target!=null&&!intersectsOpening(braceFootprint([x,high],[target,low],faceWidth,W,low,high))){
+        const outline=braceFootprint([x,high],[target,low],faceWidth,W,low,high),axis=Math.hypot(target-x,high-low),along=outline.map(([u,v])=>(u-x)*(target-x)/axis+(v-high)*(low-high)/axis),length=Math.ceil(Math.max(...along)-Math.min(...along));
+        add([x,high],[target,low],'Укосина перегородки',{profile:braceProfile,faceWidth,outline,length,cutLength:length+2*Number(settings.endAllowanceMm||0),role:'brace',reinforcement:true,notchDepthMm:settings.partitionBraceNotchDepthMm??'',processing:`Укосина ${braceProfile}; верхний ${side==='left'?'левый':'правый'} угол → нижняя стойка; торцы ${Math.round(Math.atan2(high-low,Math.abs(target-x))*180/Math.PI*10)/10}°; врезки и крепёж по рабочему узлу`});
+        break; // One chosen direction; never a crossed pair in the same wall.
+      }
     }
+  }
+  const cutters=members.filter(m=>m.role==='brace'||m.role==='edge-board');
+  for(const member of members){
+    const vertical=Math.abs(member.a[0]-member.b[0])<.01;
+    if(vertical||member.role==='edge-board')member.notches=partitionNotches(member,cutters.filter(c=>c!==member&&(vertical||c.role==='brace')));
   }
   return members;
 }

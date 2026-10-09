@@ -9,6 +9,7 @@ import DrawingDimensions from '../components/DrawingDimensions.jsx';
 import PartitionDrawing from '../components/PartitionDrawing.jsx';
 import { WallLocator } from './DrawingCanvas.jsx';
 import ConstructionNode from './ConstructionNodes.jsx';
+import { boardFootprint } from '../calculations/partition-geometry.js';
 import WallPanelPlan from './WallPanelPlan.jsx';
 import { MARK_LEGEND } from '../calculations/production-cutting.js';
 
@@ -27,8 +28,8 @@ export function TechnicalDrawing({surface,parts=[],members=[]}) {
   const dimensions=surfaceDimensions(surface,parts,members),hasOpenings=!!surface.openings?.length;
   return <svg className="technical-drawing" viewBox={`${box.x-pad} ${box.y-pad*.4} ${box.width+pad*2.5} ${box.height+pad*(hasOpenings?2.6:2.1)}`} role="img" aria-label={`Монтажная развёртка ${surface.name}`}>
     {surface.geometry.map((g,i)=><path key={i} d={path(g,flip)} fill="#fff" fillRule="evenodd" stroke="#000" vectorEffect="non-scaling-stroke"/>)}
-    {parts.map(p=><g key={p.id}><path d={path(p.shape,flip)} fill="#edf3e7" fillRule="evenodd" stroke="#365c24" vectorEffect="non-scaling-stroke"/><text x={p.x+p.width/2} y={yy(p.y+p.height/2)} textAnchor="middle" fontSize={Math.min(font,p.width*.17)}>{mark(p).replace(`${surface.id}-`,'')}</text></g>)}
-    {members.filter(m=>m.a&&!m.excluded).map(m=><g key={m.id}><line x1={m.a[0]} y1={yy(m.a[1])} x2={m.b[0]} y2={yy(m.b[1])} stroke="#805728" strokeWidth={m.role==='frame'?(Number(m.profile.split(/[×xх]/)[0])||40):15}/><text x={(m.a[0]+m.b[0])/2} y={yy((m.a[1]+m.b[1])/2)-font*.3} fontSize={font*.8} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.15} fill="#000">{positions.get(m.id)}</text></g>)}
+    {parts.map(p=><g key={p.id}><path d={path(p.shape,flip)} fill="#edf3e7" fillRule="evenodd" stroke="#365c24" strokeWidth=".5" vectorEffect="non-scaling-stroke"/><text x={p.x+p.width/2} y={yy(p.y+p.height/2)} textAnchor="middle" fontSize={Math.min(font,p.width*.17)}>{mark(p).replace(`${surface.id}-`,'')}</text></g>)}
+    {members.filter(m=>m.a&&!m.excluded).map(m=><g key={m.id}><polygon points={(boardFootprint(m)||[]).map(([x,y])=>`${x},${yy(y)}`).join(' ')} fill="#fcf8ee" stroke="#000" strokeWidth=".45" vectorEffect="non-scaling-stroke"/><text x={(m.a[0]+m.b[0])/2} y={yy((m.a[1]+m.b[1])/2)-font*.3} fontSize={font*.8} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.15} fill="#000">{positions.get(m.id)}</text></g>)}
     <DimensionChain values={dimensions.x} y={box.y+box.height+pad*.45} font={font*.75}/>
     {hasOpenings?<DimensionChain values={dimensions.openingX} y={box.y+box.height+pad*.95} font={font*.85}/>:null}
     <DrawingDimensions values={[box.x,box.x+box.width]} y={box.y+box.height+pad*(hasOpenings?1.5:1)} font={font} label="Габарит конструкции"/>

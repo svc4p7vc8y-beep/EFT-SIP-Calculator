@@ -63,7 +63,7 @@ export function MemberEditor({ member, settings, update, NumberInput }) {
     <DraftText label="Проектное сечение" value={value.profile || ''} onChange={profile=>change({profile})} placeholder={member.profile} />
     <DraftText label="Рабочий узел соединителя" value={value.nodeRef || ''} onChange={nodeRef=>change({nodeRef})} placeholder="Шифр / лист / узел" />
     <DraftText label="Обработка и состав" multiline value={value.processing || ''} onChange={processing=>change({processing})} placeholder="Подрезки, углы торцов, пазы, выборки; марки досок пакета" />
-  </div><label className="cut-check"><input type="checkbox" checked={value.exclude === true} onChange={e=>change({exclude:e.target.checked})} />Исключить из сырьевого раскроя (заменён ручной спецификацией)</label></fieldset>;
+  </div>{member.notches?.length?<div className="cut-table-wrap"><p>Врезки на лицевом виде. Отсчёт вдоль детали от её начала; глубина и допустимость ослабления — по проекту.</p><table><thead><tr><th>Под элемент</th><th>От начала, мм</th><th>Длина, мм</th><th>Глубина, мм</th></tr></thead><tbody>{member.notches.map((n,i)=><tr key={i}><td>{n.type==='brace'?'Укосина':'Доска на ребре'}</td><td>{n.offsetMm}</td><td>{n.lengthMm}</td><td>{n.depthMm===''?'Не задана':n.depthMm}</td></tr>)}</tbody></table></div>:null}<label className="cut-check"><input type="checkbox" checked={value.exclude === true} onChange={e=>change({exclude:e.target.checked})} />Исключить из сырьевого раскроя (заменён ручной спецификацией)</label></fieldset>;
 }
 
 export function Reconciliation({ report }) {

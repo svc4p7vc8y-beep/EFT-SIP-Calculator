@@ -23,7 +23,7 @@ import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 196;
+export const REACT_PROJECT_VERSION = 197;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -1029,6 +1029,8 @@ export function migrateProject(raw) {
       formulas: {
         ...base.settings.formulas,
         ...(raw.settings?.formulas || {}),
+        // User-approved v197 scheme: replace the former standard double plate.
+        ...((!Number.isFinite(savedVersion) || savedVersion < 197) && Number(raw.settings?.formulas?.partitionTopPlateLayers) === 2 ? {partitionTopPlateLayers:1} : {}),
       },
       priceAdjustments: normalizePriceAdjustments(
         raw.settings?.priceAdjustments,

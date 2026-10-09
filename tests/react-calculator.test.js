@@ -1624,7 +1624,7 @@ test('frame partition assembly counts studs, plates, opening trim and whole stoc
     openings: [{ id: 'inside-door', type: 'door', doorType: 'interior', width: 0.9, height: 2.1, outer: false }],
   }, length, project.settings.formulas, '50x100');
   assert.equal(base.baseStudCount, Math.ceil(length / 0.64) + 1);
-  assert.equal(base.plateLength, length * 3);
+  assert.equal(base.plateLength, length * 2);
   assert.equal(withDoor.openingStudCount, 2);
   assert.equal(withDoor.openingTrimLength, 0.9);
   assert.ok(withDoor.boardCount > base.boardCount);

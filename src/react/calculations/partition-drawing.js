@@ -1,14 +1,10 @@
 import { groupMembers } from './production-cutting.js';
 import { dimensionValues } from './drawing-dimensions.js';
+import { boardFootprint } from './partition-geometry.js';
 
 // Drawing geometry only: endpoints are cut faces, not centres of square line caps.
 export function partitionBoardShape(member) {
-  const thickness=Number(member.faceWidth??member.profile?.split(/[×xх]/)[0]);
-  if(!member.a||!member.b||!(thickness>0))return null;
-  const [x,y]=member.a,[u,v]=member.b,length=Math.hypot(u-x,v-y);
-  if(!length)return null;
-  const nx=-(v-y)/length*thickness/2,ny=(u-x)/length*thickness/2;
-  return [[x+nx,y+ny],[u+nx,v+ny],[u-nx,v-ny],[x-nx,y-ny]];
+  return boardFootprint(member);
 }
 export function partitionDrawingData(surface,members) {
   const boards=members.filter(m=>m.a&&m.b&&!m.excluded);

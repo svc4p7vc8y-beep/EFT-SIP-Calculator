@@ -206,7 +206,7 @@ export function calculateFramePartitionAssembly(plan, partitionLength, formulas 
   const boardDepth = section === "50x150" ? 0.15 : 0.1;
   const clearSpacing = positive(formulas.partitionStudClearSpacingM, 0.59);
   const module = clearSpacing + boardWidth;
-  const topPlateLayers = Math.max(1, Math.round(nonnegative(formulas.partitionTopPlateLayers, 2)));
+  const topPlateLayers = Math.max(1, Math.round(nonnegative(formulas.partitionTopPlateLayers, 1)));
   const stockLength = positive(formulas.partitionBoardStockLengthM, 6);
   const openings = (plan?.openings || []).filter(
     (opening) => opening.outer === false && opening.includeInEstimate !== false,

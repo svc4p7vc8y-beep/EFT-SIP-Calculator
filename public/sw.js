@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v196-shared-prices';
+const CACHE_NAME = 'eft-calculator-react-v197-partition-framing';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

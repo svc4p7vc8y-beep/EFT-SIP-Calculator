@@ -1,4 +1,5 @@
 import clipping from 'polygon-clipping';
+import { refreshPartitionNotches } from './partition-geometry.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { bearingEdges, bearingForSegment, splitAtBearingEdges, splitConnectorsAtBearing } from './bearing-walls.js';
 import { partitionFrameMembers } from './partition-cutting.js';
@@ -303,7 +304,7 @@ export function groupMembers(members = []) {
   const groups = new Map();
   for (const member of members) {
     const key = JSON.stringify([member.material,member.profile,round(member.length),round(member.cutLength),
-      member.source,member.processing || '',member.nodeRef || '',member.excluded === true]);
+      member.source,member.processing || '',member.nodeRef || '',member.excluded === true,(member.notches||[]).map(n=>[n.type,n.offsetMm,n.lengthMm,n.depthMm])]);
     const group = groups.get(key);
     if (group) { group.qty++; group.instances.push(member); }
     else groups.set(key,{ id:member.id, member, qty:1, instances:[member] });
@@ -499,7 +500,7 @@ export function calculateProductionCutting(project, calculation) {
       const geometry = subtract(wallShape, holes);
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm((edge.start||edge.a).x), mm((edge.start||edge.a).y)], planEnd: [mm((edge.end||edge.b).x), mm((edge.end||edge.b).y)], externalLength:edge.outer?mm(edge.externalLength):width,heightStart,heightEnd, thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings,
-        ...(!edge.outer?partitionBacking(plan,edge.a,edge.b):{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 2)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
+        ...(!edge.outer?partitionBacking(plan,edge.a,edge.b):{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
       const hole = plan.floorOpening;
@@ -715,6 +716,7 @@ export function calculateProductionCutting(project, calculation) {
     member.length=length;member.cutLength=length+2*Number(settings.endAllowanceMm||0);
     member.profile=override.profile?.trim()||member.profile;member.nodeRef=override.nodeRef||member.nodeRef||'';member.processing=override.processing||member.processing||'';member.excluded=override.exclude===true;
   }
+  refreshPartitionNotches(members);
   if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');
   assembly.issues.forEach(message=>issue('ASSEMBLY',message));
   if(services.roof && (roof.warmSlopeArea>0 || roof.rafterStructure?.system==='layered') && !assembly.supports.some(s=>s.type==='purlin'))

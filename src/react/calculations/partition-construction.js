@@ -6,6 +6,7 @@ import { partitionFrameMembers } from './partition-cutting.js';
 import { houseContourPoints } from '../planner/geometry.js';
 import { cuttingRevision } from './production-controls.js';
 import clipping from 'polygon-clipping';
+import { refreshPartitionNotches } from './partition-geometry.js';
 
 export function mergePartitionSegments(segments) {
   const groups=new Map();
@@ -59,7 +60,7 @@ export function partitionReinforcements(project,plan,floor=1,all=false) {
     const length=Math.hypot(b.x-a.x,b.y-a.y),bearing=bearingForSegment(plan,a,b),openings=[];
     openings.push(...assigned.get(i));
     const id=`Э${floor}-ПГ${i+1}`,start=[a.x,a.y].map(v=>Math.round(v*1000)),end=[b.x,b.y].map(v=>Math.round(v*1000)),wallKey=`${id}@${start.join(',')}:${end.join(',')}`;
-    const s={id,name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(bearing?.profile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||2)),openings,...partitionBacking(plan,a,b,segments)};
+    const s={id,name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(bearing?.profile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
     openings.filter(o=>o.gap).forEach(o=>o.height=s.height);
     if(!Number.isFinite(s.width)||!Number.isFinite(s.height)||blocked.has(i)||openings.some(o=>o.x< -1||o.x+o.width>s.width+1||!(o.width>0&&o.height>0)||o.sill===''||!Number.isFinite(Number(o.sill))||Number(o.sill)<0||Number(o.sill)+o.height>s.height+1))return;
     const rectangle=(x,y,w,h)=>[[[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]]];
@@ -75,7 +76,7 @@ export function partitionReinforcements(project,plan,floor=1,all=false) {
       m.cutLength=m.length+2*Number(settings.endAllowanceMm||0);members.push(m);
     }
   });
-  return members;
+  return refreshPartitionNotches(members);
 }
 
 export function reinforcementBoardCount(members,stockLength,kerf=0) {
