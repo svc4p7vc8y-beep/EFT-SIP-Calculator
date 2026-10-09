@@ -16,6 +16,7 @@ import RoofCoverTool from './RoofCoverDrawing.jsx';
 import { approvalLabels, MemberEditor, SurfaceLayoutControls, Reconciliation, CuttingControls } from './CuttingControls.jsx';
 import '../styles/drawing-workbench.css';
 import PartitionProcurement from './PartitionProcurement.jsx';
+import BindingRuleCheck from './BindingRuleCheck.jsx';
 
 const categories=[['overview','Дом'],['piles','Свайное поле'],['binding','Обвязка'],['floor','Пол'],['walls','Стены'],['partitions','Перегородки'],['ceiling','Потолок'],['gables','Фронтоны'],['roof','Крыша'],['supports','Опоры'],['starter','Стартовая доска'],['nodes','Узлы и детали'],['stock','Карты раскроя'],['sheets','Листы альбома']];
 const defaultLayers={panels:true,frame:true,dimensions:true,labels:true};
@@ -116,6 +117,7 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     {category==='sheets'?<div className="drawing-sheet-picker"><label>Лист<select aria-label="Лист альбома" value={sheetId} onChange={e=>setSheetId(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.id}. {p.title}</option>)}</select></label><label>Формат<select aria-label="Формат" value={paper} onChange={e=>setPaper(e.target.value)}><option>A3</option><option>A4</option></select></label><button disabled={pending} onClick={()=>print([sheetId])}>Печать листа</button><button disabled={pending} onClick={()=>print(null)}>Весь альбом</button><details><summary>Выбор листов · {selectedSheets.length}</summary><button onClick={()=>setSelectedSheets(pages.map(p=>p.id))}>Выбрать все</button><button onClick={()=>setSelectedSheets([])}>Снять выбор</button>{pages.map(p=><label key={p.id}><input type="checkbox" checked={selectedSheets.includes(p.id)} onChange={e=>setSelectedSheets(e.target.checked?[...selectedSheets,p.id]:selectedSheets.filter(id=>id!==p.id))}/>{p.id}. {p.title}</label>)}<button disabled={!selectedSheets.length||pending} onClick={()=>print(selectedSheets)}>Печать выбранных</button></details></div>:null}
     {pending?<p role="status" className="drawing-pending">Обновляю чертежи. Печать и редактирование временно недоступны.</p>:null}
     {error?<p role="alert">{error}</p>:null}{printError?<p role="alert">{printError}</p>:null}
+    {category === 'binding' ? <BindingRuleCheck result={report.constructionRuleChecks?.bindingStraightSupport} value={settings.bindingJointToleranceMm} update={update} NumberInput={NumberInput} pending={pending}/> : null}
     <fieldset className={`drawing-content ${pending?'is-pending':''}`}>
       <div className={surface?.planStart&&view!=='plan'?'drawing-scene-grid':undefined}>
 {['starter','stock'].includes(category)||category==='roof'&&view==='cover'?<div className="drawing-special-view">{scene()}</div>:category==='supports'||view==='edit'||category==='roof'&&view==='overlay'?<AssemblyPlan report={report} settings={settings} update={update} NumberInput={NumberInput} compact/>:<div className="drawing-stage"><DrawingViewport key={`${viewKey}:${fit}`} zoom={zoom} pan={pan} onZoom={setZoom} offset={offsets[viewKey]||[0,0]} onOffset={offset=>setOffsets(old=>({...old,[viewKey]:offset}))}>{scene()}</DrawingViewport></div>}

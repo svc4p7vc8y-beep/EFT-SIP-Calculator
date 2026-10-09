@@ -12,6 +12,7 @@ import { roofCoverLayout } from './roof-cover-layout.js';
 import { exteriorWallConstruction } from './wall-construction.js';
 import { partitionSegments, partitionBacking } from './partition-construction.js';
 import { buildFirstFloorWallGeometry, compareWallGeometry, openingWallCandidates } from './wall-geometry-adapter.js';
+import { evaluateBindingStraightSupport } from './construction-rules.js';
 
 const mm = value => Math.round((Number(value) || 0) * 1000);
 const round = value => Math.round(value * 1000) / 1000;
@@ -726,10 +727,17 @@ export function calculateProductionCutting(project, calculation) {
   if (timberStock.unplaced.length) issue('MEMBER_SIZE', `Длиннее хлыста: ${timberStock.unplaced.join(', ')}. Нужен проект стыковки или другая длина заготовки.`);
   if (!surfaces.length && !members.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
   const { approval, ...revisionSettings } = settings;
+  // A new, unset diagnostic parameter must not invalidate old approvals.
+  if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };
+  report.constructionRuleChecks = { bindingStraightSupport: evaluateBindingStraightSupport({
+    enabled: services.foundation, foundationType: assembly.foundationType,
+    bindingType: calculation.foundation?.bindingType, lines: assembly.binding,
+    supports: assembly.piles, toleranceMm: settings.bindingJointToleranceMm,
+  }) };
   report.cutting=calculateCutOperations(report);
   report.roofCover=roofCover;
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));

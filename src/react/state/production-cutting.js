@@ -3,6 +3,7 @@ export function normalizeProductionCutting(value = {}) {
   // Preserve finite out-of-range input so validation can report it, not silently replace it.
   const number = (key, fallback) => value[key] != null && Number.isFinite(Number(value[key])) && value[key] !== '' ? Number(value[key]) : fallback;
   const record = source => source && typeof source === 'object' && !Array.isArray(source) ? Object.fromEntries(Object.entries(source).slice(0, 2000).map(([key, item]) => [key, item !== '' && item != null && Number.isFinite(Number(item)) && Number(item) >= 0 && Number(item) <= 30000 ? Number(item) : ''])) : {};
+  const jointTolerance = value.bindingJointToleranceMm;
   return {
     frameStepMm: number('frameStepMm', 625, 100, 2500),
     detailedFrameEstimate: value.detailedFrameEstimate !== false,
@@ -16,6 +17,9 @@ export function normalizeProductionCutting(value = {}) {
     wallPanelMode: value.wallPanelMode === 'grid' ? 'grid' : 'full',
     gableFrameProfile: typeof value.gableFrameProfile==='string' ? value.gableFrameProfile.trim().replace(/[хx]/g,'×') : '50×150',
     windowSillMm: number('windowSillMm', 850),
+    // No source-approved deviation: absent stays blank, explicit zero survives.
+    bindingJointToleranceMm: jointTolerance == null || (typeof jointTolerance === 'string' && !jointTolerance.trim()) ? ''
+      : ['number', 'string'].includes(typeof jointTolerance) ? Number(jointTolerance) : 'Некорректный тип параметра',
     kerfMm: number('kerfMm', '', 0, 20),
     endAllowanceMm: number('endAllowanceMm', '', 0, 100),
     stockLengthMm: number('stockLengthMm', 6000, 500, 15000),

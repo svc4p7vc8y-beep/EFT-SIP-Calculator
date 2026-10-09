@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v199-wall-geometry-adapter';
+const CACHE_NAME = 'eft-calculator-react-v200-binding-rule-pilot';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
