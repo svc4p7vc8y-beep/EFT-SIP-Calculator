@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v215-unified-workbench';
+const CACHE_NAME = 'eft-calculator-react-v216-roof-supports-selection';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

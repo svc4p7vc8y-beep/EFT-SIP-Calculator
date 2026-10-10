@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   isSamePlanSelection,
+  pointerDragged,
   planKeyboardCommand,
 } from "../src/react/planner/interactions.js";
 
@@ -30,4 +31,13 @@ test("stairs select first, and only the already selected body or label can move"
   assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s1" }, "floorOpening", "s1", "label"), false);
   assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s1", part: "label" }, "floorOpening", "s1", "body"), false);
   assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s1", part: "label" }, "floorOpening", "s1", "label"), true);
+});
+
+test('every plan object requires its exact prior selection before movement',()=>{
+ for(const type of ['houseContour','wall','opening','gap','platform','room','roomLabel','annotation','pile','pileRow','bindingLine','dimension','floorOpening']){
+  assert.equal(isSamePlanSelection(null,type,'one'),false);assert.equal(isSamePlanSelection({type,id:'other'},type,'one'),false);assert.equal(isSamePlanSelection({type:'other',id:'one'},type,'one'),false);assert.equal(isSamePlanSelection({type,id:'one'},type,'one'),true);
+ }
+});
+test('click jitter does not count as movement at any zoom or pointer type',()=>{
+ assert.equal(pointerDragged({x:100,y:100},{clientX:103,clientY:102}),false);assert.equal(pointerDragged({x:100,y:100},{clientX:104,clientY:100}),false);assert.equal(pointerDragged({x:100,y:100},{clientX:105,clientY:100}),true);assert.equal(pointerDragged(null,{clientX:0,clientY:0}),false);
 });

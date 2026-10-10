@@ -1,6 +1,7 @@
 import { normalizeMarkRegistry } from './production-identities.js';
 import { normalizeConstructionSources } from './construction-sources.js';
 import { normalizeSourceBaseline } from './source-baseline.js';
+import { normalizeAutoRoofSupports } from './auto-roof-supports.js';
 
 export function normalizeDrawingLabels(value) {
   const record=v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.entries(v).slice(0,2000):[];
@@ -45,6 +46,7 @@ export function normalizeProductionCutting(value = {}) {
     ceilingMaxSpanMm: value.ceilingMaxSpanMm==null?'':value.ceilingMaxSpanMm,
     counterLathProfile: typeof value.counterLathProfile==='string'?value.counterLathProfile.trim().replace(/[xх]/g,'×'):'',
     rafterGeometry: value.rafterGeometry==='estimate'?'estimate':'wallSlope',
+    autoRoofSupports: normalizeAutoRoofSupports(value.autoRoofSupports),
     profileMode: value.profileMode === 'estimate' ? 'estimate' : 'saved',
     allowRotation: value.allowRotation === true,
     continuousMembers: value.continuousMembers === true,

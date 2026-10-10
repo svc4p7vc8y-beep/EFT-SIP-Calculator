@@ -101,6 +101,7 @@ import {
 } from "../storage/plan-transfer.js";
 import {
   isSamePlanSelection,
+  pointerDragged,
   planKeyboardCommand,
 } from "../planner/interactions.js";
 import {
@@ -617,13 +618,13 @@ function DraftRoomDimensions({ start, end, p }) {
   );
 }
 
-function TemporaryGuide({ guide, p, active, onPointerDown }) {
+function TemporaryGuide({ guide, p, active, selected, onPointerDown }) {
   const origin = p(guide.axis === 'x' ? guide.origin : 0, guide.axis === 'y' ? guide.origin : 0);
   const target = p(guide.axis === 'x' ? guide.target : 0, guide.axis === 'y' ? guide.target : 0);
   const anchor = p(guide.axis === 'x' ? 0 : guide.anchor, guide.axis === 'y' ? 0 : guide.anchor);
   const vertical = guide.axis === 'x';
   const distance = Math.round(Math.abs(guide.target - guide.origin) * 1000).toLocaleString('ru-RU');
-  return <g className="temporary-guide" data-axis={guide.axis} data-distance-mm={Math.round(Math.abs(guide.target - guide.origin) * 1000)}>
+  return <g className={`temporary-guide${selected?' selected':''}`} data-axis={guide.axis} data-distance-mm={Math.round(Math.abs(guide.target - guide.origin) * 1000)}>
     <line className="temporary-guide-line" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} />
     <line className="temporary-guide-measure" x1={vertical ? origin.x : anchor.x} y1={vertical ? anchor.y : origin.y} x2={vertical ? target.x : anchor.x} y2={vertical ? anchor.y : target.y} />
     <text className="temporary-guide-distance" x={vertical ? (origin.x + target.x) / 2 : anchor.x + 15} y={vertical ? anchor.y - 10 : (origin.y + target.y) / 2}>{distance} мм</text>
@@ -1286,6 +1287,8 @@ function PlanCanvas({
   const [dimensionStart, setDimensionStart] = useState(null);
   const [dimensionHover, setDimensionHover] = useState(null);
   const [temporaryGuides, setTemporaryGuides] = useState([]);
+  const [selectedGuideId,setSelectedGuideId]=useState(null);
+  useEffect(()=>setSelectedGuideId(null),[floorKey,tool]);
   useEffect(() => setTemporaryGuides([]), [floorKey]);
   const [isViewportPanning, setIsViewportPanning] = useState(false);
   const setGesture = (value) => {
@@ -1442,6 +1445,7 @@ function PlanCanvas({
     setGesture({
       ...value,
       pointerId: event.pointerId,
+      clientStart: {x:event.clientX,y:event.clientY},
       start: toPlan(event),
       end: toPlan(event),
     });
@@ -1486,6 +1490,7 @@ function PlanCanvas({
       next[key] = (next[key] || []).filter((item) => item.id !== id);
     });
   const objectDown = (event, type, id, extra = {}) => {
+    if(event.button!==0)return;
     if (type === "floorOpening") {
       if (tool === "delete") {
         event.stopPropagation();
@@ -1531,7 +1536,7 @@ function PlanCanvas({
       };
       return;
     }
-    if (["room", "roomLabel", "annotation"].includes(type) && !isSamePlanSelection(selected, type, id)) {
+    if (!isSamePlanSelection(selected, type, id)) {
       event.stopPropagation();
       selectExisting({ type, id });
       return;
@@ -1787,6 +1792,10 @@ function PlanCanvas({
       return;
     }
     const finalGesture = { ...current, end: toPlan(event) };
+    if(current.kind!=='draw'&&!pointerDragged(current.clientStart,event)){
+      svgRef.current?.releasePointerCapture?.(event.pointerId);
+      setGesture(null);finishPointer(event);return;
+    }
     if (current.kind === 'temporaryGuide') {
       const nextGuide = moveTemporaryGuide(current.guideBase, rawPlanPoint(event));
       if (Math.abs(nextGuide.target - nextGuide.origin) >= 0.1) {
@@ -2903,7 +2912,7 @@ function PlanCanvas({
           })}
         </g>
       ) : null}
-      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} active={tool === 'guide'} onPointerDown={(event) => { event.stopPropagation(); begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
+      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} selected={selectedGuideId===guide.id} active={tool === 'guide'} onPointerDown={(event) => { event.stopPropagation();if(event.button!==0)return;if(selectedGuideId!==guide.id){setSelectedGuideId(guide.id);return;}begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
       {gesture?.kind === 'temporaryGuide' && !gesture.guideId ? <TemporaryGuide guide={moveTemporaryGuide(gesture.guideBase, gesture.end)} p={p} active={false} /> : null}
       {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={VIEW.width - 183} y="55" width="171" height="31" rx="7" /><text x={VIEW.width - 98} y="76">Очистить направляющие</text></g> : null}
       {tool === "polygon" || tool === "houseContour" ? (
@@ -5671,7 +5680,7 @@ export default function PlanScreen({ onNavigate }) {
   }, [selected, commitPlan, commitFloorOpening, floorOpening, undo, redo, isPlanFullscreen]);
   const toolHint =
     tool === "select"
-      ? "Первый щелчок выбирает комнату, следующий — перемещает. Пробел — «Выбор», Ctrl+Z — отмена."
+      ? "Сначала выберите элемент, затем перетаскивайте его или ручки. Пробел — «Выбор», Ctrl+Z — отмена."
       : tool === "polygon"
         ? "Ставьте углы комнаты. После третьей точки щёлкните по первой точке — контур замкнётся автоматически."
         : tool === "houseContour"

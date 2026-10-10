@@ -2,13 +2,12 @@ import { exteriorHeight } from '../../calculations/floor-height.js';
 import { gableLinks, drawingCategory } from './drawing-workbench.js';
 import { roofAxonometricLines } from './roof-drawings.js';
 import { boardFootprint } from './partition-geometry.js';
+import { productionLevels } from './production-levels.js';
 
 // Millimetres, right-handed model coordinates X/Y = plan, Z = height.
 // This adapter only places existing production geometry; it never creates stock.
 export function productionScene(report,project) {
-  const plans=[project.plan,...(project.upperFloors||[])].slice(0,report.assembly.floors.length||1),bases=[0];
-  for(let i=1;i<plans.length;i++)bases[i]=bases[i-1]+exteriorHeight(plans[i-1],project.settings.sip)*1000+Number(project.settings.sip.secondFloorThickness||0);
-  const top=plans.length-1,roofBase=bases[top]+exteriorHeight(plans[top],project.settings.sip)*1000;
+  const {plans,bases,roofBase}=productionLevels(project,report.assembly.floors.length);
   const links=gableLinks(report,report.settings.gableLinks),placements=new Map(),missing=[];
   for(const s of report.surfaces){
     const category=drawingCategory(s),base=bases[(s.floor||1)-1]||0;

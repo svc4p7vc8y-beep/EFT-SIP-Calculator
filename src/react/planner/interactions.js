@@ -3,6 +3,11 @@ export function isSamePlanSelection(selected, type, id, part) {
     (part === undefined || (selected.part ?? "body") === part);
 }
 
+// Screen pixels, not model metres: consistent on touch and at every zoom.
+export function pointerDragged(start, event, threshold=4) {
+  return !!start && Math.hypot(event.clientX-start.x,event.clientY-start.y)>threshold;
+}
+
 export function planKeyboardCommand(event, editing = false) {
   if (editing) return null;
 
