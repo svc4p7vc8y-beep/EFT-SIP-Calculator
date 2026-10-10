@@ -16,6 +16,8 @@ import { fullSpanBearingCuts, connectorSupportCheck } from './ceiling-supports.j
 import { buildFirstFloorWallGeometry, compareWallGeometry, openingWallCandidates } from './wall-geometry-adapter.js';
 import { evaluateBindingStraightSupport } from './construction-rules.js';
 import { gapFragments } from './gap-fragments.js';
+import { floorOpenings } from '../planner/floor-openings.js';
+import { fitSipSpline, fitSipEndBoard } from './sip-member-fit.js';
 import { stockJointPieces } from './member-stock-joints.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
 import { constructionSource } from './construction-sources.js';
@@ -339,7 +341,7 @@ export function groupMembers(members = []) {
 export function starterBoardPlan(surfaces = [], members = []) {
   return surfaces.filter(surface=>/^Э1-С\d+$/.test(surface.id) && !surface.blocked && surface.planStart && surface.planEnd).map(surface=>{
     const boards=members.filter(member=>member.surfaceId===surface.id && !member.excluded && !member.seam && member.a &&
-      Math.abs(member.a[1])<.01 && Math.abs(member.b[1])<.01).map(member=>({
+      Math.abs((member.axisA||member.a)[1])<.01 && Math.abs((member.axisB||member.b)[1])<.01).map(member=>({
         id:member.id,start:Math.min(member.a[0],member.b[0]),end:Math.max(member.a[0],member.b[0]),
         length:round(Math.abs(member.b[0]-member.a[0])),cutLength:member.cutLength,profile:member.profile,
       })).sort((a,b)=>a.start-b.start);
@@ -376,7 +378,7 @@ export function connectionSegments(parts, continuous = false) {
       if (!adjacent.length || end - start < 0.01) continue;
       const segment = { a: [round(ux * start - uy * offset), round(uy * start + ux * offset)], b: [round(ux * end - uy * offset), round(uy * end + ux * offset)], length: Math.ceil(end - start - 0.001), seam: adjacent.length > 1, panels: [...new Set(adjacent)] };
       const previous = result.at(-1);
-      if (continuous && result.length > lineStart && previous.seam === segment.seam && Math.hypot(previous.b[0]-segment.a[0], previous.b[1]-segment.a[1]) < .01) {
+      if (continuous && segment.seam && result.length > lineStart && previous.seam && Math.hypot(previous.b[0]-segment.a[0], previous.b[1]-segment.a[1]) < .01) {
         previous.b = segment.b; previous.length = Math.ceil(Math.hypot(previous.b[0]-previous.a[0],previous.b[1]-previous.a[1])-.001); previous.panels = [...new Set([...previous.panels, ...segment.panels])];
       } else result.push(segment);
     }
@@ -531,11 +533,12 @@ export function calculateProductionCutting(project, calculation) {
         ...source,...(!edge.outer?partitionBacking(plan,edge.a,edge.b):{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||(!edge.outer&&localWallSettings(plan,edge.a,edge.b)?.frameProfile)||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
-      const hole = plan.floorOpening;
-      const holes = floorIndex > 0 && Number(hole?.width) > 0 && Number(hole?.length) > 0 ? [rect(mm(hole.x), mm(hole.y), mm(hole.width), mm(hole.length))] : [];
-      const blocked = holes.some(h => clipping.difference(h, shape).reduce((sum, poly) => sum + polygonAreaMm(poly), 0) > 1) || (floorIndex > 0 && ((Number(hole?.width) > 0) !== (Number(hole?.length) > 0)));
+      const stairs=floorIndex>0?floorOpenings(plan):[];
+      const validStairs=stairs.filter(h=>['x','y','width','length'].every(k=>Number.isFinite(Number(h[k])))&&Number(h.width)>0&&Number(h.length)>0);
+      const holes=validStairs.map(h=>rect(mm(h.x),mm(h.y),mm(h.width),mm(h.length)));
+      const blocked = holes.some(h => clipping.difference(h, shape).reduce((sum, poly) => sum + polygonAreaMm(poly), 0) > 1) || stairs.some(h=>!['x','y','width','length'].every(k=>Number.isFinite(Number(h[k])))||!(Number(h.width)>0&&Number(h.length)>0));
       if (blocked) issue('STAIR_BOUNDS', `${floor} этаж: лестничный проём имеет неполный размер или выходит за контур. Перекрытие заблокировано.`, `Э${floor}-ПОЛ`);
-      const deck=addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes), blocked });
+      const deck=addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes), blocked,stairOpenings:validStairs });
       if(floorIndex>0&&settings.ceilingBearingAlignment){deck.bearingCuts=bearingEdges(plans[floorIndex-1]);deck.supportFloor=floor-1;deck.supportOuterThickness=mm(plans[floorIndex-1].wallThickness);}
     }
     if (floorIndex === plans.length - 1 && services.sipCeiling && hasHorizontalCeiling(plan)) {
@@ -674,9 +677,14 @@ export function calculateProductionCutting(project, calculation) {
     const profile = sipTimberProfile(surface.thickness);
     const jambs = !surface.blocked && !surface.horizontal && surface.openings?.length ? surface.openings.filter(opening => !opening.gap && ['window','door'].includes(opening.type))
       .flatMap(opening => [{opening,side:'left',x:opening.x},{opening,side:'right',x:opening.x+opening.width}]) : [];
-    segments.forEach((segment, i) => {
+    const boundaryProfile=settings.profileMode==='estimate'?45:Number(settings.edgeWidthMm);
+    const boundarySegments=segments.filter(s=>!s.seam).map(s=>{const key=`${surface.layoutKey}:${cuttingRevision([s.a,s.b,s.seam,surface.thickness,sip.connectorType])}`;const value=settings.memberOverrides[key]?.profile;return {...s,faceWidth:value?Number(value.split(/[×xх]/)[1])||boundaryProfile:boundaryProfile};});
+    segments.forEach((rawSegment, i) => {
+      const boundary=boundarySegments.find(s=>s.a===rawSegment.a&&s.b===rawSegment.b);
+      const segment=rawSegment.seam?fitSipSpline(rawSegment,boundarySegments,boundaryProfile):fitSipEndBoard(rawSegment,surface.geometry,boundary?.faceWidth||boundaryProfile,boundarySegments);
+      if(segment.fitInvalid){issue('MEMBER_FIT',`${surface.id}: соединитель не помещается между торцевыми досками.`,surface.id);return;}
       const id = `${surface.id}-${segment.seam ? 'Ш' : 'Т'}${i + 1}`;
-      const key = `${surface.layoutKey}:${cuttingRevision([segment.a, segment.b, segment.seam, surface.thickness, sip.connectorType])}`;
+      const key = `${surface.layoutKey}:${cuttingRevision([rawSegment.a, rawSegment.b, rawSegment.seam, surface.thickness, sip.connectorType])}`;
       overrideKeys.add(key);
       const override = settings.memberOverrides[key] || {};
       const estimateProfile = segment.seam ? sip.connectorType === 'solid' ? `${profile.core}×100` : `${profile.thermalDepth}×95` : `${profile.endBoardDepth}×45`;
@@ -698,14 +706,20 @@ export function calculateProductionCutting(project, calculation) {
       const savedProfile=`${profile.thermalDepth}×${settings.edgeWidthMm}`;
       const selectedProfile=override.profile?.trim() || (settings.profileMode==='estimate' ? estimateProfile : savedProfile);
       if (selectedProfile!==estimateProfile) profileMismatches.add(`${selectedProfile} ↔ ${estimateProfile}`);
-      const geometricLength=surface.heightStart!=null?Math.round(surface.heightStart+(surface.heightEnd-surface.heightStart)*jamb.x/surface.width):surface.height;
+      const fullHeight=surface.heightStart!=null?Math.round(surface.heightStart+(surface.heightEnd-surface.heightStart)*jamb.x/surface.width):surface.height;
+      const fitted=fitSipSpline({a:[round(jamb.x),0],b:[round(jamb.x),fullHeight],length:fullHeight},boundarySegments,boundaryProfile);
+      if(fitted.fitInvalid){issue('MEMBER_FIT',`${id}: стойка не помещается между обвязками.`,key);continue;}
+      const geometricLength=fitted.length;
       const length=presentNumber(override.length) ? Number(override.length) : geometricLength;
       if (!(length>0 && length<=100000)) { issue('MEMBER_OVERRIDE',`${id}: неверная длина`,key); continue; }
       if ((override.exclude || override.profile || presentNumber(override.length)) && !override.nodeRef?.trim()) issue('MEMBER_NODE',`${id}: для изменения или исключения укажите рабочий узел`,key);
-      const a=[round(jamb.x),0], b=[round(jamb.x),geometricLength];
-      members.push({id,key,a,b,length,geometricLength,cutLength:length+2*Number(settings.endAllowanceMm||0),
+      const {a,b}=fitted;
+      const jambFace=Number(selectedProfile.split(/[×xх]/)[1])||boundaryProfile;
+      a[0]+=jamb.side==='left'?-jambFace/2:jambFace/2;b[0]=a[0];
+      members.push({id,key,a,b,axisA:[jamb.x,0],axisB:[jamb.x,fullHeight],length,geometricLength,cutLength:length+2*Number(settings.endAllowanceMm||0),
         material:'Стойка проёма',source:'Стойка проёма',openingRef:`${jamb.opening.name} · ${jamb.side==='left'?'левая':'правая'}`,
         role:'jamb',profile:selectedProfile,estimateProfile,excluded:override.exclude===true,
+        faceWidth:jambFace,
         nodeRef:override.nodeRef||'',processing:override.processing||'',surface:surface.name,surfaceId:surface.id,
         panels:parts.filter(part=>part.surfaceId===surface.id && (Math.abs(part.x-jamb.x)<.01 || Math.abs(part.x+part.width-jamb.x)<.01)).map(part=>part.id)});
     }
@@ -770,7 +784,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:209, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };

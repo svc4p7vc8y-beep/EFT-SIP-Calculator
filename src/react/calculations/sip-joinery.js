@@ -1,4 +1,5 @@
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
+import { floorOpeningSummary } from '../planner/floor-openings.js';
 const round = (value, digits = 3) => {
   const factor = 10 ** digits;
   return Math.round((Number(value) || 0) * factor) / factor;
@@ -625,8 +626,12 @@ export function calculateSipJoinery(
   const secondPlan = floorPlans[1]?.plan;
   const secondWidth = Math.max(0, Number(secondPlan?.house?.w) || 0);
   const secondHeight = Math.max(0, Number(secondPlan?.house?.h) || 0);
-  const openingWidth = Math.max(0, Number(secondPlan?.floorOpening?.width) || 0);
-  const openingLength = Math.max(0, Number(secondPlan?.floorOpening?.length) || 0);
+  const stairSummary = floorOpeningSummary(secondPlan,contourPointsFor(secondPlan||plan));
+  // Same closed-run spacing rule as before, applied once to each union boundary.
+  const stairFasteners = stairSummary.geometry.reduce((sum,poly)=>sum+poly.reduce((n,ring)=>{
+    const points=ring.slice(0,-1).filter((b,i,list)=>{const a=list[(i+list.length-1)%list.length],c=list[(i+1)%list.length];return Math.abs((b[0]-a[0])*(c[1]-b[1])-(b[1]-a[1])*(c[0]-b[0]))>1e-8;});
+    return n+points.reduce((s,a,i)=>s+Math.max(1,Math.ceil(Math.hypot(a[0]-points[(i+1)%points.length][0],a[1]-points[(i+1)%points.length][1])/bindingSpacing)),0);
+  },0),0);
   const rows = [
     services.sipFloor
       ? {
@@ -692,21 +697,13 @@ export function calculateSipJoinery(
           ),
           endBoardLength:
             2 * (secondWidth + secondHeight) +
-            (openingWidth > 0 && openingLength > 0
-              ? 2 * (openingWidth + openingLength)
-                : 0),
+            stairSummary.perimeter,
           sealLength:
             perimeterFor(secondPlan) +
-            (openingWidth > 0 && openingLength > 0
-              ? 2 * (openingWidth + openingLength)
-              : 0),
+            stairSummary.perimeter,
           structuralCount:
             closedRunFastenerCount(secondPlan, bindingSpacing) +
-            rectangularRunFastenerCount(
-              openingWidth,
-              openingLength,
-              bindingSpacing,
-            ),
+            stairFasteners,
           supportPanelThickness: sipSettings.secondFloorThickness,
         }
       : null,

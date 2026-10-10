@@ -2,12 +2,12 @@ import { groupPanels, groupMembers, polygonBounds } from '../calculations/produc
 import { productionMark as mark } from '../calculations/production-assembly.js';
 import AssemblyCanvas from './AssemblyCanvas.jsx';
 import { BindingSection, RoofPerspective, RoofSection, StructuralPlan, SupportElevation } from './RoofDrawings.jsx';
-import { combinedWall, gableLinks } from '../calculations/drawing-workbench.js';
+import { combinedWall, gableLinks, drawingCategory } from '../calculations/drawing-workbench.js';
 import { partitionProcurement } from '../calculations/partition-procurement.js';
 import { surfaceDimensions } from '../calculations/drawing-dimensions.js';
 import DrawingDimensions from '../components/DrawingDimensions.jsx';
 import PartitionDrawing from '../components/PartitionDrawing.jsx';
-import { WallLocator } from './DrawingCanvas.jsx';
+import { WallLocator, DrawingCanvas } from './DrawingCanvas.jsx';
 import ConstructionNode from './ConstructionNodes.jsx';
 import { boardFootprint } from '../calculations/partition-geometry.js';
 import WallPanelPlan from './WallPanelPlan.jsx';
@@ -19,7 +19,8 @@ const path=(shape,flip)=>shape.map(r=>r.map(([x,y],i)=>`${i?'L':'M'}${x},${flip=
 export function DimensionChain({values,y,font}) {
   return <DrawingDimensions values={values} y={y} font={font}/>;
 }
-export function TechnicalDrawing({surface,parts=[],members=[]}) {
+export function TechnicalDrawing({surface,parts=[],members=[],labelOverrides=surface.drawingLabels||{}}) {
+  if(Object.keys(labelOverrides).length||surface.stairOpenings?.length)return <DrawingCanvas printable surface={surface} parts={parts} members={members} layers={{panels:true,frame:true,dimensions:true,labels:true}} labelOverrides={labelOverrides}/>;
   if(surface.frameOnly&&surface.id?.includes('-ПГ'))return <PartitionDrawing surface={surface} members={members}/>;
   if(!surface.geometry?.length)return <p>Нет геометрии.</p>;
   const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height),pad=size*.16,font=size*.022,flip=surface.horizontal?null:box.y*2+box.height;
@@ -84,7 +85,8 @@ export function buildMountingPages(report) {
   }
   for(const [i,supports]of chunks(report.assembly.supports,10).entries())add(`Опоры · координаты и путь нагрузки · ${i+1}`,<table><thead><tr><th>Марка</th><th>Элемент / сечение</th><th>Начало X/Y/Z, мм</th><th>Конец X/Y/Z, мм</th><th>Длина</th><th>Опирание / узел</th></tr></thead><tbody>{supports.map(s=><tr key={s.id}><td>{s.mark}</td><td>{s.name} · {s.profile}</td><td>{s.a.join(' / ')}</td><td>{s.b.join(' / ')}</td><td>{s.length}</td><td>{s.loadPath.text}<br/>{s.nodeRef||'Узел не задан'}</td></tr>)}</tbody></table>);
   for(const [i,supports]of chunks(report.assembly.supports.filter(s=>s.type!=='foundation'),4).entries())add(`Проектные элементы · развёртки по длине · ${i+1}`,<div className="album-support-elevations">{supports.map(s=><article key={s.id}><h3>{s.mark} · {s.name}</h3><SupportElevation support={s}/><p>Начало: {s.a.join(' / ')}; конец: {s.b.join(' / ')} мм. Узел: {s.nodeRef||'не задан'}. Сечение и крепление — по проекту.</p></article>)}</div>);
-  for(const s of report.surfaces){
+  for(const original of report.surfaces){
+    const s={...original,drawingLabels:report.settings.drawingLabels?.[`${drawingCategory(original)}:${original.layoutKey||''}:drawing`]||{}};
     const parts=report.parts.filter(p=>p.surfaceId===s.id),members=report.members.filter(m=>m.surfaceId===s.id&&!m.excluded);
     const rows=groupMembers(members).map((g,i)=>({position:i+1,name:`${mark(g.member)} · ${g.member.material}`,profile:g.member.profile,length:g.member.length,qty:g.qty}));
     const panels=groupPanels(parts).map(g=>({name:mark(g.part),profile:`${num(g.part.width)}×${num(g.part.height)}×${g.part.thickness}`,qty:g.qty}));

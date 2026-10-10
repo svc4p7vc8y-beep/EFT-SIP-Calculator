@@ -19,7 +19,7 @@ export function surfaceDimensions(surface, parts=[], members=[]) {
   const openings=(surface.openings||[]).filter(o=>o.sill!==''&&o.sill!=null&&Number.isFinite(Number(o.sill)));
   return { box,
     x:dimensionValues([box.x,box.x+box.width,...parts.flatMap(p=>[p.x,p.x+p.width]),
-      ...members.filter(m=>m.a&&!m.excluded&&Math.abs(m.a[0]-m.b[0])<.1).map(m=>m.a[0])]),
+      ...members.filter(m=>m.a&&!m.excluded&&Math.abs((m.axisA||m.a)[0]-(m.axisB||m.b)[0])<.1).map(m=>(m.axisA||m.a)[0])]),
     openingX:dimensionValues([box.x,box.x+box.width,...openings.flatMap(o=>[o.x,o.x+o.width])]),
     openingY:dimensionValues([box.y,box.y+box.height,...openings.flatMap(o=>[Number(o.sill),Number(o.sill)+o.height])]),
   };

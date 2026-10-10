@@ -19,6 +19,7 @@ import { calculateInternal } from './internal-model.js';
 import { saunaIncomplete } from './sauna-details.js';
 import { calculateEngineering } from './engineering-model.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
+import { floorOpeningSummary } from '../planner/floor-openings.js';
 import {
   calculateSipConsumables,
   calculateFramePartitionAssembly,
@@ -347,7 +348,7 @@ function calculateBuildingMetrics(project) {
   const secondFloorOpeningArea = Math.min(
     Number(base?.floorArea) || 0,
     Number(secondMetrics?.floorArea) || 0,
-    openingWidth * openingLength,
+    floorOpeningSummary(secondPlan,houseContourPoints(secondPlan||project.plan)).area,
   );
   const sum = (key) =>
     round(
@@ -383,6 +384,7 @@ function calculateBuildingMetrics(project) {
       2,
     ),
     secondFloorOpeningArea: round(secondFloorOpeningArea, 2),
+    secondFloorOpeningPerimeter: floorOpeningSummary(secondPlan,houseContourPoints(secondPlan||project.plan)).perimeter,
     secondFloorOpeningWidth: openingWidth,
     secondFloorOpeningLength: openingLength,
     secondFloorOpeningX: Math.max(0, Number(secondPlan?.floorOpening?.x) || 0),
@@ -436,10 +438,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     Number(sip.floorPanelWidth) || f.panelWidth,
     f.panelLength,
   );
-  const stairOpeningCutLength =
-    metrics.secondFloorOpeningWidth > 0 && metrics.secondFloorOpeningLength > 0
-      ? 2 * (metrics.secondFloorOpeningWidth + metrics.secondFloorOpeningLength)
-      : 0;
+  const stairOpeningCutLength = metrics.secondFloorOpeningPerimeter || 0;
   const ceilingOpeningCutLength = (topPlan.rooms || [])
     .filter((room) => room.include !== false && room.ceilingMode === "open")
     .reduce((sum, room) => sum + roomPerimeter(room), 0);

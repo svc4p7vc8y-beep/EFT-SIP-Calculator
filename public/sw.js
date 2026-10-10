@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v208-cutting-audit';
+const CACHE_NAME = 'eft-calculator-react-v209-stairs-member-fit';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

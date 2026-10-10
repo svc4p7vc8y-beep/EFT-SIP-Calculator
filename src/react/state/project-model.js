@@ -21,9 +21,10 @@ import {
 import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
+import { normalizeFloorOpenings } from '../planner/floor-openings.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 208;
+export const REACT_PROJECT_VERSION = 209;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -770,6 +771,7 @@ export function normalizePlan(plan) {
       length: floorOpeningLength,
       direction: normalizeStairDirection(plan.floorOpening?.direction),
     },
+    ...(Array.isArray(plan.floorOpenings)?{floorOpenings:normalizeFloorOpenings(plan.floorOpenings).map(o=>({...o,direction:normalizeStairDirection(o.direction)}))}:{}),
   };
 }
 

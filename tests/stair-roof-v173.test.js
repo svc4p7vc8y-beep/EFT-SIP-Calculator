@@ -21,7 +21,7 @@ test('stair treads rotate with the ascent arrow in all four directions', () => {
   const box = { x: 10, y: 20, width: 120, height: 180 };
   for (const direction of ['right', 'left', 'up', 'down']) {
     const geometry = stairStepGeometry(box, direction);
-    assert.equal(geometry.treads.length, 6);
+    assert.equal(geometry.treads.length, 12);
     assert.ok(geometry.head.includes(','));
     assert.equal(geometry.treads[0].x1 === geometry.treads[0].x2, direction === 'right' || direction === 'left');
     if (direction === 'right') assert.ok(geometry.arrow.x2 > geometry.arrow.x1);

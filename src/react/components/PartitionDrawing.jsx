@@ -3,7 +3,7 @@ import { partitionBoardShape, partitionDrawingData } from '../calculations/parti
 import { visibleBoardGeometry } from '../calculations/partition-geometry.js';
 
 // Shared by the interactive editor and printable mounting sheets.
-export function PartitionDrawingContents({surface,members,pad,font,layers={frame:true,labels:true,dimensions:true},selected=[],handlers=()=>({})}) {
+export function PartitionDrawingContents({surface,members,pad,font,layers={frame:true,labels:true,dimensions:true},selected=[],handlers=()=>({}),renderLabel,labelOverrides={}}) {
   const {boards,positions,depth,axes,openingX}=partitionDrawingData(surface,members),H=surface.height,W=surface.width;
   const yy=y=>H-y,top=H+pad*1.15;
   const outlinePath=geometry=>geometry.map(p=>p.map(r=>r.map(([x,y],i)=>`${i?'L':'M'}${x},${yy(y)}`).join(' ')+'Z').join(' ')).join(' ');
@@ -25,14 +25,14 @@ export function PartitionDrawingContents({surface,members,pad,font,layers={frame
         <title>Поз. {positions.get(m.id)} · {m.material} · {m.profile} · {m.length} мм{m.notches?.length?` · врезок ${m.notches.length}; глубина по проекту`:''}</title>
       </g>;
     }):null}
-    {layers.frame&&layers.labels?annotations.map(({m,cx,cy,x,y})=><g key={m.id} pointerEvents="none">
-      <line x1={cx} y1={cy} x2={x} y2={y} stroke="#555" strokeWidth=".4" vectorEffect="non-scaling-stroke"/>
-      <text x={x} y={y} dominantBaseline="middle" textAnchor="middle" fontSize={font*.85} fill="#000" stroke="#fff" strokeWidth={font*.25} paintOrder="stroke">{positions.get(m.id)}</text>
+    {layers.frame&&layers.labels?annotations.map(({m,cx,cy,x,y})=><g key={m.id} pointerEvents={renderLabel?undefined:'none'}>
+      <line x1={cx} y1={cy} x2={x+(labelOverrides['member:'+m.id]?.offset?.[0]||0)} y2={y-(labelOverrides['member:'+m.id]?.offset?.[1]||0)} stroke="#555" strokeWidth=".4" vectorEffect="non-scaling-stroke"/>
+      {renderLabel?renderLabel('member:'+m.id,String(positions.get(m.id)),x,H-y,font*.85):<text x={x} y={y} dominantBaseline="middle" textAnchor="middle" fontSize={font*.85} fill="#000" stroke="#fff" strokeWidth={font*.25} paintOrder="stroke">{positions.get(m.id)}</text>}
     </g>):null}
     {layers.dimensions?<><DrawingDimensions values={axes} y={H+pad*.35} font={font*.8} label="Оси стоек"/><g transform="rotate(90)"><DrawingDimensions values={[0,H]} y={pad*.55} font={font}/></g>
       {(surface.openings||[]).filter(o=>!o.gap).map(o=><g key={o.key}><DrawingDimensions values={[o.x,o.x+o.width]} y={yy(Number(o.sill))+font*1.6} font={font*.8}/><g transform="rotate(90)"><DrawingDimensions values={[0,yy(Number(o.sill)+o.height),yy(Number(o.sill)),H]} y={-o.x-o.width/2} font={font*.8}/></g></g>)}
     </>:null}
-    <text x={W/2} y={top-font} textAnchor="middle" fontSize={font}>Вид сверху · {surface.frameProfile} мм</text>
+    {renderLabel?renderLabel('partition-top-title',`Вид сверху · ${surface.frameProfile} мм`,W/2,H-top+font,font):<text x={W/2} y={top-font} textAnchor="middle" fontSize={font}>Вид сверху · {surface.frameProfile} мм</text>}
     <rect x="0" y={top} width={W} height={depth} fill="#fff" stroke="#000" strokeWidth=".7" vectorEffect="non-scaling-stroke"/>
     {boards.filter(m=>Math.abs(m.a[0]-m.b[0])<.01&&m.a[1]<=Number(surface.frameProfile?.split(/[×xх]/)[0])+.1).map(m=>{const t=Number(m.profile.split(/[×xх]/)[0]);return <path key={m.id} d={`M${m.a[0]-t/2},${top}h${t}v${depth}h${-t}z m0,0 l${t},${depth} m0,${-depth} l${-t},${depth}`} fill="#faf5df" stroke="#000" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>;})}
     {(surface.openings||[]).filter(o=>Number(o.sill)===0).map(o=><rect key={o.key} x={o.x} y={top} width={o.width} height={depth} fill="#eee" stroke="#000" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}

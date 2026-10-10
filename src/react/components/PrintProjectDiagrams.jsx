@@ -193,10 +193,7 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
       {garage ? <text className="print-opening-tag" x={q.x} y={q.y - 9}>ГВ</text> : null}
     </g>;
   };
-  const sharedFloorOpening = floorOpening || plan.floorOpening || {};
-  const floorOpeningArea = Math.max(0, Number(sharedFloorOpening.width) || 0) * Math.max(0, Number(sharedFloorOpening.length) || 0);
-  const floorOpeningStart = p(Number(sharedFloorOpening.x) || 0, Number(sharedFloorOpening.y) || 0);
-  const floorOpeningSteps = stairStepGeometry({ x: floorOpeningStart.x, y: floorOpeningStart.y, width: sharedFloorOpening.width * scale, height: sharedFloorOpening.length * scale }, sharedFloorOpening.direction);
+  const sharedFloorOpenings = Array.isArray(floorOpening)?floorOpening:Array.isArray(plan.floorOpenings)?plan.floorOpenings:[floorOpening || plan.floorOpening || {}];
   return <svg className="print-plan-svg" viewBox={`0 0 ${PLAN_VIEW.width} ${PLAN_VIEW.height}`} role="img" aria-label="План дома для печати">
     <defs><marker id="print-plan-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" /></marker><marker id="print-note-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" /></marker></defs>
     {showPlatforms ? (plan.platforms || []).filter(item => item.include !== false).map((item) => {
@@ -225,14 +222,16 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
     }) : null}
     {showRooms ? (plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : roomBounds.x + roomBounds.w / 2, Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : roomBounds.y + roomBounds.h / 2); const clearArea = clearAreas.rooms[room.id]?.clearArea; const titleSize = Math.max(8, (Number(room.labelFontSize) || 22) * .55); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" style={{ fontSize:titleSize }} x={center.x} y={center.y - titleSize * 1.1}>{room.name}</text><text style={{fontSize:titleSize * .75}} x={center.x} y={center.y + titleSize * .2}>{formatNumber(roomBounds.w)} × {formatNumber(roomBounds.h)} м</text><text className="room-clear-area" style={{fontSize:titleSize}} x={center.x} y={center.y + titleSize * 1.45}>{clearArea != null ? `${formatNumber(clearArea,2)} м²` : 'Площадь уточнить'}</text></g>; }) : null}
     {showRooms ? (plan.annotations || []).map(item => { const label = p(item.x, item.y); const target = p(item.targetX, item.targetY); return <g key={item.id} className="print-annotation">{item.showArrow !== false ? <line x1={label.x} y1={label.y + 4} x2={target.x} y2={target.y} markerEnd="url(#print-note-arrow)" /> : null}<text x={label.x} y={label.y} style={{ fontSize: Math.max(8, (Number(item.fontSize) || 18) * .55) }}>{item.text}</text></g>; }) : null}
-    {showRooms && floorOpeningArea > 0 ? <g className="print-floor-opening" aria-label="Лестничный проём между этажами">
+    {showRooms ? sharedFloorOpenings.filter(o=>o.include!==false&&o.width>0&&o.length>0).map((sharedFloorOpening,i)=>{
+      const floorOpeningArea=sharedFloorOpening.width*sharedFloorOpening.length,floorOpeningStart=p(sharedFloorOpening.x,sharedFloorOpening.y),floorOpeningSteps=stairStepGeometry({x:floorOpeningStart.x,y:floorOpeningStart.y,width:sharedFloorOpening.width*scale,height:sharedFloorOpening.length*scale},sharedFloorOpening.direction,sharedFloorOpening.stepCount);
+      return <g key={sharedFloorOpening.id||i} className="print-floor-opening" aria-label="Лестничный проём между этажами">
       <rect x={floorOpeningStart.x} y={floorOpeningStart.y} width={sharedFloorOpening.width * scale} height={sharedFloorOpening.length * scale} />
       {floorOpeningSteps.treads.map((tread, index) => <line key={index} {...tread} />)}
       <line className="stair-direction-shaft" {...floorOpeningSteps.arrow} />
       <polygon className="stair-direction-head" points={floorOpeningSteps.head} />
-      <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 - 4}>Лестничный проём</text>
+      <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 - 4}>{sharedFloorOpening.name||'Лестничный проём'}</text>
       <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 + 12}>{formatNumber(floorOpeningArea)} м²</text>
-    </g> : null}
+    </g>;}) : null}
     <defs><clipPath id={wallClipId}><polygon points={houseScreen.map(point=>`${point.x},${point.y}`).join(' ')}/></clipPath></defs>
     {showContour || options.showRoof ? <polygon className="print-outer-wall" clipPath={`url(#${wallClipId})`} style={{strokeWidth:2*(Number(plan.wallThickness)||.174)*scale}} points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
     {showRooms ? unifiedWallSegments(plan).map((segment, index) => { const [a, b] = lineEndpoints(segment); const q1 = p(a.x, a.y); const q2 = p(b.x, b.y); return <line className="print-inner-wall" style={{strokeWidth:(Number(plan.partitionThickness)||.1)*scale}} key={index} x1={q1.x} y1={q1.y} x2={q2.x} y2={q2.y} />; }) : null}
@@ -306,7 +305,7 @@ export function PrintProjectDiagrams({ project, calculation }) {
   if (!includePlan && !includeRoof && !separatePileSheet) return null;
   const diagramCount = (includePlan ? floorPlans.length : 0) + (includeRoof ? 1 : 0) + (separatePileSheet ? 1 : 0);
   return <section className={`print-diagrams ${diagramCount > 1 ? 'two' : 'one'}`} aria-label="Иллюстрации проекта">
-    {includePlan ? floorPlans.map((floorPlan, floorIndex) => <article className={options.separatePlanSheets !== false ? 'print-diagram-sheet floor-sheet' : ''} key={`floor-${floorIndex + 1}`}><h2>План {floorIndex + 1} этажа</h2><PrintPlanDiagram plan={floorPlan} floorOpening={floorCount > 1 ? project.upperFloors?.[0]?.floorOpening : null} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={printDiagramLayers('floor', options, floorIndex, separatePileSheet)} /></article>) : null}
+    {includePlan ? floorPlans.map((floorPlan, floorIndex) => <article className={options.separatePlanSheets !== false ? 'print-diagram-sheet floor-sheet' : ''} key={`floor-${floorIndex + 1}`}><h2>План {floorIndex + 1} этажа</h2><PrintPlanDiagram plan={floorPlan} floorOpening={floorCount > 1 ? (project.upperFloors?.[0]?.floorOpenings||project.upperFloors?.[0]?.floorOpening) : null} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={printDiagramLayers('floor', options, floorIndex, separatePileSheet)} /></article>) : null}
     {separatePileSheet ? <article className="print-diagram-sheet pile-sheet"><h2>Свайное поле и обвязка</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} options={printDiagramLayers('foundation', options)} /></article> : null}
     {includeRoof ? <article className={separateRoofSheet ? "print-diagram-sheet roof-sheet" : ""}><h2>Крыша на контуре дома</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={printDiagramLayers('roof', options)} /></article> : null}
   </section>;

@@ -94,14 +94,14 @@ test('horizontal wall layout turns courses around window and door, splitting lon
   assert.equal(calculateProject(p).totals.total,estimate.totals.total);
 });
 
-test('every door and window has two full-height jambs; matching members group without losing instances', () => {
+test('door and window jambs fit between end boards; groups preserve all instances', () => {
   const p=simple();
   p.plan.openings=[{id:'window',type:'window',outer:true,x:2,y:0,width:1,height:1.2},{id:'door',type:'door',outer:true,x:3.5,y:0,width:.9,height:2.05}];
   const report=calculateProductionCutting(p,calculateProject(p));
   const jambs=report.members.filter(member=>member.surfaceId==='Э1-С1' && member.role==='jamb');
   assert.equal(jambs.length,4);
   assert.deepEqual(jambs.map(member=>member.openingRef).sort(),['1 этаж · Дверь 2 · левая','1 этаж · Дверь 2 · правая','1 этаж · Окно 1 · левая','1 этаж · Окно 1 · правая']);
-  assert.ok(jambs.every(member=>member.length===2800 && member.a[1]===0 && member.b[1]===2800));
+  assert.ok(jambs.every(member=>member.length===2710 && member.a[1]===45 && member.b[1]===2755));
   assert.equal(groupMembers(report.members).reduce((sum,group)=>sum+group.qty,0),report.members.length);
   assert.ok(report.members.some(member=>member.replacedByJamb && member.excluded));
   assert.equal(report.timberStock.bars.flatMap(bar=>bar.parts).filter(part=>jambs.some(jamb=>jamb.id===part.id)).length,4);

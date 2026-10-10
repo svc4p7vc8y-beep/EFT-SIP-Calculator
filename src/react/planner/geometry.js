@@ -23,6 +23,7 @@ export function fitFloorOpening(opening, house) {
     houseLength,
   );
   return {
+    ...safeOpening,
     x: roundCoord(
       Math.max(
         0,
@@ -235,14 +236,14 @@ export function resizePlanToHouse(plan, width, height) {
     gap.x = roundCoord((Number(gap.x) || 0) * scaleX);
     gap.y = roundCoord((Number(gap.y) || 0) * scaleY);
   }
-  if (plan.floorOpening) {
-    plan.floorOpening.x = roundCoord((Number(plan.floorOpening.x) || 0) * scaleX);
-    plan.floorOpening.y = roundCoord((Number(plan.floorOpening.y) || 0) * scaleY);
-    plan.floorOpening.width = roundCoord(
-      (Number(plan.floorOpening.width) || 0) * scaleX,
+  for (const opening of [...(plan.floorOpenings||[]),...(plan.floorOpening?[plan.floorOpening]:[])]) {
+    opening.x = roundCoord((Number(opening.x) || 0) * scaleX);
+    opening.y = roundCoord((Number(opening.y) || 0) * scaleY);
+    opening.width = roundCoord(
+      (Number(opening.width) || 0) * scaleX,
     );
-    plan.floorOpening.length = roundCoord(
-      (Number(plan.floorOpening.length) || 0) * scaleY,
+    opening.length = roundCoord(
+      (Number(opening.length) || 0) * scaleY,
     );
   }
   return { scaleX, scaleY };

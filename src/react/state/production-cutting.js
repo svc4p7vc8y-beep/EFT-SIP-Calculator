@@ -2,6 +2,14 @@ import { normalizeMarkRegistry } from './production-identities.js';
 import { normalizeConstructionSources } from './construction-sources.js';
 import { normalizeSourceBaseline } from './source-baseline.js';
 
+export function normalizeDrawingLabels(value) {
+  const record=v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.entries(v).slice(0,2000):[];
+  return Object.fromEntries(record(value).map(([view,labels])=>[view,Object.fromEntries(record(labels).map(([key,item])=>[key,{
+    ...(typeof item?.text==='string'?{text:item.text.slice(0,300)}:{}),
+    ...(Array.isArray(item?.offset)&&item.offset.length===2&&item.offset.every(n=>typeof n==='number'&&Number.isFinite(n))?{offset:item.offset}:{}),
+  }]))]));
+}
+
 export function normalizeProductionCutting(value = {}) {
   value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   // Preserve finite out-of-range input so validation can report it, not silently replace it.
@@ -46,6 +54,7 @@ export function normalizeProductionCutting(value = {}) {
     partitionFasteners: Array.isArray(value.partitionFasteners)?value.partitionFasteners.filter(r=>r&&typeof r==='object').slice(0,100).map((r,i)=>({id:String(r.id||`pf-${i}`),catalogId:String(r.catalogId||''),qty:r.qty!==''&&Number.isFinite(Number(r.qty))&&Number(r.qty)>=0?Number(r.qty):''})):[],
     assemblyNodes: Array.isArray(value.assemblyNodes)?value.assemblyNodes.filter(n=>n&&Number.isFinite(n.x)&&Number.isFinite(n.y)&&Math.abs(n.x)<=100000&&Math.abs(n.y)<=100000).slice(0,200).map((n,i)=>({id:String(n.id||`node-${i+1}`),x:n.x,y:n.y,floor:Math.max(1,Number(n.floor)||1),nodeRef:String(n.nodeRef||'').slice(0,200)})):[],
     drawingDimensions: value.drawingDimensions && typeof value.drawingDimensions==='object' && !Array.isArray(value.drawingDimensions) ? Object.fromEntries(Object.entries(value.drawingDimensions).slice(0,500).map(([key,list])=>[key,Array.isArray(list)?list.filter(d=>d&&[d.a,d.b].every(p=>Array.isArray(p)&&p.length===2&&p.every(v=>Number.isFinite(v)&&Math.abs(v)<=100000))&&(!d.offset||Array.isArray(d.offset)&&d.offset.length===2&&d.offset.every(Number.isFinite))).slice(0,100):[]])) : {},
+    drawingLabels: normalizeDrawingLabels(value.drawingLabels),
     roofSupports: Array.isArray(value.roofSupports) ? value.roofSupports.filter(item=>item && typeof item==='object').slice(0,200).map((item,index)=>({
       ...item,...(item.hasStableSourceId===false||!item.id?{hasStableSourceId:false}:{}),id:String(item.id||`support-${index+1}`),name:String(item.name||'').slice(0,200),
       type:['purlin','post','beam','rafter','brace','tie','foundation'].includes(item.type)?item.type:'purlin',

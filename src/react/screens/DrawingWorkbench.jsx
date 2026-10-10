@@ -13,7 +13,7 @@ import { BindingSection, RoofPerspective, RoofSection, StructuralPlan } from './
 import AssemblyPlan from './AssemblyPlan.jsx';
 import AssemblyCanvas from './AssemblyCanvas.jsx';
 import RoofCoverTool from './RoofCoverDrawing.jsx';
-import { approvalLabels, MemberEditor, SurfaceLayoutControls, Reconciliation, CuttingControls } from './CuttingControls.jsx';
+import { approvalLabels, MemberEditor, SurfaceLayoutControls, Reconciliation, CuttingControls, DraftText } from './CuttingControls.jsx';
 import '../styles/drawing-workbench.css';
 import PartitionProcurement from './PartitionProcurement.jsx';
 import BindingRuleCheck from './BindingRuleCheck.jsx';
@@ -39,6 +39,7 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
   const [measure,setMeasure]=useState(false),[measureStart,setMeasureStart]=useState(null),[measureCursor,setMeasureCursor]=useState(null),[yaw,setYaw]=useState(0);
   const [offsets,setOffsets]=useState({});
   const [groupAll,setGroupAll]=useState(true);
+  const [editedLabel,setEditedLabel]=useState(null);
   const pages=useMemo(()=>report?buildMountingPages(report):[],[report]);
   const links=useMemo(()=>report?gableLinks(report,settings.gableLinks):[],[report,settings.gableLinks]);
   const candidates=report?.surfaces.filter(s=>category==='nodes'||drawingCategory(s)===category)||[];
@@ -47,6 +48,8 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
   const viewKey=`${category}:${surface?.layoutKey||''}:${view}`,zoom=zoomByView[viewKey]||1;
   const dimensions=settings.drawingDimensions[viewKey]||[];
   const saveDimensions=list=>update({drawingDimensions:{...settings.drawingDimensions,[viewKey]:list}});
+  const labels=settings.drawingLabels[viewKey]||{};
+  const saveLabel=(key,patch)=>update({drawingLabels:{...settings.drawingLabels,[viewKey]:{...labels,[key]:{...labels[key],...patch}}}});
   const measurePick=point=>{if(!measureStart){setMeasureStart(point);setMeasureCursor(point);}else if(Math.hypot(point[0]-measureStart[0],point[1]-measureStart[1])>0){saveDimensions([...dimensions,{id:crypto.randomUUID(),a:measureStart,b:point}]);setMeasureStart(null);setMeasureCursor(null);}};
   const setZoom=value=>setZoomByView(old=>({...old,[viewKey]:value}));
   const members=useMemo(()=>drawing?.members||report?.members.filter(m=>category==='binding'?m.surface==='Обвязка':category==='roof'?m.surface==='Кровля':category==='supports'?m.source==='Проектная опора':true)||[],[drawing,report,category]);
@@ -89,7 +92,7 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     if(category==='supports')return <AssemblyCanvas assembly={report.assembly}/>;
     if(category==='binding')return view==='section'?<BindingSection assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} kind="binding" layers={layers}/>;
     if(category==='roof'&&(view!=='drawing'||!surface))return view==='cover'?<RoofCoverTool report={report} settings={settings} update={update} NumberInput={NumberInput}/>:view==='section'?<RoofSection assembly={report.assembly}/>:view==='3d'?<RoofPerspective assembly={report.assembly} yaw={yaw}/>:view==='overlay'?<AssemblyCanvas assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} selected={selection} onSelect={select} layers={layers}/>;
-    if(drawing)return <DrawingCanvas {...drawing} layers={layers} selected={selection} onSelect={select} fontScale={fontScale} dimensions={dimensions} draft={measureStart&&measureCursor?{a:measureStart,b:measureCursor}:null} onPick={measure?measurePick:null} onHover={measureStart?setMeasureCursor:null} onLabelMove={(id,offset)=>saveDimensions(dimensions.map(d=>d.id===id?{...d,offset}:d))}/>;
+    if(drawing)return <DrawingCanvas {...drawing} layers={layers} selected={selection} onSelect={select} fontScale={fontScale} dimensions={dimensions} labelOverrides={labels} onTextSelect={label=>setEditedLabel({...label,viewKey})} onTextMove={(key,offset)=>saveLabel(key,{offset})} draft={measureStart&&measureCursor?{a:measureStart,b:measureCursor}:null} onPick={measure?measurePick:null} onHover={measureStart?setMeasureCursor:null} onLabelMove={(id,offset)=>saveDimensions(dimensions.map(d=>d.id===id?{...d,offset}:d))}/>;
     return <p className="cut-empty">Для этой конструкции нет деталей. Проверьте включение раздела в параметрах проекта.</p>;
   };
   if(!report)return <section className="screen cutting-screen"><h1>Чертежи и сборка</h1><p role="status">{error||'Подготавливаю геометрию и ведомости…'}</p></section>;
@@ -124,6 +127,7 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     {error?<p role="alert">{error}</p>:null}{printError?<p role="alert">{printError}</p>:null}
     {surface?.blocked?<p role="alert">{surface.name}: раскладка неполная. Контур показан, но отсутствующие детали не включены в закупочную сверку. Откройте «Проверка и выпуск».</p>:null}
     {surface?.automaticDirection?<p className="inspector-note">Автоматическая раскладка: направление панелей изменено для обхода узких деталей. Размеры конструкции и проёмов сохранены; опирание соединителей проверяется отдельно.</p>:null}
+    {editedLabel?.viewKey===viewKey?<fieldset><legend>Подпись на чертеже</legend><DraftText label="Текст подписи" value={labels[editedLabel.key]?.text??editedLabel.text} onChange={text=>saveLabel(editedLabel.key,{text})}/><p>Подпись можно перетащить мышью или пальцем. Изменяется только надпись этого вида; техническая марка и спецификация сохраняются.</p><button onClick={()=>{const next={...labels};delete next[editedLabel.key];update({drawingLabels:{...settings.drawingLabels,[viewKey]:next}});}}>Сбросить подпись и положение</button><button onClick={()=>setEditedLabel(null)}>Закрыть</button></fieldset>:null}
     {category === 'binding' ? <BindingRuleCheck result={report.constructionRuleChecks?.bindingStraightSupport} value={settings.bindingJointToleranceMm} update={update} NumberInput={NumberInput} pending={pending}/> : null}
     <fieldset className={`drawing-content ${pending?'is-pending':''}`}>
       <div className={surface?.planStart&&view!=='plan'?'drawing-scene-grid':undefined}>
