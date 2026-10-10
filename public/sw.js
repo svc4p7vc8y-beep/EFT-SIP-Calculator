@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v210-gable-workbench';
+const CACHE_NAME = 'eft-calculator-react-v211-production-3d';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

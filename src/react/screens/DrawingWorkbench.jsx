@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { Printer, Settings2, Maximize, Minimize, ZoomIn, ZoomOut, Undo2, Redo2, Layers, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
@@ -22,6 +22,7 @@ import ConstructionSourcePicker from './ConstructionSourcePicker.jsx';
 import SourceChangesInfo from './SourceChangesInfo.jsx';
 import CeilingSupportChecks from './CeilingSupportChecks.jsx';
 import DrawingToolRail from './DrawingToolRail.jsx';
+const ProductionHouse3D=lazy(()=>import('./ProductionHouse3D.jsx'));
 
 const categories=[['overview','Дом'],['piles','Свайное поле'],['binding','Обвязка'],['floor','Пол'],['walls','Стены'],['partitions','Перегородки'],['ceiling','Потолок'],['gables','Фронтоны'],['roof','Крыша'],['supports','Опоры'],['starter','Стартовая доска'],['nodes','Узлы и детали'],['stock','Карты раскроя'],['sheets','Листы альбома']];
 const defaultLayers={panels:true,frame:true,dimensions:true,labels:true};
@@ -31,6 +32,7 @@ const download=(name,text,type)=>{const url=URL.createObjectURL(new Blob([text],
 export default function DrawingWorkbench({project,report,pending,error,settings,update,NumberInput,StarterBoardDiagram,StockSheets,onSettings,onClassic}) {
   const {undo,redo,canUndo,canRedo,commit}=useProject();
   const root=useRef(null),title=useRef(null);
+  const threeControls=useRef(null);
   const [category,setCategory]=useState('walls'),[surfaceId,setSurfaceId]=useState(''),[view,setView]=useState('drawing');
   const [layers,setLayers]=useState(defaultLayers),[showLayers,setShowLayers]=useState(false),[mode,setMode]=useState('combined');
   const [selection,setSelection]=useState([]),[bottom,setBottom]=useState('production'),[expanded,setExpanded]=useState(true);
@@ -66,6 +68,7 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
   const go=(next,id='')=>{setCategory(next);setSurfaceId(id);setSelection([]);setView('drawing');setTool('select');setEditedLabel(null);};
   const select=id=>{const pg=panelGroups.find(g=>g.instances.includes(id)),mg=memberGroups.find(g=>g.instances.some(m=>m.id===id));setSelection(pg?pg.instances:mg?mg.instances.map(m=>m.id):[id]);setExpanded(true);};
   const selectLabel=label=>{if(label.key.startsWith('panel:'))select(label.key.slice(6));setEditedLabel({...label,viewKey});};
+  const select3D=id=>{const item=report.parts.find(p=>p.id===id)||report.members.find(m=>m.id===id),s=item&&report.surfaces.find(s=>s.id===item.surfaceId);if(s){const keep=view==='model3d';go(drawingCategory(s),s.id);if(keep)setView('model3d');}setSelection([id]);};
   const openWall=id=>{const s=report.surfaces.find(s=>s.id===id);if(s){go(drawingCategory(s),id);setBottom('properties');setExpanded(true);}};
   useEffect(()=>{const cleanup=()=>{document.body.classList.remove('print-production');if(title.current!==null){document.title=title.current;title.current=null;}setPrinting(null);};window.addEventListener('afterprint',cleanup);return()=>{window.removeEventListener('afterprint',cleanup);document.body.classList.remove('print-production');if(title.current!==null)document.title=title.current;};},[]);
   const print=(ids,current=false,detail=false)=>{
@@ -109,16 +112,16 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     <ProductionIdentityInfo report={report}/>
     <div className="drawing-navigation"><label>Конструкция<select aria-label="Раздел чертежей" value={category} onChange={e=>go(e.target.value)}>{categories.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
       {candidates.length?<><button aria-label="Предыдущая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)-1+candidates.length)%candidates.length].id)}><ChevronLeft size={18}/></button><select aria-label="Выбранная конструкция" value={surface.id} onChange={e=>{setSurfaceId(e.target.value);setSelection([]);}}>{candidates.map(s=><option key={s.id} value={s.id}>{s.name}{s.blocked?' · есть замечания':''}</option>)}</select><button aria-label="Следующая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)+1)%candidates.length].id)}><ChevronRight size={18}/></button></>:null}
-      <button onClick={onSettings}><Settings2 size={16}/>Настройки</button><button disabled={pending} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button><button onClick={()=>go('sheets')}>Альбом</button>
+      <button onClick={onSettings}><Settings2 size={16}/>Настройки</button><button disabled={pending||view==='model3d'} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button><button onClick={()=>go('sheets')}>Альбом</button>
     </div>
     <div className="drawing-tools" role="toolbar" aria-label="Инструменты чертежа">
       {category==='roof'?<><button aria-pressed={view==='cover'} onClick={()=>setView('cover')}>Листы покрытия</button><button aria-pressed={view==='overlay'} onClick={()=>setView('overlay')}>Совмещённые слои</button></>:null}
       {drawing&&view==='drawing'&&dimensions.length?<button onClick={()=>saveDimensions([])}>Убрать ручные размеры</button>:null}
       <button disabled={!canUndo||pending} onClick={undo} aria-label="Отменить"><Undo2 size={17}/></button><button disabled={!canRedo||pending} onClick={redo} aria-label="Повторить"><Redo2 size={17}/></button>
       {detailPages.length?<button disabled={pending} onClick={()=>print(null,false,true)}>Печать детали ×{selection.length}</button>:null}
-      {!['supports','sheets','starter','stock','nodes'].includes(category)&&!['edit','cover','overlay'].includes(view)?<><button onClick={()=>exportDrawing(false)}>Скачать SVG</button><button onClick={()=>exportDrawing(true)}>Поделиться</button></>:null}
-      <button onClick={()=>setZoom(Math.max(.5,zoom/1.25))} aria-label="Уменьшить"><ZoomOut size={17}/></button><span>{Math.round(zoom*100)}%</span><button onClick={()=>setZoom(Math.min(4,zoom*1.25))} aria-label="Увеличить"><ZoomIn size={17}/></button><button onClick={resetView}>По размеру</button>
-      <button aria-expanded={showLayers} onClick={()=>setShowLayers(!showLayers)}><Layers size={17}/>Слои</button>
+      {!['supports','sheets','starter','stock','nodes'].includes(category)&&!['edit','cover','overlay','model3d'].includes(view)?<><button onClick={()=>exportDrawing(false)}>Скачать SVG</button><button onClick={()=>exportDrawing(true)}>Поделиться</button></>:null}
+      <button onClick={()=>view==='model3d'?threeControls.current?.zoom(1.25):setZoom(Math.max(.5,zoom/1.25))} aria-label="Уменьшить"><ZoomOut size={17}/></button><span>{view==='model3d'?'3D':Math.round(zoom*100)+'%'}</span><button onClick={()=>view==='model3d'?threeControls.current?.zoom(.8):setZoom(Math.min(4,zoom*1.25))} aria-label="Увеличить"><ZoomIn size={17}/></button><button onClick={()=>view==='model3d'?threeControls.current?.reset():resetView()}>По размеру</button>
+      {view!=='model3d'?<button aria-expanded={showLayers} onClick={()=>setShowLayers(!showLayers)}><Layers size={17}/>Слои</button>:null}
       {surface?.planStart?<button aria-pressed={view==='plan'} onClick={()=>setView(view==='plan'?'drawing':'plan')}>План сверху</button>:null}
       {category==='binding'||category==='roof'?<><button aria-pressed={view==='drawing'} onClick={()=>setView('drawing')}>Чертёж</button><button aria-pressed={view==='section'} onClick={()=>setView('section')}>Разрез</button>{category==='roof'?<><button aria-pressed={view==='3d'} onClick={()=>setView('3d')}>Объёмный вид</button><button aria-pressed={view==='edit'} onClick={()=>{setView('edit');setPan(false);}}>Разместить опоры</button></>:null}</>:null}
     </div>
@@ -135,9 +138,12 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     {category === 'binding' ? <BindingRuleCheck result={report.constructionRuleChecks?.bindingStraightSupport} value={settings.bindingJointToleranceMm} update={update} NumberInput={NumberInput} pending={pending}/> : null}
     <fieldset className={`drawing-content ${pending?'is-pending':''}`}>
       <div className="drawing-editor-grid">
-        <DrawingToolRail tool={pan?'pan':measure?'measure':labelTool?'labels':'select'} onTool={setTool} canMeasure={!!drawing&&view==='drawing'} pending={pending} onProperties={()=>{setBottom('properties');setExpanded(true);}} onSupports={()=>{go('supports');setView('edit');}}/>
-{['starter','stock'].includes(category)||category==='roof'&&view==='cover'?<div className="drawing-special-view">{scene()}</div>:category==='supports'||view==='edit'||category==='roof'&&view==='overlay'?<AssemblyPlan report={report} settings={settings} update={update} NumberInput={NumberInput} compact/>:<div className="drawing-stage"><DrawingViewport key={`${viewKey}:${fit}`} zoom={zoom} pan={pan} onZoom={setZoom} offset={offsets[viewKey]||[0,0]} onOffset={offset=>setOffsets(old=>({...old,[viewKey]:offset}))}>{scene()}</DrawingViewport></div>}
+        <DrawingToolRail tool={pan?'pan':measure?'measure':labelTool?'labels':'select'} onTool={setTool} canMeasure={!!drawing&&view==='drawing'} pending={pending} onProperties={()=>{setBottom('properties');setExpanded(true);}} onSupports={()=>{go('supports');setView('edit');}} on3D={()=>{setTool('select');setView(view==='model3d'?'drawing':'model3d');}} is3D={view==='model3d'}/>
+{view==='model3d'?<Suspense fallback={<p role="status">Загружаю 3D…</p>}><ProductionHouse3D report={report} project={project} selected={selection} onSelect={select3D} controlsRef={threeControls} pan={pan} large/></Suspense>:
+['starter','stock'].includes(category)||category==='roof'&&view==='cover'?<div className="drawing-special-view">{scene()}</div>:category==='supports'||view==='edit'||category==='roof'&&view==='overlay'?<AssemblyPlan report={report} settings={settings} update={update} NumberInput={NumberInput} compact/>:<div className="drawing-stage"><DrawingViewport key={`${viewKey}:${fit}`} zoom={zoom} pan={pan} onZoom={setZoom} offset={offsets[viewKey]||[0,0]} onOffset={offset=>setOffsets(old=>({...old,[viewKey]:offset}))}>{scene()}</DrawingViewport></div>
+}
       <aside className="drawing-inspector" aria-label="Свойства рабочего поля">
+        {view!=='model3d'?<Suspense fallback={<p role="status">Загружаю 3D…</p>}><ProductionHouse3D report={report} project={project} selected={selection} onSelect={select3D} onExpand={()=>{setView('model3d');setTool('select');}}/></Suspense>:null}
         <h2>{chosenPanel||chosenMember?'Выбранная деталь':'Конструкция'}</h2>
         <strong>{chosenPanel?mark(chosenPanel):chosenMember?mark(chosenMember):currentTitle}</strong>
         {chosenPanel?<><p>SIP {chosenPanel.thickness} мм</p><p>{fmt(chosenPanel.width)} × {fmt(chosenPanel.height)} мм</p><p>Одинаковых: ×{selection.length}</p></>:chosenMember?<><p>{chosenMember.material} · {chosenMember.profile} мм</p><p>Длина {fmt(chosenMember.length)} мм · ×{selection.length}</p></>:surface?<><p>{fmt(surface.width)} × {fmt(surface.height)} мм</p><p>{surface.frameOnly?'Каркас':'SIP '+surface.thickness+' мм'} · {drawing?.parts.length||0} панелей</p></>:<p>Выберите элемент на чертеже.</p>}

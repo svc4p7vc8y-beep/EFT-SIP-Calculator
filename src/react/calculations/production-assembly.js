@@ -154,6 +154,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   assembly.roofDrawing=roofDrawingData(assembly,roof,project.settings.roof,settings.rafterGeometry);
   issues.push(...assembly.roofDrawing.warnings);
   assembly.roofShape=roof.mainRoofShape;
+  assembly.roofGeometry=g;
   assembly.rafterSystem=frame.system;
   return assembly;
 }

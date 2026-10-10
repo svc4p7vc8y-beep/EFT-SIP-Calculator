@@ -113,7 +113,7 @@ test('production report evaluates actual binding endpoints and preserves materia
   assert.deepEqual(p.plan, plan);
 });
 
-test('blank diagnostic parameter retains current model revision; v210 gable fabrication and project values require fresh review', () => {
+test('blank diagnostic parameter retains current model revision; v211 aligned gables and braces require fresh review', () => {
   const p = createDefaultProject();
   Object.assign(p.settings.productionCutting, { kerfMm: 3, endAllowanceMm: 0 });
   const calculation = calculateProject(p), report = calculateProductionCutting(p, calculation);
@@ -127,7 +127,7 @@ test('blank diagnostic parameter retains current model revision; v210 gable fabr
     services: p.services, formulas: p.settings.formulas, roof: p.settings.roof, settings: oldSettings,
     nodes: p.nodes, construction: p.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   assert.notEqual(report.revision, oldRevision); // v209 changes fabrication lengths, invalidating older approvals.
-  const currentRevision = cuttingRevision({ fabricationModel:210, plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
+  const currentRevision = cuttingRevision({ fabricationModel:211, plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
     services:p.services, formulas:p.settings.formulas, roof:p.settings.roof, settings:oldSettings,
     nodes:p.nodes, construction:p.construction, estimate:calculation.lines, reviewer:approval.reviewer||'', nodeRef:approval.nodeRef||'' });
   assert.equal(report.revision,currentRevision);

@@ -1,6 +1,6 @@
 // Geometric framing proposal. Header capacity, bracing and connections require project nodes.
 import clipping from 'polygon-clipping';
-import { braceFootprint, partitionNotches } from './partition-geometry.js';
+import { singleBevelBrace, partitionNotches } from './partition-geometry.js';
 
 export function partitionFrameMembers(surface,settings) {
   if(surface.blocked)return [];
@@ -46,10 +46,10 @@ export function partitionFrameMembers(surface,settings) {
       const targets=[...positions].filter(v=>side==='left'?v>x+t:v<x-t).sort((a,b)=>Math.abs(Math.abs(a-x)-(high-low))-Math.abs(Math.abs(b-x)-(high-low)));
       // Prefer the bottom stud nearest the 45-degree reference. Do not evade an
       // opening by manufacturing an almost vertical, ineffective short brace.
-      const target=targets[0];
-      if(target!=null&&!intersectsOpening(braceFootprint([x,high],[target,low],faceWidth,W,low,high))){
-        const outline=braceFootprint([x,high],[target,low],faceWidth,W,low,high),axis=Math.hypot(target-x,high-low),along=outline.map(([u,v])=>(u-x)*(target-x)/axis+(v-high)*(low-high)/axis),length=Math.ceil(Math.max(...along)-Math.min(...along));
-        add([x,high],[target,low],'Укосина перегородки',{profile:braceProfile,faceWidth,outline,length,cutLength:length+2*Number(settings.endAllowanceMm||0),role:'brace',reinforcement:true,notchDepthMm:settings.partitionBraceNotchDepthMm??'',processing:`Укосина ${braceProfile}; верхний ${side==='left'?'левый':'правый'} угол → нижняя стойка; торцы ${Math.round(Math.atan2(high-low,Math.abs(target-x))*180/Math.PI*10)/10}°; врезки и крепёж по рабочему узлу`});
+      const proposal=targets.map(target=>singleBevelBrace(side,target,faceWidth,W,low,high)).find(Boolean);
+      if(proposal&&!intersectsOpening(proposal.outline)){
+        const {a,b,outline}=proposal,axis=Math.hypot(b[0]-a[0],high-low),along=outline.map(([u,v])=>(u-a[0])*(b[0]-a[0])/axis+(v-high)*(low-high)/axis),length=Math.ceil(Math.max(...along)-Math.min(...along));
+        add(a,b,'Укосина перегородки',{profile:braceProfile,faceWidth,outline,length,cutLength:length+2*Number(settings.endAllowanceMm||0),role:'brace',reinforcement:true,notchDepthMm:settings.partitionBraceNotchDepthMm??'',processing:`Укосина ${braceProfile}; верхний ${side==='left'?'левый':'правый'} угол → нижняя стойка; один плоский срез на каждом торце ${Math.round(Math.atan2(high-low,Math.abs(b[0]-a[0]))*180/Math.PI*10)/10}°; врезки и крепёж по рабочему узлу`});
         break; // One chosen direction; never a crossed pair in the same wall.
       }
     }

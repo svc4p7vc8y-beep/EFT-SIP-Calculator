@@ -39,6 +39,11 @@
 .drawing-inspector { padding:12px; border-left:1px solid #dae1dc; background:#fff; font-size:12px; overflow-wrap:anywhere; }
 .drawing-inspector h2 { font-size:14px; margin:0 0 12px; }.drawing-inspector h3 { font-size:12px; margin:16px 0 8px; }
 .drawing-inspector>strong { display:block; margin-bottom:8px; }
+.production-3d { min-width:0; color:#000; background:#fff; margin-bottom:12px; }
+.production-3d-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-bottom:6px; }.production-3d-toolbar strong { width:100%; font-size:12px; }.production-3d-toolbar button { min-height:28px; padding:4px 6px; font-size:10px; }
+.production-3d-canvas { height:180px; min-width:0; border:1px solid #dae1dc; touch-action:none; }.production-3d-canvas canvas { display:block; width:100%; height:100%; }
+.production-3d small { display:block; font-size:10px; line-height:1.45; padding:5px 0; }.production-3d-layers { display:flex; flex-wrap:wrap; gap:5px; font-size:11px; }.production-3d-layers label { display:flex; align-items:center; gap:3px; }
+.production-3d.is-large { padding:8px; margin:0; }.production-3d.is-large .production-3d-canvas { height:clamp(430px,58vh,760px); }.production-3d.is-large .production-3d-toolbar strong { width:auto; margin-right:auto; }
 .drawing-inspector p { margin:8px 0; line-height:1.5; }.drawing-inspector select { display:block; width:100%; padding:8px; margin-top:6px; border:1px solid #d4ddd7; background:#fff; }
 .drawing-inspector .drawing-wall-selector { width:100%; }.drawing-inspector .wall-navigator-viewport { height:150px; }
 .drawing-inspector .cut-fields { display:block; }.drawing-inspector input:not([type=checkbox]) { max-width:100%; }
