@@ -1,4 +1,5 @@
 import clipping from 'polygon-clipping';
+import { stairOpeningPolygon } from './stair-steps.js';
 
 export function normalizeFloorOpenings(source) {
   const ids=new Set();
@@ -22,7 +23,7 @@ export function replaceFloorOpening(plan,opening) {
   plan.floorOpening=plan.floorOpenings[0]?{...plan.floorOpenings[0]}:{x:0,y:0,width:0,length:0,direction:'right'};
 }
 export function floorOpeningSummary(plan,contour) {
-  const list=floorOpenings(plan),rects=list.filter(o=>['width','length'].every(k=>Number.isFinite(Number(o[k]))&&Number(o[k])>0)&&['x','y'].every(k=>Number.isFinite(Number(o[k]??0)))).map(o=>{const x=Number(o.x)||0,y=Number(o.y)||0,w=Number(o.width),h=Number(o.length);return [[[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]]];});
+  const list=floorOpenings(plan),rects=list.filter(o=>['width','length'].every(k=>Number.isFinite(Number(o[k]))&&Number(o[k])>0)&&['x','y'].every(k=>Number.isFinite(Number(o[k]??0)))).map(o=>{const ring=stairOpeningPolygon(o);return [[...ring,ring[0]]];});
   let geometry=rects.length?clipping.union(...rects):[];
   if(contour?.length&&geometry.length)geometry=clipping.intersection(geometry,[contour.map(p=>Array.isArray(p)?p:[p.x,p.y])]);
   let area=0,perimeter=0;

@@ -127,7 +127,7 @@ test('blank diagnostic parameter retains current model revision; v211 aligned ga
     services: p.services, formulas: p.settings.formulas, roof: p.settings.roof, settings: oldSettings,
     nodes: p.nodes, construction: p.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   assert.notEqual(report.revision, oldRevision); // v209 changes fabrication lengths, invalidating older approvals.
-  const currentRevision = cuttingRevision({ fabricationModel:211, plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
+  const currentRevision = cuttingRevision({ fabricationModel:212, plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
     services:p.services, formulas:p.settings.formulas, roof:p.settings.roof, settings:oldSettings,
     nodes:p.nodes, construction:p.construction, estimate:calculation.lines, reviewer:approval.reviewer||'', nodeRef:approval.nodeRef||'' });
   assert.equal(report.revision,currentRevision);

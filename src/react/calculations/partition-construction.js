@@ -35,9 +35,18 @@ export function partitionBacking(plan,a,b,segments=partitionSegments(plan)) {
     const t=((p.x-u.x)*dx+(p.y-u.y)*dy)/(l*l);
     const distance=Math.abs(dx*(p.y-u.y)-dy*(p.x-u.x))/l;
     const outer=contour.some((q,i)=>q===u&&contour[(i+1)%contour.length]===v);
-    return t>=-.001&&t<=1.001&&(outer?Math.abs(distance-(Number(plan.wallThickness)||.174))<.015:distance<.015||(plan.partitionJunctions==='butt'&&Math.abs(distance-partitionDepth(plan,u,v)/2)<.015));
+    return t>=-.001&&t<=1.001&&(outer?distance<.015||Math.abs(distance-(Number(plan.wallThickness)||.174))<.015:distance<.015||(plan.partitionJunctions==='butt'&&Math.abs(distance-partitionDepth(plan,u,v)/2)<.015));
   });
   return {startBacking:connects(a),endBacking:connects(b)};
+}
+export function partitionJunctionStuds(plan,a,b,segments=partitionSegments(plan)){
+  const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy);if(!l)return [];
+  const positions=[];
+  for(const [u,v]of segments){const cross=dx*(v.y-u.y)-dy*(v.x-u.x);if(Math.abs(cross)<.0001)continue;
+    for(const p of [u,v]){const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/(l*l),distance=Math.abs(dx*(p.y-a.y)-dy*(p.x-a.x))/l;
+      if(t>.001&&t<.999&&(distance<.015||plan.partitionJunctions==='butt'&&Math.abs(distance-partitionDepth(plan,a,b)/2)<.015))positions.push(Math.round(t*l*1000));}
+  }
+  return [...new Set(positions)];
 }
 // Shared with production: all=true returns the complete detailed frame;
 // all=false returns only the additions to the legacy allowance.
@@ -64,6 +73,7 @@ export function partitionReinforcements(project,plan,floor=1,all=false) {
     openings.push(...assigned.get(i));
     const id=`Э${floor}-ПГ${i+1}`,start=[a.x,a.y].map(v=>Math.round(v*1000)),end=[b.x,b.y].map(v=>Math.round(v*1000)),wallKey=`${id}@${start.join(',')}:${end.join(',')}`;
     const s={id,name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(bearing?.profile||localWallSettings(plan,a,b)?.frameProfile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
+    s.junctionStuds=partitionJunctionStuds(plan,a,b,segments);
     openings.filter(o=>o.gap).forEach(o=>o.height=s.height);
     if(!Number.isFinite(s.width)||!Number.isFinite(s.height)||blocked.has(i)||openings.some(o=>o.x< -1||o.x+o.width>s.width+1||!(o.width>0&&o.height>0)||o.sill===''||!Number.isFinite(Number(o.sill))||Number(o.sill)<0||Number(o.sill)+o.height>s.height+1))return;
     const rectangle=(x,y,w,h)=>[[[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]]];

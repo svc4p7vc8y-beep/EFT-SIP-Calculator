@@ -5,7 +5,7 @@ import DimensionChain from '../components/DrawingDimensions.jsx';
 import { surfaceDimensions } from '../calculations/drawing-dimensions.js';
 import { PartitionDrawingContents } from '../components/PartitionDrawing.jsx';
 import { boardFootprint } from '../calculations/partition-geometry.js';
-import { stairStepGeometry } from '../planner/stair-steps.js';
+import { stairStepGeometry, stairOpeningPolygon } from '../planner/stair-steps.js';
 import { panelLabelPoint } from '../calculations/drawing-labels.js';
 
 const path=shape=>shape.map(r=>r.map((p,i)=>`${i?'L':'M'}${p.join(',')}`).join(' ')+'Z').join(' ');
@@ -36,7 +36,7 @@ return <svg ref={svgRef} className={printable?"technical-drawing workbench-drawi
     </>}
     {!partition&&layers.panels&&layers.labels?parts.map(p=><g key={'label:'+p.id}>{label('panel:'+p.id,mark(p).replace(`${mark(surface.id)}-`,''),...panelLabelPoint(p))}</g>):null}
     {layers.labels?label('surface-title',surface.name,box.x+box.width/2,surface.horizontal?box.y-font*2:box.y+box.height+font*2):null}
-    {(surface.stairOpenings||[]).map(o=>{const x=o.x*1000,y=o.y*1000,w=o.width*1000,h=o.length*1000,steps=stairStepGeometry({x,y,width:w,height:h},o.direction,o.stepCount);return <g key={o.id} aria-label="Проём лестницы"><rect x={x} y={y} width={w} height={h} fill="none" stroke="#000" strokeWidth=".55" vectorEffect="non-scaling-stroke"/>{steps.treads.map((t,i)=><line key={i} {...t} stroke="#000" strokeWidth=".4" vectorEffect="non-scaling-stroke"/>)}<line {...steps.arrow} stroke="#000" vectorEffect="non-scaling-stroke"/><polygon points={steps.head} fill="#000"/>{layers.labels?label('stair:'+o.id,o.name||'Лестничный проём',x+w/2,y+h/2,font*.9):null}</g>;})}
+    {(surface.stairOpenings||[]).map(o=>{const x=o.x*1000,y=o.y*1000,w=o.width*1000,h=o.length*1000,steps=stairStepGeometry({x,y,width:w,height:h},o.direction,o.stepCount,o.stairType);return <g key={o.id} aria-label="Проём лестницы"><polygon points={stairOpeningPolygon(o).map(([x,y])=>`${x*1000},${y*1000}`).join(' ')} fill="none" stroke="#000" strokeWidth=".55" vectorEffect="non-scaling-stroke"/>{[...steps.treads,...(steps.landings||[])].map((t,i)=><line key={i} {...t} stroke="#000" strokeWidth=".4" vectorEffect="non-scaling-stroke"/>)}{steps.path?<polyline points={steps.path} fill="none" stroke="#000" vectorEffect="non-scaling-stroke"/>:<line {...steps.arrow} stroke="#000" vectorEffect="non-scaling-stroke"/>}<polygon points={steps.head} fill="#000"/>{layers.labels?label('stair:'+o.id,o.name||'Лестничный проём',x+w/2,y+h/2,font*.9):null}</g>;})}
     {[...dimensions,...(draft?[{...draft,id:'draft'}]:[])].map(d=><g key={d.id}><line x1={d.a[0]} y1={yy(d.a[1])} x2={d.b[0]} y2={yy(d.b[1])} stroke="#000" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/><text x={(d.a[0]+d.b[0])/2+(d.offset?.[0]||0)} y={yy((d.a[1]+d.b[1])/2+(d.offset?.[1]||0))-font*.4} fontSize={font} textAnchor="middle" onPointerDown={e=>{if(onLabelMove&&d.id!=='draft'&&!onPick){e.stopPropagation();e.preventDefault();labelDrag.current=d.id;svgRef.current.setPointerCapture(e.pointerId);}}}>{Math.round(Math.hypot(d.b[0]-d.a[0],d.b[1]-d.a[1]))} мм</text></g>)}
   </svg>;
 }

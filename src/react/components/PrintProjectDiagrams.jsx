@@ -1,5 +1,7 @@
 import { useId } from 'react';
-import { stairStepGeometry } from '../planner/stair-steps.js';
+import { stairStepGeometry, stairOpeningPolygon } from '../planner/stair-steps.js';
+import { floorOpeningSummary } from '../planner/floor-openings.js';
+import PlanLabelLeader from './PlanLabelLeader.jsx';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { calculateFoundation } from '../calculations/foundation-model.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
@@ -60,6 +62,7 @@ function planBounds(plan, options = {}, roof = {}) {
   }
   const points = [
     ...houseContourPoints(plan),
+    ...(options.showRooms===false?[]:[...(plan.rooms||[]),...(plan.floorOpenings||[]),...(plan.floorOpening?[plan.floorOpening]:[])].filter(o=>Number.isFinite(Number(o.labelX))&&Number.isFinite(Number(o.labelY))).map(o=>({x:Number(o.labelX),y:Number(o.labelY)}))),
     ...roofPoints,
     ...(options.showRooms === false ? [] : (plan.rooms || []).flatMap(roomPoints)),
     ...(options.showPlatforms === false ? [] : platforms.flatMap((item) => [
@@ -145,7 +148,7 @@ function PrintRoofTopLayer({ plan, roof = {}, p }) {
 export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSettings, floorOpening }) {
   const clearAreas=calculateClearAreas(plan);
   const wallClipId=useId().replace(/:/g,'');
-  const bounds = planBounds(plan, options, roofSettings);
+  const bounds = planBounds({...plan,floorOpenings:Array.isArray(floorOpening)?floorOpening:plan.floorOpenings,floorOpening:Array.isArray(floorOpening)?undefined:floorOpening||plan.floorOpening}, options, roofSettings);
   const scale = Math.min(
     (PLAN_VIEW.width - PLAN_VIEW.margin * 2) / Math.max(1, bounds.w),
     (PLAN_VIEW.height - PLAN_VIEW.margin * 2) / Math.max(1, bounds.h)
@@ -221,16 +224,18 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
       </g>;
     }) : null}
     {showRooms ? (plan.rooms || []).map((room) => { const points = roomPoints(room); const screen = points.map((point) => p(point.x, point.y)); const roomBounds = boundsOf(points); const center = p(Number.isFinite(Number(room.labelX)) ? Number(room.labelX) : roomBounds.x + roomBounds.w / 2, Number.isFinite(Number(room.labelY)) ? Number(room.labelY) : roomBounds.y + roomBounds.h / 2); const clearArea = clearAreas.rooms[room.id]?.clearArea; const titleSize = Math.max(8, (Number(room.labelFontSize) || 22) * .55); return <g key={room.id} className="print-room"><polygon points={screen.map((point) => `${point.x},${point.y}`).join(' ')} /><text className="room-title" style={{ fontSize:titleSize }} x={center.x} y={center.y - titleSize * 1.1}>{room.name}</text><text style={{fontSize:titleSize * .75}} x={center.x} y={center.y + titleSize * .2}>{formatNumber(roomBounds.w)} × {formatNumber(roomBounds.h)} м</text><text className="room-clear-area" style={{fontSize:titleSize}} x={center.x} y={center.y + titleSize * 1.45}>{clearArea != null ? `${formatNumber(clearArea,2)} м²` : 'Площадь уточнить'}</text></g>; }) : null}
+    {showRooms?(plan.rooms||[]).map(r=>{const ring=roomPoints(r),b=boundsOf(ring);return <PlanLabelLeader key={'leader:'+r.id} label={{x:r.labelX??b.x+b.w/2,y:r.labelY??b.y+b.h/2}} ring={ring} p={p}/>;}):null}
     {showRooms ? (plan.annotations || []).map(item => { const label = p(item.x, item.y); const target = p(item.targetX, item.targetY); return <g key={item.id} className="print-annotation">{item.showArrow !== false ? <line x1={label.x} y1={label.y + 4} x2={target.x} y2={target.y} markerEnd="url(#print-note-arrow)" /> : null}<text x={label.x} y={label.y} style={{ fontSize: Math.max(8, (Number(item.fontSize) || 18) * .55) }}>{item.text}</text></g>; }) : null}
     {showRooms ? sharedFloorOpenings.filter(o=>o.include!==false&&o.width>0&&o.length>0).map((sharedFloorOpening,i)=>{
-      const floorOpeningArea=sharedFloorOpening.width*sharedFloorOpening.length,floorOpeningStart=p(sharedFloorOpening.x,sharedFloorOpening.y),floorOpeningSteps=stairStepGeometry({x:floorOpeningStart.x,y:floorOpeningStart.y,width:sharedFloorOpening.width*scale,height:sharedFloorOpening.length*scale},sharedFloorOpening.direction,sharedFloorOpening.stepCount);
+      const floorOpeningArea=floorOpeningSummary({floorOpenings:[sharedFloorOpening]}).area,floorOpeningStart=p(sharedFloorOpening.x,sharedFloorOpening.y),floorOpeningSteps=stairStepGeometry({x:floorOpeningStart.x,y:floorOpeningStart.y,width:sharedFloorOpening.width*scale,height:sharedFloorOpening.length*scale},sharedFloorOpening.direction,sharedFloorOpening.stepCount,sharedFloorOpening.stairType),ring=stairOpeningPolygon(sharedFloorOpening),label={x:sharedFloorOpening.labelX??sharedFloorOpening.x+sharedFloorOpening.width/2,y:sharedFloorOpening.labelY??sharedFloorOpening.y+sharedFloorOpening.length/2},lp=p(label.x,label.y);
       return <g key={sharedFloorOpening.id||i} className="print-floor-opening" aria-label="Лестничный проём между этажами">
-      <rect x={floorOpeningStart.x} y={floorOpeningStart.y} width={sharedFloorOpening.width * scale} height={sharedFloorOpening.length * scale} />
-      {floorOpeningSteps.treads.map((tread, index) => <line key={index} {...tread} />)}
-      <line className="stair-direction-shaft" {...floorOpeningSteps.arrow} />
+      <polygon points={ring.map(([x,y])=>{const q=p(x,y);return `${q.x},${q.y}`;}).join(' ')} fill="none" stroke="#000"/>
+      {[...floorOpeningSteps.treads,...(floorOpeningSteps.landings||[])].map((tread, index) => <line key={index} {...tread} />)}
+      {floorOpeningSteps.path?<polyline className="stair-direction-shaft" points={floorOpeningSteps.path} fill="none" stroke="#000"/>:<line className="stair-direction-shaft" {...floorOpeningSteps.arrow} />}
       <polygon className="stair-direction-head" points={floorOpeningSteps.head} />
-      <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 - 4}>{sharedFloorOpening.name||'Лестничный проём'}</text>
-      <text x={floorOpeningStart.x + sharedFloorOpening.width * scale / 2} y={floorOpeningStart.y + sharedFloorOpening.length * scale / 2 + 12}>{formatNumber(floorOpeningArea)} м²</text>
+      <PlanLabelLeader label={label} ring={ring} p={p}/>
+      <text x={lp.x} y={lp.y-4}>{sharedFloorOpening.name||'Лестничный проём'}</text>
+      <text x={lp.x} y={lp.y+12}>{formatNumber(floorOpeningArea)} м²</text>
     </g>;}) : null}
     <defs><clipPath id={wallClipId}><polygon points={houseScreen.map(point=>`${point.x},${point.y}`).join(' ')}/></clipPath></defs>
     {showContour || options.showRoof ? <polygon className="print-outer-wall" clipPath={`url(#${wallClipId})`} style={{strokeWidth:2*(Number(plan.wallThickness)||.174)*scale}} points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}

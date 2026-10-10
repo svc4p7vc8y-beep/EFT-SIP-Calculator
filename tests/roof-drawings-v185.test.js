@@ -8,8 +8,8 @@ const run=p=>calculateProductionCutting(p,calculateProject(p));
 
 test('roof drawings preserve default quantities, estimate and project inputs',()=>{
  const p=createDefaultProject(),before=structuredClone(p),c=calculateProject(p),r=run(p);
- // v207 fixes missing partition backing: +0.12 m³ at the unchanged 26400 ₽/m³.
- assert.ok(Math.abs(c.totals.total-3745480.29248)<.001);assert.equal(r.assembly.rafters.length,30);assert.equal(r.assembly.laths.length,88);
+ // v212 additionally supplies missing T-junction studs: +0.12 m³ ×26400 ₽.
+ assert.ok(Math.abs(c.totals.total-3748648.29248)<.001);assert.equal(r.assembly.rafters.length,30);assert.equal(r.assembly.laths.length,88);
  assert.equal(r.assembly.roofDrawing.sections.length,2);assert.deepEqual(p,before);
  assert.equal(r.assembly.roofDrawing.warnings.length,0);
  for(const line of roofAxonometricLines(r.assembly)){const length=Math.hypot(...line.a.map((a,i)=>line.b[i]-a));assert.ok(Math.abs(length-r.assembly.rafters.find(r=>r.id===line.id).length)<1);}

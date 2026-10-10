@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
 import { roomBearingEdges } from '../calculations/bearing-walls.js';
 import { convertToWallLayout, rebuildWallRooms, addRoomWalls, wallDepth } from '../planner/wall-layout.js';
 import BearingRoomControls from './BearingRoomControls.jsx';
 import { normalizeTieredRoof } from '../calculations/tiered-roof.js';
-import { stairStepGeometry } from '../planner/stair-steps.js';
+import { stairStepGeometry, stairOpeningPolygon, STAIR_TYPES, normalizeStairType } from '../planner/stair-steps.js';
+import PlanLabelLeader from '../components/PlanLabelLeader.jsx';
 import { floorOpenings as getFloorOpenings, replaceFloorOpening, floorOpeningSummary } from '../planner/floor-openings.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { guideFromOuterWall, moveTemporaryGuide } from '../planner/temporary-guides.js';
@@ -197,6 +199,7 @@ function layoutFor(plan) {
     ...(plan.dimensions || []).flatMap(item => [{ x: item.x1, y: item.y1 }, { x: item.x2, y: item.y2 }]),
     ...(plan.annotations || []).flatMap(item => [{ x: item.x, y: item.y }, { x: item.targetX, y: item.targetY }]),
     ...(plan.rooms || []).filter(room => Number.isFinite(Number(room.labelX)) && Number.isFinite(Number(room.labelY))).map(room => ({ x: Number(room.labelX), y: Number(room.labelY) })),
+    ...getFloorOpenings(plan).filter(o=>Number.isFinite(Number(o.labelX))&&Number.isFinite(Number(o.labelY))).map(o=>({x:Number(o.labelX),y:Number(o.labelY)})),
   ];
   const bounds = extraPoints.reduce((result, point) => ({
     minX: Math.min(result.minX, Number(point.x) || 0),
@@ -1246,6 +1249,7 @@ function PlanCanvas({
   pileSettings,
   floorOpening,
   floorOpenings = [],
+  stairPreset = {},
   commitFloorOpening,
   roof,
   activeLayer = "plan",
@@ -1303,6 +1307,8 @@ function PlanCanvas({
     return () => svg.removeEventListener("wheel", handleWheel);
   }, [wheelZoomEnabled, viewportZoom, plan.zoom, onViewportZoom]);
   const shownPlan = useMemo(() => previewPlan(plan, gesture), [plan, gesture]);
+  const [labelLayer,setLabelLayer]=useState(null);
+  const foreground=node=>labelLayer?createPortal(node,labelLayer):node;
   const clearAreas=useMemo(()=>calculateClearAreas(shownPlan),[shownPlan]);
   const selectCreated = useCallback(
     (selection) => {
@@ -1321,8 +1327,8 @@ function PlanCanvas({
   // The viewport must stay fixed during a drag; otherwise an outside terrace
   // changes the fitted bounds and the object jumps away from the pointer.
   const layoutPlan = useMemo(
-    () => ({ ...plan, zoom: viewportZoom ?? plan.zoom }),
-    [plan, viewportZoom],
+    () => ({ ...plan, floorOpenings, zoom: viewportZoom ?? plan.zoom }),
+    [plan, floorOpenings, viewportZoom],
   );
   const layout = useMemo(() => {
     const base = layoutFor(layoutPlan);
@@ -1488,8 +1494,8 @@ function PlanCanvas({
       }
       if (tool !== "select") return;
       event.stopPropagation();
-      selectExisting({ type: "floorOpening", id });
-      begin(event, { kind: "move", type: "floorOpening", id });
+      selectExisting({ type: "floorOpening", id, part:extra.kind==='stairLabel'?'label':'body' });
+      begin(event, { kind: extra.kind||"move", type: "floorOpening", id });
       return;
     }
     if (tool === "delete") {
@@ -1803,6 +1809,7 @@ function PlanCanvas({
             const id=uid('stair');
             commitFloorOpening?.(fitFloorOpening({
               id,
+              ...stairPreset,
               direction:bounds.h>bounds.w?'down':'right',stepCount:12,
               x: bounds.x,
               y: bounds.y,
@@ -1883,6 +1890,10 @@ function PlanCanvas({
         selectCreated({ type: current.type, id });
       }
     } else if (current.type === "floorOpening") {
+      if(current.kind==='stairLabel'){
+        const opening=floorOpenings.find(o=>o.id===current.id);
+        if(opening)commitFloorOpening?.({...opening,labelX:roundCoord((opening.labelX??opening.x+opening.width/2)+finalGesture.end.x-finalGesture.start.x),labelY:roundCoord((opening.labelY??opening.y+opening.length/2)+finalGesture.end.y-finalGesture.start.y)});
+      }else{
       commitFloorOpening?.(
         fitFloorOpening(
           {
@@ -1893,6 +1904,7 @@ function PlanCanvas({
           plan.house,
         ),
       );
+      }
     } else {
       const next = previewPlan(plan, finalGesture);
       if (JSON.stringify(next) !== JSON.stringify(plan))
@@ -2241,13 +2253,14 @@ function PlanCanvas({
                     <polygon className="outer-wall outer-wall-texture extension-wall" points={screen.map((point) => `${point.x},${point.y}`).join(" ")} style={{ strokeWidth: outerWallWidth }} />
                   </>
                 ) : null}
+                {foreground(<><PlanLabelLeader label={{x:room.labelX??bounds.x+bounds.w/2,y:room.labelY??bounds.y+bounds.h/2}} ring={points} p={p}/>
                 <g className={`room-label-object ${selected?.type === "roomLabel" && selected.id === room.id ? "selected" : ""}`} onPointerDown={(event) => objectDown(event, "roomLabel", room.id)}>
                   <rect className="room-label-hit" x={labelCenter.x - roomLabelHitWidth / 2} y={labelCenter.y - roomLabelHitHeight / 2} width={roomLabelHitWidth} height={roomLabelHitHeight} rx="7" />
                   <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 1.7}>{room.name}</text>
                   <text className="room-dimensions" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y}>{dimensionsLabel}</text>
                   <text className="room-area" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y + roomLabelNameSize * 1.15}>{areaLabel}</text>
                   {room.ceilingMode === "open-rafter" ? <text className="room-ceiling-mode" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y + roomLabelNameSize * 2}>Второй свет</text> : null}
-                </g>
+                </g></>)}
                 {selectedNow
                   ? screen.map((point, index) => (
                       <circle
@@ -2280,31 +2293,34 @@ function PlanCanvas({
         </g>;
       }) : null}
       {visibleLayers.plan ? floorOpenings.map(opening=>{
-          const shownFloorOpening=gesture?.type==='floorOpening'&&gesture.id===opening.id?fitFloorOpening({...opening,x:opening.x+gesture.end.x-gesture.start.x,y:opening.y+gesture.end.y-gesture.start.y},plan.house):opening;
+          const moved=gesture?.type==='floorOpening'&&gesture.id===opening.id,dx=moved?gesture.end.x-gesture.start.x:0,dy=moved?gesture.end.y-gesture.start.y:0;
+          const shownFloorOpening=moved?(gesture.kind==='stairLabel'?{...opening,labelX:(opening.labelX??opening.x+opening.width/2)+dx,labelY:(opening.labelY??opening.y+opening.length/2)+dy}:fitFloorOpening({...opening,x:opening.x+dx,y:opening.y+dy},plan.house)):opening;
           const q = p(shownFloorOpening.x, shownFloorOpening.y);
           const width = shownFloorOpening.width * layout.scale;
           const height = shownFloorOpening.length * layout.scale;
           const selectedNow = selected?.type === "floorOpening"&&selected.id===opening.id;
-          const steps = stairStepGeometry({ x: q.x, y: q.y, width, height }, shownFloorOpening.direction,shownFloorOpening.stepCount);
+          const steps = stairStepGeometry({ x: q.x, y: q.y, width, height }, shownFloorOpening.direction,shownFloorOpening.stepCount,shownFloorOpening.stairType);
+          const ring=stairOpeningPolygon(shownFloorOpening),label={x:shownFloorOpening.labelX??shownFloorOpening.x+shownFloorOpening.width/2,y:shownFloorOpening.labelY??shownFloorOpening.y+shownFloorOpening.length/2},lp=p(label.x,label.y),font=Number(opening.labelFontSize)||18;
           return (
             <g
               key={opening.id}
               className={`planner-object stair-opening ${selectedNow ? "selected" : ""}`}
               aria-label="Лестничный проём между этажами"
-              onPointerDown={(event) =>
-                objectDown(event, "floorOpening", opening.id)
-              }
             >
-              <rect x={q.x} y={q.y} width={width} height={height} />
-              {steps.treads.map((tread, index) => <line key={index} {...tread} />)}
-              <line className="stair-direction-shaft" {...steps.arrow} />
+              <g onPointerDown={event=>objectDown(event,'floorOpening',opening.id)}><polygon className="stair-outline" points={ring.map(([x,y])=>{const z=p(x,y);return `${z.x},${z.y}`;}).join(' ')}/>
+              {steps.outline?<polygon className="stair-flight-outline" points={steps.outline.map(v=>v.join(',')).join(' ')}/>:null}
+              {[...steps.treads,...(steps.landings||[])].map((tread, index) => <line key={index} {...tread} />)}
+              {steps.path?<polyline className="stair-direction-shaft" points={steps.path}/>:<line className="stair-direction-shaft" {...steps.arrow} />}
               <polygon className="stair-direction-head" points={steps.head} />
-              <text x={q.x + width / 2} y={q.y + height / 2 - 5}>
+              </g>{foreground(<><PlanLabelLeader label={label} ring={ring} p={p}/>
+              <g className="room-label-object stair-label-object" data-opening-id={opening.id} onPointerDown={event=>objectDown(event,'floorOpening',opening.id,{kind:'stairLabel'})}><rect className="room-label-hit" x={lp.x-90} y={lp.y-font*1.8} width="180" height={font*3.4}/>
+              <text style={{fontSize:font}} x={lp.x} y={lp.y-font*.9}>
                 {opening.name||'Лестничный проём'}
               </text>
-              <text className="stair-opening-area" x={q.x + width / 2} y={q.y + height / 2 + 18}>
-                {formatNumber(shownFloorOpening.width)} × {formatNumber(shownFloorOpening.length)} м · {formatNumber(shownFloorOpening.width * shownFloorOpening.length)} м²
+              <text className="stair-opening-area" style={{fontSize:font*.75}} x={lp.x} y={lp.y}>
+                {formatNumber(shownFloorOpening.width)} × {formatNumber(shownFloorOpening.length)} м
               </text>
+              <text style={{fontSize:font}} x={lp.x} y={lp.y+font*1.15}>{formatNumber(floorOpeningSummary({floorOpenings:[shownFloorOpening]}).area)} м²</text></g></>)}
             </g>
           );
         }) : null}
@@ -2907,6 +2923,7 @@ function PlanCanvas({
             );
           })()
         : null}
+      <g ref={setLabelLayer} className="plan-label-foreground"/>
     </svg>
   );
 }
@@ -3191,6 +3208,8 @@ function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSel
   return (
     <div className="inspector-form">
       <h3>Лестничный проём</h3>
+      <label className="field">Форма лестницы<select aria-label="Форма лестницы" value={normalizeStairType(opening.stairType)} onChange={e=>update('stairType',e.target.value)}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="field">Контур выреза<select aria-label="Контур выреза" value={opening.contourMode||'rectangle'} onChange={e=>update('contourMode',e.target.value)}><option value="rectangle">Прямоугольный проём</option><option value="stair">По форме лестницы</option></select></label>
       <label className="field">Название проёма<input key={`${opening.id}:${opening.name||''}`} defaultValue={opening.name||'Лестничный проём'} onBlur={e=>{if(e.target.value!==opening.name)update('name',e.target.value.slice(0,100));}} /></label>
       <p className="inspector-note">
         Каждый проём показывается на первом и втором этажах. Он вычитается
@@ -3202,6 +3221,9 @@ function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSel
         <NumberField label="Ширина" value={opening.width} suffix="м" min={0.5} step={0.1} onChange={(value) => update("width", value)} />
         <NumberField label="Длина" value={opening.length} suffix="м" min={0.5} step={0.1} onChange={(value) => update("length", value)} />
         <NumberField label="Ступеней на схеме" value={opening.stepCount||12} min={1} max={60} step={1} onChange={value=>update('stepCount',value)} />
+        <NumberField label="Размер названия" value={opening.labelFontSize||18} min={10} max={64} step={1} onChange={value=>update('labelFontSize',value)} />
+        <NumberField label="X подписи" value={opening.labelX??opening.x+opening.width/2} min={-1000} step={.1} onChange={value=>update('labelX',value)} />
+        <NumberField label="Y подписи" value={opening.labelY??opening.y+opening.length/2} min={-1000} step={.1} onChange={value=>update('labelY',value)} />
       </div>
       <p className="inspector-note">Ступени показаны схематично. Высота подъёма, проступь и безопасность лестницы определяются отдельным проектом.</p>
       <div className="door-orientation-field">
@@ -3214,7 +3236,7 @@ function FloorOpeningInspector({ floorOpening, house, commitFloorOpening, setSel
       </div>
       <div className="readout">
         <span>Площадь на каждом плане</span>
-        <strong>{formatNumber(opening.width * opening.length)} м²</strong>
+        <strong>{formatNumber(floorOpeningSummary({floorOpenings:[opening]}).area)} м²</strong>
       </div>
       <button
         className="button danger-button"
@@ -4916,6 +4938,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
 export default function PlanScreen({ onNavigate }) {
   const { project, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
+  const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
   const [activeFloor, setActiveFloor] = useState(1);
   const [activeLayer, setActiveLayer] = useState("plan");
   const [selected, setSelected] = useState(null);
@@ -4987,10 +5010,10 @@ export default function PlanScreen({ onNavigate }) {
       commit((next) => {
         ensureProjectFloorCount(next, 2);
         const upperPlan = next.upperFloors[0];
-        const previous = fitFloorOpening(upperPlan.floorOpening, upperPlan.house);
+        const previous = fitFloorOpening(getFloorOpenings(upperPlan).find(o=>o.id===opening.id), upperPlan.house);
         const fitted = fitFloorOpening(opening, upperPlan.house);
         replaceFloorOpening(upperPlan,fitted);
-        if (["x", "y", "width", "length"].some((key) => previous[key] !== fitted[key]))
+        if (["x", "y", "width", "length", "contourMode"].some((key) => previous[key] !== fitted[key])||(fitted.contourMode==='stair'&&['stairType','direction'].some(key=>previous[key]!==fitted[key])))
           releasePlanLinkedQuantityOverrides(next);
         return next;
       }),
@@ -5603,8 +5626,7 @@ export default function PlanScreen({ onNavigate }) {
         if (selected.type === "floorOpening") {
           commitFloorOpening({
             ...floorOpening,
-            x: (Number(floorOpening?.x) || 0) + dx,
-            y: (Number(floorOpening?.y) || 0) + dy,
+            ...(selected.part==='label'?{labelX:roundCoord((floorOpening.labelX??floorOpening.x+floorOpening.width/2)+dx),labelY:roundCoord((floorOpening.labelY??floorOpening.y+floorOpening.length/2)+dy)}:{x:(Number(floorOpening?.x)||0)+dx,y:(Number(floorOpening?.y)||0)+dy}),
           });
           return;
         }
@@ -5856,7 +5878,9 @@ export default function PlanScreen({ onNavigate }) {
         </div>
       </aside>
       <div className="mobile-plan-stage">
+        {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
         <PlanCanvas
+          stairPreset={stairPreset}
           floorKey={activeFloor}
           plan={plan}
           pileSettings={project.settings.piles}
@@ -6364,7 +6388,9 @@ export default function PlanScreen({ onNavigate }) {
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
           </div>
+          {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
+            stairPreset={stairPreset}
             pileSettings={project.settings.piles}
             floorKey={activeFloor}
             plan={plan}

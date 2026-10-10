@@ -5775,6 +5775,12 @@ select,
 .stair-opening {
   cursor: move;
 }
+.stair-opening .stair-outline { fill:rgba(255,247,218,.94); stroke:#000; stroke-width:1.2; vector-effect:non-scaling-stroke; }
+.stair-opening .stair-flight-outline { fill:none; stroke:#000; stroke-width:.8; vector-effect:non-scaling-stroke; }
+.stair-opening .stair-direction-shaft { fill:none; stroke:#000; stroke-width:1.2; vector-effect:non-scaling-stroke; }
+.stair-opening.selected .stair-outline { stroke:#138447; stroke-width:2; }
+.stair-opening .room-label-hit { fill:transparent; stroke:transparent; stroke-dasharray:none; }
+.stair-label-object text { text-anchor:middle; fill:#000; font-weight:800; }
 .stair-opening rect {
   fill: rgba(255, 247, 218, 0.94);
   stroke: #9b6b19;

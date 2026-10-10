@@ -17,9 +17,9 @@ test('layered roof prices two 100×50 ridge rows and their installation without 
   const hanging = roofCase('hanging');
   const layered = roofCase('layered');
   const byId = id => layered.lines.find(line => line.id === `roof:${id}`);
-  // v207: exterior-face backing adds 0.12 m³ × 26400 ₽, independently of roof type.
-  assert.equal(hanging.totals.total, 3745480.2924800003);
-  assert.equal(layered.totals.total, 3757882.2924800003);
+  // v212: T-junction studs add 0.12 m³ ×26400 ₽ independently of roof type.
+  assert.equal(hanging.totals.total, 3748648.2924800003);
+  assert.equal(layered.totals.total, 3761050.2924800003);
   assert.ok(layered.totals.total > hanging.totals.total);
   assert.equal(layered.roof.rafterBoardCount, 41);
   assert.equal(layered.roof.layeredRidgeBoardCount, 4);

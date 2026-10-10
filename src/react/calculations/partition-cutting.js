@@ -19,11 +19,19 @@ export function partitionFrameMembers(surface,settings) {
     if(Number(o.sill)>0)add([o.x,Number(o.sill)-t/2],[o.x+o.width,Number(o.sill)-t/2],'Подоконная доска');
     if(Number(o.sill)+o.height<H-layers*t)add([o.x,Number(o.sill)+o.height+t/2],[o.x+o.width,Number(o.sill)+o.height+t/2],'Перемычка проёма · сечение проверить');}
   const jambs=holes.flatMap(o=>[o.x-t/2,o.x+o.width+t/2]);
+  const junctions=new Set();
+  for(const x of surface.junctionStuds||[])if(x>=t/2&&x<=W-t/2&&!holes.some(o=>x+t/2>o.x&&x-t/2<o.x+o.width)){
+    // A coincident existing stud already carries the junction. Do not count
+    // another board, but place a real stud at a previously unsupported T.
+    const near=[...positions].find(v=>Math.abs(v-x)<t-.01);
+    if(near==null){positions.add(x);junctions.add(x);}
+    else if(near!==t/2&&near!==W-t/2&&!jambs.some(j=>Math.abs(j-near)<.01)){positions.delete(near);positions.add(x);}
+  }
   for(const x of [...positions].sort((a,b)=>a-b)){
     if(x<t/2-.01||x>W-t/2+.01)continue;
     if(jambs.some(j=>Math.abs(j-x)<t-.01)&&!jambs.some(j=>Math.abs(j-x)<.01))continue;
     const opening=holes.find(o=>x+t/2>o.x+.01&&x-t/2<o.x+o.width-.01);
-    if(!opening)add([x,t],[x,H-layers*t],'Стойка перегородки');
+    if(!opening)add([x,t],[x,H-layers*t],'Стойка перегородки',junctions.has(x)?{reinforcement:true,junction:true,processing:'Стойка принимающей перегородки в Т-примыкании; крепёж по узлу'}:{});
     else {if(Number(opening.sill)>2*t)add([x,t],[x,Number(opening.sill)-t],'Стойка под окном');const top=Number(opening.sill)+opening.height+t;if(top<H-layers*t)add([x,top],[x,H-layers*t],'Стойка над проёмом');}
   }
   const depth=Number(profile.split(/[×xх]/)[1]);
