@@ -11,6 +11,22 @@ import { projectOnSupport } from '../src/react/calculations/assembly-placement.j
 import { snapAssemblyPoint } from '../src/react/calculations/roof-drawings.js';
 const base=()=>{const p=createDefaultProject();p.plan={...p.plan,house:{w:5,h:4},wallHeight:2.5,rooms:[],walls:[],openings:[],wallGaps:[],platforms:[]};return p;};
 const run=p=>calculateProductionCutting(p,calculateProject(p));
+test('SIP gables retain clipped panel polygons and appear in combined wall views',()=>{
+ const p=base();p.settings.roof.gableType='sip';const r=run(p);
+ const gs=r.surfaces.filter(s=>s.id.startsWith('ФР-'));assert.equal(gs.length,2);
+ for(const g of gs){assert.equal(g.frameOnly,false);const panels=r.parts.filter(part=>part.surfaceId===g.id);assert.ok(panels.length>0);assert.ok(panels.every(part=>part.shape?.length&&Number(part.thickness)===Number(p.settings.sip.wallThickness)));const link=gableLinks(r).find(l=>l.gable.id===g.id);assert.ok(combinedWall(r,link.wall,gableLinks(r),'combined').parts.some(part=>part.surfaceId===g.id));}
+ assert.equal(migrateProject(JSON.parse(JSON.stringify(p))).settings.roof.gableType,'sip');
+});
+test('combined roof gable end materials agree with estimate and respect automatic defaults',()=>{
+ for(const sides of [{first:'sip',second:'frame'},{first:'frame',second:'sip'},{first:'auto',second:'auto'}]){
+ const p=base();p.settings.roof.type='combo';p.settings.roof.gableType='cold';p.settings.roof.gableSideTypes=sides;const r=run(p);
+ for(const [index,key] of ['first','second'].entries()){const g=r.surfaces.find(s=>s.id===`ФР-${index+1}`);assert.equal(g.frameOnly,sides[key]!=='sip');assert.equal(r.parts.some(part=>part.surfaceId===g.id),sides[key]==='sip');}
+ }
+});
+test('cold and excluded gables are not silently converted to SIP',()=>{
+ const p=base();p.settings.roof.gableType='cold';let r=run(p);assert.ok(r.surfaces.filter(s=>s.id.startsWith('ФР-')).every(s=>s.frameOnly));assert.equal(r.parts.some(part=>part.surfaceId.startsWith('ФР-')),false);
+ p.settings.roof.gableType='none';r=run(p);assert.equal(r.surfaces.some(s=>s.id.startsWith('ФР-')),false);
+});
 test('post placement projects onto beam and interpolates height without changing source',()=>{
  const b={a:[0,0,2500],b:[4000,0,3500]};assert.deepEqual(projectOnSupport(b,2000,120),{x:2000,y:0,z:3000,t:.5});assert.equal(projectOnSupport(b,6000,0).x,4000);assert.equal(b.a[2],2500);
 });

@@ -32,6 +32,21 @@
 .wall-navigator-transform .workbench-drawing { height:100%; min-height:0; }
 .drawing-surface-properties dl { display:grid; grid-template-columns:minmax(110px,1fr) 2fr; gap:7px 12px; }
 .drawing-surface-properties dt { color:#000; }.drawing-surface-properties dd { margin:0; font-weight:600; }
+.drawing-editor-grid { display:grid; grid-template-columns:76px minmax(0,1fr) 210px; border:1px solid #dae1dc; border-radius:5px; overflow:hidden; align-items:stretch; }
+.drawing-editor-grid>* { min-width:0; }
+.drawing-tool-rail { display:flex; flex-direction:column; gap:5px; padding:7px; border-right:1px solid #dae1dc; background:#f5f8f5; }
+.drawing-tool-rail button { flex-direction:column; padding:8px 2px; font-size:10px; min-height:58px; gap:5px; }
+.drawing-inspector { padding:12px; border-left:1px solid #dae1dc; background:#fff; font-size:12px; overflow-wrap:anywhere; }
+.drawing-inspector h2 { font-size:14px; margin:0 0 12px; }.drawing-inspector h3 { font-size:12px; margin:16px 0 8px; }
+.drawing-inspector>strong { display:block; margin-bottom:8px; }
+.drawing-inspector p { margin:8px 0; line-height:1.5; }.drawing-inspector select { display:block; width:100%; padding:8px; margin-top:6px; border:1px solid #d4ddd7; background:#fff; }
+.drawing-inspector .drawing-wall-selector { width:100%; }.drawing-inspector .wall-navigator-viewport { height:150px; }
+.drawing-inspector .cut-fields { display:block; }.drawing-inspector input:not([type=checkbox]) { max-width:100%; }
+.drawing-tool-hint { border-top:1px solid #dae1dc; padding-top:10px; }
+.drawing-editor-grid .drawing-viewport { height:clamp(430px,58vh,760px); }
+.drawing-editor-grid>.cut-assembly { overflow:auto; }
+@media(max-width:1100px) { .drawing-editor-grid { grid-template-columns:68px minmax(0,1fr); }.drawing-inspector { grid-column:1/-1; border-left:0; border-top:1px solid #dae1dc; }.drawing-inspector .drawing-wall-selector { max-width:280px; }.drawing-inspector>p { display:inline-block; margin-right:14px; } }
+@media(max-width:700px) { .drawing-editor-grid { grid-template-columns:minmax(0,1fr); }.drawing-tool-rail { flex-direction:row; overflow-x:auto; border-right:0; border-bottom:1px solid #dae1dc; }.drawing-tool-rail button { min-width:64px; flex-shrink:0; }.drawing-editor-grid .drawing-viewport { height:400px; }.drawing-inspector { grid-column:1; }.drawing-inspector .drawing-wall-selector { width:100%; } }
 @media(max-width:700px) { .drawing-scene-grid { grid-template-columns:minmax(0,1fr); }.drawing-wall-selector { width:65%; justify-self:end; }.wall-navigator-viewport { height:160px; } }
 @media(max-width:700px){.drawing-workbench { padding:10px!important; }.drawing-navigation label { width:100%; }.drawing-navigation select { flex:1; }.drawing-tools button { min-height:40px; padding:7px; }.drawing-viewport { height:360px; }.drawing-header h1 { font-size:19px; }.drawing-status { align-items:flex-start; }.drawing-stage .drawing-locator { width:85px; height:65px; }.drawing-bottom-content { max-height:280px; }.drawing-bottom-tabs button { flex:1 1 auto; }.drawing-preview .album-columns { grid-template-columns:1fr; }.drawing-preview footer { grid-template-columns:1fr 1fr; }}
 @media(max-width:700px){

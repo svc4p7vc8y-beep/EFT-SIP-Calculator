@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { Printer, Settings2, Maximize, Minimize, MousePointer2, Hand, ZoomIn, ZoomOut, Undo2, Redo2, Layers, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Printer, Settings2, Maximize, Minimize, ZoomIn, ZoomOut, Undo2, Redo2, Layers, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { groupPanels, groupMembers } from '../calculations/production-cutting.js';
 import WallPanelPlan from './WallPanelPlan.jsx';
@@ -21,6 +21,7 @@ import ProductionIdentityInfo, {ConstructionSourceInfo} from './ProductionIdenti
 import ConstructionSourcePicker from './ConstructionSourcePicker.jsx';
 import SourceChangesInfo from './SourceChangesInfo.jsx';
 import CeilingSupportChecks from './CeilingSupportChecks.jsx';
+import DrawingToolRail from './DrawingToolRail.jsx';
 
 const categories=[['overview','Дом'],['piles','Свайное поле'],['binding','Обвязка'],['floor','Пол'],['walls','Стены'],['partitions','Перегородки'],['ceiling','Потолок'],['gables','Фронтоны'],['roof','Крыша'],['supports','Опоры'],['starter','Стартовая доска'],['nodes','Узлы и детали'],['stock','Карты раскроя'],['sheets','Листы альбома']];
 const defaultLayers={panels:true,frame:true,dimensions:true,labels:true};
@@ -28,7 +29,7 @@ const fmt=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format
 const download=(name,text,type)=>{const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 
 export default function DrawingWorkbench({project,report,pending,error,settings,update,NumberInput,StarterBoardDiagram,StockSheets,onSettings,onClassic}) {
-  const {undo,redo,canUndo,canRedo}=useProject();
+  const {undo,redo,canUndo,canRedo,commit}=useProject();
   const root=useRef(null),title=useRef(null);
   const [category,setCategory]=useState('walls'),[surfaceId,setSurfaceId]=useState(''),[view,setView]=useState('drawing');
   const [layers,setLayers]=useState(defaultLayers),[showLayers,setShowLayers]=useState(false),[mode,setMode]=useState('combined');
@@ -40,6 +41,9 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
   const [offsets,setOffsets]=useState({});
   const [groupAll,setGroupAll]=useState(true);
   const [editedLabel,setEditedLabel]=useState(null);
+  const [labelTool,setLabelTool]=useState(false);
+  const setTool=tool=>{setPan(tool==='pan');setMeasure(tool==='measure');setLabelTool(tool==='labels');setMeasureStart(null);setMeasureCursor(null);if(tool==='labels')setLayers(old=>({...old,labels:true}));};
+  useEffect(()=>{const escape=e=>{if(e.key==='Escape'){setTool('select');setEditedLabel(null);}};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape);},[]);
   const pages=useMemo(()=>report?buildMountingPages(report):[],[report]);
   const links=useMemo(()=>report?gableLinks(report,settings.gableLinks):[],[report,settings.gableLinks]);
   const candidates=report?.surfaces.filter(s=>category==='nodes'||drawingCategory(s)===category)||[];
@@ -59,8 +63,9 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
   const purchases=useMemo(()=>report?purchaseRows(report):[],[report]);
   const chosenMember=report?.members.find(m=>selection.includes(m.id));
   const chosenPanel=report?.parts.find(p=>selection.includes(p.id));
-  const go=(next,id='')=>{setCategory(next);setSurfaceId(id);setSelection([]);setView('drawing');setPan(false);setMeasure(false);setMeasureStart(null);setMeasureCursor(null);};
+  const go=(next,id='')=>{setCategory(next);setSurfaceId(id);setSelection([]);setView('drawing');setTool('select');setEditedLabel(null);};
   const select=id=>{const pg=panelGroups.find(g=>g.instances.includes(id)),mg=memberGroups.find(g=>g.instances.some(m=>m.id===id));setSelection(pg?pg.instances:mg?mg.instances.map(m=>m.id):[id]);setExpanded(true);};
+  const selectLabel=label=>{if(label.key.startsWith('panel:'))select(label.key.slice(6));setEditedLabel({...label,viewKey});};
   const openWall=id=>{const s=report.surfaces.find(s=>s.id===id);if(s){go(drawingCategory(s),id);setBottom('properties');setExpanded(true);}};
   useEffect(()=>{const cleanup=()=>{document.body.classList.remove('print-production');if(title.current!==null){document.title=title.current;title.current=null;}setPrinting(null);};window.addEventListener('afterprint',cleanup);return()=>{window.removeEventListener('afterprint',cleanup);document.body.classList.remove('print-production');if(title.current!==null)document.title=title.current;};},[]);
   const print=(ids,current=false,detail=false)=>{
@@ -92,7 +97,7 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     if(category==='supports')return <AssemblyCanvas assembly={report.assembly}/>;
     if(category==='binding')return view==='section'?<BindingSection assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} kind="binding" layers={layers}/>;
     if(category==='roof'&&(view!=='drawing'||!surface))return view==='cover'?<RoofCoverTool report={report} settings={settings} update={update} NumberInput={NumberInput}/>:view==='section'?<RoofSection assembly={report.assembly}/>:view==='3d'?<RoofPerspective assembly={report.assembly} yaw={yaw}/>:view==='overlay'?<AssemblyCanvas assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} selected={selection} onSelect={select} layers={layers}/>;
-    if(drawing)return <DrawingCanvas {...drawing} layers={layers} selected={selection} onSelect={select} fontScale={fontScale} dimensions={dimensions} labelOverrides={labels} onTextSelect={label=>setEditedLabel({...label,viewKey})} onTextMove={(key,offset)=>saveLabel(key,{offset})} draft={measureStart&&measureCursor?{a:measureStart,b:measureCursor}:null} onPick={measure?measurePick:null} onHover={measureStart?setMeasureCursor:null} onLabelMove={(id,offset)=>saveDimensions(dimensions.map(d=>d.id===id?{...d,offset}:d))}/>;
+    if(drawing)return <DrawingCanvas {...drawing} layers={layers} selected={selection} onSelect={labelTool?undefined:select} fontScale={fontScale} dimensions={dimensions} labelOverrides={labels} onTextSelect={selectLabel} onTextMove={(key,offset)=>saveLabel(key,{offset})} draft={measureStart&&measureCursor?{a:measureStart,b:measureCursor}:null} onPick={measure?measurePick:null} onHover={measureStart?setMeasureCursor:null} onLabelMove={(id,offset)=>saveDimensions(dimensions.map(d=>d.id===id?{...d,offset}:d))}/>;
     return <p className="cut-empty">Для этой конструкции нет деталей. Проверьте включение раздела в параметрах проекта.</p>;
   };
   if(!report)return <section className="screen cutting-screen"><h1>Чертежи и сборка</h1><p role="status">{error||'Подготавливаю геометрию и ведомости…'}</p></section>;
@@ -107,9 +112,8 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
       <button onClick={onSettings}><Settings2 size={16}/>Настройки</button><button disabled={pending} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button><button onClick={()=>go('sheets')}>Альбом</button>
     </div>
     <div className="drawing-tools" role="toolbar" aria-label="Инструменты чертежа">
-      <button aria-pressed={!pan} onClick={()=>{setPan(false);setMeasure(false);setMeasureStart(null);setMeasureCursor(null);}}><MousePointer2 size={17}/>Выбор</button><button aria-pressed={pan} onClick={()=>{setPan(true);setMeasure(false);setMeasureStart(null);setMeasureCursor(null);}}><Hand size={17}/>Перемещение</button>
       {category==='roof'?<><button aria-pressed={view==='cover'} onClick={()=>setView('cover')}>Листы покрытия</button><button aria-pressed={view==='overlay'} onClick={()=>setView('overlay')}>Совмещённые слои</button></>:null}
-      {drawing&&view==='drawing'?<><button aria-pressed={measure} onClick={()=>{setMeasure(!measure);setMeasureStart(null);setMeasureCursor(null);setPan(false);}}>Размер по двум точкам</button>{dimensions.length?<button onClick={()=>saveDimensions([])}>Убрать ручные размеры</button>:null}</>:null}
+      {drawing&&view==='drawing'&&dimensions.length?<button onClick={()=>saveDimensions([])}>Убрать ручные размеры</button>:null}
       <button disabled={!canUndo||pending} onClick={undo} aria-label="Отменить"><Undo2 size={17}/></button><button disabled={!canRedo||pending} onClick={redo} aria-label="Повторить"><Redo2 size={17}/></button>
       {detailPages.length?<button disabled={pending} onClick={()=>print(null,false,true)}>Печать детали ×{selection.length}</button>:null}
       {!['supports','sheets','starter','stock','nodes'].includes(category)&&!['edit','cover','overlay'].includes(view)?<><button onClick={()=>exportDrawing(false)}>Скачать SVG</button><button onClick={()=>exportDrawing(true)}>Поделиться</button></>:null}
@@ -130,9 +134,18 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     {editedLabel?.viewKey===viewKey?<fieldset><legend>Подпись на чертеже</legend><DraftText label="Текст подписи" value={labels[editedLabel.key]?.text??editedLabel.text} onChange={text=>saveLabel(editedLabel.key,{text})}/><p>Подпись можно перетащить мышью или пальцем. Изменяется только надпись этого вида; техническая марка и спецификация сохраняются.</p><button onClick={()=>{const next={...labels};delete next[editedLabel.key];update({drawingLabels:{...settings.drawingLabels,[viewKey]:next}});}}>Сбросить подпись и положение</button><button onClick={()=>setEditedLabel(null)}>Закрыть</button></fieldset>:null}
     {category === 'binding' ? <BindingRuleCheck result={report.constructionRuleChecks?.bindingStraightSupport} value={settings.bindingJointToleranceMm} update={update} NumberInput={NumberInput} pending={pending}/> : null}
     <fieldset className={`drawing-content ${pending?'is-pending':''}`}>
-      <div className={surface?.planStart&&view!=='plan'?'drawing-scene-grid':undefined}>
+      <div className="drawing-editor-grid">
+        <DrawingToolRail tool={pan?'pan':measure?'measure':labelTool?'labels':'select'} onTool={setTool} canMeasure={!!drawing&&view==='drawing'} pending={pending} onProperties={()=>{setBottom('properties');setExpanded(true);}} onSupports={()=>{go('supports');setView('edit');}}/>
 {['starter','stock'].includes(category)||category==='roof'&&view==='cover'?<div className="drawing-special-view">{scene()}</div>:category==='supports'||view==='edit'||category==='roof'&&view==='overlay'?<AssemblyPlan report={report} settings={settings} update={update} NumberInput={NumberInput} compact/>:<div className="drawing-stage"><DrawingViewport key={`${viewKey}:${fit}`} zoom={zoom} pan={pan} onZoom={setZoom} offset={offsets[viewKey]||[0,0]} onOffset={offset=>setOffsets(old=>({...old,[viewKey]:offset}))}>{scene()}</DrawingViewport></div>}
-      {surface?.planStart&&view!=='plan'?<WallPlanNavigator report={report} surface={surface} onSelect={openWall}/>:null}
+      <aside className="drawing-inspector" aria-label="Свойства рабочего поля">
+        <h2>{chosenPanel||chosenMember?'Выбранная деталь':'Конструкция'}</h2>
+        <strong>{chosenPanel?mark(chosenPanel):chosenMember?mark(chosenMember):currentTitle}</strong>
+        {chosenPanel?<><p>SIP {chosenPanel.thickness} мм</p><p>{fmt(chosenPanel.width)} × {fmt(chosenPanel.height)} мм</p><p>Одинаковых: ×{selection.length}</p></>:chosenMember?<><p>{chosenMember.material} · {chosenMember.profile} мм</p><p>Длина {fmt(chosenMember.length)} мм · ×{selection.length}</p></>:surface?<><p>{fmt(surface.width)} × {fmt(surface.height)} мм</p><p>{surface.frameOnly?'Каркас':'SIP '+surface.thickness+' мм'} · {drawing?.parts.length||0} панелей</p></>:<p>Выберите элемент на чертеже.</p>}
+        <button onClick={()=>{setBottom('properties');setExpanded(true);}}>Открыть параметры / узел</button>
+        {category==='gables'?<><h3>Материал фронтонов</h3><label>Общее исполнение<select aria-label="Материал фронтонов" value={project.settings.roof.gableType||'auto'} onChange={e=>{const value=e.target.value;commit(draft=>{draft.settings.roof.gableType=value;return draft;});}}><option value="auto">По типу кровли</option><option value="sip">SIP-панели</option><option value="cold">Каркас</option><option value="none">Не считать</option></select></label><p>Меняет материал и смету. Отдельный выбор торцов комбинированной кровли — в разделе «Кровля».</p>{surface?.frameOnly?<p>Выбран каркас: панели не закупаются. Для панелей выберите SIP.</p>:<p>Швы соответствуют раскрою. Нажмите панель, чтобы увидеть размеры.</p>}<SurfaceLayoutControls surface={surface} settings={settings} update={update} NumberInput={NumberInput}/></>:null}
+        {surface?.planStart&&view!=='plan'?<><h3>Выбор на плане</h3><WallPlanNavigator report={report} surface={surface} onSelect={openWall}/></>:null}
+        <p className="drawing-tool-hint">{pan?'Перетащите поле для перемещения.':measure?'Укажите две точки. Esc — отмена.':labelTool?'Нажмите подпись для редактирования; перетащите для перемещения.':'Нажмите панель, доску или стену на мини-плане.'}</p>
+      </aside>
       </div>
       <div className="drawing-status"><span>{currentTitle} · размеры в мм · вид не меняет количества</span><button onClick={()=>{setBottom('checks');setExpanded(true);}}>Проверки: {report.issues.length+links.filter(l=>l.stale).length}</button></div>
       <section className="drawing-bottom"><div className="drawing-bottom-tabs"><button onClick={()=>setExpanded(!expanded)} aria-expanded={expanded}>{expanded?'Свернуть':'Развернуть'}</button>{[['assembly','Монтаж'],['production','Производство'],['purchase','Закупка'],['properties','Параметры / узел'],['checks','Проверка и выпуск']].map(([id,label])=><button key={id} aria-pressed={bottom===id&&expanded} onClick={()=>{setBottom(id);setExpanded(true);}}>{label}</button>)}</div>

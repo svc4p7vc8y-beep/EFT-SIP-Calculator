@@ -611,7 +611,10 @@ export function calculateProductionCutting(project, calculation) {
         for (let i = 1; i <= Math.min(2, Number(roofSettings.gableCount) || 0); i++) {
           const wall=endWalls[i-1],trim=wall?Math.max(0,(span-wall.width)/2):0;
           const clipped=clipping.intersection([[[0,0],[span,0],[span/2,height],[0,0]]],rect(trim,0,span-2*trim,height));
-          addGable(`ФР-${i}`, `Фронтон ${i}`,clipped.map(p=>p.map(r=>r.map(([x,y])=>[x-trim,y]))),roof.mainGableType);
+          // Keep the same per-end material resolution as the estimate engine.
+          const selected=roofSettings.type==='combo'?roofSettings.gableSideTypes?.[i===1?'first':'second']:null;
+          const type=selected==='sip'?'sip':selected==='frame'?'cold':roof.mainGableType;
+          addGable(`ФР-${i}`, `Фронтон ${i}`,clipped.map(p=>p.map(r=>r.map(([x,y])=>[x-trim,y]))),type);
         }
       } else if(rectangular && roof.mainRoofShape==='flat' && roof.mainGableType==='cold'){
         const construction=exteriorWallConstruction(plans.at(-1),sip,roofSettings,true,services.roof);
@@ -784,7 +787,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ fabricationModel:209, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:210, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };

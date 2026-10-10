@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v209-stairs-member-fit';
+const CACHE_NAME = 'eft-calculator-react-v210-gable-workbench';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
