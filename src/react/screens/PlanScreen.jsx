@@ -1271,6 +1271,7 @@ function PlanCanvas({
   onCreated,
   onSelected,
   floorKey = 1,
+  sourceFocus = null,
 }) {
   const svgRef = useRef(null);
   const wallClipId=useId().replace(/:/g,'');
@@ -2933,6 +2934,7 @@ function PlanCanvas({
             );
           })()
         : null}
+      {sourceFocus?.a&&sourceFocus?.b?(()=>{const a=p(sourceFocus.a[0]/1000,sourceFocus.a[1]/1000),b=p(sourceFocus.b[0]/1000,sourceFocus.b[1]/1000);return <g aria-label="Участок из чертежа" pointerEvents="none"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#087a49" strokeWidth="6" strokeDasharray="9 5"/><circle cx={a.x} cy={a.y} r="5" fill="#087a49"/><circle cx={b.x} cy={b.y} r="5" fill="#087a49"/></g>;})():null}
       <g ref={setLabelLayer} className="plan-label-foreground"/>
     </svg>
   );
@@ -4952,6 +4954,20 @@ export default function PlanScreen({ onNavigate }) {
   const [activeFloor, setActiveFloor] = useState(1);
   const [activeLayer, setActiveLayer] = useState("plan");
   const [selected, setSelected] = useState(null);
+  const [sourceFocus,setSourceFocus]=useState(null);
+  useEffect(()=>{
+    try {
+      const raw=sessionStorage.getItem('eft-drawing-plan-focus');
+      if(!raw)return;sessionStorage.removeItem('eft-drawing-plan-focus');
+      const target=JSON.parse(raw),floor=Number(target.floor),targetPlan=floor===1?project.plan:project.upperFloors?.[floor-2];
+      if(!targetPlan||![1,2].includes(floor)||![target.a,target.b].every(a=>Array.isArray(a)&&a.length===2&&a.every(Number.isFinite)))return;
+      setActiveFloor(floor);setSourceFocus(target);setTool('select');
+      const source=target.source;
+      if(source?.kind==='plan-wall'&&targetPlan.walls?.some(w=>w.id===source.id))setSelected({type:'wall',id:source.id});
+      else if(source?.kind==='room-side'&&targetPlan.rooms?.some(r=>r.id===source.id))setSelected({type:'room',id:source.id});
+      else setSelected({type:'houseContour',id:'house'});
+    } catch { /* A stale or malformed navigation hint must not modify the plan. */ }
+  },[]);
   const [polygonDraft, setPolygonDraft] = useState([]);
   const [viewportZoom, setViewportZoom] = useState(() =>
     Math.max(35, Math.min(2000, Number(project?.plan?.zoom) || 100)),
@@ -5888,8 +5904,10 @@ export default function PlanScreen({ onNavigate }) {
         </div>
       </aside>
       <div className="mobile-plan-stage">
+        {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
         <PlanCanvas
+          sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
           plan={plan}
@@ -6400,6 +6418,7 @@ export default function PlanScreen({ onNavigate }) {
           </div>
           {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
+            sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
             stairPreset={stairPreset}
             pileSettings={project.settings.piles}
             floorKey={activeFloor}

@@ -1,6 +1,6 @@
 .drawing-workbench { --drawing-accent:#14613e; min-width:0; padding:16px!important; color:#000; background:#fff; }
-.drawing-workbench button,.drawing-workbench select { font-family:inherit; font-weight:600; font-size:12px; line-height:1.3; color:#000; }
-.drawing-workbench button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; border:1px solid #d4ddd7; border-radius:5px; padding:7px 10px; background:white; cursor:pointer; }
+.cutting-screen.drawing-workbench button,.cutting-screen.drawing-workbench select { font-family:inherit; font-weight:600; font-size:12px; line-height:1.3; color:#000; }
+.cutting-screen.drawing-workbench button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; border:1px solid #d4ddd7; border-radius:5px; padding:7px 10px; background:white; cursor:pointer; }
 .drawing-workbench button:disabled { opacity:.45; cursor:default; }.drawing-workbench button[aria-pressed=true] { background:#e3efe7; border-color:#14613e; }
 .drawing-workbench button:focus-visible,.drawing-workbench select:focus-visible { outline:2px solid #14613e; outline-offset:2px; }
 .drawing-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }.drawing-header h1 { font-size:22px; margin:0 0 4px; }.drawing-header span { font-size:12px; }
@@ -11,19 +11,15 @@
 .drawing-stage .drawing-locator { position:absolute; bottom:12px; right:12px; width:120px; height:90px; background:#fff; border:1px solid #ced8d0; border-radius:5px; }.drawing-locator { cursor:pointer; }
 .drawing-status { display:flex; justify-content:space-between; align-items:center; gap:8px; border-top:1px solid #dae1dc; padding:7px 0; font-size:11px; }.drawing-status button { font-size:11px; min-height:28px; }
 .drawing-bottom { border-top:2px solid #dae1dc; }.drawing-bottom-content { max-height:330px; overflow:auto; resize:vertical; min-height:160px; padding:8px; font-size:12px; }.drawing-bottom-content p { margin:7px 0; }.drawing-bottom-content .cut-table-wrap { margin:5px 0; }.drawing-bottom-content tr.selected { background:#e3efe7; }.drawing-bottom-content strong { font-size:17px; }.drawing-bottom-content h2 { font-size:16px; }.drawing-bottom-content details { margin:8px 0; }.drawing-bottom-content summary { cursor:pointer; }
-.drawing-pending { font-size:12px; background:#fff4dc; padding:8px; }.drawing-classic { margin-top:10px; font-size:11px!important; }
+.drawing-pending { font-size:12px; background:#fff4dc; padding:8px; }
 .workbench-full { position:fixed!important; inset:0; z-index:1000; overflow:auto; background:white; }.workbench-full .drawing-viewport { height:58vh; }
-.drawing-sheet-picker details { width:100%; }.drawing-sheet-picker details>label { padding:5px; }.drawing-sheet-picker details[open] { max-height:230px; overflow:auto; }
 .drawing-preview { display:block; background:#eee; padding:12px; height:100%; overflow:auto; }.drawing-preview .mounting-sheet { display:flex; flex-direction:column; min-height:500px; background:white; padding:16px; border:0; font-size:11px; }.drawing-preview .mounting-sheet>header { font-size:17px; border-bottom:1px solid #777; padding-bottom:10px; }.drawing-preview .mounting-content { flex:1; }.drawing-preview footer { border:0; display:block; text-align:center; padding:6px; }.drawing-preview table { width:100%; font-size:10px; }.drawing-preview .assembly-controls { display:none; }
 .drawing-content>.cut-card { margin:0; padding:10px; }
 .cutting-screen .drawing-content { border:0; margin:0; padding:0; border-radius:0; }
-.drawing-rotation { display:flex; align-items:center; gap:12px; font-size:12px; padding:8px; }.drawing-rotation input { width:180px; }
 .drawing-special-view { max-height:65vh; overflow:auto; padding:12px; }.drawing-special-view .workbench-drawing { height:400px; }
 .drawing-content.is-pending svg { pointer-events:none; opacity:.65; }
 .drawing-viewport { height:clamp(300px,43vh,600px); }
 .drawing-transform>.roof-document-drawing { height:100%; max-height:none; min-height:0; }
-.drawing-scene-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); align-items:start; gap:12px; }
-.drawing-scene-grid>.drawing-stage { min-width:0; }
 .drawing-wall-selector { min-width:0; border:1px solid #dae1dc; background:white; border-radius:5px; overflow:hidden; }
 .wall-navigator-tools { display:flex; justify-content:flex-end; gap:2px; padding:4px; border-bottom:1px solid #dae1dc; flex-wrap:wrap; }
 .wall-navigator-tools button { min-height:30px; padding:4px 5px; font-size:10px; }
@@ -35,7 +31,7 @@
 .drawing-editor-grid { display:grid; grid-template-columns:76px minmax(0,1fr) 210px; border:1px solid #dae1dc; border-radius:5px; overflow:hidden; align-items:stretch; }
 .drawing-editor-grid>* { min-width:0; }
 .drawing-tool-rail { display:flex; flex-direction:column; gap:5px; padding:7px; border-right:1px solid #dae1dc; background:#f5f8f5; }
-.drawing-tool-rail button { flex-direction:column; padding:8px 2px; font-size:10px; min-height:58px; gap:5px; }
+.cutting-screen.drawing-workbench .drawing-tool-rail button { flex-direction:column; padding:8px 2px; font-size:10px; min-height:58px; gap:5px; width:100%; }
 .drawing-inspector { padding:12px; border-left:1px solid #dae1dc; background:#fff; font-size:12px; overflow-wrap:anywhere; }
 .drawing-inspector h2 { font-size:14px; margin:0 0 12px; }.drawing-inspector h3 { font-size:12px; margin:16px 0 8px; }
 .drawing-inspector>strong { display:block; margin-bottom:8px; }
@@ -52,13 +48,65 @@
 .drawing-editor-grid>.cut-assembly { overflow:auto; }
 @media(max-width:1100px) { .drawing-editor-grid { grid-template-columns:68px minmax(0,1fr); }.drawing-inspector { grid-column:1/-1; border-left:0; border-top:1px solid #dae1dc; }.drawing-inspector .drawing-wall-selector { max-width:280px; }.drawing-inspector>p { display:inline-block; margin-right:14px; } }
 @media(max-width:700px) { .drawing-editor-grid { grid-template-columns:minmax(0,1fr); }.drawing-tool-rail { flex-direction:row; overflow-x:auto; border-right:0; border-bottom:1px solid #dae1dc; }.drawing-tool-rail button { min-width:64px; flex-shrink:0; }.drawing-editor-grid .drawing-viewport { height:400px; }.drawing-inspector { grid-column:1; }.drawing-inspector .drawing-wall-selector { width:100%; } }
-@media(max-width:700px) { .drawing-scene-grid { grid-template-columns:minmax(0,1fr); }.drawing-wall-selector { width:65%; justify-self:end; }.wall-navigator-viewport { height:160px; } }
+@media(max-width:700px) { .drawing-wall-selector { width:65%; justify-self:end; }.wall-navigator-viewport { height:160px; } }
 @media(max-width:700px){.drawing-workbench { padding:10px!important; }.drawing-navigation label { width:100%; }.drawing-navigation select { flex:1; }.drawing-tools button { min-height:40px; padding:7px; }.drawing-viewport { height:360px; }.drawing-header h1 { font-size:19px; }.drawing-status { align-items:flex-start; }.drawing-stage .drawing-locator { width:85px; height:65px; }.drawing-bottom-content { max-height:280px; }.drawing-bottom-tabs button { flex:1 1 auto; }.drawing-preview .album-columns { grid-template-columns:1fr; }.drawing-preview footer { grid-template-columns:1fr 1fr; }}
 @media(max-width:700px){
  .drawing-tools { flex-wrap:nowrap; overflow-x:auto; padding-bottom:12px; }
  .drawing-tools>button { flex-shrink:0; white-space:nowrap; }
 }
 .binding-rule-check { border:1px solid #bac8b5; border-radius:10px; background:#fff; color:#000; padding:12px; margin:12px 0; overflow-wrap:anywhere; }
+.drawing-workbench [hidden] { display:none!important; }
+.workbench-modes,.workbench-production-tools,.workbench-inspector-tabs { display:flex; flex-wrap:wrap; gap:6px; padding:8px 0; }
+.workbench-modes { border-bottom:2px solid #dae1dc; margin-bottom:8px; }
+.workbench-modes button { padding:10px 14px; }
+.workbench-scope { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:10px 0; font-size:12px; }
+.workbench-scope select { padding:8px; border:1px solid #d4ddd7; border-radius:5px; background:#fff; }
+.drawing-editor-grid { grid-template-columns:68px minmax(0,1fr) 280px; }
+.drawing-inspector { max-height:70vh; overflow:auto; padding:10px; }
+.drawing-inspector input,.drawing-inspector textarea { max-width:100%; width:100%; box-sizing:border-box; }
+.drawing-inspector input[type=checkbox] { width:16px; }
+.drawing-inspector .cut-fields { grid-template-columns:minmax(0,1fr); }
+.drawing-inspector .drawing-surface-properties dl { display:block; }
+.drawing-inspector .drawing-surface-properties dt { margin-top:8px; font-size:11px; }
+.drawing-inspector .drawing-surface-properties dd { font-size:13px; }
+.drawing-inspector h2,.drawing-inspector h3 { overflow-wrap:anywhere; }
+.workbench-properties { font-size:12px; }
+.drawing-tools label { display:flex; align-items:center; gap:6px; }
+.drawing-tools select { padding:7px; border:1px solid #d4ddd7; border-radius:5px; background:#fff; }
+.workbench-export { position:relative; }
+.workbench-export summary { cursor:pointer; padding:9px; font-weight:600; }
+.workbench-export[open] { display:flex; flex-wrap:wrap; gap:6px; padding:4px; border:1px solid #dae1dc; }
+.drawing-tool-rail span { overflow-wrap:normal; line-height:1.25; }
+.workbench-properties details { margin:12px 0; }
+.workbench-properties summary { cursor:pointer; }
+.workbench-stock { padding:6px; }
+.workbench-stock .cut-bar button { position:absolute; top:0; height:100%; min-height:0; padding:0; overflow:hidden; border:1px solid #54713c; border-radius:0; background:#dbe8d1; font-size:9px; }
+.workbench-stock .cut-bar button.selected { background:#92ba67; }
+.workbench-dialog-backdrop { position:fixed; inset:0; z-index:1200; background:#0005; display:flex; justify-content:flex-end; }
+.workbench-settings-dialog { background:#fff!important; width:min(900px,95vw); height:100%; overflow:auto; padding:20px!important; box-sizing:border-box; margin:0!important; color:#000; }
+.workbench-settings-dialog>header { position:sticky; top:-20px; background:#fff; padding:12px 0; display:flex; justify-content:space-between; align-items:center; gap:12px; z-index:1; border-bottom:1px solid #dae1dc; }
+.workbench-settings-dialog>fieldset { border:0; padding:0; min-width:0; }
+.workbench-settings-dialog>fieldset>.cut-card { border:0; padding:0; }
+.workbench-settings-dialog label,.workbench-settings-dialog button { color:#000; font-size:13px; }
+.drawing-workbench .project-documentation { padding:0!important; }
+.drawing-workbench .drawing-bottom-content { max-height:38vh; }
+.drawing-workbench .workbench-production-tools~.workbench-scope { margin-top:0; }
+@media(max-width:1100px) {
+ .drawing-editor-grid { grid-template-columns:64px minmax(0,1fr); }
+ .drawing-inspector { grid-column:1/-1; max-height:400px; }
+ .workbench-properties .drawing-surface-properties dl { display:grid; }
+}
+@media(max-width:700px) {
+ .drawing-editor-grid { grid-template-columns:minmax(0,1fr); }
+ .workbench-modes { display:grid; grid-template-columns:1fr 1fr; }
+ .workbench-modes button { flex-shrink:0; padding:9px 10px; }
+ .workbench-settings-dialog { width:100%; padding:12px!important; }
+ .drawing-header { align-items:flex-start; flex-wrap:wrap; }
+ .drawing-inspector { max-height:420px; }
+ .cutting-screen.drawing-workbench .drawing-tools { flex-wrap:wrap; overflow:visible; }
+ .cutting-screen.drawing-workbench .drawing-tool-rail button { width:auto; min-width:70px; }
+}
+@media print { .workbench-dialog-backdrop { display:none!important; } }
 .binding-rule-check summary { cursor:pointer; font-weight:600; }
 .binding-rule-check fieldset { border:0; padding:0; margin:0; min-width:0; }
 .binding-rule-check label { display:block; max-width:450px; }

@@ -154,7 +154,7 @@ function Screen({ active, calculation, teamProps, onNavigate }) {
   if (active === "sip-guide") return <SipGuideScreen />;
   if (active === "nodes")
     return <NodeFastenersScreen calculation={calculation} />;
-  if (active === 'cutting') return <CuttingScreen calculation={calculation} />;
+  if (active === 'cutting') return <CuttingScreen calculation={calculation} onNavigate={onNavigate} />;
   if (active === "calculation-settings") return <CalculationSettingsScreen />;
   return <Calculators type={active} onNavigate={onNavigate} />;
 }

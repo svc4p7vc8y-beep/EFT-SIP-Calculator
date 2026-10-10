@@ -10,7 +10,7 @@ export function DraftText({ label, value = '', onChange, multiline = false, plac
   return <label>{label}<Tag value={draft} placeholder={placeholder} onChange={e=>setDraft(e.target.value)} onBlur={()=>{ if (draft !== value) onChange(draft); }} /></label>;
 }
 
-export function CuttingControls({ settings, report, update, NumberInput }) {
+export function CuttingApprovalControls({ settings, report, update, NumberInput }) {
   const approval = settings.approval;
   const setApproval = patch => update({ approval: { ...approval, ...patch } });
   return <>
@@ -21,6 +21,11 @@ export function CuttingControls({ settings, report, update, NumberInput }) {
     <p>Перед выпуском сверить опоры и сетки всех конструкций, подрезки соединителей, состав пакетов, остатки и закупку. Автоматический расчёт несущей способности не выполняется.</p>
     <LongMemberStockControls report={report} settings={settings} update={update} NumberInput={NumberInput}/>
     <div className="cut-tabs">{['draft','geometry','nodes','released'].map(status=><button key={status} disabled={status !== 'draft' && (!report || report.issues.length > 0 || !approval.reviewer?.trim() || !approval.nodeRef?.trim())} onClick={()=>setApproval({status,revision:report?.revision || '',at:new Date().toISOString()})}>{approvalLabels[status]}</button>)}</div>
+  </>;
+}
+
+export function ProductionProfileControls({settings,update,NumberInput}) {
+  return <>
     <h2>Профили и соединения</h2>
     <label>Источник сечений<select value={settings.profileMode} onChange={e=>update({profileMode:e.target.value})}><option value="saved">Сохранённые размеры раскроя (ручные)</option><option value="estimate">Профили действующей сметы</option></select></label>
     <p>Для SIP 174: сохранённый профиль обычно 145×90; смета — 145×95 для термобруса/пакета, 150×100 для цельного бруса. Выбор меняет только ведомость производства, не цены и закупку.</p>
