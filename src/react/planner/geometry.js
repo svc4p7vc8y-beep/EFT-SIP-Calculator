@@ -1,5 +1,6 @@
 import { normalizeStairDirection } from "./stair-steps.js";
 import clipping from 'polygon-clipping';
+import { gapFragments } from '../calculations/gap-fragments.js';
 
 const EPS = 0.035;
 
@@ -596,6 +597,13 @@ export function planIssues(plan) {
   const wall = Number(plan.wallThickness) || 0.174;
   const issues = [];
   const contour = houseContourPoints(plan);
+  const gapEdges=[...partitionRuns(plan).map(([a,b],i)=>({a,b,id:`partition-${i}`})),...contour.map((a,i)=>({a,b:contour[(i+1)%contour.length],id:`outer-${i}`,outer:true}))];
+  for(const gap of plan.wallGaps||[]){
+    if(gap.include===false||gap.subtractFromSip===false)continue;
+    const eligible=gapEdges.filter(e=>typeof gap.outer!=='boolean'||!!e.outer===gap.outer);
+    const result=gapFragments(gap,eligible);
+    if(result.error)issues.push({type:'opening-gap',point:{x:gap.x,y:gap.y},openingId:gap.id,roomIds:[],message:`Разрыв: ${result.error} (${gap.x}; ${gap.y})`});
+  }
   for (const room of plan.rooms || []) {
     if (room.extension) continue;
     const points = roomPoints(room);

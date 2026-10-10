@@ -15,6 +15,8 @@ import { localWallSettings } from '../planner/wall-layout.js';
 import { fullSpanBearingCuts, connectorSupportCheck } from './ceiling-supports.js';
 import { buildFirstFloorWallGeometry, compareWallGeometry, openingWallCandidates } from './wall-geometry-adapter.js';
 import { evaluateBindingStraightSupport } from './construction-rules.js';
+import { gapFragments } from './gap-fragments.js';
+import { stockJointPieces } from './member-stock-joints.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
 import { constructionSource } from './construction-sources.js';
 
@@ -271,6 +273,20 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
   return mergeNarrowParts(parts,panelWidth,panelLength,surface.name);
 }
 
+// A failed automatic horizontal layout may use the other stock orientation.
+// Explicit project grids/directions are never overridden.
+export function tileProductionSurface(surface, panelWidth, panelLength, step, staggered) {
+  try { return tileSurface(surface,panelWidth,panelLength,step,staggered); }
+  catch(error) {
+    const layout=surface.layout||{};
+    if(error.code!=='MIN_PANEL_WIDTH'||!surface.horizontal||(layout.direction&&layout.direction!=='auto')||
+      ['originX','originY','step'].some(key=>presentNumber(layout[key])))throw error;
+    const parts=tileSurface({...surface,layout:{...layout,direction:'y'}},panelWidth,panelLength,step,staggered);
+    surface.automaticDirection='y';
+    return parts;
+  }
+}
+
 // Group only truly identical local contours; position and wall name do not
 // affect the fabrication shape, while thickness, family and handed cuts do.
 export function groupPanels(parts = []) {
@@ -465,6 +481,12 @@ export function calculateProductionCutting(project, calculation) {
       const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : settings.windowSillMm);
       const row = { key, id: opening.id, type: opening.type, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Дверь'} ${++openingNumber}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
       if (!row.gap) openings.push(row);
+      if(row.gap){
+        const result=gapFragments(opening,eligible);
+        if(result.error){issue('OPENING_WALL',`${row.name}: ${result.error}. Проверьте разрыв на плане.`,key);result.fragments.forEach(f=>blockedWalls.add(f.edge.id));continue;}
+        for(const fragment of result.fragments)assigned.get(fragment.edge.id).push({...row,wallId:fragment.edge.id,x:mm(fragment.x),width:mm(fragment.width)});
+        continue;
+      }
       if (!nearest || nearest.distance > Math.max(Number(plan.wallThickness) || 0.174, 0.1) + 0.03 || (choices[1] && Math.abs(choices[1].distance - nearest.distance) < .001)) {
         issue('OPENING_WALL', `${row.name}: стена не найдена или привязка неоднозначна. Раскрой возможных стен заблокирован; уточните положение и ориентацию на плане.`, key);
         eligible.forEach(edge => blockedWalls.add(edge.id)); continue;
@@ -605,10 +627,11 @@ export function calculateProductionCutting(project, calculation) {
   if ((project.plan.platforms || []).some(p => p.include !== false)) issue('PLATFORMS', 'Пристройки: задайте их производственные детали вручную по конструктивному проекту.');
   const parts = [];
   for (const surface of surfaces) {
-    try { parts.push(...tileSurface(surface, panelWidth, panelLength, surface.layoutWidth || settings.frameStepMm, settings.staggered)); }
+    try { parts.push(...tileProductionSurface(surface, panelWidth, panelLength, surface.layoutWidth || settings.frameStepMm, settings.staggered)); }
     catch (error) {
       if (error.code !== 'MIN_PANEL_WIDTH') throw error;
       surface.blocked = true;
+      surface.panelLayoutIncomplete = true;
       issue(error.code, error.message, surface.id);
     }
   }
@@ -734,7 +757,9 @@ export function calculateProductionCutting(project, calculation) {
   const marked=new Map(members.map(m=>[m.id,m.displayMark]));
   for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[])m.displayMark=marked.get(m.id)||m.id;
   const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
-  const timberStock = packMembers(members.filter(m=>!m.excluded), settings.stockLengthMm, Number(settings.kerfMm || 0));
+  const fabrication=stockJointPieces(members,settings);
+  issues.push(...fabrication.issues);
+  const timberStock = packMembers(fabrication.pieces, settings.stockLengthMm, Number(settings.kerfMm || 0));
   if (panelStock.unplaced.length) issue('PANEL_SIZE', `Не помещаются в заготовку: ${panelStock.unplaced.join(', ')}`);
   if (timberStock.unplaced.length) issue('MEMBER_SIZE', `Длиннее хлыста: ${timberStock.unplaced.join(', ')}. Нужен проект стыковки или другая длина заготовки.`);
   if (!surfaces.length && !members.length) issue('EMPTY', 'Нет включённых SIP-конструкций. Задайте план и состав домокомплекта.');
@@ -760,9 +785,13 @@ export function calculateProductionCutting(project, calculation) {
   report.roofCover=roofCover;
   report.ceilingSupportChecks=surfaces.filter(s=>s.horizontal&&s.supportFloor).flatMap(s=>members.filter(m=>m.surfaceId===s.id&&m.seam&&!m.excluded).map(m=>connectorSupportCheck(m,s,plans[s.supportFloor-1],settings)));
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
-  report.partitionStock=packMembers(members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded),settings.stockLengthMm,Number(settings.kerfMm||0));
+  report.fabricationMembers=fabrication.pieces;
+  report.partitionStock=packMembers(fabrication.pieces.filter(m=>m.surfaceId?.includes('-ПГ')),settings.stockLengthMm,Number(settings.kerfMm||0));
   report.partitionCatalog=(project.priceMat||[]).filter(c=>settings.partitionFasteners.some(r=>r.catalogId===c.id)).map(c=>({id:c.id,name:c.name,unit:c.unit}));
   report.reconciliation = reconcileCutting(report, calculation);
+  report.incompleteSurfaces=surfaces.filter(s=>s.blocked).map(s=>({id:s.id,name:s.name,area: s.geometry.reduce((sum,p)=>sum+polygonAreaMm(p),0)/1e6}));
+  const unplacedIds=new Set(fabrication.pieces.filter(m=>timberStock.unplaced.includes(m.id)).map(m=>m.assemblyMemberId||m.id));
+  report.unplacedMembers=members.filter(m=>!m.excluded&&unplacedIds.has(m.id));
   report.approvalStatus = approval.revision === revision && !issues.length && approval.reviewer?.trim() && approval.nodeRef?.trim() && ['geometry','nodes','released'].includes(approval.status) ? approval.status : 'draft';
   return report;
 }

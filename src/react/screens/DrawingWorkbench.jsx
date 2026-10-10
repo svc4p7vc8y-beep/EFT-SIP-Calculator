@@ -81,8 +81,8 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
   };
   const scene=()=>{
     if(category==='sheets')return <MountingAlbum project={project} report={report} pages={pages} selectedIds={[sheetId]} paper={paper} preview/>;
-    if(category==='overview')return <WallPanelPlan report={report} floor={surface?.floor||1} onSelect={openWall}/>;
-    if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall}/>;
+    if(category==='overview')return <WallPanelPlan report={report} floor={surface?.floor||1} onSelect={openWall} layers={layers}/>;
+    if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall} layers={layers}/>;
     if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={layers}/>;
     if(category==='starter')return <StarterBoardDiagram walls={report.starterBoards}/>;
     if(category==='stock')return <StockSheets report={report}/>;
@@ -122,6 +122,8 @@ export default function DrawingWorkbench({project,report,pending,error,settings,
     {category==='sheets'?<div className="drawing-sheet-picker"><label>Лист<select aria-label="Лист альбома" value={sheetId} onChange={e=>setSheetId(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.id}. {p.title}</option>)}</select></label><label>Формат<select aria-label="Формат" value={paper} onChange={e=>setPaper(e.target.value)}><option>A3</option><option>A4</option></select></label><button disabled={pending} onClick={()=>print([sheetId])}>Печать листа</button><button disabled={pending} onClick={()=>print(null)}>Весь альбом</button><details><summary>Выбор листов · {selectedSheets.length}</summary><button onClick={()=>setSelectedSheets(pages.map(p=>p.id))}>Выбрать все</button><button onClick={()=>setSelectedSheets([])}>Снять выбор</button>{pages.map(p=><label key={p.id}><input type="checkbox" checked={selectedSheets.includes(p.id)} onChange={e=>setSelectedSheets(e.target.checked?[...selectedSheets,p.id]:selectedSheets.filter(id=>id!==p.id))}/>{p.id}. {p.title}</label>)}<button disabled={!selectedSheets.length||pending} onClick={()=>print(selectedSheets)}>Печать выбранных</button></details></div>:null}
     {pending?<p role="status" className="drawing-pending">Обновляю чертежи. Печать и редактирование временно недоступны.</p>:null}
     {error?<p role="alert">{error}</p>:null}{printError?<p role="alert">{printError}</p>:null}
+    {surface?.blocked?<p role="alert">{surface.name}: раскладка неполная. Контур показан, но отсутствующие детали не включены в закупочную сверку. Откройте «Проверка и выпуск».</p>:null}
+    {surface?.automaticDirection?<p className="inspector-note">Автоматическая раскладка: направление панелей изменено для обхода узких деталей. Размеры конструкции и проёмов сохранены; опирание соединителей проверяется отдельно.</p>:null}
     {category === 'binding' ? <BindingRuleCheck result={report.constructionRuleChecks?.bindingStraightSupport} value={settings.bindingJointToleranceMm} update={update} NumberInput={NumberInput} pending={pending}/> : null}
     <fieldset className={`drawing-content ${pending?'is-pending':''}`}>
       <div className={surface?.planStart&&view!=='plan'?'drawing-scene-grid':undefined}>

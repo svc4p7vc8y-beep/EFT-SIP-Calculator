@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v207-plan-wall-geometry';
+const CACHE_NAME = 'eft-calculator-react-v208-cutting-audit';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

@@ -43,23 +43,4 @@ export function parseManualPanel(item) {
   });
 }
 
-export function reconcileCutting(report, calculation) {
-  const rows = new Map();
-  const profileKey = s => String(s).replace(/[хx]/gi, '×').split('×').map(Number).sort((a,b)=>a-b).join('×');
-  const add = (key, name, unit, field, qty) => {
-    if (!rows.has(key)) rows.set(key, { key, name, unit, required: 0, purchased: 0 });
-    rows.get(key)[field] += qty;
-  };
-  for (const sheet of report.panelStock.sheets) add(`panel:${sheet.family}:${sheet.thickness}`, `SIP ${sheet.family.toUpperCase()} ${sheet.thickness} мм`, 'шт.', 'required', 1);
-  for (const bar of report.timberStock.bars) add(`${bar.material}:${profileKey(bar.profile)}`, `${bar.material} ${bar.profile}`, 'м.п.', 'required', report.settings.stockLengthMm / 1000);
-  for (const line of calculation.lines || []) {
-    if (line.kind !== 'material') continue;
-    const panel = line.name.match(/СИП-панель\s+(PPS|минвата|CSP PPS)\s+\d+×\d+×(\d+)/i);
-    if (panel) { const family = panel[1].toLowerCase() === 'минвата' ? 'mineral-wool' : panel[1].toLowerCase().replace(' ', '-'); add(`panel:${family}:${panel[2]}`, `SIP ${panel[1]} ${panel[2]} мм`, 'шт.', 'purchased', Number(line.qty) || 0); continue; }
-    if (!/joints|edges|sip-frame/.test(line.source || '') && !/connector|edge-board|sip-frame/.test(line.id || '')) continue;
-    const profile = line.name.match(/(\d+)×(\d+)\s*мм/);
-    const material = /Термобрус/.test(line.name) ? 'Термобрус' : /Пакет клеёных/.test(line.name) ? 'Клеёный пакет' : /Брус соединительный/.test(line.name) ? 'Брус' : /Доска сухая строганая/.test(line.name) ? 'Торцевая / обрамляющая доска' : null;
-    if (profile && material && line.unit === 'м.п.') add(`${material}:${profileKey(`${profile[1]}×${profile[2]}`)}`, `${material} ${profile[1]}×${profile[2]}`, 'м.п.', 'purchased', Number(line.qty) || 0);
-  }
-  return [...rows.values()].map(row => ({ ...row, difference: Math.round((row.required-row.purchased)*1000)/1000 }));
-}
+export { reconcileCutting } from './cutting-reconciliation.js';

@@ -94,7 +94,7 @@ export default function ProjectSummarySidebar({
   const { plan } = project;
   const contourMissing = plan.house?.contourDefined === false;
   const { metrics, foundation, roof } = calculation;
-  const issues = planIssues(plan);
+  const issues = [plan,...(project.upperFloors||[])].flatMap((p,i)=>planIssues(p).map(issue=>({...issue,message:`${i+1} этаж: ${issue.message}`})));
   const openings = plan.openings || [];
   const windows = openings.filter((item) => item.type === "window").length;
   const doors = openings.filter(
@@ -144,14 +144,14 @@ export default function ProjectSummarySidebar({
               ? "Контур дома не задан"
               : issues.length
               ? `${issues.length} несостыковок`
-              : "План согласован"}
+              : "Геометрия без выявленных конфликтов"}
           </strong>
           <small>
             {contourMissing
               ? "Нарисуйте и замкните внешний контур"
               : issues.length
-              ? "Проверьте красные комнаты"
-              : "Стены и площади состыкованы"}
+              ? "Проверьте замечания плана"
+              : "Это не допуск в производство. Проверки — в раскрое."}
           </small>
         </span>
       </div>
