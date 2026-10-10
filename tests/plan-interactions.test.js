@@ -22,3 +22,12 @@ test("room movement starts only when the same room is already selected", () => {
   assert.equal(isSamePlanSelection({ type: "room", id: "room-2" }, "room", "room-1"), false);
   assert.equal(isSamePlanSelection({ type: "room", id: "room-1" }, "room", "room-1"), true);
 });
+
+test("stairs select first, and only the already selected body or label can move", () => {
+  assert.equal(isSamePlanSelection(null, "floorOpening", "s1", "body"), false);
+  assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s2" }, "floorOpening", "s1", "body"), false);
+  assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s1" }, "floorOpening", "s1", "body"), true);
+  assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s1" }, "floorOpening", "s1", "label"), false);
+  assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s1", part: "label" }, "floorOpening", "s1", "body"), false);
+  assert.equal(isSamePlanSelection({ type: "floorOpening", id: "s1", part: "label" }, "floorOpening", "s1", "label"), true);
+});

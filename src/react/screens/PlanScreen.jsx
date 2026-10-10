@@ -1494,7 +1494,11 @@ function PlanCanvas({
       }
       if (tool !== "select") return;
       event.stopPropagation();
-      selectExisting({ type: "floorOpening", id, part:extra.kind==='stairLabel'?'label':'body' });
+      const part = extra.kind === 'stairLabel' ? 'label' : 'body';
+      if (!isSamePlanSelection(selected, type, id, part)) {
+        selectExisting({ type, id, part });
+        return;
+      }
       begin(event, { kind: extra.kind||"move", type: "floorOpening", id });
       return;
     }
@@ -1890,6 +1894,12 @@ function PlanCanvas({
         selectCreated({ type: current.type, id });
       }
     } else if (current.type === "floorOpening") {
+      if (finalGesture.end.x === finalGesture.start.x && finalGesture.end.y === finalGesture.start.y) {
+        svgRef.current?.releasePointerCapture?.(event.pointerId);
+        setGesture(null);
+        finishPointer(event);
+        return;
+      }
       if(current.kind==='stairLabel'){
         const opening=floorOpenings.find(o=>o.id===current.id);
         if(opening)commitFloorOpening?.({...opening,labelX:roundCoord((opening.labelX??opening.x+opening.width/2)+finalGesture.end.x-finalGesture.start.x),labelY:roundCoord((opening.labelY??opening.y+opening.length/2)+finalGesture.end.y-finalGesture.start.y)});

@@ -1,5 +1,6 @@
-export function isSamePlanSelection(selected, type, id) {
-  return selected?.type === type && selected?.id === id;
+export function isSamePlanSelection(selected, type, id, part) {
+  return selected?.type === type && selected?.id === id &&
+    (part === undefined || (selected.part ?? "body") === part);
 }
 
 export function planKeyboardCommand(event, editing = false) {
