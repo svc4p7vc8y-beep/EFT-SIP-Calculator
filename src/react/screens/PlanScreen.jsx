@@ -4526,6 +4526,7 @@ function MobileSelectionAdjuster({
       <>
         <MobileStepper label="Ширина" value={stairOpening.width} onMinus={() => commitFloorOpening({ ...stairOpening, width: Math.max(0.5, stairOpening.width - step) })} onPlus={() => commitFloorOpening({ ...stairOpening, width: stairOpening.width + step })} />
         <MobileStepper label="Длина" value={stairOpening.length} onMinus={() => commitFloorOpening({ ...stairOpening, length: Math.max(0.5, stairOpening.length - step) })} onPlus={() => commitFloorOpening({ ...stairOpening, length: stairOpening.length + step })} />
+        <MobileStepper label="Ступеней на схеме" value={stairOpening.stepCount||12} onMinus={() => commitFloorOpening({ ...stairOpening, stepCount:Math.max(1,(stairOpening.stepCount||12)-1) })} onPlus={() => commitFloorOpening({ ...stairOpening, stepCount:Math.min(60,(stairOpening.stepCount||12)+1) })} />
       </>
     );
   }
