@@ -24,6 +24,11 @@ export function productionScene(report,project) {
   const world=(p,x,y)=>p.origin.map((n,i)=>n+p.u[i]*x+p.v[i]*y);
   const panels=report.parts.flatMap(part=>{const p=placements.get(part.surfaceId);return p?[{id:part.id,layer:p.layer,shape:part.shape,placement:p,thickness:part.thickness}]:[];});
   const boards=report.members.filter(m=>!m.excluded&&m.a&&m.b).flatMap(m=>{const p=placements.get(m.surfaceId);if(!p)return [];const outline=boardFootprint(m);return outline?[{id:m.id,layer:p.layer,shape:[outline],placement:p,thickness:Number(m.profile?.split(/[×xх]/)[m.role==='brace'?0:1])||45,timber:true}]:[];});
-  const beams=[...roofAxonometricLines(report.assembly).map(m=>({...m,layer:'roof',a:[m.a[0],m.a[1],m.a[2]+roofBase],b:[m.b[0],m.b[1],m.b[2]+roofBase]})),...report.assembly.supports.filter(m=>!m.referenceOnly).map(m=>({...m,id:m.mark,layer:'supports'})),...report.assembly.binding.map(m=>({...m,layer:'binding',a:[...m.a,-150],b:[...m.b,-150]}))];
+  const binding=report.assembly.binding.flatMap(m=>{
+    const width=Number(String(m.profile).split(/[×xх]/)[0])||50,n=Number.isInteger(m.layers)&&m.layers>0?m.layers:1;
+    const dx=m.b[0]-m.a[0],dy=m.b[1]-m.a[1],length=Math.hypot(dx,dy)||1;
+    return Array.from({length:n},(_,i)=>{const offset=(i-(n-1)/2)*width;return {...m,layer:'binding',a:[m.a[0]-dy/length*offset,m.a[1]+dx/length*offset,-150],b:[m.b[0]-dy/length*offset,m.b[1]+dx/length*offset,-150]};});
+  });
+  const beams=[...roofAxonometricLines(report.assembly).map(m=>({...m,layer:'roof',a:[m.a[0],m.a[1],m.a[2]+roofBase],b:[m.b[0],m.b[1],m.b[2]+roofBase]})),...report.assembly.supports.filter(m=>!m.referenceOnly).map(m=>({...m,id:m.mark,layer:'supports'})),...binding];
   return {panels:[...panels,...boards],beams,missing,world,roofBase,bases,placements};
 }

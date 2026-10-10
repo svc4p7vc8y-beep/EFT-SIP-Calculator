@@ -19,11 +19,11 @@ const path=(shape,flip)=>shape.map(r=>r.map(([x,y],i)=>`${i?'L':'M'}${x},${flip=
 export function DimensionChain({values,y,font}) {
   return <DrawingDimensions values={values} y={y} font={font}/>;
 }
-export function TechnicalDrawing({surface,parts=[],members=[],labelOverrides=surface.drawingLabels||{}}) {
+export function TechnicalDrawing({surface,parts=[],members=[],labelOverrides=surface.drawingLabels||{},fontScale=1}) {
   if(Object.keys(labelOverrides).length||surface.stairOpenings?.length)return <DrawingCanvas printable surface={surface} parts={parts} members={members} layers={{panels:true,frame:true,dimensions:true,labels:true}} labelOverrides={labelOverrides}/>;
   if(surface.frameOnly&&surface.id?.includes('-ПГ'))return <PartitionDrawing surface={surface} members={members}/>;
   if(!surface.geometry?.length)return <p>Нет геометрии.</p>;
-  const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height),pad=size*.16,font=size*.022,flip=surface.horizontal?null:box.y*2+box.height;
+  const box=polygonBounds(surface.geometry.flat()),size=Math.max(box.width,box.height),pad=size*.16,font=size*.022*fontScale,flip=surface.horizontal?null:box.y*2+box.height;
   const yy=y=>flip==null?y:flip-y;
   const positions=new Map();groupMembers(members).forEach((g,i)=>g.instances.forEach(m=>positions.set(m.id,m.displayMark||i+1)));
   const dimensions=surfaceDimensions(surface,parts,members),hasOpenings=!!surface.openings?.length;

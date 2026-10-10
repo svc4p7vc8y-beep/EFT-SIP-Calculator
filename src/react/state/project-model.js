@@ -22,9 +22,10 @@ import { createDefaultRequest, normalizeRequest } from './request-model.js';
 import { normalizeEstimateImages } from './estimate-images.js';
 import { normalizeProductionCutting } from './production-cutting.js';
 import { normalizeFloorOpenings } from '../planner/floor-openings.js';
+import { normalizeDocumentation } from './project-documentation.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 213;
+export const REACT_PROJECT_VERSION = 214;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -497,6 +498,7 @@ export function createDefaultProject() {
     format: "eft-project",
     schemaVersion: 4,
     appVersion: REACT_PROJECT_VERSION,
+    documentation: normalizeDocumentation(),
     savedAt: new Date().toISOString(),
     meta: {
       projectNum: "0001",
@@ -953,6 +955,7 @@ export function migrateProject(raw) {
     schemaVersion: 4,
     appVersion: REACT_PROJECT_VERSION,
     meta: { ...base.meta, ...meta, floors: requestedFloorCount },
+    documentation: normalizeDocumentation(raw.documentation),
     plan,
     upperFloors,
     estimateImages: normalizeEstimateImages(raw.estimateImages),

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v213-stair-selection';
+const CACHE_NAME = 'eft-calculator-react-v214-compact-release';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { Printer, Plus, Trash2 } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
@@ -13,6 +13,7 @@ import { PRODUCTION_GUIDANCE } from '../data/production-guidance.js';
 import MountingAlbum from './MountingAlbum.jsx';
 import DrawingWorkbench from './DrawingWorkbench.jsx';
 import ProductionIdentityInfo from './ProductionIdentityInfo.jsx';
+const ProjectDocumentation=lazy(()=>import('./ProjectDocumentation.jsx'));
 
 const formatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 });
 const n = value => formatter.format(Number(value) || 0);
@@ -105,6 +106,7 @@ function PrintReport({ project, report, scope }) {
 }
 
 export default function CuttingScreen({ calculation }) {
+  const [documentation,setDocumentation]=useState(false);
   const [classic, setClassic] = useState(false);
   const { project, commit, recordMarks } = useProject();
   const [tab, setTab] = useState('panels'), [surfaceId, setSurfaceId] = useState(''), [selectedId, setSelectedId] = useState(''), [printScope, setPrintScope] = useState(null);
@@ -128,7 +130,8 @@ export default function CuttingScreen({ calculation }) {
   const update = patch => commit(next => { next.settings.productionCutting = normalizeProductionCutting({ ...next.settings.productionCutting, ...patch }); return next; });
   const print = scope => { if (pending || !report) return; if (document.querySelector('.cutting-screen input[aria-invalid="true"]')) { setPrintError('Печать остановлена: исправьте несохранённые значения в исходных данных.'); return; } setPrintError(''); flushSync(() => setPrintScope(scope)); document.body.classList.add('print-production'); window.print(); };
   useEffect(() => { const cleanup = () => { document.body.classList.remove('print-production'); setPrintScope(null); }; window.addEventListener('afterprint', cleanup); return () => { window.removeEventListener('afterprint', cleanup); document.body.classList.remove('print-production'); }; }, []);
-  if (!classic) return <DrawingWorkbench project={project} report={report} pending={pending} error={result.error} settings={settings} update={update} NumberInput={NumberInput} StarterBoardDiagram={StarterBoardDiagram} StockSheets={StockSheets} onSettings={()=>{setTab('settings');setClassic(true);}} onClassic={()=>setClassic(true)} />;
+  if(documentation)return <Suspense fallback={<p>Загрузка комплекта проекта…</p>}><ProjectDocumentation report={report} pending={pending} onBack={()=>setDocumentation(false)}/></Suspense>;
+  if (!classic) return <DrawingWorkbench project={project} report={report} pending={pending} error={result.error} settings={settings} update={update} NumberInput={NumberInput} StarterBoardDiagram={StarterBoardDiagram} StockSheets={StockSheets} onDocumentation={()=>setDocumentation(true)} onSettings={()=>{setTab('settings');setClassic(true);}} onClassic={()=>setClassic(true)} />;
   return <section className="screen cutting-screen">
     {report ? <ProductionIdentityInfo report={report}/> : null}
     <button className="secondary-button" onClick={()=>setClassic(false)}>Вернуться в окно чертежей</button>

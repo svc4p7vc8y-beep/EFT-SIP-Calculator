@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { productionMark } from '../calculations/production-assembly.js';
 
-export const approvalLabels = { draft: 'Черновик', geometry: 'Геометрия проверена', nodes: 'Узлы согласованы', released: 'Разрешено в производство' };
+export const approvalLabels = { draft: 'Черновик', geometry: 'Геометрия проверена', nodes: 'Узлы согласованы', released: 'Раскрой отмечен согласованным' };
 
 export function DraftText({ label, value = '', onChange, multiline = false, placeholder = '' }) {
   const [draft, setDraft] = useState(value);
@@ -15,7 +15,7 @@ export function CuttingControls({ settings, report, update, NumberInput }) {
   const setApproval = patch => update({ approval: { ...approval, ...patch } });
   return <>
     <h2>Проверка и выпуск</h2>
-    <p>Ревизия: {report?.revision || 'расчёт…'} · {approvalLabels[report?.approvalStatus || 'draft']}. Любое изменение исходных данных требует повторного согласования. Это проектная отметка, не электронная подпись.</p>
+    <p>Ревизия: {report?.revision || 'расчёт…'} · {approvalLabels[report?.approvalStatus || 'draft']}. Любое изменение исходных данных требует повторного согласования. Это проектная отметка раскроя, не электронная подпись и не разрешение выпуска полного проекта. Комплектность проверяется в «Комплекте проекта».</p>
     <DraftText label="Проверил (ФИО)" value={approval.reviewer || ''} onChange={reviewer=>setApproval({reviewer})} placeholder="Ответственный технолог" />
     <DraftText label="Альбом рабочих узлов" value={approval.nodeRef || ''} onChange={nodeRef=>setApproval({nodeRef})} placeholder="Номер, ревизия и листы; пазы, углы, Т-стыки, перемычки, опоры" />
     <p>Перед выпуском сверить опоры и сетки всех конструкций, подрезки соединителей, состав пакетов, остатки и закупку. Автоматический расчёт несущей способности не выполняется.</p>
