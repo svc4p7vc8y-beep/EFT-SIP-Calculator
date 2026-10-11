@@ -1,9 +1,15 @@
 # EFT SIP Calculator — состояние проекта
 
-## v219 — терраса и крыльцо в модели, 11.10.2026
+## v219 — терраса и крыльцо в модели, опубликовано 11.10.2026
 
 Исходный HEAD 29d92bb; main/origin main 0/0 после fetch. Посторонние untracked
-не затрагивались. Реализация завершена, финальный QA/публикация в процессе.
+не затрагивались. Реализация, финальный QA и публикация завершены.
+Код 221b65a3289246cacbae00b8fec20984adaa4661 отправлен в main.
+Beget 38122510152, Pages 38122510198: completed/success.
+Live calc.eftsip.ru: sw v219-platform-assembly, react-0X9CBnuw.js,
+CuttingScreen-Bp4znfdj.js, ProductionHouse3D-C3t5c9Qh.js. В live-чанках
+подтверждены переключатель, слой площадок и настил 45×145. Авторизованный
+live-сеанс отдельно не проверялся; функциональный QA — локальный Chromium.
 
 Разрыв: свайная обвязка площадок считалась длиной в foundation, но не имела
 линий в production-assembly. Теперь platformBindingLines — геометрия прежнего
