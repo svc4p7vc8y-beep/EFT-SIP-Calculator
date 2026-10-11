@@ -3,9 +3,9 @@ import Dimensions from '../components/DrawingDimensions.jsx';
 import { productionMark } from '../calculations/production-assembly.js';
 import { wallTopView } from '../calculations/wall-top-view.js';
 
-export default function WallPanelPlan({report,floor=1,onSelect,selectedId,compact=false,layers={}}) {
+export default function WallPanelPlan({report,floor=1,onSelect,selectedId,compact=false,layers={},fontScale=1}) {
   const {contour,walls,box}=useMemo(()=>wallTopView(report,floor),[report,floor]);
-  const size=Math.max(box.width,box.height,1000),pad=size*(compact ? .06 : .2),font=Math.min(size*.018,Math.max(100,Math.min(box.width,box.height)*.04));
+  const size=Math.max(box.width,box.height,1000),pad=size*(compact ? .06 : .2),font=Math.min(size*.018,Math.max(100,Math.min(box.width,box.height)*.04))*fontScale;
   return <svg className="workbench-drawing technical-drawing wall-top-view" viewBox={[box.x-pad,box.y-pad,box.width+2*pad,box.height+2*pad].join(' ')} role="img" aria-label={compact?'План стен и перегородок без подписей':'Расположение стеновых панелей · этаж '+floor}>
     <polygon points={contour.map(p=>p.join(',')).join(' ')} fill="#fff" stroke="#aaa" strokeWidth=".4" vectorEffect="non-scaling-stroke"/>
     {walls.map(({surface:w,partition,frame,depth,offset,side,angle,panels,studs,openings})=>{

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v216-roof-supports-selection';
+const CACHE_NAME = 'eft-calculator-react-v217-roof-support-frame';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

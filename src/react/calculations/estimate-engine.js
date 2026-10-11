@@ -8,6 +8,7 @@ import {
 } from "../../calculations/plan-metrics.js";
 import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { bearingEdges, partitionProfileShares } from './bearing-walls.js';
+import { clearGapPositions } from './clear-gap-framing.js';
 import { exteriorWallConstruction, wallTrimLength } from './wall-construction.js';
 import { partitionReinforcements, reinforcementBoardCount } from './partition-construction.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
@@ -171,7 +172,8 @@ function resolveRafterStructure(project, geometry, frameLength) {
         : ["hanging", "layered", "truss"].includes(roof.rafterSystem)
           ? roof.rafterSystem
           : "hanging";
-  const step = automatic
+  const requestedGap=Number(project.settings.productionCutting?.rafterClearGapMm);
+  const step = requestedGap>0 ? requestedGap/1000 : automatic
     ? 0.6
     : Math.min(1.2, Math.max(0.3, Number(roof.rafterStep) || 0.6));
   const section = automatic
@@ -183,7 +185,8 @@ function resolveRafterStructure(project, geometry, frameLength) {
       : "50x150";
   const boardWidth = 0.05;
   const module = step + boardWidth;
-  const pairCount = frameLength > 0 ? Math.ceil(frameLength / module) + 1 : 0;
+  const positions=requestedGap>0&&frameLength>0?clearGapPositions(boardWidth*500,Math.max(boardWidth*500,frameLength*1000-boardWidth*500),boardWidth*1000,requestedGap):null;
+  const pairCount = positions?positions.length:frameLength > 0 ? Math.ceil(frameLength / module) + 1 : 0;
   const legCount = geometry.shape === "flat" ? pairCount : pairCount * 2;
   return {
     automatic,
@@ -194,6 +197,7 @@ function resolveRafterStructure(project, geometry, frameLength) {
     module,
     frameLength,
     pairCount,
+    positions,
     legCount,
   };
 }
@@ -1337,12 +1341,13 @@ function roofSection(project, metrics, index, inputs) {
       : mainRoofShape === "hip"
         ? geometry.ridgeLength + geometry.hipLength
         : geometry.roofLength;
+  const replaceRidge=project.settings.productionCutting?.roofFrameConfig?.replaceRidge===true&&(project.settings.productionCutting.roofSupports||[]).some(s=>s.autoLayout==='roof-support-frame'&&s.type==='purlin');
   const ridgeBeamPurchaseLength =
-    ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
+    replaceRidge?0:ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
   // Two specified 50×100 ridge rows for a layered scheme are budgeted separately.
   // Bearing posts and beam sizing still require the structural project.
   const layeredRidgeLength =
-    rafterStructure.system === "layered" && mainColdSlopeArea > 0 && mainRoofShape !== 'tiered'
+    !replaceRidge && rafterStructure.system === "layered" && mainColdSlopeArea > 0 && mainRoofShape !== 'tiered'
       ? mainRoofShape === "hip" ? geometry.ridgeLength : geometry.roofLength
       : 0;
   const layeredRidgePurchaseLength =

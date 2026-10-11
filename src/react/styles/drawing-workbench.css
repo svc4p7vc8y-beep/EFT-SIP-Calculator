@@ -111,13 +111,21 @@
 .binding-rule-check fieldset { border:0; padding:0; margin:0; min-width:0; }
 .binding-rule-check label { display:block; max-width:450px; }
 .binding-rule-check li { margin:8px 0; }
+.workbench-construction-pills { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0; }
+.workbench-view-icons,.production-3d-toolbar [role="group"] { display:flex; gap:4px; flex-wrap:wrap; }
+.workbench-view-icons button,.production-3d-toolbar button { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-width:36px; min-height:36px; }
+.production-3d-layers { display:flex; flex-wrap:wrap; gap:5px; padding:8px; background:#f5f8f3; border-bottom:1px solid #bac9b5; }
+.production-3d-layers button { font-size:12px; min-height:36px; padding:5px 9px; color:#000; border:1px solid #b4c3b0; border-radius:6px; background:#fff; }
+.production-3d-layers button[aria-pressed="true"] { background:#d9e9cb; border-color:#557a35; }
 @media print {
+ .mounting-album .roof-frame-sheet .roof-document-drawing { height:120mm; max-height:120mm; }
+ .mounting-album.paper-A4 .roof-frame-sheet .roof-document-drawing { height:85mm; max-height:85mm; }
  .binding-rule-check { display:none; }
  @page drawingA4 { size:A4 landscape; margin:8mm; }
  .paper-A4 .mounting-sheet { page:drawingA4; height:190mm; padding:3mm; }
  .paper-A4 .mounting-sheet>header { font-size:12pt; margin-bottom:3mm; padding-bottom:2mm; }
  .paper-A4 .mounting-sheet>footer { font-size:7pt; margin-top:2mm; }
- .paper-A4 .technical-drawing,.paper-A4 .roof-document-drawing,.paper-A4 .cut-assembly svg { max-height:125mm; height:125mm; }
+ .mounting-album.paper-A4 .technical-drawing,.mounting-album.paper-A4 .roof-document-drawing,.mounting-album.paper-A4 .cut-assembly svg { max-height:125mm; height:125mm; }
  .paper-A4 .roof-section { height:75mm; }.paper-A4 .binding-section { max-height:30mm; }.paper-A4 .support-elevation { height:45mm; }
  .paper-A4 .album-parts .technical-drawing { height:40mm; }.paper-A4 .mounting-content p,.paper-A4 .mounting-content li { font-size:7pt; margin:2mm 0; }
  .paper-A4 .album-schedule { font-size:6pt; }.paper-A4 .album-locator { height:30mm; }.paper-A4 .album-columns { gap:4mm; }

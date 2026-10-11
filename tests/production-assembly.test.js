@@ -15,7 +15,7 @@ test('stock mode keeps four full wall panels rather than eight half panels, pres
   p.settings.productionCutting.wallPanelMode='grid';assert.equal(run(p).parts.filter(s=>s.surfaceId==='Э1-С1').length,8);
 });
 test('stock edge remainder is rebalanced locally without resizing all full panels',()=>{
-  assert.deepEqual(stockCells(0,5100,1250).map(c=>c.width),[1250,1250,1250,1150,200]);
+  assert.deepEqual(stockCells(0,5100,1250).map(c=>c.width),[1250,1250,1250,1100,250]);
   assert.equal(stockCells(0,100,1250),null);
 });
 test('both window jambs form boundaries, and wide spandrels rotate with a manual override available',()=>{
@@ -51,7 +51,7 @@ test('gable studs fit between the bottom and inclined top boards',()=>{
 });
 test('the minimum panel size also applies to manually specified panels',()=>{
   const p=base();p.settings.productionCutting.manualPanels=[{id:'thin',name:'Узкая панель',family:'pps',thickness:174,quantity:1,contour:'[[[0,0],[100,0],[100,2500],[0,2500]]]'}];
-  const r=run(p);assert.ok(r.issues.some(i=>i.code==='MANUAL_PANEL'&&i.message.includes('200')));
+  const r=run(p);assert.ok(r.issues.some(i=>i.code==='MANUAL_PANEL'&&i.message.includes('250')));
   assert.equal(r.parts.filter(s=>s.surfaceId.startsWith('РП-')).length,0);
 });
 const support=(id,type,a,b,extra={})=>({id,type,name:id,profile:type==='foundation'?'':'100×150',nodeRef:'КР-1',x1:a[0],y1:a[1],z1:a[2],x2:b[0],y2:b[1],z2:b[2],startSupport:'',endSupport:'',foundationRef:'',...extra});

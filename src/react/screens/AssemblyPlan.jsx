@@ -8,6 +8,7 @@ import { useProject } from '../state/ProjectContext.jsx';
 import { productionEstimateLines } from '../calculations/production-estimate.js';
 import { projectOnSupport,changeSupportWithPosts } from '../calculations/assembly-placement.js';
 import AutoRoofSupports from './AutoRoofSupports.jsx';
+import RoofSupportFrame from './RoofSupportFrame.jsx';
 
 export { default as AssemblyDiagram } from './AssemblyCanvas.jsx';
 
@@ -34,6 +35,7 @@ export default function AssemblyPlan({report,settings,update,NumberInput,compact
   const pick=(x,y)=>{const index=settings.roofSupports.findIndex(s=>s.id===pointTarget?.id);if(index<0)return;const s=settings.roofSupports[index];change(index,s.type==='post'?{x1:x,y1:y,x2:x,y2:y}:{[`x${pointTarget.end}`]:x,[`y${pointTarget.end}`]:y});setPointTarget(null);};
   const add=type=>{const b=report.assembly.bounds;update({roofSupports:[...settings.roofSupports,{id:crypto.randomUUID(),type,name:'',profile:'',nodeRef:'',x1:b.x,y1:b.y,z1:0,x2:type==='post'?b.x:b.x+b.width,y2:b.y,z2:type==='post'?2500:0,startSupport:'',endSupport:'',foundationRef:''}]});};
   return <div className="cut-card"><h2>Крыша, каркас и опоры</h2>
+    <RoofSupportFrame project={project} report={report} settings={settings} update={update} NumberInput={NumberInput}/>
     <AutoRoofSupports project={project} report={report} settings={settings} update={update} NumberInput={NumberInput} onApplied={id=>{setSelected(id);setDrawing(null);setNodeMode(false);setPointTarget(null);setCursor(null);}}/>
     <p>На плане: {report.assembly.supports.filter(s=>s.type==='purlin').length} прогонов · {report.assembly.supports.filter(s=>s.type==='post').length} стоек. Сначала выберите элемент, затем перетаскивайте его круглую ручку.</p>
     <div className="cut-tabs assembly-controls" role="toolbar" aria-label="Рисование конструкций">

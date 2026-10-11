@@ -20,6 +20,7 @@ import { floorOpenings } from '../planner/floor-openings.js';
 import { stairOpeningPolygon } from '../planner/stair-steps.js';
 import { fitSipSpline, fitSipEndBoard } from './sip-member-fit.js';
 import { stockJointPieces } from './member-stock-joints.js';
+import { roofFrameSource,FRAME_LAYOUT } from './roof-support-frame.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
 import { constructionSource } from './construction-sources.js';
 
@@ -28,7 +29,7 @@ const round = value => Math.round(value * 1000) / 1000;
 const rect = (x, y, w, h) => [[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]];
 const polygon = points => [points.map(p => [mm(p.x), mm(p.y)])];
 const presentNumber = value => value !== '' && value != null && Number.isFinite(Number(value));
-export const MIN_PANEL_WIDTH_MM = 200;
+export const MIN_PANEL_WIDTH_MM = 250;
 const narrowPanelError = label => Object.assign(new Error(`${label}: деталь уже ${MIN_PANEL_WIDTH_MM} мм; измените шаг, сетку или положение проёма.`), { code:'MIN_PANEL_WIDTH' });
 function balancedCells(start, end, maximum, minimum = MIN_PANEL_WIDTH_MM) {
   const length = end - start;
@@ -48,7 +49,7 @@ export function stockCells(start,end,maximum,minimum=MIN_PANEL_WIDTH_MM) {
 }
 function tileStockWall(surface,panelWidth,panelLength) {
   const bounds=polygonBounds(surface.geometry.flat());
-  const anchors=[...new Set([bounds.x,bounds.x+bounds.width,...(surface.openings||[]).flatMap(o=>[o.x,o.x+o.width])])].sort((a,b)=>a-b);
+  const anchors=[...new Set([bounds.x,bounds.x+bounds.width,...(surface.partitionSeams||[]),...(surface.openings||[]).flatMap(o=>[o.x,o.x+o.width])])].sort((a,b)=>a-b);
   const parts=[];
   for(let i=0;i<anchors.length-1;i++){
     const left=anchors[i],right=anchors[i+1];
@@ -549,7 +550,7 @@ export function calculateProductionCutting(project, calculation) {
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
       const source=constructionSource(plan,edge,settings.constructionSources,floor);
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm((edge.start||edge.a).x), mm((edge.start||edge.a).y)], planEnd: [mm((edge.end||edge.b).x), mm((edge.end||edge.b).y)], externalLength:edge.outer?mm(edge.externalLength):width,heightStart,heightEnd, thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings,
-        ...source,...(!edge.outer?{...partitionBacking(plan,edge.a,edge.b),junctionStuds:partitionJunctionStuds(plan,edge.a,edge.b)}:{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||(!edge.outer&&localWallSettings(plan,edge.a,edge.b)?.frameProfile)||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
+        exterior:!!edge.outer,...source,...(!edge.outer?{...partitionBacking(plan,edge.a,edge.b),junctionStuds:partitionJunctionStuds(plan,edge.a,edge.b)}:{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(bearing?.profile||(!edge.outer&&localWallSettings(plan,edge.a,edge.b)?.frameProfile)||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
       const stairs=floorIndex>0?floorOpenings(plan):[];
@@ -652,6 +653,15 @@ export function calculateProductionCutting(project, calculation) {
   }
   if ((project.plan.platforms || []).some(p => p.include !== false)) issue('PLATFORMS', 'Пристройки: задайте их производственные детали вручную по конструктивному проекту.');
   const parts = [];
+  if(settings.partitionSipAlignment)for(const surface of surfaces.filter(s=>s.exterior&&s.planStart)){
+    const [a,b]=[surface.planStart,surface.planEnd],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),positions=[];
+    for(const endpoints of partitionSegments(plans[surface.floor-1]))for(const p of endpoints){
+      const x=mm(p.x)-a[0],y=mm(p.y)-a[1],along=(x*dx+y*dy)/(L||1),distance=Math.abs(dx*y-dy*x)/(L||1);
+      if(along>1&&along<L-1&&distance<=surface.thickness+15)positions.push(Math.round(along));
+    }
+    surface.partitionSeams=[...new Set(positions)].sort((a,b)=>a-b);
+    if(surface.partitionSeams.length&&(['originX','originY','step'].some(k=>presentNumber(surface.layout[k]))||settings.wallPanelMode!=='full'))issue('PARTITION_SIP_ALIGNMENT',`${surface.name}: ручная сетка сохранена; примыкания перегородок требуют проверки соединителей.`,surface.id);
+  }
   for (const surface of surfaces) {
     if(surface.id.startsWith('ФР-')&&!surface.frameOnly){
       const saved=settings.gableLinks?.[surface.layoutKey],wall=saved?surfaces.find(s=>s.layoutKey===saved.wallKey):surfaces.find(s=>s.id===surface.parentWallId);
@@ -771,6 +781,7 @@ export function calculateProductionCutting(project, calculation) {
     for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, ...(item.hasStableSourceId===false?{}:sourceIdentity('manual-timber',item.id,i+1)), material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
   const assembly=calculateAssemblyPlan(project,calculation,settings);
+  if(settings.roofSupports.some(s=>s.autoLayout===FRAME_LAYOUT)&&settings.roofFrameConfig?.sourceKey&&settings.roofFrameConfig.sourceKey!==roofFrameSource(project,assembly,settings))issue('STALE_ROOF_FRAME','Геометрия крыши или заготовка изменена после размещения каркаса. Откройте «Элементы» и повторно примените опорный каркас; ручные и закреплённые детали сохранятся.');
   const roofCover=roofCoverLayout(assembly,settings.roofSheets);
   roofCover.issues.forEach(message=>issue('ROOF_SHEETS',message));
   for(const [key,link] of Object.entries(settings.gableLinks)) {
@@ -795,7 +806,8 @@ export function calculateProductionCutting(project, calculation) {
     const length=presentNumber(override.length)?Number(override.length):member.length;
     if(!(length>0&&length<=100000)){issue('MEMBER_OVERRIDE',`${member.id}: неверная производственная длина`,member.key);member.excluded=true;continue;}
     if((override.exclude||override.profile||presentNumber(override.length))&&!override.nodeRef?.trim())issue('MEMBER_NODE',`${member.id}: для изменения или исключения укажите рабочий узел`,member.key);
-    member.length=length;member.cutLength=length+2*Number(settings.endAllowanceMm||0);
+    const endCutExtra=member.endCutOutline&&!presentNumber(override.length)?Math.max(...member.endCutOutline.map(p=>p[0]))-Math.min(...member.endCutOutline.map(p=>p[0]))-member.length:0;
+    member.length=length;member.cutLength=Math.ceil(length+Math.max(0,endCutExtra))+2*Number(settings.endAllowanceMm||0);
     member.profile=override.profile?.trim()||member.profile;member.nodeRef=override.nodeRef||member.nodeRef||'';member.processing=override.processing||member.processing||'';member.excluded=override.exclude===true;
   }
   refreshPartitionNotches(members);
@@ -806,6 +818,7 @@ export function calculateProductionCutting(project, calculation) {
   const markRegistry=assignProductionMarks(parts,members,settings.markRegistry);
   const marked=new Map(members.map(m=>[m.id,m.displayMark]));
   for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[])m.displayMark=marked.get(m.id)||m.id;
+  for(const support of assembly.supports)support.displayMark=marked.get(support.mark)||support.mark;
   const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
   const fabrication=stockJointPieces(members,settings);
   issues.push(...fabrication.issues);
@@ -820,7 +833,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ fabricationModel:212, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:217, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };

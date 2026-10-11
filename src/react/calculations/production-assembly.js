@@ -2,6 +2,8 @@ import { houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { bearingEdges } from './bearing-walls.js';
 import { roofDrawingData } from './roof-drawings.js';
 import { sourceIdentity } from '../state/production-identities.js';
+import { rafterEndOutline } from './rafter-end-cuts.js';
+import { roofAxonometricLines } from './roof-drawings.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -68,7 +70,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for(let i=0;i<count;i++)for(const run of runs){
       if(roof.mainRoofShape==='tiered' && roof.warmSlopeArea>0 && (warmLevel==='both'||warmLevel===run.level))continue;
       const a=roof.mainRoofShape==='tiered'&&!upperFirst?span-run.a:run.a,b=roof.mainRoofShape==='tiered'&&!upperFirst?span-run.b:run.b;
-      const along=count>1?axisLength*i/(count-1):axisLength/2;
+      const along=frame.positions?.[i]??(count>1?axisLength*i/(count-1):axisLength/2);
       const id=`КР-СТ${++index}`,length=roof.mainRoofShape==='gable'&&settings.rafterGeometry!=='estimate'
         ?Math.ceil(Math.hypot(span/2,mm(project.settings.roof.ridgeHeight))*(span/2+eave)/(span/2||1)):mm(run.length);
       const item={id,a:at(along,a),b:at(along,b),length,name:run.name,profile:String(frame.section||'').replace('x','×')};
@@ -152,6 +154,10 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const roofOutline=rectangular?[at(-gable,-eave),at(axisLength+gable,-eave),at(axisLength+gable,span+eave),at(-gable,span+eave)]:contour;
   const assembly={floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,roofTimbers,laths,counterLaths,supports,members,issues,binding,foundationType:project.settings.piles?.pileType||'screw',blockDimensions:project.settings.piles?.blockDimensions,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
   assembly.roofDrawing=roofDrawingData(assembly,roof,project.settings.roof,settings.rafterGeometry);
+  if(settings.rafterEndCuts)for(const line of roofAxonometricLines(assembly)){
+    const cut=rafterEndOutline(line.a,line.b,Number(line.profile.split(/[×xх]/)[1])),member=members.find(m=>m.id===line.id);
+    if(cut&&member){member.cutLength=cut.blankLength+2*Number(settings.endAllowanceMm||0);member.processing='Верхний торец вертикальный; нижний перпендикулярен стропилу. Опорные врубки и крепёж по рабочему узлу.';member.endCutOutline=cut.outline;}
+  }
   issues.push(...assembly.roofDrawing.warnings);
   assembly.roofShape=roof.mainRoofShape;
   assembly.roofGeometry=g;

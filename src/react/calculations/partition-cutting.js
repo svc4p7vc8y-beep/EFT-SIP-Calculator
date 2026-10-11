@@ -1,6 +1,7 @@
 // Geometric framing proposal. Header capacity, bracing and connections require project nodes.
 import clipping from 'polygon-clipping';
 import { singleBevelBrace, partitionNotches } from './partition-geometry.js';
+import { clearGapPositions } from './clear-gap-framing.js';
 
 export function partitionFrameMembers(surface,settings) {
   if(surface.blocked)return [];
@@ -14,7 +15,10 @@ export function partitionFrameMembers(surface,settings) {
   const gaps=holes.filter(o=>o.gap).map(o=>[o.x,o.x+o.width]).sort((a,b)=>a[0]-b[0]);
   for(let layer=0;layer<layers;layer++){const y=H-(layer+.5)*t;let start=0;for(const [a,b]of gaps){if(a>start)add([start,y],[a,y],'Верхняя обвязка перегородки');start=Math.max(start,b);}if(start<W)add([start,y],[W,y],'Верхняя обвязка перегородки');}
   const anchors=[t/2,W-t/2,...holes.flatMap(o=>[o.x-t/2,o.x+o.width+t/2])].sort((a,b)=>a-b),positions=new Set(anchors);
-  for(let i=1;i<anchors.length;i++){const count=Math.ceil((anchors[i]-anchors[i-1])/settings.frameStepMm);for(let j=1;j<count;j++)positions.add(anchors[i-1]+(anchors[i]-anchors[i-1])*j/count);}
+  for(let i=1;i<anchors.length;i++){
+    if(Number(settings.partitionClearGapMm)>0){for(const x of clearGapPositions(anchors[i-1],anchors[i],t,Number(settings.partitionClearGapMm)))positions.add(x);}
+    else {const count=Math.ceil((anchors[i]-anchors[i-1])/settings.frameStepMm);for(let j=1;j<count;j++)positions.add(anchors[i-1]+(anchors[i]-anchors[i-1])*j/count);}
+  }
   for(const o of holes){
     if(Number(o.sill)>0)add([o.x,Number(o.sill)-t/2],[o.x+o.width,Number(o.sill)-t/2],'Подоконная доска');
     if(Number(o.sill)+o.height<H-layers*t)add([o.x,Number(o.sill)+o.height+t/2],[o.x+o.width,Number(o.sill)+o.height+t/2],'Перемычка проёма · сечение проверить');}

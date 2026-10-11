@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { Printer, Settings2, Maximize, Minimize, ZoomIn, ZoomOut, Undo2, Redo2, Layers, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Printer, Settings2, Maximize, Minimize, ZoomIn, ZoomOut, Undo2, Redo2, Layers, ChevronLeft, ChevronRight, Download, Box, PanelsTopLeft, SquareDashed, Scissors, Grid2X2, PencilRuler } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { groupPanels, groupMembers } from '../calculations/production-cutting.js';
 import WallPanelPlan from './WallPanelPlan.jsx';
@@ -39,7 +39,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
   const [category,setCategory]=useState('walls'),[surfaceId,setSurfaceId]=useState(''),[view,setView]=useState('drawing');
   const [layers,setLayers]=useState(defaultLayers),[showLayers,setShowLayers]=useState(false),[mode,setMode]=useState('combined');
   const [selection,setSelection]=useState([]),[bottom,setBottom]=useState('assembly'),[expanded,setExpanded]=useState(false);
-  const [zoomByView,setZoomByView]=useState({}),[pan,setPan]=useState(false),[fit,setFit]=useState(0),[fontScale,setFontScale]=useState(1);
+  const [zoomByView,setZoomByView]=useState({}),[pan,setPan]=useState(false),[fit,setFit]=useState(0);
   const [full,setFull]=useState(false),[sheetId,setSheetId]=useState('1'),[selectedSheets,setSelectedSheets]=useState([]),[paper,setPaper]=useState('A3');
   const [printing,setPrinting]=useState(null),[printError,setPrintError]=useState('');
   const [measure,setMeasure]=useState(false),[measureStart,setMeasureStart]=useState(null),[measureCursor,setMeasureCursor]=useState(null);
@@ -58,6 +58,8 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
   const surface=candidates.find(s=>s.id===surfaceId)||candidates[0];
   const drawing=useMemo(()=>!surface?null:category==='walls'?combinedWall(report,surface,links,mode):{surface,parts:report.parts.filter(p=>p.surfaceId===surface.id),members:report.members.filter(m=>m.surfaceId===surface.id)},[surface,report,category,links,mode]);
   const viewKey=`${category}:${surface?.layoutKey||''}:${view}`,zoom=zoomByView[viewKey]||1;
+  const fontKey=`${category}:${surface?.id||'all'}`,fontScale=settings.drawingFontScales?.[fontKey]||1;
+  const setFontScale=value=>update({drawingFontScales:{...settings.drawingFontScales,[fontKey]:value}});
   const dimensions=settings.drawingDimensions[viewKey]||[];
   const saveDimensions=list=>update({drawingDimensions:{...settings.drawingDimensions,[viewKey]:list}});
   const labels=settings.drawingLabels[viewKey]||{};
@@ -100,12 +102,12 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     else download(name,text,'image/svg+xml');
   };
   const scene=()=>{
-        if(category==='overview')return <WallPanelPlan report={report} floor={floor} onSelect={openWall} layers={layers}/>;
-    if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall} layers={layers}/>;
-    if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={layers}/>;
+        if(category==='overview')return <WallPanelPlan report={report} floor={floor} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
+    if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
+    if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={layers} fontScale={fontScale}/>;
     if(view==='starter')return <StarterBoardDiagram walls={report.starterBoards}/>;
     if(category==='supports')return <AssemblyCanvas assembly={report.assembly}/>;
-    if(category==='binding')return view==='section'?<BindingSection assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} kind="binding" layers={layers}/>;
+    if(category==='binding')return view==='section'?<BindingSection assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} kind="binding" layers={layers} fontScale={fontScale}/>;
     if(category==='roof'&&(view!=='drawing'||!surface))return view==='cover'?<RoofCoverTool report={report} settings={settings} update={update} NumberInput={NumberInput}/>:view==='section'?<RoofSection assembly={report.assembly}/>:view==='overlay'?<AssemblyCanvas assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} selected={selection} onSelect={select} layers={layers}/>;
     if(drawing)return <DrawingCanvas {...drawing} layers={layers} selected={selection} onSelect={labelTool?undefined:select} fontScale={fontScale} dimensions={dimensions} labelOverrides={labels} onTextSelect={labelTool?selectLabel:label=>{if(label.key.startsWith('panel:'))select(label.key.slice(6));}} onTextMove={labelTool?(key,offset)=>saveLabel(key,{offset}):undefined} draft={measureStart&&measureCursor?{a:measureStart,b:measureCursor}:null} onPick={measure?measurePick:null} onHover={measureStart?setMeasureCursor:null} onLabelMove={(id,offset)=>saveDimensions(dimensions.map(d=>d.id===id?{...d,offset}:d))}/>;
     return <p className="cut-empty">Для этой конструкции нет деталей. Проверьте включение раздела в параметрах проекта.</p>;
@@ -119,22 +121,21 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     <nav className="workbench-modes" aria-label="Режим рабочего раздела">{WORKBENCH_MODES.map(([id,name])=><button key={id} aria-pressed={workMode===id} onClick={()=>changeMode(id)}>{name}</button>)}</nav>
     <div hidden={workMode!=='documentation'}>{documentationOpened?<Suspense fallback={<p role="status">Загрузка документации…</p>}><Documentation report={report} pending={pending} onBack={()=>changeMode('construction')} onLocate={block=>{const issue=report.issues.find(i=>i.message===block.message);if(issue){issueClick(issue);return;}const item=[...report.parts,...report.members].find(i=>block.message.startsWith(i.id+':'));const s=report.surfaces.find(s=>block.message.startsWith(s.name+':'));if(item){showItem(item.id);return;}if(s){openWall(s.id);return;}if(block.code==='CATALOG'){onAppNavigate?.('price');return;}changeMode('checks');}} workingSheets={<><p>Предварительный просмотр текущей модели — не сохранённый выпуск.</p><label>Лист<select aria-label="Лист текущей модели" value={sheetId} onChange={e=>setSheetId(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}</select></label><label>Формат<select aria-label="Формат текущей модели" value={paper} onChange={e=>setPaper(e.target.value)}><option>A3</option><option>A4</option></select></label><button disabled={pending} onClick={()=>print([sheetId])}>Печать листа</button><button disabled={pending} onClick={()=>print(null)}>Печать всех текущих листов</button><details><summary>Выбрать текущие листы · {selectedSheets.length}</summary><button onClick={()=>setSelectedSheets(pages.map(p=>p.id))}>Выбрать все листы</button><button onClick={()=>setSelectedSheets([])}>Снять выбор листов</button>{pages.map(p=><label key={p.id}><input type="checkbox" checked={selectedSheets.includes(p.id)} onChange={e=>setSelectedSheets(old=>e.target.checked?[...old,p.id]:old.filter(id=>id!==p.id))}/>{p.title}</label>)}<button disabled={pending||!selectedSheets.length} onClick={()=>print(selectedSheets)}>Печать выбранных листов</button></details><MountingAlbum project={project} report={report} pages={pages} selectedIds={[sheetId]} paper={paper} preview/></>}/></Suspense>:null}</div>
     <div hidden={workMode==='documentation'}>
-    <div hidden={workMode==='checks'}><div className="drawing-navigation"><label>Этаж<select aria-label="Этаж чертежей" value={floor} onChange={e=>{setFloor(Number(e.target.value));setSurfaceId('');setSelection([]);setTool('select');}}>{Array.from({length:Math.max(1,project.meta.floors||1)},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label><label>Конструкция<select aria-label="Раздел чертежей" value={category} onChange={e=>go(e.target.value)}>{categories.map(([id,name])=><option key={id} value={id}>{name}</option>)}{category==='supports'?<option value="supports">Проектные элементы</option>:null}</select></label>
+    <div hidden={workMode==='checks'}><div className="workbench-construction-pills" role="group" aria-label="Раздел чертежей">{categories.map(([id,name])=><button key={id} aria-pressed={category===id} onClick={()=>go(id)}>{name}</button>)}{category==='supports'?<button aria-pressed>Проектные элементы</button>:null}</div><div className="drawing-navigation"><label>Этаж<select aria-label="Этаж чертежей" value={floor} onChange={e=>{setFloor(Number(e.target.value));setSurfaceId('');setSelection([]);setTool('select');}}>{Array.from({length:Math.max(1,project.meta.floors||1)},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
       {candidates.length?<><button aria-label="Предыдущая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)-1+candidates.length)%candidates.length].id)}><ChevronLeft size={18}/></button><select aria-label="Выбранная конструкция" value={surface.id} onChange={e=>{setSurfaceId(e.target.value);setSelection([]);}}>{candidates.map(s=><option key={s.id} value={s.id}>{s.name}{s.blocked?' · есть замечания':''}</option>)}</select><button aria-label="Следующая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)+1)%candidates.length].id)}><ChevronRight size={18}/></button></>:null}
       <button disabled={pending||view==='model3d'} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button>
     </div>
     <div className="drawing-tools" role="toolbar" aria-label="Инструменты чертежа">
       <button disabled={!canUndo||pending} onClick={undo} aria-label="Отменить"><Undo2 size={17}/></button>
       <button disabled={!canRedo||pending} onClick={redo} aria-label="Повторить"><Redo2 size={17}/></button>
-      <label>Вид<select aria-label="Вид чертежа" value={view} onChange={e=>{setView(e.target.value);setTool('select');}}>
-        <option value="drawing">{['walls','partitions','gables'].includes(category)?'Развёртка':'План / раскладка'}</option>
-        {surface?.planStart?<option value="plan">План сверху</option>:null}
-        {['binding','roof'].includes(category)?<option value="section">Разрез</option>:null}
-        {category==='walls'?<option value="starter">Стартовая доска</option>:null}
-        {category==='roof'?<><option value="cover">Листы покрытия</option><option value="overlay">Совмещённые слои</option><option value="edit">Разместить элементы</option></>:null}
-        <option value="model3d">3D дом</option>
-        {category==='supports'&&view==='edit'?<option value="edit">Разместить элементы</option>:null}
-      </select></label>
+      <div className="workbench-view-icons" role="group" aria-label="Вид чертежа">{[
+        ['drawing',['walls','partitions','gables'].includes(category)?'Развёртка':'План / раскладка',PanelsTopLeft],
+        ...(surface?.planStart?[['plan','План сверху',Grid2X2]]:[]),
+        ...(['binding','roof'].includes(category)?[['section','Разрез',Scissors]]:[]),
+        ...(category==='walls'?[['starter','Стартовая доска',SquareDashed]]:[]),
+        ...(category==='roof'?[['cover','Листы покрытия',Grid2X2],['overlay','Совмещённые слои',Layers],['edit','Разместить элементы',PencilRuler]]:category==='supports'&&view==='edit'?[['edit','Разместить элементы',PencilRuler]]:[]),
+        ['model3d','3D дом',Box],
+      ].map(([id,label,Icon])=><button key={id} title={label} aria-label={label} aria-pressed={view===id} onClick={()=>{setView(id);setTool('select');}}><Icon size={18}/></button>)}</div>
       <button disabled={['edit','cover','overlay','starter'].includes(view)||category==='supports'||workMode==='production'&&bottom==='stock'} onClick={()=>view==='model3d'?threeControls.current?.zoom(1.25):setZoom(Math.max(.5,zoom/1.25))} aria-label="Уменьшить"><ZoomOut size={17}/></button>
       <span>{view==='model3d'?'3D':Math.round(zoom*100)+'%'}</span>
       <button disabled={['edit','cover','overlay','starter'].includes(view)||category==='supports'||workMode==='production'&&bottom==='stock'} onClick={()=>view==='model3d'?threeControls.current?.zoom(.8):setZoom(Math.min(4,zoom*1.25))} aria-label="Увеличить"><ZoomIn size={17}/></button>
@@ -146,8 +147,9 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
         {drawing&&view==='drawing'&&dimensions.length?<button onClick={()=>saveDimensions([])}>Убрать ручные размеры</button>:null}
       </details>
     </div>
-    {showLayers?<div className="drawing-layers">{Object.entries({panels:'Панели',frame:'Каркас и соединители',dimensions:'Размеры',labels:'Марки'}).map(([key,label])=><label key={key}><input type="checkbox" checked={layers[key]} onChange={e=>setLayers({...layers,[key]:e.target.checked})}/>{label}</label>)}<button onClick={()=>setLayers(defaultLayers)}>Все слои</button><label>Текст<select value={fontScale} onChange={e=>setFontScale(Number(e.target.value))}>{[.8,1,1.25,1.5].map(n=><option key={n} value={n}>{Math.round(n*100)}%</option>)}</select></label></div>:null}
+    {showLayers&&view!=='model3d'?<div className="drawing-layers">{Object.entries({panels:'Панели',frame:'Каркас и соединители',dimensions:'Размеры',labels:'Марки'}).map(([key,label])=><label key={key}><input type="checkbox" checked={layers[key]} onChange={e=>setLayers({...layers,[key]:e.target.checked})}/>{label}</label>)}<button onClick={()=>setLayers(defaultLayers)}>Все слои</button><label>Текст<select value={fontScale} onChange={e=>setFontScale(Number(e.target.value))}>{[.8,1,1.25,1.5].map(n=><option key={n} value={n}>{Math.round(n*100)}%</option>)}</select></label></div>:null}
     {category==='walls'?<div className="drawing-views">{[['combined','Стена с фронтоном'],['wall','Только стена'],['gable','Только фронтон']].map(([id,label])=><button key={id} aria-pressed={mode===id} disabled={id==='gable'&&!links.some(l=>l.wall?.id===surface?.id)} onClick={()=>setMode(id)}>{label}</button>)}</div>:null}
+    {surface&&view!=='model3d'&&['floor','ceiling'].includes(category)?<div className="drawing-views" role="group" aria-label="Раскладка перекрытия">{[['x','Вдоль X'],['y','Вдоль Y']].map(([direction,label])=><button key={direction} aria-pressed={settings.layouts[surface.layoutKey]?.direction===direction} onClick={()=>update({layouts:{...settings.layouts,[surface.layoutKey]:{...settings.layouts[surface.layoutKey],direction}}})}>{label}</button>)}<label><input type="checkbox" checked={settings.staggered} onChange={e=>update({staggered:e.target.checked})}/>Шахматная раскладка пола и потолка</label></div>:null}
     {measure?<p role="status">{measureStart?'Укажите вторую точку':'Укажите первую точку'}; размер сохраняется в проекте. Подписи редактируются инструментом «Подписи».</p>:null}
     {pending?<p role="status" className="drawing-pending">Обновляю чертежи. Печать и редактирование временно недоступны.</p>:null}
     {error?<p role="alert">{error}</p>:null}{printError?<p role="alert">{printError}</p>:null}

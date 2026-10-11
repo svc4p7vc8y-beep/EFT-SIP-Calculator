@@ -1,7 +1,7 @@
 import { groupPanels, groupMembers, polygonBounds } from '../calculations/production-cutting.js';
 import { productionMark as mark } from '../calculations/production-assembly.js';
 import AssemblyCanvas from './AssemblyCanvas.jsx';
-import { BindingSection, RoofPerspective, RoofSection, StructuralPlan, SupportElevation } from './RoofDrawings.jsx';
+import { BindingSection, RoofPerspective, RoofSection, StructuralPlan, SupportElevation, RoofFrameElevation } from './RoofDrawings.jsx';
 import { combinedWall, gableLinks, drawingCategory } from '../calculations/drawing-workbench.js';
 import { partitionProcurement } from '../calculations/partition-procurement.js';
 import { surfaceDimensions } from '../calculations/drawing-dimensions.js';
@@ -84,7 +84,13 @@ export function buildMountingPages(report) {
     add('План стропильной системы · марки и шаги',<><div className="album-columns"><StructuralPlan assembly={report.assembly}/><div><Schedule items={rows}/><h3>Обозначения</h3><p>СТ — типоразмер стропила (одинаковая марка повторяется в каждом месте). Короткие марки досок и бруса — в сводной ведомости кровли. КР-М / КР-КН — технические привязки мауэрлата и двух рядов коньковой доски. ОП — проектный элемент, показан пунктиром. Светло-серый контур — стены и комнаты. Сечения взяты из текущего проекта, шаги — фактические расстояния между осями на плане.</p><p>Размеры скатов со свесами — на отдельных развёртках. Длина стропила указана до проектной обработки торцов и опорных врубок.</p></div></div></>);
   }
   for(const [i,supports]of chunks(report.assembly.supports,10).entries())add(`Опоры · координаты и путь нагрузки · ${i+1}`,<table><thead><tr><th>Марка</th><th>Элемент / сечение</th><th>Начало X/Y/Z, мм</th><th>Конец X/Y/Z, мм</th><th>Длина</th><th>Опирание / узел</th></tr></thead><tbody>{supports.map(s=><tr key={s.id}><td>{s.mark}</td><td>{s.name} · {s.profile}</td><td>{s.a.join(' / ')}</td><td>{s.b.join(' / ')}</td><td>{s.length}</td><td>{s.loadPath.text}<br/>{s.nodeRef||'Узел не задан'}</td></tr>)}</tbody></table>);
-  for(const [i,supports]of chunks(report.assembly.supports.filter(s=>s.type!=='foundation'),4).entries())add(`Проектные элементы · развёртки по длине · ${i+1}`,<div className="album-support-elevations">{supports.map(s=><article key={s.id}><h3>{s.mark} · {s.name}</h3><SupportElevation support={s}/><p>Начало: {s.a.join(' / ')}; конец: {s.b.join(' / ')} мм. Узел: {s.nodeRef||'не задан'}. Сечение и крепление — по проекту.</p></article>)}</div>);
+  const frameGroups=[...new Set(report.assembly.supports.filter(s=>s.frameGroup).map(s=>s.frameGroup))];
+  for(const [i,id]of frameGroups.entries()){
+    const supports=report.assembly.supports.filter(s=>s.frameGroup===id),members=report.members.filter(m=>supports.some(s=>s.mark===m.id));
+    const rows=groupMembers(members).map(g=>({name:`${mark(g.member)} · ${g.member.material}`,profile:g.member.profile,length:g.member.length,qty:g.qty}));
+    chunks(rows,8).forEach((list,j)=>add(`Опорный каркас кровли ${i+1}${j?` · ведомость ${j+1}`:''}`,<div className="roof-frame-sheet"><RoofFrameElevation supports={supports}/><Schedule items={list}/><p>Пояса плашмя. Размеры в мм; вид вдоль каркаса, схема не в масштабе. Материал — по сохранённому проекту. Опирание, стыки и врезки требуют рабочего узла.</p></div>));
+  }
+  for(const [i,supports]of chunks(report.assembly.supports.filter(s=>s.type!=='foundation'&&!s.frameGroup),4).entries())add(`Проектные элементы · развёртки по длине · ${i+1}`,<div className="album-support-elevations">{supports.map(s=><article key={s.id}><h3>{s.mark} · {s.name}</h3><SupportElevation support={s}/><p>Начало: {s.a.join(' / ')}; конец: {s.b.join(' / ')} мм. Узел: {s.nodeRef||'не задан'}. Сечение и крепление — по проекту.</p></article>)}</div>);
   for(const original of report.surfaces){
     const s={...original,drawingLabels:report.settings.drawingLabels?.[`${drawingCategory(original)}:${original.layoutKey||''}:drawing`]||{}};
     const parts=report.parts.filter(p=>p.surfaceId===s.id),members=report.members.filter(m=>m.surfaceId===s.id&&!m.excluded);

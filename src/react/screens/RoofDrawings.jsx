@@ -2,6 +2,7 @@ import { roofAxonometricLines } from '../calculations/roof-drawings.js';
 import { structuralDimensions, bearingPlanWidth, checkDiagonals } from '../calculations/drawing-dimensions.js';
 import { productionMark } from '../calculations/production-assembly.js';
 import Dimensions from '../components/DrawingDimensions.jsx';
+import { bindingPlanRows } from '../calculations/binding-rows.js';
 
 const round=n=>Math.round(n);
 const pts=list=>list.map(p=>p.join(',')).join(' ');
@@ -10,11 +11,11 @@ function Member({a,b,profile,label,font,dashed=false,width}) {
   return <g><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={dashed?'#333':'#b58b52'} strokeWidth={dashed?2:depth} strokeDasharray={dashed?'7 4':undefined} vectorEffect={dashed?'non-scaling-stroke':undefined}/>{!dashed?<line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#000" strokeWidth=".6" vectorEffect="non-scaling-stroke"/>:null}{label?<text x={(a[0]+b[0])/2} y={(a[1]+b[1])/2-font*.5} fontSize={font} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.18}>{label}</text>:null}</g>;
 }
 
-export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers={}}) {
+export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers={},fontScale=1}) {
   const binding=kind==='binding',floor=binding?assembly.floors[0]:assembly.floors.at(-1);
-  const items=binding?assembly.binding:assembly.rafters;
+  const items=binding?assembly.binding.flatMap(bindingPlanRows):assembly.rafters;
   const all=[...floor.contour,...(!binding?assembly.roofOutline:[]),...items.flatMap(s=>[s.a,s.b]),...(binding?assembly.piles:assembly.supports.flatMap(s=>[s.a,s.b]))];
-  const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y,size=Math.max(w,h,1000),pad=size*.17,font=size*.021;
+  const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y,size=Math.max(w,h,1000),pad=size*.17,font=size*.021*fontScale;
   const dimensions=structuralDimensions(assembly,binding),house=dimensions.house,roof=dimensions.roof;
   const bearings=floor.bearing||[],diagonals=binding?checkDiagonals(assembly):[];
   const profiles=new Map();bearings.forEach((s,i)=>{const key=s.profile||'сечение по проекту';profiles.set(key,[...(profiles.get(key)||[]),i+1]);});
@@ -26,7 +27,7 @@ export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers
     <polygon points={pts(floor.contour)} fill="none" stroke="#777" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
     {floor.rooms.map((r,i)=><polygon key={i} points={pts(r.points)} fill="none" stroke="#ccc" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}
     {bearings.map((s,i)=><g key={i}><Member {...s} width={bearingPlanWidth(s.profile)??50} label={binding||layers.labels===false?'':`НС${i+1}`} font={font*.65}/><title>НС{i+1} · Несущая · {s.profile||'сечение не задано'}</title></g>)}
-    {layers.frame!==false?items.map(s=><g key={s.id} role={onSelect?'button':undefined} tabIndex={onSelect?0:undefined} aria-label={`Выбрать ${s.id}`} onClick={()=>onSelect?.(s.id)} onKeyDown={e=>{if(e.key==='Enter')onSelect?.(s.id);}}><Member {...s} label={layers.labels===false?'':binding?s.id:productionMark(s)} font={font}/><line x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke={selected.includes(s.id)?'#10734c':'transparent'} strokeWidth={selected.includes(s.id)?4:14} vectorEffect="non-scaling-stroke"/></g>):null}
+    {layers.frame!==false?items.map(s=><g key={`${s.id}:${s.row??'main'}`} role={onSelect?'button':undefined} tabIndex={onSelect?0:undefined} aria-label={`Выбрать ${s.id}`} onClick={()=>onSelect?.(s.id)} onKeyDown={e=>{if(e.key==='Enter')onSelect?.(s.id);}}><Member {...s} label={layers.labels===false||binding&&s.row!==Math.floor((s.layers||1)/2)?'':binding?s.id:productionMark(s)} font={font}/><line x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke={selected.includes(s.id)?'#10734c':'transparent'} strokeWidth={selected.includes(s.id)?4:14} vectorEffect="non-scaling-stroke"/></g>):null}
     {!binding?(assembly.roofTimbers||[]).filter(s=>s.id!=='КР-КН2').map(s=><Member key={s.id} {...s} label={productionMark(s)} font={font}/>):null}
     {binding?assembly.piles.map((p,i)=>{const block=assembly.foundationType==='concreteBlock',width=block&&Number(assembly.blockDimensions?.widthMm)>0?Number(assembly.blockDimensions.widthMm):font*.7,length=block&&Number(assembly.blockDimensions?.lengthMm)>0?Number(assembly.blockDimensions.lengthMm):font*.7;return <g key={i}><rect x={p[0]-width/2} y={p[1]-length/2} width={width} height={length} fill="white" stroke="#000" strokeWidth=".6" vectorEffect="non-scaling-stroke"/><text x={p[0]+width/2+font*.3} y={p[1]+font} fontSize={font*.75}>{block?'БЛ':'СВ'}{i+1}</text></g>;}):assembly.supports.map(s=><Member key={s.id} {...s} label={s.mark} font={font} dashed/>)}
     {binding&&layers.dimensions!==false?diagonals.map(({a,b,length},i)=>{const t=.3+i*.2;return <g key={i}><line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#555" strokeWidth=".5" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/><text x={a[0]+(b[0]-a[0])*t} y={a[1]+(b[1]-a[1])*t-font*.4} fontSize={font*.65} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.2}>Д{i+1}</text><title>Д{i+1}: {Math.round(length)} мм</title></g>;}):null}
@@ -83,6 +84,20 @@ export function SupportElevation({support:s}) {
     {[s.a,s.b].map((p,i)=><text key={i} x={i?run:0} y={-p[2]+font*1.7} fontSize={font*.8} textAnchor="middle">Z {p[2]}</text>)}
     <Dimensions values={[0,run]} y={-low+pad*.65} font={font*.8}/>
   </svg>;
+}
+
+export function RoofFrameElevation({supports}) {
+ const lower=supports.find(s=>s.name.includes('нижний пояс')),upper=supports.find(s=>s.name.includes('верхний пояс'));if(!lower||!upper)return null;
+ const firstLength=Math.hypot(lower.b[0]-lower.a[0],lower.b[1]-lower.a[1]),ux=(lower.b[0]-lower.a[0])/firstLength,uy=(lower.b[1]-lower.a[1])/firstLength,L=Math.max(...supports.flatMap(s=>[s.a,s.b]).map(p=>(p[0]-lower.a[0])*ux+(p[1]-lower.a[1])*uy));
+ const base=lower.a[2]-25,top=upper.a[2]+25,H=top-base,pad=Math.max(L,H)*.13,font=Math.max(L,H)*.018;
+ const at=p=>[(p[0]-lower.a[0])*ux+(p[1]-lower.a[1])*uy,-(p[2]-base)];
+ const studs=supports.filter(s=>s.type==='post'),positions=studs.map(s=>at(s.a)[0]);
+ return <svg className="roof-document-drawing" role="img" aria-label="Развёртка опорного каркаса кровли" viewBox={`${-pad} ${-H-pad} ${L+2*pad} ${H+2.8*pad}`}>
+  {supports.map(s=><g key={s.id}><Member a={at(s.a)} b={at(s.b)} profile={s.profile} width={50} font={font} label={s.type==='post'?'':productionMark(s)}/><title>{productionMark(s)} · {s.name} · {s.profile} · {s.length} мм</title></g>)}
+  <Dimensions values={[0,L]} y={pad*.55} font={font}/><Dimensions values={positions} y={pad*.15} font={font*.65}/>
+  <text x={L/2} y={-H-pad*.5} fontSize={font} textAnchor="middle">{Math.round(H)} мм · {lower.profile} · стойки ×{studs.length}</text>
+  <text x={L/2} y={pad*1.25} fontSize={font*.75} textAnchor="middle">Просвет {lower.frameClearGapMm??590} мм; крайние ячейки укорочены. Узлы и нижнее опирание — по проекту.</text>
+ </svg>;
 }
 
 export function RoofDrawingPreview({assembly}) {
