@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v218-roof-project';
+const CACHE_NAME = 'eft-calculator-react-v219-platform-assembly';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

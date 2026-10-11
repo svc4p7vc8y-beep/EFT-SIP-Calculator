@@ -7,7 +7,7 @@ import { groupStockMaps } from '../calculations/project-release.js';
 import { polygonBounds } from '../calculations/production-cutting.js';
 import {roofProjectSheets} from './RoofProjectSheets.jsx';
 const chunks=(rows,n)=>Array.from({length:Math.ceil(rows.length/n)},(_,i)=>rows.slice(i*n,i*n+n));
-const layers={shell:['walls','gables','roof','binding'],inside:['walls','partitions','floor','binding','supports'],roof:['roof','supports'],base:['binding','supports']};
+const layers={shell:['walls','gables','roof','binding','platforms','platformRoof'],inside:['walls','partitions','floor','binding','supports','platforms'],roof:['roof','supports','platformRoof'],base:['binding','supports','platforms']};
 const materialName=value=>({pps:'СИП · ППС',pu:'СИП · ППУ',mw:'СИП · минвата'}[value]||value);
 const Table=({head,rows,className=''})=><table className={`release-table ${className}`}><thead><tr>{head.map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v??'—'}</td>)}</tr>)}</tbody></table>;
 const Panel=({title,children})=><section className="release-visual-panel"><h3>{title}</h3>{children}</section>;

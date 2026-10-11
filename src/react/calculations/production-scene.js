@@ -8,7 +8,7 @@ import { bindingPlanRows } from './binding-rows.js';
 
 // Millimetres, right-handed model coordinates X/Y = plan, Z = height.
 // This adapter only places existing production geometry; it never creates stock.
-export function productionScene(report,project) {
+export function productionScene(report,project,{includePlatforms=report.settings.showPlatforms!==false}={}) {
   const {plans,bases,roofBase:defaultRoofBase}=productionLevels(project,report.assembly.floors.length),roofBase=report.assembly.roofDrawing?.model?report.assembly.roofModel.roofBase:defaultRoofBase;
   const links=gableLinks(report,report.settings.gableLinks),placements=new Map(),missing=[];
   for(const s of report.surfaces){
@@ -25,9 +25,10 @@ export function productionScene(report,project) {
     }else if(category==='roof')missing.push(s.id);
   }
   const world=(p,x,y)=>p.origin.map((n,i)=>n+p.u[i]*x+p.v[i]*y);
-  const panels=report.parts.flatMap(part=>{const p=placements.get(part.surfaceId);return p?[{id:part.id,layer:p.layer,shape:part.shape,placement:p,thickness:part.thickness}]:[];});
+  const roofFaces=new Map(report.surfaces.map(s=>[s.id,s.roofFaceId]));
+  const panels=report.parts.flatMap(part=>{const p=placements.get(part.surfaceId);return p?[{id:part.id,surfaceId:part.surfaceId,faceId:roofFaces.get(part.surfaceId),layer:p.layer,shape:part.shape,placement:p,thickness:part.thickness}]:[];});
   const boards=report.members.filter(m=>!m.excluded&&!m.worldA&&m.a&&m.b).flatMap(m=>{const p=placements.get(m.surfaceId);if(!p)return [];const outline=boardFootprint(m);return outline?[{id:m.id,layer:p.layer,shape:[outline],placement:p,thickness:Number(m.profile?.split(/[×xх]/)[m.role==='brace'?0:1])||45,timber:true}]:[];});
-  const binding=report.assembly.binding.flatMap(m=>{
+  const binding=report.assembly.binding.filter(m=>includePlatforms||m.group!=='platform').flatMap(m=>{
     const depth=Number(String(m.profile).split(/[×xх]/)[1])||150,z=-Number(project.settings.sip.floorThickness)-depth/2;
     return bindingPlanRows(m).map(row=>({...row,layer:'binding',a:[...row.a,z],b:[...row.b,z]}));
   });
@@ -51,5 +52,16 @@ export function productionScene(report,project) {
   const beams=[...roofAxonometricLines(assembly).map(m=>({...m,layer:'rafters',endCutOutline:report.settings.rafterEndCuts?rafterEndOutline(m.a,m.b,Number(m.profile.split(/[×xх]/)[1]))?.outline:null,a:[m.a[0],m.a[1],m.a[2]+roofBase],b:[m.b[0],m.b[1],m.b[2]+roofBase]})),
     ...(assembly.roofTimbers||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'roofTimbers')),...(assembly.laths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'laths')),...(assembly.counterLaths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'counterLaths')),
     ...assembly.supports.filter(m=>!m.referenceOnly).map(m=>({...m,id:m.mark,layer:'supports'})),...binding];
-  return {panels:[...panels,...boards],beams,missing,world,roofBase,bases,placements};
+  const platforms=includePlatforms?(assembly.platforms||[]):[];
+  const platformPanels=platforms.flatMap(p=>{
+    const placement={origin:[0,0,p.deckZ-p.thickness/2],u:[1,0,0],v:[0,1,0],normal:[0,0,1],layer:'platforms'};
+    const deck={id:`platform:${p.id}:deck`,layer:'platforms',shape:[p.contour],placement,thickness:p.thickness,timber:true,referenceOnly:true};
+    const steps=p.steps.map(s=>({...s,layer:'platforms',shape:[s.ring],placement:{...placement,origin:[0,0,s.z-s.thickness/2]},timber:true,referenceOnly:true}));
+    // Legacy roofs have no production placement for cold platform facets.
+    const roofs=p.faces.filter(f=>!panels.some(s=>s.faceId===f.id)).map(f=>({id:`platform:${p.id}:roof:${f.id}`,layer:'platformRoof',shape:[f.polygon],placement:{origin:f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
+    return [deck,...steps,...roofs];
+  });
+  const platformFaceIds=new Set((assembly.platforms||[]).flatMap(p=>p.faces.map(f=>f.id)));
+  const visible=item=>includePlatforms||!(platformFaceIds.has(item.faceId)||String(item.placement?.layer)==='roof'&&platformFaceIds.has(item.surfaceId));
+  return {panels:[...panels.filter(visible),...boards.filter(visible),...platformPanels],beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
 }

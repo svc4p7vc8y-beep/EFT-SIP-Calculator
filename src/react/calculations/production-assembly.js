@@ -6,6 +6,7 @@ import { rafterEndOutline } from './rafter-end-cuts.js';
 import { roofAxonometricLines } from './roof-drawings.js';
 import {roofProject} from './roof-project.js';
 import {roofFabrication} from './roof-fabrication.js';
+import {platformAssembly} from './platform-assembly.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -52,10 +53,10 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const rafters=[],members=[],issues=[];
   const binding=[];
   issues.push(...(calculation.foundation?.bindingIssues||[]));
-  if(project.services.foundation){for(const [index,line] of (calculation.foundation?.bindingLines||project.plan.bindingLines||[]).filter(l=>l.include!==false).entries()){
+  if(project.services.foundation){for(const [index,line] of [...(calculation.foundation?.bindingLines||project.plan.bindingLines||[]),...(calculation.foundation?.platformBindingLines||[])].filter(l=>l.include!==false).entries()){
     const a=[mm(line.x1),mm(line.y1)],b=[mm(line.x2),mm(line.y2)],length=Math.round(Math.hypot(b[0]-a[0],b[1]-a[1]));
     if(!length)continue;const profile=calculation.foundation?.bindingProfile||'50×150',layers=calculation.foundation?.bindingLayers||3;
-    binding.push({id:`ОБ-${index+1}`,a,b,length,profile,layers});
+    binding.push({id:`ОБ-${index+1}`,a,b,length,profile,layers,group:line.group||'house',platformId:line.platformId});
     for(let layer=1;layer<=layers;layer++)members.push({id:`ОБ-${index+1}-${layer}`,material:layers===1?'Брус обвязки':'Доска пакета обвязки',profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),surface:'Обвязка',source:'Линии обвязки плана',panels:[],processing:'Стыки на опорах и соединения по проекту'});
   }}
   const simple=['gable','flat','tiered'].includes(roof.mainRoofShape);
@@ -178,6 +179,9 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     assembly.roofDrawing.estimateDifference=roof.mainRoofShape==='gable'&&assembly.rafters.length?assembly.rafters[0].length-assembly.roofDrawing.estimateLength:0;
   }
   assembly.rafterSystem=frame.system;
+  assembly.pileSources=(calculation.foundation?.points||[]).map(p=>p.source);
+  assembly.platforms=platformAssembly(project,calculation,assembly.roofModel);
+  assembly.showPlatforms=settings.showPlatforms!==false;
   return assembly;
 }
 

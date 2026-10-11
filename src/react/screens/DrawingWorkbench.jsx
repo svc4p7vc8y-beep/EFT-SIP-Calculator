@@ -107,10 +107,10 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     if(category==='roof'&&view==='roofproject')return <RoofProjectDrawing model={report.assembly.roofModel} features={settings.roofDesign.features}/>;
         if(category==='overview')return <WallPanelPlan report={report} floor={floor} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
     if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
-    if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={layers} fontScale={fontScale}/>;
+    if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={{...layers,platforms:settings.showPlatforms!==false}} fontScale={fontScale}/>;
     if(view==='starter')return <StarterBoardDiagram walls={report.starterBoards}/>;
     if(category==='supports')return <AssemblyCanvas assembly={report.assembly}/>;
-    if(category==='binding')return view==='section'?<BindingSection assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} kind="binding" layers={layers} fontScale={fontScale}/>;
+    if(category==='binding')return view==='section'?<BindingSection assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} kind="binding" layers={{...layers,platforms:settings.showPlatforms!==false}} fontScale={fontScale}/>;
     if(category==='roof'&&(view!=='drawing'||!surface))return view==='cover'?<RoofCoverTool report={report} settings={settings} update={update} NumberInput={NumberInput}/>:view==='section'?<RoofSection assembly={report.assembly}/>:view==='overlay'?<AssemblyCanvas assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} selected={selection} onSelect={select} layers={layers}/>;
     if(drawing)return <DrawingCanvas {...drawing} layers={layers} selected={selection} onSelect={labelTool?undefined:select} fontScale={fontScale} dimensions={dimensions} labelOverrides={labels} onTextSelect={labelTool?selectLabel:label=>{if(label.key.startsWith('panel:'))select(label.key.slice(6));}} onTextMove={labelTool?(key,offset)=>saveLabel(key,{offset}):undefined} draft={measureStart&&measureCursor?{a:measureStart,b:measureCursor}:null} onPick={measure?measurePick:null} onHover={measureStart?setMeasureCursor:null} onLabelMove={(id,offset)=>saveDimensions(dimensions.map(d=>d.id===id?{...d,offset}:d))}/>;
     return <p className="cut-empty">Для этой конструкции нет деталей. Проверьте включение раздела в параметрах проекта.</p>;
@@ -143,6 +143,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
       <span>{view==='model3d'?'3D':Math.round(zoom*100)+'%'}</span>
       <button disabled={['edit','cover','overlay','starter'].includes(view)||category==='supports'||workMode==='production'&&bottom==='stock'} onClick={()=>view==='model3d'?threeControls.current?.zoom(.8):setZoom(Math.min(4,zoom*1.25))} aria-label="Увеличить"><ZoomIn size={17}/></button>
       <button onClick={()=>view==='model3d'?threeControls.current?.reset():resetView()}>По размеру</button>
+      <button aria-pressed={settings.showPlatforms!==false} onClick={()=>update({showPlatforms:settings.showPlatforms===false})}>Терраса и крыльцо</button>
       {view!=='model3d'?<button aria-expanded={showLayers} onClick={()=>setShowLayers(!showLayers)}><Layers size={17}/>Слои</button>:null}
       <details className="workbench-export"><summary>Экспорт и размеры</summary>
         {detailPages.length?<button disabled={pending} onClick={()=>print(null,false,true)}>Печать детали ×{selection.length}</button>:null}

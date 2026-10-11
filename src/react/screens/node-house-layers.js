@@ -4,6 +4,7 @@ export const NODE_HOUSE_LAYERS = [
   ['walls', 'Стены'],
   ['ceiling', 'Потолок'],
   ['roof', 'Кровля'],
+  ['platforms', 'Терраса и крыльцо'],
 ];
 
 export function layerForNode(node = {}) {

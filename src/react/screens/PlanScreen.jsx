@@ -2644,7 +2644,7 @@ function PlanCanvas({
           })
         : null}
       {visibleLayers.binding && shownPlan.showBinding !== false
-        ? (foundation.bindingLines || shownPlan.bindingLines || []).map((binding) => {
+        ? [...(foundation.bindingLines || shownPlan.bindingLines || []),...(foundation.platformBindingLines||[])].map((binding) => {
             const q = line(binding);
             const selectedNow =
               selected?.type === "bindingLine" && selected.id === binding.id;

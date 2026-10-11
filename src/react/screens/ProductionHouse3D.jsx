@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { productionScene } from '../calculations/production-scene.js';
 import { beamFrame } from '../calculations/beam-frame.js';
+import {assemblyPlatformView} from '../calculations/platform-assembly.js';
 import { Box,Frame,Scan,Layers,RotateCcw } from 'lucide-react';
 
-const layers={walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',binding:'Обвязка'};
+const layers={walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
 const vector=([x,y,z])=>new THREE.Vector3(x/1000,z/1000,-y/1000);
 const direction=([x,y,z])=>new THREE.Vector3(x,z,-y);
 function beamGeometry(item,width,depth,length){
@@ -19,6 +20,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
   const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(['ceiling']);
   const [display,setDisplay]=useState('solid');
   const data=useMemo(()=>productionScene(report,project),[report,project]);
+  const foundation=useMemo(()=>assemblyPlatformView(report.assembly,report.settings.showPlatforms!==false),[report]);
   selection.current=selected;callback.current=onSelect;
   useEffect(()=>{
     const el=host.current;if(!el)return;let renderer;
@@ -33,10 +35,11 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
       const mesh=new THREE.Mesh(geo,material),p=item.placement;mesh.matrix.makeBasis(direction(p.u),direction(p.v),direction(p.normal));mesh.matrix.setPosition(vector(p.origin));mesh.matrixAutoUpdate=false;mesh.userData={id:item.id,layer:item.layer,color};
       mesh.userData.panel=!item.timber;
       mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:'#253229'})));model.add(mesh);meshes.push(mesh);
+      if(item.id.endsWith(':deck')){const ring=item.shape[0],xs=ring.map(p=>p[0]),ys=ring.map(p=>p[1]),vertices=[],minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);for(let x=minX+145;x<maxX&&vertices.length<12000;x+=145)vertices.push(x/1000,minY/1000,item.thickness/2000+.001,x/1000,maxY/1000,item.thickness/2000+.001);const lines=new THREE.BufferGeometry();lines.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));mesh.add(new THREE.LineSegments(lines,new THREE.LineBasicMaterial({color:'#735838'})));}
     }
     for(const item of data.beams){const frame=beamFrame(item.a,item.b,item.normal),profile=String(item.profile).split(/[×xх]/).map(Number);if(!frame||!profile.every(n=>n>0))continue;const [width,depth]=item.flat?[profile[1],profile[0]]:profile,mesh=new THREE.Mesh(beamGeometry(item,width,depth||width,frame.length),new THREE.MeshStandardMaterial({color:'#ba9562'}));mesh.matrix.makeBasis(direction(frame.across),direction(frame.along),direction(frame.depth));mesh.matrix.setPosition(vector(item.a.map((n,i)=>(n+item.b[i])/2)));mesh.matrixAutoUpdate=false;mesh.userData={id:item.id,layer:item.layer,color:'#ba9562'};model.add(mesh);meshes.push(mesh);}
     for(const m of meshes.filter(m=>!m.userData.panel))if(!m.children.length)m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:'#493921'})));
-    for(const p of report.assembly.piles){const d=report.assembly.blockDimensions,block=report.assembly.foundationType==='concreteBlock'&&d?.widthMm>0&&d?.lengthMm>0&&d?.heightMm>0;const marker=new THREE.Mesh(block?new THREE.BoxGeometry(d.widthMm/1000,d.heightMm/1000,d.lengthMm/1000):new THREE.SphereGeometry(.06,8,6),new THREE.MeshStandardMaterial({color:'#777',roughness:1}));const bottom=-Number(project.settings.sip.floorThickness)-Math.max(0,...report.assembly.binding.map(m=>Number(String(m.profile).split(/[×xх]/)[1])||150));marker.position.copy(vector([...p,block?bottom-d.heightMm/2:bottom]));marker.userData={layer:'supports',color:'#777'};marker.add(new THREE.LineSegments(new THREE.EdgesGeometry(marker.geometry),new THREE.LineBasicMaterial({color:'#333'})));model.add(marker);meshes.push(marker);}
+    for(const p of foundation.piles){const d=foundation.blockDimensions,block=foundation.foundationType==='concreteBlock'&&d?.widthMm>0&&d?.lengthMm>0&&d?.heightMm>0;const marker=new THREE.Mesh(block?new THREE.BoxGeometry(d.widthMm/1000,d.heightMm/1000,d.lengthMm/1000):new THREE.SphereGeometry(.06,8,6),new THREE.MeshStandardMaterial({color:'#777',roughness:1}));const bottom=-Number(project.settings.sip.floorThickness)-Math.max(0,...foundation.binding.map(m=>Number(String(m.profile).split(/[×xх]/)[1])||150));marker.position.copy(vector([...p,block?bottom-d.heightMm/2:bottom]));marker.userData={layer:'supports',color:'#777'};marker.add(new THREE.LineSegments(new THREE.EdgesGeometry(marker.geometry),new THREE.LineBasicMaterial({color:'#333'})));model.add(marker);meshes.push(marker);}
     scene.add(new THREE.HemisphereLight(0xffffff,0x8a9c85,2));const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(10,20,15);scene.add(light);
     const box=new THREE.Box3().setFromObject(model),center=box.isEmpty()?new THREE.Vector3():box.getCenter(new THREE.Vector3()),span=box.isEmpty()?5:Math.max(...box.getSize(new THREE.Vector3()).toArray(),1);
     const camera=new THREE.PerspectiveCamera(42,1,.01,span*30),controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.minDistance=.15;controls.maxDistance=span*8;
@@ -46,7 +49,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     const resize=()=>{const {width,height}=el.getBoundingClientRect();if(width<1||height<1)return;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();if(!view.current)reset();};const observer=new ResizeObserver(resize);observer.observe(el);resize();
     api.current={meshes,reset,controls,camera};if(controlsRef)controlsRef.current={reset,zoom:factor=>{camera.position.sub(controls.target).multiplyScalar(factor).add(controls.target);controls.update();}};let frame;const animate=()=>{frame=requestAnimationFrame(animate);if(el.clientWidth<1||el.clientHeight<1)return;controls.update();view.current={position:camera.position.clone(),target:controls.target.clone()};for(const mesh of meshes)mesh.material.color.set(selection.current.includes(mesh.userData.id)?'#17734b':mesh.userData.color);renderer.render(scene,camera);};animate();
     return()=>{cancelAnimationFrame(frame);observer.disconnect();controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',pick);scene.traverse(n=>{n.geometry?.dispose();if(n.material)(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();api.current=null;};
-  },[data,report.assembly.piles,controlsRef]);
+  },[data,foundation,controlsRef]);
   useEffect(()=>{for(const m of api.current?.meshes||[]){m.visible=!hidden.includes(m.userData.layer)&&!(display==='frame'&&m.userData.panel);if(m.userData.panel){m.material.transparent=display==='transparent';m.material.opacity=display==='transparent'?.28:1;m.material.depthWrite=display!=='transparent';m.material.needsUpdate=true;}}},[hidden,display,data]);
   useEffect(()=>{if(api.current){api.current.controls.mouseButtons.LEFT=THREE.MOUSE.PAN;api.current.controls.mouseButtons.MIDDLE=THREE.MOUSE.ROTATE;api.current.controls.mouseButtons.RIGHT=THREE.MOUSE.ROTATE;}},[data]);
   return <section className={`production-3d ${large?'is-large':''}`} aria-label="Интерактивный 3D домокомплекта">
@@ -56,5 +59,6 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     {showLayers?<div className="production-3d-layers" role="group" aria-label="Слои модели">{Object.entries(layers).map(([key,name])=><button key={key} aria-pressed={!hidden.includes(key)} onClick={()=>setHidden(old=>old.includes(key)?old.filter(k=>k!==key):[...old,key])}>{name}</button>)}</div>:null}
     <div ref={host} className="production-3d-canvas" role="img" aria-label="Объёмный дом: левая кнопка перемещает, средняя вращает, колесо приближает"/>{error?<p role="alert">{error}</p>:null}
     <small>Левая кнопка — перемещение · нажатое колесо — вращение · колесо — масштаб. Пальцем — вращение, двумя — масштаб и перемещение. Опоры без полного размера — маркеры осей.</small>{data.missing.length?<small>Нет пространственной привязки: {data.missing.join(', ')}. Нужен рабочий узел.</small>:null}
+    {data.platforms.length?<small>Терраса и крыльцо: настил 45×145, ступени и стойки — схема по плану. Отметка настила по умолчанию — уровень пола дома; лаги, косоуры, опирание и узлы требуют проекта. Схематические элементы не создают повторный заказ.</small>:null}
   </section>;
 });

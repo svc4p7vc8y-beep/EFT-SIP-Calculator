@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { NODE_HOUSE_LAYERS, groupNodesAtAnchors, layerForNode, nextNodeAtAnchor } from '../src/react/screens/node-house-layers.js';
 
 test('3D node layers cover foundation, floor, walls, ceiling and roof without changing node data', () => {
-  assert.deepEqual(NODE_HOUSE_LAYERS.map(([key]) => key), ['foundation', 'floor', 'walls', 'ceiling', 'roof']);
+  assert.deepEqual(NODE_HOUSE_LAYERS.map(([key]) => key), ['foundation', 'floor', 'walls', 'ceiling', 'roof', 'platforms']);
   const cases = [
     [{ type: 'PILE_BINDING' }, 'foundation'],
     [{ type: 'FLOOR_PANEL' }, 'floor'],

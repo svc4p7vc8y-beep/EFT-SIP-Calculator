@@ -41,13 +41,18 @@ function uniquePoints(groups, tolerance = 0.12) {
   return points;
 }
 
-function platformBindingLength(platform, house) {
-  if (platform.binding?.mode === 'none') return 0;
-  const perimeter = 2 * ((Number(platform.w) || 0) + (Number(platform.h) || 0));
-  if (platform.binding?.mode !== 'shared') return perimeter;
-  const side = terraceAttachmentSide(platform, house);
-  const attachment = side === 'left' || side === 'right' ? Number(platform.h) || 0 : Number(platform.w) || 0;
-  return Math.max(0, perimeter - attachment);
+// Existing perimeter-minus-attachment rule, now with physical positions.
+// A shared attachment is omitted; a separate binding retains all four sides.
+export function platformBindingLines(plan, settings = {}) {
+  if (settings.includePlatforms === false) return [];
+  return (plan.platforms || []).filter(p => p.include !== false && p.binding?.mode !== 'none').flatMap(p => {
+    const side = p.binding?.mode === 'shared' ? terraceAttachmentSide(p, plan.house) : null;
+    const attached = {top:'bottom',bottom:'top',left:'right',right:'left'}[side];
+    return perimeterRows({...p,foundation:{mode:'separate'}},2.5,plan.house).filter(r => r.side !== attached).map(r => ({
+      ...r, id:`platform-binding-${p.id}-${r.side}`,name:`${p.kind === 'porch' ? 'Крыльцо' : 'Терраса'} · ${r.side}`,
+      platformId:p.id, include:true, auto:true
+    }));
+  });
 }
 
 export function bindingLinesFromPileRows(rows = []) {
@@ -258,7 +263,8 @@ export function calculateFoundation(plan, settings = {}) {
     : Array.isArray(plan.bindingLines) ? plan.bindingLines : bindingLinesFromPileRows(houseRows);
   const lineLength=line=>Math.hypot(line.x2-line.x1,line.y2-line.y1);
   const houseBindingLength = bindingLines.filter((line) => line.include !== false&&(!automaticBlocks||line.group!=='platform')).reduce((sum, line) => sum + lineLength(line), 0);
-  const platformBinding = automaticBlocks?bindingLines.filter(l=>l.include!==false&&l.group==='platform').reduce((s,l)=>s+lineLength(l),0):(plan.platforms || []).filter((platform) => platform.include !== false).reduce((sum, platform) => sum + platformBindingLength(platform, plan.house), 0);
+  const platformLines = automaticBlocks ? [] : platformBindingLines(plan, settings);
+  const platformBinding = automaticBlocks?bindingLines.filter(l=>l.include!==false&&l.group==='platform').reduce((s,l)=>s+lineLength(l),0):platformLines.reduce((sum,line)=>sum+lineLength(line),0);
   const bindingLength = houseBindingLength + platformBinding;
   const bindingType=settings.bindingType==='timber'?'timber':'boards';
   const boardWidth = bindingType==='timber'?0.15:Math.max(0.01, (Number(settings.bindingBoardWidthMm) || 50) / 1000);
@@ -272,6 +278,7 @@ export function calculateFoundation(plan, settings = {}) {
     foundationType:settings.pileType||'screw',
     points,
     bindingLines,
+    platformBindingLines:platformLines,
     bindingIssues:blocks?points.filter(p=>p.source!=='platform'&&!bindingLines.some(l=>Math.hypot(p.x-l.x1,p.y-l.y1)<.015||Math.hypot(p.x-l.x2,p.y-l.y2)<.015)).map(p=>`Блок (${p.x}; ${p.y}) не связан с обвязкой: задайте проектную линию или выровняйте опоры.`):[],
     totalPiles: points.length,
     housePiles,

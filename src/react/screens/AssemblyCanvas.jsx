@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { snapAssemblyPoint } from '../calculations/roof-drawings.js';
 import { pointerDragged } from '../planner/interactions.js';
+import {pointBounds} from '../calculations/drawing-dimensions.js';
 
 const layerNames={roof:'Контур кровли',rooms:'Стены и комнаты',openings:'Проёмы',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',binding:'Обвязка',piles:'Фундамент',panels:'Панели потолка',labels:'Марки и размеры'};
 export default function AssemblyCanvas({assembly,onPick,onMove,draft,initialFloor,onSelect,selected,onMovePoint,onTranslate,onFloorChange}) {
@@ -13,7 +14,8 @@ export default function AssemblyCanvas({assembly,onPick,onMove,draft,initialFloo
   const [layers,setLayers]=useState(()=>Object.fromEntries(Object.keys(layerNames).map(k=>[k,true])));
   const plan=assembly.floors.find(p=>p.floor===floor)||assembly.floors[0];
   if(!plan?.contour.length)return <p>Задайте контур дома.</p>;
-  const {x,y,width,height}=assembly.bounds,pad=Math.max(width,height)*.14,font=Math.max(width,height)*.02;
+  const platforms=assembly.showPlatforms===false?[]:assembly.platforms||[];
+  const {x,y,width,height}=pointBounds([...plan.contour,...platforms.flatMap(p=>[...p.contour,...p.steps.flatMap(s=>s.ring)]),...assembly.binding.flatMap(m=>[m.a,m.b]),...assembly.piles]),pad=Math.max(width,height)*.14,font=Math.max(width,height)*.02;
   const points=items=>items.map(p=>p.slice(0,2).join(',')).join(' ');
   const locate=(event,handler)=>{if(!handler)return;const svg=event.currentTarget.ownerSVGElement||event.currentTarget,m=svg.getScreenCTM();if(!m)return;const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;const q=p.matrixTransform(m.inverse());const xy=snap?snapAssemblyPoint(assembly,q.x,q.y,Math.max(width,height)*.008):[Math.round(q.x/10)*10,Math.round(q.y/10)*10];handler(...xy);};
   const move=e=>{if(drag.current){if(pointerDragged(drag.current.start,e))locate(e,(x,y)=>setDragPreview({...drag.current,point:[x,y]}));}else locate(e,onMove);};
@@ -25,6 +27,7 @@ export default function AssemblyCanvas({assembly,onPick,onMove,draft,initialFloo
     <div className="cut-tabs assembly-controls"><button onClick={()=>setZoom(Math.max(1,zoom/1.5))}>Отдалить план</button><span>{Math.round(zoom*100)}%</span><button onClick={()=>setZoom(Math.min(6,zoom*1.5))}>Приблизить план</button><button onClick={()=>setZoom(1)}>Весь план</button></div>
     <svg viewBox={`${(assembly.supports.find(s=>zoom>1&&s.id===selected)?.a[0]??x+width/2)-(width+2*pad)/zoom/2} ${(assembly.supports.find(s=>zoom>1&&s.id===selected)?.a[1]??y+height/2)-(height+2*pad)/zoom/2} ${(width+2*pad)/zoom} ${(height+2*pad)/zoom}`} aria-label="Совмещённый монтажный план" role="img" onClick={e=>locate(e,onPick)} onPointerMove={move} onPointerUp={end} onPointerCancel={()=>{drag.current=null;setDragPreview(null);}} style={{cursor:onPick?'crosshair':'default',touchAction:onPick||selected?'none':'auto'}}>
       {layers.roof?<polygon points={points(assembly.roofOutline)} fill="#eaf1f7" stroke="#345d86" strokeWidth="1" vectorEffect="non-scaling-stroke"/>:null}
+      {platforms.map(p=><g key={p.id}><polygon points={points(p.contour)} fill="#f7f0e5" fillOpacity=".5" stroke="#555" vectorEffect="non-scaling-stroke"/>{p.steps.map(s=><polygon key={s.id} points={points(s.ring)} fill="none" stroke="#555" vectorEffect="non-scaling-stroke"/>)}{layers.roof?p.faces.map(f=><polygon key={f.id} points={points(f.vertices)} fill="none" stroke="#345d86" strokeDasharray="5 4" vectorEffect="non-scaling-stroke"/>):null}</g>)}
       {layers.rooms?<><polygon points={points(plan.contour)} fill="white" fillOpacity=".6" stroke="#000" strokeWidth="2" vectorEffect="non-scaling-stroke"/>{plan.rooms.map((r,i)=><g key={i}><polygon points={points(r.points)} fill="none" stroke="#888" vectorEffect="non-scaling-stroke"/>{layers.labels?<text x={r.points.reduce((s,p)=>s+p[0],0)/r.points.length} y={r.points.reduce((s,p)=>s+p[1],0)/r.points.length} fontSize={font} textAnchor="middle">{r.name}</text>:null}</g>)}{(plan.bearing||[]).map((e,i)=>line(e.a,e.b,{key:i,stroke:'#25734d',strokeWidth:4}))}</>:null}
       {layers.panels?(panelLevel==='floor'?assembly.floorPanelLayers||[]:assembly.panelLayers||[]).filter(p=>p.floor===floor).map(p=><g key={p.id}><path d={p.shape.map(r=>r.map((q,i)=>`${i?'L':'M'}${q.join(',')}`).join(' ')+'Z').join(' ')} fill="#e5efdf" fillOpacity=".4" fillRule="evenodd" stroke="#609047" strokeWidth="1" vectorEffect="non-scaling-stroke"/>{layers.labels?<text x={p.x+p.width/2} y={p.y+p.height/2} fontSize={font*.7} textAnchor="middle">{p.displayMark||p.id.replace(/^.*-P/,'П')}</text>:null}</g>):null}
       {layers.panels?(assembly.panelConnectors||[]).filter(m=>m.surfaceId===`Э${floor}-${panelLevel==='floor'?'ПОЛ':'ПТ'}`).map(m=>line(m.a,m.b,{key:m.id,stroke:'#a06e32',strokeWidth:2})):null}

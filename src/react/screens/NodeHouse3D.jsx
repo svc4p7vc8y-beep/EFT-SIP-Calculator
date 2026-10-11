@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { NODE_HOUSE_LAYERS as LAYERS, groupNodesAtAnchors, layerForNode, nextNodeAtAnchor } from './node-house-layers.js';
+import {calculateProject} from '../calculations/estimate-engine.js';
+import {calculateAssemblyPlan} from '../calculations/production-assembly.js';
 
 const addBeam = (group, a, b, thickness, material) => {
   const from = new THREE.Vector3(...a), to = new THREE.Vector3(...b);
@@ -34,6 +36,7 @@ const contour = (plan) => Array.isArray(plan?.house?.points) && plan.house.point
   : [{ x: 0, y: 0 }, { x: Number(plan?.house?.w) || 1, y: 0 }, { x: Number(plan?.house?.w) || 1, y: Number(plan?.house?.h) || 1 }, { x: 0, y: Number(plan?.house?.h) || 1 }];
 
 export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, onSelect }) {
+  const platformModel=useMemo(()=>{const c=calculateProject(project);return calculateAssemblyPlan(project,c,project.settings.productionCutting);},[project]);
   const host = useRef(null);
   const sceneRef = useRef(null);
   const viewRef = useRef(null);
@@ -160,18 +163,14 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
       if (floorIndex === plans.length - 1 && project.services?.sipCeiling !== false && hasHorizontalCeiling(item.plan)) addPanelSurface(groups.ceiling, details.ceiling, level + floorHeight, project.settings?.sip?.ceilingPanelWidth, 0xdce5d2);
       level += floorHeight;
     });
-    points.forEach((start, index) => {
-      const end = points[(index + 1) % points.length];
-      addBeam(groups.foundation, [start.x - cx, -0.16, start.y - cy], [end.x - cx, -0.16, end.y - cy], 0.15, timber);
-    });
-    const pilePositions = [...(project.plan?.piles || []).map(pile => [Number(pile.x), Number(pile.y)])];
-    (project.plan?.pileRows || []).forEach(row => {
-      const count = Math.max(1, Math.min(80, Math.round(Number(row.count) || 0)));
-      for (let index = 0; index < count; index++) {
-        const fraction = count === 1 ? 0.5 : index / (count - 1);
-        pilePositions.push([Number(row.x1) + (Number(row.x2) - Number(row.x1)) * fraction, Number(row.y1) + (Number(row.y2) - Number(row.y1)) * fraction]);
-      }
-    });
+    for(const m of platformModel.binding)addBeam(groups.foundation,[m.a[0]/1000-cx,-.16,m.a[1]/1000-cy],[m.b[0]/1000-cx,-.16,m.b[1]/1000-cy],.15,timber);
+    const pilePositions = project.services.foundation?platformModel.piles.map(([x,y])=>[x/1000,y/1000]):[];
+    for(const p of platformModel.platforms||[]){
+      const addSurface=(ring,z,thickness,material)=>{const shape=new THREE.Shape();ring.forEach(([x,y],i)=>i?shape.lineTo(x/1000-cx,y/1000-cy):shape.moveTo(x/1000-cx,y/1000-cy));const geo=new THREE.ExtrudeGeometry(shape,{depth:thickness/1000,bevelEnabled:false});const mesh=new THREE.Mesh(geo,material.clone());mesh.rotation.x=Math.PI/2;mesh.position.y=z/1000;groups.platforms.add(mesh);};
+      addSurface(p.contour,p.deckZ,p.thickness,timber);for(const s of p.steps)addSurface(s.ring,s.z,s.thickness,timberLight);
+      for(const f of p.faces){const vertices=f.vertices.flatMap(([x,y,z])=>[x/1000-cx,z/1000,y/1000-cy]),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geo.setIndex(THREE.ShapeUtils.triangulateShape(f.polygon.map(([x,y])=>new THREE.Vector2(x,y)),[]).flat());geo.computeVertexNormals();groups.platforms.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:'#91adbf',side:THREE.DoubleSide})));}
+      for(const s of p.posts)addBeam(groups.platforms,[s.a[0]/1000-cx,s.a[2]/1000,s.a[1]/1000-cy],[s.b[0]/1000-cx,s.b[2]/1000,s.b[1]/1000-cy],Number(s.profile.split('×')[0])/1000,timber);
+    }
     const uniquePiles = new Set();
     pilePositions.forEach(([x, y]) => {
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
@@ -379,7 +378,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
       renderer.domElement.remove();
       sceneRef.current = null;
     };
-  }, [project.plan, project.meta?.floors, project.settings?.roof, project.settings?.sip?.floorPanelWidth, project.settings?.sip?.secondFloorPanelWidth, project.settings?.sip?.ceilingPanelWidth, project.settings?.formulas?.panelLength, project.services?.sipFloor, project.services?.sipCeiling, floorPlans, nodes]);
+  }, [platformModel,project.plan, project.meta?.floors, project.settings?.roof, project.settings?.sip?.floorPanelWidth, project.settings?.sip?.secondFloorPanelWidth, project.settings?.sip?.ceilingPanelWidth, project.settings?.formulas?.panelLength, project.services?.sipFloor, project.services?.sipCeiling, floorPlans, nodes]);
 
   useEffect(() => {
     const state = sceneRef.current;

@@ -1432,6 +1432,7 @@ function PlatformEditor({ platform, index, project, update }) {
             { value: "porch", label: "Крыльцо" },
           ]}
         />
+        <NumberField label="Отметка настила относительно пола дома" value={platform.deckHeightMm??0} suffix="мм" min={-5000} max={5000} step={10} onChange={value=>set("deckHeightMm",value)} />
         {[
           ["w", "Ширина", "м"],
           ["h", "Глубина", "м"],

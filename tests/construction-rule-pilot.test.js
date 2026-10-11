@@ -123,11 +123,12 @@ test('blank diagnostic parameter retains current model revision; v211 aligned ga
   delete oldSettings.markRegistry; // v199 did not contain derived mark metadata.
   delete oldSettings.constructionSources;
   delete oldSettings.sourceBaseline; // Explicit comparison metadata was also absent in v199.
+  delete oldSettings.showPlatforms; // v219 display-only setting.
   const oldRevision = cuttingRevision({ plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
     services: p.services, formulas: p.settings.formulas, roof: p.settings.roof, settings: oldSettings,
     nodes: p.nodes, construction: p.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   assert.notEqual(report.revision, oldRevision); // v209 changes fabrication lengths, invalidating older approvals.
-  const currentRevision = cuttingRevision({ fabricationModel:218, plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
+  const currentRevision = cuttingRevision({ fabricationModel:219, plans: calculation.metrics.floorPlans.map(f => f.plan), sip: p.settings.sip,
     services:p.services, formulas:p.settings.formulas, roof:p.settings.roof, settings:oldSettings,
     nodes:p.nodes, construction:p.construction, estimate:calculation.lines, reviewer:approval.reviewer||'', nodeRef:approval.nodeRef||'' });
   assert.equal(report.revision,currentRevision);
