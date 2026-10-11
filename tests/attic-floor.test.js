@@ -72,7 +72,7 @@ test('cutting omits zero-height knee walls, keeps roof/gables/partitions and sta
   const r = calculateProductionCutting(p, calculateProject(p));
   assert.equal(r.surfaces.some(s => /^Э2-С/.test(s.id)), false);
   assert.equal(r.surfaces.some(s => s.id === 'Э2-ПТ'), false);
-  assert.ok(r.surfaces.some(s => /^Э2-ПГ/.test(s.id) && s.height === 2500));
+  assert.ok(r.surfaces.some(s => /^Э2-ПГ/.test(s.id) && s.height === 2000 && s.topProfile));
   assert.ok(r.surfaces.some(s => s.id.startsWith('ФР')));
   assert.equal(r.issues.some(i => i.code === 'WALL_SIZE'), false);
   const area = r.parts.filter(s => s.surfaceId === 'Э2-ПОЛ').reduce((sum, s) => sum + s.area, 0) / 1e6;
@@ -101,7 +101,7 @@ test('frame partition timber uses independent attic partition height', () => {
   assert.ok(boards(after) >= boards(before)); // Two studs still fit in a 6m stock board.
   const lengths=c=>calculateProductionCutting(p,c).members.filter(m=>m.surfaceId?.startsWith('Э2-ПГ')).reduce((s,m)=>s+m.length,0);
   const tall=lengths(after);p.upperFloors[0].partitionHeight=2.5;
-  assert.ok(tall>lengths(before));
+  assert.equal(tall,lengths(before)); // Both requested heights exceed the 2m roof.
 });
 
 test('sloped interior ceiling uses actual slope coefficient, no eaves or stair deduction', () => {

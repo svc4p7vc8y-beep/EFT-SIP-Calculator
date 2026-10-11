@@ -9,7 +9,7 @@ export function roofFrameSource(project,assembly,settings){
 // A geometric support wall, not an engineered truss. Heights use the existing roof sections.
 export function roofSupportFrame(project,report,config={}) {
  const profile=config.profile==='50×100'?'50×100':'50×150',variant=config.variant||'double',gap=Number(config.gapMm)||590;
- const {roofBase}=productionLevels(project,report.assembly.floors.length);
+ const roofBase=report.assembly.roofDrawing?.model?report.assembly.roofModel.roofBase:productionLevels(project,report.assembly.floors.length).roofBase;
  const baseZ=config.baseZ===''||config.baseZ==null?roofBase+Number(project.settings.sip.ceilingThickness)/2:Number(config.baseZ);
  const template=generateRoofSupportLayout(project,report,{variant,baseZ,purlinProfile:profile,postProfile:profile,postCount:2});
  const fail=message=>({items:[],errors:[message],warnings:[],counts:{frames:0,posts:0},baseZ});

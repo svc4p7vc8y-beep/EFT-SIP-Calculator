@@ -194,7 +194,9 @@ test('gable and hip SIP roof maps follow calculated slopes and keep all pieces w
     assert.ok(roofParts.length > 0);
     assert.ok(roofParts.every(part => part.width <= report.panelWidth + 0.001 && part.height <= report.panelLength + 0.001));
     const roofArea = roofParts.reduce((s, part) => s + part.area, 0) / 1e6;
-    assert.ok(Math.abs(roofArea - calculation.roof.geometry.totalSlopeArea) < 0.05, `${shape}: ${roofArea}`);
+    const expected=report.assembly.usesRoofPlanes?report.assembly.roofModel.warmArea:calculation.roof.geometry.totalSlopeArea;
+    assert.ok(Math.abs(roofArea - expected) < 0.05, `${shape}: ${roofArea}`);
+    if(report.assembly.usesRoofPlanes&&Math.abs(expected-calculation.roof.warmSlopeArea)>.01)assert.ok(report.issues.some(i=>i.code==='ROOF_LAYOUT_ESTIMATE'));
     assert.equal(report.panelStock.unplaced.length, 0);
   }
 });

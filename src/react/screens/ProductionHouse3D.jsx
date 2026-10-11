@@ -27,13 +27,13 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});}catch{setError('Браузер не поддерживает WebGL: интерактивный 3D недоступен. 2D-чертежи сохранены.');return;}
     setError('');renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setClearColor('#ffffff');el.appendChild(renderer.domElement);
     const scene=new THREE.Scene(),model=new THREE.Group();scene.add(model);const meshes=[];
-    for(const item of data.panels){
+    for(const item of [...data.panels,...data.previews]){
       const shape=new THREE.Shape();item.shape[0].forEach(([x,y],i)=>i?shape.lineTo(x/1000,y/1000):shape.moveTo(x/1000,y/1000));shape.closePath();
       for(const ring of item.shape.slice(1)){const hole=new THREE.Path();ring.forEach(([x,y],i)=>i?hole.lineTo(x/1000,y/1000):hole.moveTo(x/1000,y/1000));hole.closePath();shape.holes.push(hole);}
       const geo=new THREE.ExtrudeGeometry(shape,{depth:item.thickness/1000,bevelEnabled:false});geo.translate(0,0,-item.thickness/2000);
-      const color=item.timber?'#ba9562':item.layer==='roof'?'#91adbf':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0});
-      const mesh=new THREE.Mesh(geo,material),p=item.placement;mesh.matrix.makeBasis(direction(p.u),direction(p.v),direction(p.normal));mesh.matrix.setPosition(vector(p.origin));mesh.matrixAutoUpdate=false;mesh.userData={id:item.id,layer:item.layer,color};
-      mesh.userData.panel=!item.timber;
+      const color=item.preview?'#e08c75':item.timber?'#ba9562':item.layer==='roof'?'#91adbf':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0});
+      const mesh=new THREE.Mesh(geo,material),p=item.placement;mesh.matrix.makeBasis(direction(p.u),direction(p.v),direction(p.normal));mesh.matrix.setPosition(vector(p.origin));mesh.matrixAutoUpdate=false;mesh.userData={id:item.preview?item.surfaceId:item.id,layer:item.layer,color};
+      mesh.userData.panel=!item.timber;mesh.userData.preview=!!item.preview;
       mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:'#253229'})));model.add(mesh);meshes.push(mesh);
       if(item.id.endsWith(':deck')){const ring=item.shape[0],xs=ring.map(p=>p[0]),ys=ring.map(p=>p[1]),vertices=[],minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);for(let x=minX+145;x<maxX&&vertices.length<12000;x+=145)vertices.push(x/1000,minY/1000,item.thickness/2000+.001,x/1000,maxY/1000,item.thickness/2000+.001);const lines=new THREE.BufferGeometry();lines.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));mesh.add(new THREE.LineSegments(lines,new THREE.LineBasicMaterial({color:'#735838'})));}
     }
@@ -59,6 +59,9 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     {showLayers?<div className="production-3d-layers" role="group" aria-label="Слои модели">{Object.entries(layers).map(([key,name])=><button key={key} aria-pressed={!hidden.includes(key)} onClick={()=>setHidden(old=>old.includes(key)?old.filter(k=>k!==key):[...old,key])}>{name}</button>)}</div>:null}
     <div ref={host} className="production-3d-canvas" role="img" aria-label="Объёмный дом: левая кнопка перемещает, средняя вращает, колесо приближает"/>{error?<p role="alert">{error}</p>:null}
     <small>Левая кнопка — перемещение · нажатое колесо — вращение · колесо — масштаб. Пальцем — вращение, двумя — масштаб и перемещение. Опоры без полного размера — маркеры осей.</small>{data.missing.length?<small>Нет пространственной привязки: {data.missing.join(', ')}. Нужен рабочий узел.</small>:null}
+    {data.previews.length?<small role="alert">Красным показаны конструкции с ошибкой раскроя. Это контуры для проверки, не изготовленные панели; они не входят в производственную ведомость.</small>:null}
+    {report.issues.filter(i=>['PARTITION_ROOF_INTERSECTION','SUPPORT_ROOF_INTERSECTION','GABLE_OPENING'].includes(i.code)).map(i=><small role="alert" key={`${i.code}:${i.target}`}>{i.message}</small>)}
     {data.platforms.length?<small>Терраса и крыльцо: настил 45×145, ступени и стойки — схема по плану. Отметка настила по умолчанию — уровень пола дома; лаги, косоуры, опирание и узлы требуют проекта. Схематические элементы не создают повторный заказ.</small>:null}
+    {!project.services.terrace&&foundation.binding.some(m=>m.group==='platform')?<small>В основании учтены сохранённые площадки, хотя раздел «Терраса» отключён. Их обвязка показана без настила; состав основания настраивается в «Сваи» → «Учитывать террасы и крыльца».</small>:null}
   </section>;
 });

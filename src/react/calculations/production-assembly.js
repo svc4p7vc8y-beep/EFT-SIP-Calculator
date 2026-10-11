@@ -4,7 +4,7 @@ import { roofDrawingData } from './roof-drawings.js';
 import { sourceIdentity } from '../state/production-identities.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { roofAxonometricLines } from './roof-drawings.js';
-import {roofProject} from './roof-project.js';
+import {roofProject,roofAt} from './roof-project.js';
 import {roofFabrication} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
 
@@ -165,6 +165,17 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   assembly.roofShape=roof.mainRoofShape;
   assembly.roofGeometry=g;
   assembly.roofModel=roofProject(project,calculation,assembly);
+  const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
+  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable;
+  if(plainSipGable&&!settings.roofDesign.enabled){
+    assembly.roofDrawing.model=assembly.roofModel;
+    const outline=assembly.roofModel.projection[0]?.[0];if(outline)assembly.roofOutline=outline.slice(0,-1);
+    for(const member of assembly.roofTimbers){
+      if(!member.material?.startsWith('Мауэрлат'))continue;
+      const a=roofAt(assembly.roofModel,...member.a)[0],b=roofAt(assembly.roofModel,...member.b)[0];
+      if(a&&b){member.worldA=[...member.a,a.z];member.worldB=[...member.b,b.z];}
+    }
+  }
   if(settings.roofDesign?.enabled){
     const fresh=roofFabrication(assembly.roofModel,project,calculation,settings);
     assembly.members=members.filter(m=>m.surface!=='Кровля').concat(fresh.members);

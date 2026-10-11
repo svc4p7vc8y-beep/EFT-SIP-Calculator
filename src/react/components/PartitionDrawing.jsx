@@ -14,6 +14,11 @@ export function PartitionDrawingContents({surface,members,pad,font,layers={frame
     const y=topPlate?-font*1.1:bottomPlate?H+font*1.1:m.role==='edge-board'?cy+Number(m.faceWidth)/2+font:m.role==='brace'?cy-font*1.3:vertical?Math.max(font*.8,cy+(i%2?font*.85:-font*.85)):cy+font*1.3;
     return {m,cx,cy,x,y};
   });
+  // Separate adjacent default callouts; saved label offsets still take priority.
+  for(let i=0;i<annotations.length;i++){
+    const label=annotations[i];
+    while(annotations.slice(0,i).some(other=>Math.abs(other.x-label.x)<font*2&&Math.abs(other.y-label.y)<font*1.2))label.y+=font*1.4;
+  }
   return <g className="partition-document-drawing">
     {(surface.openings||[]).map(o=><rect key={o.key} x={o.x} y={yy(Number(o.sill)+o.height)} width={o.width} height={o.height} fill="#f3f3f3" stroke="#000" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}
     {layers.frame?boards.map(m=>{
@@ -29,7 +34,7 @@ export function PartitionDrawingContents({surface,members,pad,font,layers={frame
       <line x1={cx} y1={cy} x2={x+(labelOverrides['member:'+m.id]?.offset?.[0]||0)} y2={y-(labelOverrides['member:'+m.id]?.offset?.[1]||0)} stroke="#555" strokeWidth=".4" vectorEffect="non-scaling-stroke"/>
       {renderLabel?renderLabel('member:'+m.id,String(positions.get(m.id)),x,H-y,font*.85):<text x={x} y={y} dominantBaseline="middle" textAnchor="middle" fontSize={font*.85} fill="#000" stroke="#fff" strokeWidth={font*.25} paintOrder="stroke">{positions.get(m.id)}</text>}
     </g>):null}
-    {layers.dimensions?<><DrawingDimensions values={axes} y={H+pad*.35} font={font*.8} label="Оси стоек"/><g transform="rotate(90)"><DrawingDimensions values={[0,H]} y={pad*.55} font={font}/></g>
+    {layers.dimensions?<><DrawingDimensions values={axes} y={H+pad*.45} font={font*.8} label="Оси стоек"/><g transform="rotate(90)"><DrawingDimensions values={[0,H]} y={pad*.55} font={font}/></g>
       {(surface.openings||[]).filter(o=>!o.gap).map(o=><g key={o.key}><DrawingDimensions values={[o.x,o.x+o.width]} y={yy(Number(o.sill))+font*1.6} font={font*.8}/><g transform="rotate(90)"><DrawingDimensions values={[0,yy(Number(o.sill)+o.height),yy(Number(o.sill)),H]} y={-o.x-o.width/2} font={font*.8}/></g></g>)}
     </>:null}
     {renderLabel?renderLabel('partition-top-title',`Вид сверху · ${surface.frameProfile} мм`,W/2,H-top+font,font):<text x={W/2} y={top-font} textAnchor="middle" fontSize={font}>Вид сверху · {surface.frameProfile} мм</text>}

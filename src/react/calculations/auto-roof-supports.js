@@ -28,7 +28,7 @@ export function generateRoofSupportLayout(project,report,value) {
   if(a.roofShape==='flat'&&project.settings.roof.flatSlopeMode==='tapered')return fail('Разуклонка не задаёт наклон несущей конструкции. Сначала укажите конструктивную схему кровли.');
   if(!section(config.purlinProfile)||!section(config.postProfile))return fail('Задайте положительные проектные сечения прогонов и стоек.');
   if(config.distribution==='uniform'&&(!Number.isInteger(config.postCount)||config.postCount<2||config.postCount>30))return fail('Количество стоек на прогон: целое число от 2 до 30.');
-  const {roofBase}=productionLevels(project,a.floors.length),baseZ=config.baseZ===''?roofBase:config.baseZ;
+  const roofBase=a.roofDrawing?.model?a.roofModel.roofBase:productionLevels(project,a.floors.length).roofBase,baseZ=config.baseZ===''?roofBase:config.baseZ;
   if(!Number.isFinite(baseZ)||Math.abs(baseZ)>100000)return fail('Неверная нижняя отметка стоек.');
   const axis=a.axis==='x'?0:1,across=1-axis,origin=[a.bounds.x,a.bounds.y],length=axis===0?a.bounds.width:a.bounds.height,span=across===0?a.bounds.width:a.bounds.height;
   if(![...origin,length,span].every(Number.isFinite)||length<=0||span<=0)return fail('Задайте корректные положительные размеры контура кровли.');

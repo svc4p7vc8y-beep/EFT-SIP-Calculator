@@ -6,7 +6,8 @@ export const drawingCategory = surface => surface.roofFaceId || surface.roofPlac
 // Manual links use geometry-bound keys: changing the wall never silently relinks it.
 export function gableLinks(report, saved = {}) {
   const walls = report.surfaces.filter(s=>s.planStart);
-  const highest = Math.max(0,...walls.map(s=>s.floor));
+  // Zero knee walls do not make the first floor the roof-bearing floor.
+  const highest = report.assembly.floors?.length || Math.max(0,...walls.map(s=>s.floor));
   const axis = report.assembly.axis === 'x' ? 0 : 1;
   const ends = walls.filter(s=>drawingCategory(s)==='walls'&&s.floor===highest && Math.abs(s.planStart[axis]-s.planEnd[axis])<1).sort((a,b)=>a.planStart[axis]-b.planStart[axis]);
   const result=[];

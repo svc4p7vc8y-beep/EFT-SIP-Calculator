@@ -11,11 +11,17 @@ import { bindingPlanRows } from './binding-rows.js';
 export function productionScene(report,project,{includePlatforms=report.settings.showPlatforms!==false}={}) {
   const {plans,bases,roofBase:defaultRoofBase}=productionLevels(project,report.assembly.floors.length),roofBase=report.assembly.roofDrawing?.model?report.assembly.roofModel.roofBase:defaultRoofBase;
   const links=gableLinks(report,report.settings.gableLinks),placements=new Map(),missing=[];
+  const wallPlacement=(s,base,layer)=>{
+    const dx=s.planEnd[0]-s.planStart[0],dy=s.planEnd[1]-s.planStart[1],l=Math.hypot(dx,dy)||1;
+    const contour=report.assembly.floors[(s.floor||1)-1]?.contour||[],area=contour.reduce((v,p,i)=>{const q=contour[(i+1)%contour.length];return v+p[0]*q[1]-p[1]*q[0];},0),sign=s.exterior&&area<0?-1:1;
+    const normal=[sign*dy/l,-sign*dx/l,0],inset=s.exterior?Number(s.thickness)/2:0;
+    return {origin:[s.planStart[0]-normal[0]*inset,s.planStart[1]-normal[1]*inset,base],u:[dx/l,dy/l,0],v:[0,0,1],normal,layer};
+  };
   for(const s of report.surfaces){
     const category=drawingCategory(s),base=bases[(s.floor||1)-1]||0;
     if(s.roofPlacement)placements.set(s.id,{...s.roofPlacement,layer:'roof'});
-    else if(s.planStart){const dx=s.planEnd[0]-s.planStart[0],dy=s.planEnd[1]-s.planStart[1],l=Math.hypot(dx,dy)||1;placements.set(s.id,{origin:[...s.planStart,base],u:[dx/l,dy/l,0],v:[0,0,1],normal:[dy/l,-dx/l,0],layer:category});}
-    else if(category==='gables'){const link=links.find(l=>l.gable.id===s.id),wall=link?.wall,p=wall&&placements.get(wall.id);if(p){const offset=(link.offset||0)+(link.reverse?s.width:0),elevation=link.elevation||0;placements.set(s.id,{...p,origin:p.origin.map((n,i)=>n+p.u[i]*offset+p.v[i]*elevation),u:link.reverse?p.u.map(n=>-n):p.u,layer:'gables'});}else missing.push(s.id);}
+    else if(s.planStart)placements.set(s.id,wallPlacement(s,base,category));
+    else if(category==='gables'){const link=links.find(l=>l.gable.id===s.id),wall=link?.wall,p=wall&&placements.get(wall.id);if(p){const offset=(link.offset||0)+(link.reverse?s.width:0),elevation=link.elevation||0;placements.set(s.id,{...p,origin:p.origin.map((n,i)=>n+p.u[i]*offset+p.v[i]*elevation),u:link.reverse?p.u.map(n=>-n):p.u,layer:'gables'});}else if(s.gableAnchor&&!report.settings.gableLinks[s.layoutKey])placements.set(s.id,wallPlacement(s.gableAnchor,s.gableAnchor.elevation,'gables'));else missing.push(s.id);}
     // Wall/partition datum is the top face of the floor, not its mid-plane.
     else if(category==='floor'||category==='ceiling')placements.set(s.id,{origin:[0,0,base+(category==='ceiling'?exteriorHeight(plans[(s.floor||1)-1],project.settings.sip)*1000:-Number(s.thickness)/2)],u:[1,0,0],v:[0,1,0],normal:[0,0,1],layer:category});
     else if(category==='roof'&&report.assembly.roofShape==='gable'&&/^КР-С[12]$/.test(s.id)){
@@ -27,6 +33,9 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const world=(p,x,y)=>p.origin.map((n,i)=>n+p.u[i]*x+p.v[i]*y);
   const roofFaces=new Map(report.surfaces.map(s=>[s.id,s.roofFaceId]));
   const panels=report.parts.flatMap(part=>{const p=placements.get(part.surfaceId);return p?[{id:part.id,surfaceId:part.surfaceId,faceId:roofFaces.get(part.surfaceId),layer:p.layer,shape:part.shape,placement:p,thickness:part.thickness}]:[];});
+  // Invalid manufacturing surfaces remain visible as warning previews, never
+  // as fabricated panels or purchasable stock.
+  const previews=report.surfaces.filter(s=>s.blocked&&placements.has(s.id)).flatMap(s=>s.geometry.map((shape,i)=>({id:`preview:${s.id}:${i}`,surfaceId:s.id,layer:placements.get(s.id).layer,shape,placement:placements.get(s.id),thickness:s.thickness,preview:true})));
   const boards=report.members.filter(m=>!m.excluded&&!m.worldA&&m.a&&m.b).flatMap(m=>{const p=placements.get(m.surfaceId);if(!p)return [];const outline=boardFootprint(m);return outline?[{id:m.id,layer:p.layer,shape:[outline],placement:p,thickness:Number(m.profile?.split(/[×xх]/)[m.role==='brace'?0:1])||45,timber:true}]:[];});
   const binding=report.assembly.binding.filter(m=>includePlatforms||m.group!=='platform').flatMap(m=>{
     const depth=Number(String(m.profile).split(/[×xх]/)[1])||150,z=-Number(project.settings.sip.floorThickness)-depth/2;
@@ -63,5 +72,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
   });
   const platformFaceIds=new Set((assembly.platforms||[]).flatMap(p=>p.faces.map(f=>f.id)));
   const visible=item=>includePlatforms||!(platformFaceIds.has(item.faceId)||String(item.placement?.layer)==='roof'&&platformFaceIds.has(item.surfaceId));
-  return {panels:[...panels.filter(visible),...boards.filter(visible),...platformPanels],beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...boards.filter(visible),...platformPanels],previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
 }
