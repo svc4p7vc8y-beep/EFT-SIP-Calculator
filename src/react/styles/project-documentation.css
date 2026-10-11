@@ -1,4 +1,16 @@
 .project-documentation {min-width:0;color:#000;}
+.building-stage {overflow:auto;max-height:650px;border:1px solid #aaa;background:#fff;}
+.building-drawing {margin:0;min-width:0;color:#000;}
+.building-drawing svg {width:100%;height:auto;min-height:200px;display:block;}
+.building-drawing figcaption {font-size:12px;padding:5px;color:#000;}
+.building-fields {display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:10px 0;}
+.building-fields>label {flex:1;min-width:150px;}
+.building-editor fieldset {min-width:0;margin:12px 0;}
+.architectural-sheet-grid {display:grid;grid-template-columns:1fr 1fr;gap:6mm;align-items:start;}
+.architectural-sheet-grid.single-view {grid-template-columns:1fr;}
+.architectural-sheet-grid.single-view .building-drawing {justify-self:center;}
+@media(max-width:700px){.architectural-sheet-grid{grid-template-columns:1fr;}.building-fields>label{min-width:0;flex-basis:100%;}}
+@media print{.architectural-sheet-grid{grid-template-columns:1fr 1fr;}.release-album.paper-A4 .architectural-sheet-grid .building-drawing svg,.release-album.paper-A3 .architectural-sheet-grid .building-drawing svg{min-height:0;max-height:none;max-width:none;flex:none;}.architectural-sheet-grid .building-drawing figcaption{font-size:7pt;}}
 .project-documentation header,.release-controls {display:flex;gap:12px;flex-wrap:wrap;align-items:end;}
 .project-documentation label {display:flex;flex-direction:column;gap:5px;min-width:0;}
 .project-documentation input,.project-documentation select {max-width:100%;min-height:38px;}

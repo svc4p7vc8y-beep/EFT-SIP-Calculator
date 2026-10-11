@@ -12,6 +12,7 @@ const familyOf = (material,profile) => {
   return null;
 };
 const lineFamily = name => /(?:пакет\s+кле|кле[её]ный\s+пакет)/i.test(name)?'Клеёный пакет':/термобрус/i.test(name)?'Термобрус':/брус(?:\s|$)/i.test(name)?'Брус':/(?:доск[аиу]|укосин|обреш[её]т|усиление перегородок)/i.test(name)?'Пиломатериалы':null;
+export function timberReconciliationKey(material,text){const profile=profileOf(text);return profile?`${familyOf(material,profile)||material}:${profile.join('×')}`:null;}
 
 // Stock requirements and purchasing use material families and physical sections,
 // not assembly roles. No price, purchase quantity or project field is changed.
@@ -23,7 +24,7 @@ export function reconcileCutting(report,calculation) {
   };
   const timberRow=(material,text)=>{
     const profile=profileOf(text);if(!profile)return null;
-    const family=familyOf(material,profile),key=`${family||material}:${profile.join('×')}`;
+    const family=familyOf(material,profile),key=timberReconciliationKey(material,text);
     const row=get(key,`${family||material} ${profile.join('×')} мм`,'м³');
     row.family=family;row.profile=profile;return row;
   };

@@ -4,6 +4,9 @@ import { productionMark } from './production-assembly.js';
 import { ENGINEERING_CHECKS, DOCUMENT_AUDIT } from '../data/project-documentation.js';
 import { normalizeDocumentation } from '../state/project-documentation.js';
 import { gzipSync, gunzipSync, strToU8, strFromU8, zipSync } from 'fflate';
+import {buildingModel,buildingDataChecks} from './building-model.js';
+import {architecturalViews} from './drawing-projection.js';
+import {productionCatalogMapping,catalogMappingChecks,catalogResolvesManualMatch} from './production-catalog-mapping.js';
 
 export const canonical = value => JSON.stringify(sort(value));
 const sort = value => Array.isArray(value) ? value.map(sort) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k=>[k,sort(value[k])])) : value;
@@ -55,13 +58,13 @@ export function catalogAudit(project,calculation) {
   });
 }
 
-export function releaseValidation(project,calculation,report) {
-  const doc=normalizeDocumentation(project.documentation),blocks=[];
+export function releaseValidation(project,calculation,report,building=buildingModel(project,report),views=architecturalViews(building)) {
+  const doc=normalizeDocumentation(project.documentation),blocks=[],mapping=productionCatalogMapping(project,calculation,report);
   const add=(code,message,path)=>blocks.push({code,message,path});
   for(const issue of report.issues||[])add(issue.code,issue.message,'Раскрой: замечания / исходные данные');
   for(const s of report.surfaces.filter(s=>s.blocked))add('INCOMPLETE',`${s.name}: раскладка заблокирована`,'Раскрой: '+s.name);
   for(const id of [...report.panelStock.unplaced,...report.timberStock.unplaced])add('UNPLACED',`${id}: не размещён в заготовке`,'Раскрой: карты заготовок / проект стыков');
-  for(const row of report.reconciliation||[])if(row.status!=='compared' || Math.abs(row.difference||0)>1e-6){
+  for(const row of report.reconciliation||[])if(!catalogResolvesManualMatch(row,mapping)&&(row.status!=='compared' || Math.abs(row.difference||0)>1e-6)){
     if(row.status!=='compared' || row.difference>0 || !doc.resolutions.some(r=>validRecord(r,row.key,report.revision)))add('RECONCILIATION',`${row.name}: ${row.status==='compared'?`расхождение ${row.difference} ${row.unit}`:row.status}`,'Комплект проекта: сверка / Раскрой: закупка');
   }
   for(const row of catalogAudit(project,calculation))for(const issue of row.issues)add('CATALOG',`${row.catalogId||row.id}: ${issue}`,'Прайс-лист / Смета');
@@ -72,9 +75,7 @@ export function releaseValidation(project,calculation,report) {
   for(const check of report.ceilingSupportChecks||[])if(check.status!=='geometry-checked')add('CEILING_SUPPORT',`${check.memberId}: опирание потолочного соединителя — ${check.status}`,'Раскрой: потолок / несущие перегородки');
   // Honest capability gates. A generic reviewer checkbox cannot make absent
   // architectural geometry or a catalog mapping into a working drawing.
-  add('AR_AXES','Проектные оси и общая высотная система здания не заданы в текущей модели','Следующий этап: модель АР');
-  add('AR_VIEWS','Полные фасады и разрезы здания не сформированы; развёртки стен и профиль крыши не заменяют их','Следующий этап: модель АР');
-  add('CATALOG_MAPPING','Сверка производственных семейств с закупкой пока не имеет утверждённых соответствий по catalogId','Следующий этап: привязки производственных материалов к каталогу');
+  blocks.push(...buildingDataChecks(building),...views.issues,...catalogMappingChecks(mapping));
   const seen=new Set(),duplicateIds=new Set();
   for(const item of [...report.parts,...report.members.filter(m=>!m.excluded)]){if(seen.has(item.id))duplicateIds.add(item.id);seen.add(item.id);if(!item.displayMark)add('MARK',`${item.id}: отображаемая марка не назначена`,'Раскрой: реестр марок');}
   for(const id of duplicateIds)add('ID',`${id}: повторный идентификатор детали`,'Раскрой: реестр марок');
@@ -112,15 +113,16 @@ export async function sealReleaseManifest(release,manifest) {
 }
 export function compareReleases(previous,current) {
   if(!previous)return [{section:'Первый выпуск',before:'—',after:current.report.revision}];
-  return ['plan','upperFloors','settings','services','nodes','construction','priceMat','priceLab','meta'].filter(k=>canonical(previous.project[k])!==canonical(current.project[k])).map(section=>({section,before:previous.report.revision,after:current.report.revision}));
+  return ['plan','upperFloors','settings','services','nodes','construction','priceMat','priceLab','meta','documentation'].filter(k=>canonical(previous.project[k])!==canonical(current.project[k])).map(section=>({section,before:previous.report.revision,after:current.report.revision}));
 }
 export async function createProjectRelease(project,{mode='draft',date=new Date().toISOString(),presentation='compact'}={}) {
   const snapshot=plain(project),doc=normalizeDocumentation(snapshot.documentation);
   snapshot.documentation={...doc,releases:[]}; // No recursive archives.
   const calculation=calculateProject(snapshot),report=calculateProductionCutting(snapshot,calculation);
-  const validation=releaseValidation(snapshot,calculation,report);
+  const building=buildingModel(snapshot,report),views=architecturalViews(building),mapping=productionCatalogMapping(snapshot,calculation,report);
+  const validation=releaseValidation(snapshot,calculation,report,building,views);
   if(mode==='released' && !validation.canRelease)throw new Error(`Выпуск заблокирован: ${validation.blocks.map(b=>b.message).join('; ')}`);
-  const payload=plain({format:'eft-document-release',schemaVersion:1,projectNumber:doc.projectNumber||snapshot.meta.projectNum||'БЕЗ НОМЕРА',date,status:mode==='released'?'released':'draft',project:snapshot,calculation,report,validation,registers:productionRegisters(report),catalog:catalogAudit(snapshot,calculation),number:doc.releases.length+1});
+  const payload=plain({format:'eft-document-release',schemaVersion:1,projectNumber:doc.projectNumber||snapshot.meta.projectNum||'БЕЗ НОМЕРА',date,status:mode==='released'?'released':'draft',project:snapshot,calculation,report,building,views,mapping,validation,registers:productionRegisters(report),catalog:catalogAudit(snapshot,calculation),number:doc.releases.length+1});
   payload.changes=compareReleases(doc.releases.length?await openReleaseArchive(doc.releases.at(-1)):null,payload);
   payload.presentation={version:2,mode:presentation==='full'?'full':'compact'};
   payload.digest=await releaseDigest(payload);
@@ -138,6 +140,8 @@ export function releaseFiles(release) {
     'release.json':JSON.stringify(release,null,2),
     'source.eft.json':JSON.stringify(release.project,null,2),
     'manifest.json':JSON.stringify({projectNumber:release.projectNumber,number:release.number,digest:release.digest,revision:release.report.revision,sheets:release.manifest||[]},null,2),
+    'building.json':JSON.stringify({projectNumber:release.projectNumber,number:release.number,digest:release.digest,revision:release.report.revision,model:release.building||null,views:release.views||null},null,2),
+    'production-catalog.csv':table([...headers,'Семейство','catalogId','Ед.','Коэффициент','Требуется','Смета','Замечания'],(release.mapping||[]).map(r=>[...common,r.id,r.catalogId,r.targetUnit,r.factor,r.required,r.purchased,r.issues.join('; ')])),
     'panels.csv':registerCsv(release,'panels'),'timber.csv':registerCsv(release,'timber'),
     'roof.json':JSON.stringify({projectNumber:release.projectNumber,number:release.number,digest:release.digest,revision:release.report.revision,model:release.report.assembly.roofModel,checks:release.report.roofChecks,cover:release.report.roofCover},null,2),
     'roof.csv':table([...headers,'Скат','Название','Площадь м2','Проекция м2','Уклон %','Тёплый','Узел'],(release.report.assembly.roofModel?.faces||[]).map(f=>[...common,f.id,f.name,f.area,f.projectedArea,f.slopePercent,f.warm?'да':'нет',f.nodeRef||'не задан'])),

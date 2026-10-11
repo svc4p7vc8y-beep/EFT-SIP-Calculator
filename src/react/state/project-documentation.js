@@ -1,7 +1,10 @@
+import {normalizeBuildingDocumentation} from './building-documentation.js';
 const text = value => typeof value === 'string' ? value.trim().slice(0, 2000) : '';
 export function normalizeDocumentation(value = {}) {
   const records = list => Array.isArray(list) ? list.filter(r => r && typeof r === 'object' && !Array.isArray(r)).map(r => ({key:text(r.key), revision:text(r.revision), evidence:text(r.evidence), reviewer:text(r.reviewer), note:text(r.note)})) : [];
   return {
+    ...value,
+    building:normalizeBuildingDocumentation(value?.building),
     projectNumber:text(value?.projectNumber), note:text(value?.note),
     confirmations:records(value?.confirmations), resolutions:records(value?.resolutions),
     // Archives are not migrated/recalculated with the live project. Integrity is

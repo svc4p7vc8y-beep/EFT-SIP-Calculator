@@ -6,7 +6,7 @@ import { beamFrame } from '../calculations/beam-frame.js';
 import {assemblyPlatformView} from '../calculations/platform-assembly.js';
 import { Box,Frame,Scan,Layers,RotateCcw } from 'lucide-react';
 
-const layers={walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
+const layers={foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
 const vector=([x,y,z])=>new THREE.Vector3(x/1000,z/1000,-y/1000);
 const direction=([x,y,z])=>new THREE.Vector3(x,z,-y);
 function beamGeometry(item,width,depth,length){
@@ -31,7 +31,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
       const shape=new THREE.Shape();item.shape[0].forEach(([x,y],i)=>i?shape.lineTo(x/1000,y/1000):shape.moveTo(x/1000,y/1000));shape.closePath();
       for(const ring of item.shape.slice(1)){const hole=new THREE.Path();ring.forEach(([x,y],i)=>i?hole.lineTo(x/1000,y/1000):hole.moveTo(x/1000,y/1000));hole.closePath();shape.holes.push(hole);}
       const geo=new THREE.ExtrudeGeometry(shape,{depth:item.thickness/1000,bevelEnabled:false});geo.translate(0,0,-item.thickness/2000);
-      const color=item.preview?'#e08c75':item.timber?'#ba9562':item.layer==='roof'?'#91adbf':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0});
+      const color=item.layer==='foundation'?'#999':item.preview?'#e08c75':item.timber?'#ba9562':item.layer==='roof'?'#91adbf':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0});
       const mesh=new THREE.Mesh(geo,material),p=item.placement;mesh.matrix.makeBasis(direction(p.u),direction(p.v),direction(p.normal));mesh.matrix.setPosition(vector(p.origin));mesh.matrixAutoUpdate=false;mesh.userData={id:item.preview?item.surfaceId:item.id,layer:item.layer,color};
       mesh.userData.panel=!item.timber;mesh.userData.preview=!!item.preview;
       mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:'#253229'})));model.add(mesh);meshes.push(mesh);
@@ -39,7 +39,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     }
     for(const item of data.beams){const frame=beamFrame(item.a,item.b,item.normal),profile=String(item.profile).split(/[×xх]/).map(Number);if(!frame||!profile.every(n=>n>0))continue;const [width,depth]=item.flat?[profile[1],profile[0]]:profile,mesh=new THREE.Mesh(beamGeometry(item,width,depth||width,frame.length),new THREE.MeshStandardMaterial({color:'#ba9562'}));mesh.matrix.makeBasis(direction(frame.across),direction(frame.along),direction(frame.depth));mesh.matrix.setPosition(vector(item.a.map((n,i)=>(n+item.b[i])/2)));mesh.matrixAutoUpdate=false;mesh.userData={id:item.id,layer:item.layer,color:'#ba9562'};model.add(mesh);meshes.push(mesh);}
     for(const m of meshes.filter(m=>!m.userData.panel))if(!m.children.length)m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:'#493921'})));
-    for(const p of foundation.piles){const d=foundation.blockDimensions,block=foundation.foundationType==='concreteBlock'&&d?.widthMm>0&&d?.lengthMm>0&&d?.heightMm>0;const marker=new THREE.Mesh(block?new THREE.BoxGeometry(d.widthMm/1000,d.heightMm/1000,d.lengthMm/1000):new THREE.SphereGeometry(.06,8,6),new THREE.MeshStandardMaterial({color:'#777',roughness:1}));const bottom=-Number(project.settings.sip.floorThickness)-Math.max(0,...foundation.binding.map(m=>Number(String(m.profile).split(/[×xх]/)[1])||150));marker.position.copy(vector([...p,block?bottom-d.heightMm/2:bottom]));marker.userData={layer:'supports',color:'#777'};marker.add(new THREE.LineSegments(new THREE.EdgesGeometry(marker.geometry),new THREE.LineBasicMaterial({color:'#333'})));model.add(marker);meshes.push(marker);}
+    for(const p of data.foundation.filter(p=>!p.known)){const marker=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),new THREE.MeshStandardMaterial({color:'#777',roughness:1}));marker.position.copy(vector(p.axis));marker.userData={id:p.id,layer:'foundation',color:'#777'};model.add(marker);meshes.push(marker);}
     scene.add(new THREE.HemisphereLight(0xffffff,0x8a9c85,2));const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(10,20,15);scene.add(light);
     const box=new THREE.Box3().setFromObject(model),center=box.isEmpty()?new THREE.Vector3():box.getCenter(new THREE.Vector3()),span=box.isEmpty()?5:Math.max(...box.getSize(new THREE.Vector3()).toArray(),1);
     const camera=new THREE.PerspectiveCamera(42,1,.01,span*30),controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.minDistance=.15;controls.maxDistance=span*8;

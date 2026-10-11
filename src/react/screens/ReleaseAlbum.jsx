@@ -5,6 +5,8 @@ import { RELEASE_SOURCES } from '../data/project-documentation.js';
 import { SIP_GUIDE_ENTRIES } from '../data/sip-guide.js';
 import { groupStockMaps } from '../calculations/project-release.js';
 import { compactReleasePages } from './CompactReleasePages.jsx';
+import {architecturalReleasePages} from './ArchitecturalReleasePages.jsx';
+import {ArchitecturalPaperContext} from '../components/ArchitecturalPaperContext.jsx';
 const chunks=(rows,n=10)=>Array.from({length:Math.ceil(rows.length/n)},(_,i)=>rows.slice(i*n,i*n+n));
 const fmt=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:3}).format(value??0);
 export function ReleaseTable({columns,rows}) {return <table className="release-table"><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{row.map((v,j)=><td key={j}>{v??'—'}</td>)}</tr>)}</tbody></table>;}
@@ -26,6 +28,7 @@ export function buildReleasePages(release) {
     for(const [j,list]of chunks((plan.rooms||[]).filter(r=>r.include!==false).map(r=>[r.name||r.id,fmt(clear.rooms[r.id]?.contourArea),fmt(clear.rooms[r.id]?.clearArea)])).entries())add('АР',`Экспликация этажа ${floor.floor} · ${j+1}`,<ReleaseTable columns={['Помещение','Площадь по границам, м²','Площадь в свету, м²']} rows={list}/>,{direction:'сверху'});
   }
   for(const [i,list]of chunks(report.openings).entries())add('АР',`Ведомость проёмов · ${i+1}`,<ReleaseTable columns={['ID / стена','Тип','Ширина, мм','Высота, мм','Низ / верх, мм']} rows={list.map(o=>[o.key||o.id,o.type,o.width,o.height,`${o.sill} / ${Number(o.sill)+Number(o.height)}`])}/>);
+  pages.push(...architecturalReleasePages(release));
   const existing=buildMountingPages({...report,members:report.members.filter(m=>!m.excluded)}).filter(p=>!/^Состав монтажного|Ведомость листов монтажного/.test(p.title));
   for(const p of existing)add('КД',p.title,p.content,{direction:/план|поле|покрытие|обвязки/i.test(p.title)?'сверху; разрезы отдельно':'со стороны показанной на локаторе / по подписи вида'});
   const sheetRefs=id=>pages.filter(p=>p.group==='КД'&&p.title.includes(report.surfaces.find(s=>s.id===id)?.name||'__none__')).map(p=>p.id).join(', ');
@@ -59,5 +62,5 @@ export function buildReleasePages(release) {
   return pages;
 }
 export default function ReleaseAlbum({release,pages=buildReleasePages(release),selectedIds,paper='A3',preview=false}) {
-  return <div className={`${preview?'drawing-preview':'production-print'} mounting-album release-album paper-${paper}`}>{pages.filter(p=>!selectedIds||selectedIds.includes(p.id)).map(p=><section key={p.id} className="mounting-sheet" data-sheet-id={p.id}><header>{p.id} · {p.title}</header><div className="release-sheet-meta">Проект {release.projectNumber} · {release.report.revision} · выпуск {release.number} · {release.date.slice(0,10)} · {release.status==='released'?'В производство / монтаж':'ЧЕРНОВИК'}<br/>Масштаб: {p.scale}. Единицы: {p.units}. Вид: {p.direction}. Оси: {p.axes}.</div><div className="mounting-content">{p.content}</div><footer>{p.title} · {p.id} · снимок SHA256 {release.digest.slice(0,16)}</footer></section>)}</div>;
+  return <ArchitecturalPaperContext.Provider value={paper}><div className={`${preview?'drawing-preview':'production-print'} mounting-album release-album paper-${paper}`}>{pages.filter(p=>!selectedIds||selectedIds.includes(p.id)).map(p=><section key={p.id} className="mounting-sheet" data-sheet-id={p.id}><header>{p.id} · {p.title}</header><div className="release-sheet-meta">Проект {release.projectNumber} · {release.report.revision} · выпуск {release.number} · {release.date.slice(0,10)} · {release.status==='released'?'В производство / монтаж':'ЧЕРНОВИК'}<br/>Масштаб: {p.scale}. Единицы: {p.units}. Вид: {p.direction}. Оси: {p.axes}.</div><div className="mounting-content">{p.content}</div><footer>{p.title} · {p.id} · снимок SHA256 {release.digest.slice(0,16)}</footer></section>)}</div></ArchitecturalPaperContext.Provider>;
 }

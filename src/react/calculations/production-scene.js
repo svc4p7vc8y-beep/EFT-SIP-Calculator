@@ -5,6 +5,7 @@ import { boardFootprint } from './partition-geometry.js';
 import { productionLevels } from './production-levels.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { bindingPlanRows } from './binding-rows.js';
+import {foundationGeometry} from './foundation-geometry.js';
 
 // Millimetres, right-handed model coordinates X/Y = plan, Z = height.
 // This adapter only places existing production geometry; it never creates stock.
@@ -72,5 +73,6 @@ export function productionScene(report,project,{includePlatforms=report.settings
   });
   const platformFaceIds=new Set((assembly.platforms||[]).flatMap(p=>p.faces.map(f=>f.id)));
   const visible=item=>includePlatforms||!(platformFaceIds.has(item.faceId)||String(item.placement?.layer)==='roof'&&platformFaceIds.has(item.surfaceId));
-  return {panels:[...panels.filter(visible),...boards.filter(visible),...platformPanels],previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
+  const foundation=foundationGeometry(report,project,includePlatforms);
+  return {panels:[...panels.filter(visible),...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true}))],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
 }

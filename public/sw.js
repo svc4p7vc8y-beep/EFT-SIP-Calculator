@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v220-scene-consistency';
+const CACHE_NAME = 'eft-calculator-react-v221-building-documentation';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
