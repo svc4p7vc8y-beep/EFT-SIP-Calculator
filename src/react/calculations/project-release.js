@@ -139,6 +139,8 @@ export function releaseFiles(release) {
     'source.eft.json':JSON.stringify(release.project,null,2),
     'manifest.json':JSON.stringify({projectNumber:release.projectNumber,number:release.number,digest:release.digest,revision:release.report.revision,sheets:release.manifest||[]},null,2),
     'panels.csv':registerCsv(release,'panels'),'timber.csv':registerCsv(release,'timber'),
+    'roof.json':JSON.stringify({projectNumber:release.projectNumber,number:release.number,digest:release.digest,revision:release.report.revision,model:release.report.assembly.roofModel,checks:release.report.roofChecks,cover:release.report.roofCover},null,2),
+    'roof.csv':table([...headers,'Скат','Название','Площадь м2','Проекция м2','Уклон %','Тёплый','Узел'],(release.report.assembly.roofModel?.faces||[]).map(f=>[...common,f.id,f.name,f.area,f.projectedArea,f.slopePercent,f.warm?'да':'нет',f.nodeRef||'не задан'])),
     'catalog.csv':table([...headers,'catalogId','Номенклатура','Ед.','Количество','Цена','Проверка'],release.catalog.map(r=>[...common,r.catalogId,r.name,r.unit,r.qty,r.price,r.issues.join('; ')])),
     'reconciliation.csv':table([...headers,'Материал','Ед.','Производство','Смета','Разница','Статус'],release.report.reconciliation.map(r=>[...common,r.name,r.unit,r.required,r.purchased,r.difference,r.status])),
     'packaging.json':JSON.stringify({projectNumber:release.projectNumber,number:release.number,digest:release.digest,revision:release.report.revision,groups:release.registers.packaging},null,2),

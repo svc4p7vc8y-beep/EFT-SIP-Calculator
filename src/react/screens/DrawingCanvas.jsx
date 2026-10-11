@@ -10,7 +10,7 @@ import { panelLabelPoint } from '../calculations/drawing-labels.js';
 import { pointerDragged } from '../planner/interactions.js';
 
 const path=shape=>shape.map(r=>r.map((p,i)=>`${i?'L':'M'}${p.join(',')}`).join(' ')+'Z').join(' ');
-export function DrawingCanvas({surface,parts=[],members=[],layers,selected=[],onSelect,fontScale=1,dimensions=[],draft,onPick,onHover,onLabelMove,labelOverrides={},onTextMove,onTextSelect,printable=false}) {
+export function DrawingCanvas({surface,parts=[],members=[],layers,selected=[],onSelect,fontScale=1,dimensions=[],draft,onPick,onHover,onLabelMove,labelOverrides={},onTextMove,onTextSelect,printable=false,memberMarks=false}) {
   const svgRef=useRef(null),[pixelSize,setPixelSize]=useState([800,430]);
   const labelDrag=useRef(null),[activeLabel,setActiveLabel]=useState(null);
   useEffect(()=>{setActiveLabel(null);labelDrag.current=null;},[surface?.id,!!onTextMove]);
@@ -35,6 +35,7 @@ return <svg ref={svgRef} className={printable?"technical-drawing workbench-drawi
     {layers.frame?visibleMembers.map(m=><g key={m.id} {...handlers(m.id)} aria-label={`Элемент ${mark(m)}`}><polygon points={(boardFootprint(m)||[]).map(([x,y])=>`${x},${yy(y)}`).join(' ')} fill={selected.includes(m.id)?'#d5e8dd':'#fcf8ee'} stroke="#000" strokeWidth={selected.includes(m.id)?1:.45} vectorEffect="non-scaling-stroke"/><line x1={m.a[0]} y1={yy(m.a[1])} x2={m.b[0]} y2={yy(m.b[1])} stroke="transparent" strokeWidth="12" vectorEffect="non-scaling-stroke"/>{layers.labels&&selected.includes(m.id)?<text x={(m.a[0]+m.b[0])/2} y={yy((m.a[1]+m.b[1])/2)-font} fontSize={font} textAnchor="middle">{mark(m)} · {m.length} мм</text>:null}<title>{mark(m)} · {m.profile} · {m.length} мм</title></g>):null}
     {layers.dimensions?<><DimensionChain values={drawingDimensions.x} y={box.y+box.height+pad*.4} font={font*.8}/>{hasOpenings?<DimensionChain values={drawingDimensions.openingX} y={box.y+box.height+pad*.85} font={font*.8}/>:null}<DimensionChain values={[box.x,box.x+box.width]} y={box.y+box.height+pad*(hasOpenings?1.3:.85)} font={font} label="Габарит конструкции"/><g transform="rotate(90)"><DimensionChain values={[box.y,box.y+box.height]} y={-box.x+pad*.65} font={font}/><DimensionChain values={drawingDimensions.openingY.map(yy)} y={-box.x-box.width-pad*.65} font={font*.8} label={hasOpenings?'Высоты проёмов':''}/></g></>:null}
     {(surface.openings||[]).map(o=><g key={o.key}>{label('opening:'+o.key,`${o.width}×${o.height}`,o.x+o.width/2,Number(o.sill)+o.height/2,font*.75)}</g>)}
+    {memberMarks&&layers.labels?visibleMembers.map(m=><g key={`mark:${m.id}`} transform={`translate(${(m.a[0]+m.b[0])/2} ${yy((m.a[1]+m.b[1])/2)}) rotate(${Math.atan2(yy(m.b[1])-yy(m.a[1]),m.b[0]-m.a[0])*180/Math.PI})`}><text y={-font*.25} textAnchor="middle" fontSize={font*.8} paintOrder="stroke" stroke="#fff" strokeWidth={font*.12}>{mark(m)}</text></g>):null}
     </>}
     {!partition&&layers.panels&&layers.labels?parts.map(p=><g key={'label:'+p.id}>{label('panel:'+p.id,mark(p).replace(`${mark(surface.id)}-`,''),...panelLabelPoint(p))}</g>):null}
     {layers.labels?label('surface-title',surface.name,box.x+box.width/2,surface.horizontal?box.y-font*2:box.y+box.height+font*2):null}

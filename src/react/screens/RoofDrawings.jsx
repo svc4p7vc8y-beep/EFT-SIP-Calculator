@@ -3,6 +3,8 @@ import { structuralDimensions, bearingPlanWidth, checkDiagonals } from '../calcu
 import { productionMark } from '../calculations/production-assembly.js';
 import Dimensions from '../components/DrawingDimensions.jsx';
 import { bindingPlanRows } from '../calculations/binding-rows.js';
+import {roofHeight} from '../calculations/roof-project.js';
+import {roofLineIntervals} from '../calculations/roof-fabrication.js';
 
 const round=n=>Math.round(n);
 const pts=list=>list.map(p=>p.join(',')).join(' ');
@@ -23,7 +25,7 @@ export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers
   const legend=[...(binding?['Несущие стены показаны фоном; их сечения — на листах перегородок.']:Array.from(profiles,([profile,indices])=>`${ranges(indices)}: ${profile}`)),...diagonals.map((d,i)=>`Д${i+1}: ${Math.round(d.length)} мм · ${d.kind}`)];
   const legendRows=[];for(const entry of legend){const words=entry.split(' ');let row='';for(const word of words){if(row.length+word.length>85){legendRows.push(row);row='';}row+=(row?' ':'')+word;}if(row)legendRows.push(row);}
   return <svg className="roof-document-drawing" viewBox={`${x-pad*1.25} ${y-pad*.3} ${w+pad*2.5} ${h+pad*(2.25+legendRows.length*.19)}`} role="img" aria-label={binding?'Чертёж обвязки с осями опор':'План стропильной системы с привязками'}>
-    {!binding?<polygon points={pts(assembly.roofOutline)} fill="#fafafa" stroke="#000" strokeDasharray="6 4" vectorEffect="non-scaling-stroke"/>:null}
+    {!binding?assembly.roofDrawing?.model?assembly.roofModel.faces.map(f=><polygon key={f.id} points={pts(f.vertices)} fill="#fafafa" stroke="#000" strokeWidth=".6" strokeDasharray="6 4" vectorEffect="non-scaling-stroke"/>):<polygon points={pts(assembly.roofOutline)} fill="#fafafa" stroke="#000" strokeDasharray="6 4" vectorEffect="non-scaling-stroke"/>:null}
     <polygon points={pts(floor.contour)} fill="none" stroke="#777" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
     {floor.rooms.map((r,i)=><polygon key={i} points={pts(r.points)} fill="none" stroke="#ccc" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}
     {bearings.map((s,i)=><g key={i}><Member {...s} width={bearingPlanWidth(s.profile)??50} label={binding||layers.labels===false?'':`НС${i+1}`} font={font*.65}/><title>НС{i+1} · Несущая · {s.profile||'сечение не задано'}</title></g>)}
@@ -40,7 +42,9 @@ export function StructuralPlan({assembly,kind='roof',selected=[],onSelect,layers
 }
 
 export function RoofSection({assembly}) {
-  const d=assembly.roofDrawing;if(!d?.sections.length)return <p>Автоматический разрез для этой формы не сформирован. Добавьте индивидуальные элементы по проекту.</p>;
+  let d=assembly.roofDrawing;if(d?.model){const m=d.model,axis=assembly.axis==='x'?0:1,across=1-axis,along=(axis===0?assembly.bounds.x+assembly.bounds.width/2:assembly.bounds.y+assembly.bounds.height/2),base=across===0?assembly.bounds.x:assembly.bounds.y;
+    const sections=m.faces.flatMap(f=>roofLineIntervals(f.vertices.map(p=>[p[axis],p[across]]),along).map(([a,b])=>{const z=y=>roofHeight(f,...(axis===0?[along,y]:[y,along]))-m.roofBase;return {name:f.name,profile:'',a:[a-base,z(a)],b:[b-base,z(b)],angle:f.angle,length:Math.ceil(Math.hypot(b-a,z(b)-z(a)))};}));d={...d,sections};}
+  if(!d?.sections.length)return <p>Автоматический разрез для этой формы не сформирован. Добавьте индивидуальные элементы по проекту.</p>;
   const points=d.sections.flatMap(s=>[s.a,s.b]);const x=Math.min(0,...points.map(p=>p[0])),right=Math.max(d.span,...points.map(p=>p[0])),low=Math.min(0,...points.map(p=>p[1])),high=Math.max(0,...points.map(p=>p[1]));
   const size=Math.max(right-x,high-low,1000),pad=size*.18,font=size*.025;
   return <svg className="roof-document-drawing roof-section" viewBox={`${x-pad} ${-high-pad*.7} ${right-x+pad*2} ${high-low+pad*2.5}`} role="img" aria-label="Поперечный профиль крыши">

@@ -114,6 +114,18 @@
 .workbench-construction-pills { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0; }
 .workbench-view-icons,.production-3d-toolbar [role="group"] { display:flex; gap:4px; flex-wrap:wrap; }
 .workbench-view-icons button,.production-3d-toolbar button { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-width:36px; min-height:36px; }
+.roof-design-tool { padding:12px; max-width:100%; min-width:0; overflow-wrap:anywhere; }
+.roof-design-tool .cut-tabs { flex-wrap:wrap; }
+.roof-design-tool details { margin:12px 0; padding:8px; border:1px solid #c5d2bd; border-radius:8px; }
+.roof-design-tool details>summary { cursor:pointer; color:#000; }
+.roof-design-tool table { width:100%; table-layout:fixed; }
+.roof-design-tool input,.roof-design-tool textarea { max-width:100%; box-sizing:border-box; }
+@media print {
+ .mounting-album .roof-project-facet .roof-document-drawing { height:70mm; max-height:70mm; }
+ .mounting-album .roof-project-facet .workbench-drawing { height:155mm; min-height:0; max-height:155mm; }
+ .mounting-album.paper-A4 .roof-project-facet .roof-document-drawing { height:50mm; max-height:50mm; }
+ .mounting-album.paper-A4 .roof-project-facet .workbench-drawing { height:110mm; min-height:0; max-height:110mm; }
+}
 .production-3d-layers { display:flex; flex-wrap:wrap; gap:5px; padding:8px; background:#f5f8f3; border-bottom:1px solid #bac9b5; }
 .production-3d-layers button { font-size:12px; min-height:36px; padding:5px 9px; color:#000; border:1px solid #b4c3b0; border-radius:6px; background:#fff; }
 .production-3d-layers button[aria-pressed="true"] { background:#d9e9cb; border-color:#557a35; }

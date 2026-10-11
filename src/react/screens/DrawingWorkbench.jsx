@@ -13,6 +13,7 @@ import { BindingSection, RoofSection, StructuralPlan } from './RoofDrawings.jsx'
 import AssemblyPlan from './AssemblyPlan.jsx';
 import AssemblyCanvas from './AssemblyCanvas.jsx';
 import RoofCoverTool from './RoofCoverDrawing.jsx';
+import {RoofProjectDrawing} from './RoofProjectDrawing.jsx';
 import { approvalLabels, Reconciliation, CuttingApprovalControls, DraftText } from './CuttingControls.jsx';
 import '../styles/drawing-workbench.css';
 import PartitionProcurement from './PartitionProcurement.jsx';
@@ -27,6 +28,7 @@ import CeilingSupportChecks from './CeilingSupportChecks.jsx';
 import DrawingToolRail from './DrawingToolRail.jsx';
 const WorkbenchReleaseChecks=lazy(()=>import('./WorkbenchReleaseChecks.jsx'));
 const ProductionHouse3D=lazy(()=>import('./ProductionHouse3D.jsx'));
+const RoofDesignTool=lazy(()=>import('./RoofDesignTool.jsx'));
 
 const defaultLayers={panels:true,frame:true,dimensions:true,labels:true};
 const fmt=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(value||0);
@@ -94,7 +96,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
   const issueClick=issue=>{const target=locateWorkbenchItem(report,issue.target);if(target.surface||target.member){showItem(target.panel?.id||target.member?.id||target.surface.id);return;}if(issue.code==='ASSEMBLY'||issue.code==='ROOF_SUPPORTS'){go('supports');setWorkMode('construction');}else onSettings();};
   const resetView=()=>{setZoom(1);setOffsets(old=>({...old,[viewKey]:[0,0]}));setFit(v=>v+1);};
   const exportDrawing=async share=>{
-    const source=root.current?.querySelector('.drawing-stage svg');if(!source)return;
+    const source=root.current?.querySelector(view==='roofproject'?'.roof-project-plan':'.drawing-stage svg');if(!source)return;
     const svg=source.cloneNode(true);svg.setAttribute('xmlns','http://www.w3.org/2000/svg');svg.setAttribute('width','1200');svg.setAttribute('height','800');svg.querySelectorAll('[tabindex],[role="button"]').forEach(el=>{el.removeAttribute('tabindex');el.removeAttribute('role');});
     const text=new XMLSerializer().serializeToString(svg),name=`${project.meta.projectName||'Домокомплект'}-${surface?.id||category}.svg`.replace(/[<>:"/\\|?*]/g,'-');
     const file=new File([text],name,{type:'image/svg+xml'});
@@ -102,6 +104,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     else download(name,text,'image/svg+xml');
   };
   const scene=()=>{
+    if(category==='roof'&&view==='roofproject')return <RoofProjectDrawing model={report.assembly.roofModel} features={settings.roofDesign.features}/>;
         if(category==='overview')return <WallPanelPlan report={report} floor={floor} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
     if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
     if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={layers} fontScale={fontScale}/>;
@@ -123,7 +126,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     <div hidden={workMode==='documentation'}>
     <div hidden={workMode==='checks'}><div className="workbench-construction-pills" role="group" aria-label="Раздел чертежей">{categories.map(([id,name])=><button key={id} aria-pressed={category===id} onClick={()=>go(id)}>{name}</button>)}{category==='supports'?<button aria-pressed>Проектные элементы</button>:null}</div><div className="drawing-navigation"><label>Этаж<select aria-label="Этаж чертежей" value={floor} onChange={e=>{setFloor(Number(e.target.value));setSurfaceId('');setSelection([]);setTool('select');}}>{Array.from({length:Math.max(1,project.meta.floors||1)},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
       {candidates.length?<><button aria-label="Предыдущая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)-1+candidates.length)%candidates.length].id)}><ChevronLeft size={18}/></button><select aria-label="Выбранная конструкция" value={surface.id} onChange={e=>{setSurfaceId(e.target.value);setSelection([]);}}>{candidates.map(s=><option key={s.id} value={s.id}>{s.name}{s.blocked?' · есть замечания':''}</option>)}</select><button aria-label="Следующая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)+1)%candidates.length].id)}><ChevronRight size={18}/></button></>:null}
-      <button disabled={pending||view==='model3d'} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button>
+      <label>Формат<select aria-label="Формат печати вида" value={paper} onChange={e=>setPaper(e.target.value)}><option>A3</option><option>A4</option></select></label><button disabled={pending||view==='model3d'} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button>
     </div>
     <div className="drawing-tools" role="toolbar" aria-label="Инструменты чертежа">
       <button disabled={!canUndo||pending} onClick={undo} aria-label="Отменить"><Undo2 size={17}/></button>
@@ -133,7 +136,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
         ...(surface?.planStart?[['plan','План сверху',Grid2X2]]:[]),
         ...(['binding','roof'].includes(category)?[['section','Разрез',Scissors]]:[]),
         ...(category==='walls'?[['starter','Стартовая доска',SquareDashed]]:[]),
-        ...(category==='roof'?[['cover','Листы покрытия',Grid2X2],['overlay','Совмещённые слои',Layers],['edit','Разместить элементы',PencilRuler]]:category==='supports'&&view==='edit'?[['edit','Разместить элементы',PencilRuler]]:[]),
+        ...(category==='roof'?[['roofproject','Кровля: проект',PencilRuler],['cover','Листы покрытия',Grid2X2],['overlay','Совмещённые слои',Layers],['edit','Разместить элементы',PencilRuler]]:category==='supports'&&view==='edit'?[['edit','Разместить элементы',PencilRuler]]:[]),
         ['model3d','3D дом',Box],
       ].map(([id,label,Icon])=><button key={id} title={label} aria-label={label} aria-pressed={view===id} onClick={()=>{setView(id);setTool('select');}}><Icon size={18}/></button>)}</div>
       <button disabled={['edit','cover','overlay','starter'].includes(view)||category==='supports'||workMode==='production'&&bottom==='stock'} onClick={()=>view==='model3d'?threeControls.current?.zoom(1.25):setZoom(Math.max(.5,zoom/1.25))} aria-label="Уменьшить"><ZoomOut size={17}/></button>
@@ -164,7 +167,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
       <div className="drawing-editor-grid" hidden={workMode==='checks'}>
         <DrawingToolRail tool={pan?'pan':measure?'measure':labelTool?'labels':'select'} onTool={setTool} canMeasure={!!drawing&&view==='drawing'} pending={pending} onSupports={()=>{go('supports');setView('edit');}}/>
 {workMode==='production'&&bottom==='stock'?<div className="drawing-special-view"><WorkbenchStock report={stockReport} StockSheets={StockSheets} onSelect={showItem} selected={selection}/></div>:view==='model3d'?<Suspense fallback={<p role="status">Загружаю 3D…</p>}><ProductionHouse3D report={report} project={project} selected={selection} onSelect={select3D} controlsRef={threeControls} pan={pan} large/></Suspense>:
-view==='starter'||category==='roof'&&view==='cover'?<div className="drawing-special-view">{scene()}</div>:category==='supports'||view==='edit'||category==='roof'&&view==='overlay'?<AssemblyPlan report={report} settings={settings} update={update} NumberInput={NumberInput} compact/>:<div className="drawing-stage"><DrawingViewport key={`${viewKey}:${fit}`} zoom={zoom} pan={pan} onZoom={setZoom} offset={offsets[viewKey]||[0,0]} onOffset={offset=>setOffsets(old=>({...old,[viewKey]:offset}))}>{scene()}</DrawingViewport></div>
+category==='roof'&&view==='roofproject'?<div className="drawing-special-view"><Suspense fallback={<p>Загрузка проекта кровли…</p>}><RoofDesignTool {...{project,report,settings,update,NumberInput}}/></Suspense></div>:view==='starter'||category==='roof'&&view==='cover'?<div className="drawing-special-view">{scene()}</div>:category==='supports'||view==='edit'||category==='roof'&&view==='overlay'?<AssemblyPlan report={report} settings={settings} update={update} NumberInput={NumberInput} compact/>:<div className="drawing-stage"><DrawingViewport key={`${viewKey}:${fit}`} zoom={zoom} pan={pan} onZoom={setZoom} offset={offsets[viewKey]||[0,0]} onOffset={offset=>setOffsets(old=>({...old,[viewKey]:offset}))}>{scene()}</DrawingViewport></div>
 }
       <aside className="drawing-inspector" aria-label="Карточка выбранного элемента">
         <nav className="workbench-inspector-tabs">{[['properties','Карточка'],['location','В доме']].map(([id,name])=><button key={id} aria-pressed={inspectorTab===id} onClick={()=>setInspectorTab(id)}>{name}</button>)}</nav>

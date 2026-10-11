@@ -78,5 +78,6 @@ export function lRoofFrame(points, shape='gable', step=0.6, lathStep=0.35) {
       creases.push({points:pair,kind:bend>0?'valley':Math.abs(a.x-b.x)<EPS||Math.abs(a.y-b.y)<EPS?'ridge':'hip'});
     });
   }
-  return { rafters, laths, creases, surfaces:patches.map(({poly})=>poly.map(restore)) };
+  const facets=patches.map(({poly,plane})=>({vertices:poly.map(p=>({...restore(p),z:value(plane,p)}))}));
+  return { rafters, laths, creases, surfaces:patches.map(({poly})=>poly.map(restore)),facets,maxHeight:Math.max(...facets.flatMap(f=>f.vertices.map(p=>p.z))) };
 }

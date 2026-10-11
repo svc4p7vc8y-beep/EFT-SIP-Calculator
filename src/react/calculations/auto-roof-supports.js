@@ -1,5 +1,6 @@
 import { productionLevels } from './production-levels.js';
 import { productionScene } from './production-scene.js';
+import {roofAt} from './roof-project.js';
 
 import { AUTO_ROOF_LAYOUT,normalizeAutoRoofSupports } from '../state/auto-roof-supports.js';
 export { AUTO_ROOF_LAYOUT,ROOF_SUPPORT_VARIANTS,normalizeAutoRoofSupports } from '../state/auto-roof-supports.js';
@@ -34,6 +35,7 @@ export function generateRoofSupportLayout(project,report,value) {
   const fractions=config.variant==='single'?[.5]:config.variant==='double'?[.25,.75]:[.25,.5,.75];
   const scene=a.roofDrawing?.sections?.length?null:productionScene(report,project);
   const roofZ=(x,y)=>{
+    if(a.roofDrawing?.model){const hits=roofAt(a.roofModel,x,y);return hits.length?Math.max(...hits.map(h=>h.z)):null;}
     const acrossValue=(across===0?x:y)-origin[across];
     for(const s of a.roofDrawing?.sections||[]){const z=heightInSection(s,acrossValue);if(z!=null)return roofBase+z;}
     // Use a saved production roof panel's plane, not a second roof formula.

@@ -1,6 +1,6 @@
 import { polygonBounds } from './production-cutting.js';
 
-export const drawingCategory = surface => surface.id.startsWith('ФР-') ? 'gables' : surface.id.startsWith('КР-') ? 'roof' : surface.id.includes('-ПГ') ? 'partitions' : surface.id.endsWith('-ПТ') ? 'ceiling' : surface.id.endsWith('-ПОЛ') ? 'floor' : 'walls';
+export const drawingCategory = surface => surface.roofFaceId || surface.roofPlacement ? 'roof' : surface.id.startsWith('ФР-') ? 'gables' : surface.id.startsWith('КР-') ? 'roof' : surface.id.includes('-ПГ') ? 'partitions' : surface.id.endsWith('-ПТ') ? 'ceiling' : surface.id.endsWith('-ПОЛ') ? 'floor' : 'walls';
 
 // Only rectangular gable roofs have an unambiguous automatic wall association.
 // Manual links use geometry-bound keys: changing the wall never silently relinks it.

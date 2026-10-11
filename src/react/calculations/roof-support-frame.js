@@ -1,9 +1,10 @@
 import { generateRoofSupportLayout } from './auto-roof-supports.js';
 import { clearGapPositions } from './clear-gap-framing.js';
 import { productionLevels } from './production-levels.js';
+import {roofAt} from './roof-project.js';
 export const FRAME_LAYOUT='roof-support-frame';
 export function roofFrameSource(project,assembly,settings){
- return JSON.stringify([assembly.bounds,assembly.axis,assembly.roofShape,assembly.roofDrawing?.sections.map(s=>[s.a,s.b,s.profile]),productionLevels(project,assembly.floors.length).roofBase,project.settings.sip.ceilingThickness,settings.stockLengthMm,settings.endAllowanceMm]);
+ return JSON.stringify([assembly.bounds,assembly.axis,assembly.roofShape,assembly.roofDrawing?.model?assembly.roofModel.faces.map(f=>f.vertices):assembly.roofDrawing?.sections.map(s=>[s.a,s.b,s.profile]),productionLevels(project,assembly.floors.length).roofBase,project.settings.sip.ceilingThickness,settings.stockLengthMm,settings.endAllowanceMm]);
 }
 // A geometric support wall, not an engineered truss. Heights use the existing roof sections.
 export function roofSupportFrame(project,report,config={}) {
@@ -17,8 +18,9 @@ export function roofSupportFrame(project,report,config={}) {
  if(!report.assembly.roofDrawing?.sections.length)return fail('Каркас под стропилами требует стропильной кровли. Для SIP-крыши используйте проектные прогоны.');
  const items=[],d=report.assembly.roofDrawing;
  for(const [i,beam]of template.items.filter(s=>s.type==='purlin').entries()){
-  const sec=d.sections.find(s=>{const x=(d.across===0?beam.x1:beam.y1)-d.origin[d.across];return x>=Math.min(s.a[0],s.b[0])-.1&&x<=Math.max(s.a[0],s.b[0])+.1;});
-  if(!sec)return fail('Каркас находится вне плоскости стропил.');
+  const face=d.model?roofAt(d.model,beam.x1+.01,beam.y1+.01)[0]?.face:null;
+  const sec=d.model&&face?{profile:report.assembly.rafters.find(r=>r.faceId===face.id)?.profile||'',a:[0,0],b:[1,Math.hypot(face.normal[0],face.normal[1])/face.normal[2]]}:d.sections.find(s=>{if(!s.a)return false;const x=(d.across===0?beam.x1:beam.y1)-d.origin[d.across];return x>=Math.min(s.a[0],s.b[0])-.1&&x<=Math.max(s.a[0],s.b[0])+.1;});
+  if(!sec||!/^\d+×\d+$/.test(sec.profile)||sec.profile.split('×').some(n=>!(Number(n)>0)))return fail('Каркас находится вне плоскости стропил либо проектное сечение не задано.');
   const depth=Number(sec.profile.split(/[×xх]/)[1]),slope=Math.abs((sec.b[1]-sec.a[1])/(sec.b[0]-sec.a[0])),cos=1/Math.sqrt(1+slope*slope);
   // Lowest underside across the width of the flat chord: no invented rafter notch.
   const top=beam.z1-depth/(2*cos)-Number(profile.split('×')[1])/2*slope;

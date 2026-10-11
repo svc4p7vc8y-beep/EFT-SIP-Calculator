@@ -12,6 +12,7 @@ import ConstructionNode from './ConstructionNodes.jsx';
 import { boardFootprint } from '../calculations/partition-geometry.js';
 import WallPanelPlan from './WallPanelPlan.jsx';
 import { MARK_LEGEND } from '../calculations/production-cutting.js';
+import {roofProjectSheets} from './RoofProjectSheets.jsx';
 
 const num=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value);
 const chunks=(list,n)=>Array.from({length:Math.ceil(list.length/n)},(_,i)=>list.slice(i*n,i*n+n));
@@ -70,8 +71,8 @@ export function buildMountingPages(report) {
     add(`${wall.name} с фронтоном`,<div className="album-columns"><TechnicalDrawing {...combined}/><div><Locator assembly={report.assembly} surface={wall}/><p>Совмещённый вид. Ведомости стены и фронтона на отдельных листах; детали не суммируются повторно.</p></div></div>);
   }
   for(const slope of report.roofCover?.slopes||[]){
-    const parts=slope.sheets.map(s=>({...s,thickness:'',shape:[[[s.x,s.y],[s.x+s.width,s.y],[s.x+s.width,s.y+s.height],[s.x,s.y+s.height],[s.x,s.y]]]}));
-    add(`Покрытие · ${slope.name}`,<><TechnicalDrawing surface={{id:'Л',name:slope.name,horizontal:true,geometry:[[[[0,0],[slope.width,0],[slope.width,slope.length],[0,slope.length],[0,0]]]]}} parts={parts}/><p>Исходный лист {slope.sheets[0].blankWidth}×{slope.sheets[0].blankLength} мм — ×{slope.sheets.length}. Рабочая ширина {report.settings.roofSheets.usefulWidth} мм, поперечный нахлёст {report.settings.roofSheets.overlap||0} мм. Без отверстий и специальных узлов примыкания.</p></>);
+    const parts=slope.sheets.flatMap(s=>(s.shape||[[[[s.x,s.y],[s.x+s.width,s.y],[s.x+s.width,s.y+s.height],[s.x,s.y+s.height],[s.x,s.y]]]]).map((shape,i)=>({...s,id:`${s.id}${i?`-${i+1}`:''}`,thickness:'',shape})));
+    add(`Покрытие · ${slope.name}`,<><TechnicalDrawing surface={{id:'Л',name:slope.name,horizontal:true,geometry:slope.geometry||[[[[0,0],[slope.width,0],[slope.width,slope.length],[0,slope.length],[0,0]]]]}} parts={parts}/><p>Исходный лист {slope.sheets[0].blankWidth}×{slope.sheets[0].blankLength} мм — ×{slope.sheets.length}. Рабочая ширина {report.settings.roofSheets.usefulWidth} мм, поперечный нахлёст {report.settings.roofSheets.overlap||0} мм. Без отверстий и специальных узлов примыкания.</p></>);
   }
   if(basePlan&&report.assembly.binding.length){const rows=report.assembly.binding.map((b,i)=>({position:i+1,name:b.id,profile:b.profile,length:b.length,qty:b.layers}));
     chunks(rows,14).forEach((list,i)=>add(`План обвязки · оси свай и сечение${i?` · ведомость ${i+1}`:''}`,<><div className="album-columns"><StructuralPlan assembly={report.assembly} kind="binding"/><div><Schedule items={list}/><BindingSection assembly={report.assembly}/></div></div><p>ОБ — непрерывная линия обвязки, СВ — опора из плана. Количество — число слоёв. Размерные цепочки привязаны к осям свай; положение стыков и крепёж утверждаются отдельным узлом. Длинная линия не означает цельную заготовку допустимой длины.</p></>));}
@@ -99,7 +100,8 @@ export function buildMountingPages(report) {
     const lists=chunks([...rows,...panels],16);if(!lists.length)lists.push([]);
     lists.forEach((list,i)=>add(`${s.name}${i?` · ведомость ${i+1}`:''}`,<><div className="album-columns"><div><TechnicalDrawing surface={s} parts={parts} members={members}/><p>{s.blocked?'РАСКЛАДКА ЗАБЛОКИРОВАНА: уточните геометрию и замечания.':s.frameOnly?`Каркас ${s.frameProfile||report.settings.gableFrameProfile} мм. Схема обрамления проёмов, перемычки и усиление — на проверку.`:'Панели и соединители по геометрии проекта.'}</p></div><div>{s.id?.includes('-ПГ')?<h3>Пиломатериалы · позиции на чертеже</h3>:null}<Schedule items={list}/>{s.frameOnly&&s.id?.includes('-ПГ')?<p>Всего: {members.length} деталей · {num(members.reduce((sum,m)=>sum+m.length,0)/1000)} пог. м. Одинаковые детали объединены, количество указано в ведомости. Номера повторяются на каждой детали группы.</p>:null}<Locator assembly={report.assembly} surface={s}/></div></div></>));
   }
-  for(const name of [...new Set(report.assembly.rafters.map(r=>r.name))]){
+  for(const p of roofProjectSheets(report))add(p.title,p.content);
+  for(const name of report.settings.roofDesign?.enabled?[]:[...new Set(report.assembly.rafters.map(r=>r.name))]){
     const rafters=report.assembly.rafters.filter(r=>r.name===name),along=report.assembly.axis==='x'?0:1,origin=Math.min(...rafters.map(r=>r.a[along])),width=Math.max(...rafters.map(r=>r.a[along]))-origin,height=Math.max(...rafters.map(r=>r.length));
     const surface={id:'СК',name,horizontal:true,geometry:[[[[0,0],[width,0],[width,height],[0,height],[0,0]]]]};
     const members=rafters.map(r=>({...r,a:[r.a[along]-origin,0],b:[r.a[along]-origin,r.length],role:'frame'}));

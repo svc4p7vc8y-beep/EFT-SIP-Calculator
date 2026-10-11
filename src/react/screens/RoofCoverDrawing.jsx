@@ -3,7 +3,8 @@ import { DrawingCanvas } from './DrawingCanvas.jsx';
 export function RoofCoverDrawing({slope}) {
  if(!slope)return <p>Задайте рабочую и полную ширину листа в параметрах покрытия. Скат берётся из геометрии крыши.</p>;
  const surface={id:'Л',name:`Покрытие · ${slope.name}`,horizontal:true,geometry:[[[[0,0],[slope.width,0],[slope.width,slope.length],[0,slope.length],[0,0]]]]};
- const parts=slope.sheets.map(s=>({...s,thickness:'',shape:[[[s.x,s.y],[s.x+s.width,s.y],[s.x+s.width,s.y+s.height],[s.x,s.y+s.height],[s.x,s.y]]]}));
+ if(slope.geometry)surface.geometry=slope.geometry;
+ const parts=slope.sheets.flatMap(s=>(s.shape||[[[[s.x,s.y],[s.x+s.width,s.y],[s.x+s.width,s.y+s.height],[s.x,s.y+s.height],[s.x,s.y]]]]).map((shape,i)=>({...s,id:`${s.id}${i?`-${i+1}`:''}`,thickness:'',shape})));
  return <DrawingCanvas surface={surface} parts={parts} layers={{panels:true,labels:true,dimensions:true}}/>;
 }
 export default function RoofCoverTool({report,settings,update,NumberInput}) {

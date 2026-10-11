@@ -49,7 +49,8 @@ export function roofDrawingData(assembly, roof, roofSettings = {}, geometryMode=
 export function roofAxonometricLines(assembly) {
   const d = assembly.roofDrawing;
   if (!d) return [];
-  return assembly.rafters.map(r=>{
+  return assembly.rafters.filter(r=>!r.excluded).map(r=>{
+    if(r.worldA)return {...r,a:r.worldA.map((x,i)=>i===2?x-(assembly.roofModel?.roofBase||0):x),b:r.worldB.map((x,i)=>i===2?x-(assembly.roofModel?.roofBase||0):x)};
     const s=d.sections.find(s=>s.name===r.name);
     return {id:r.id,a:[...r.a,s.a[1]],b:[...r.b,s.b[1]],profile:r.profile};
   });

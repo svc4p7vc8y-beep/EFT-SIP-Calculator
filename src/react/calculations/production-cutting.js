@@ -9,6 +9,8 @@ import { normalizeProductionCutting } from '../state/production-cutting.js';
 import { cuttingRevision, validateProductionSettings, parseManualPanel, reconcileCutting } from './production-controls.js';
 import { calculateAssemblyPlan, calculateCutOperations, gableFrameMembers } from './production-assembly.js';
 import { roofCoverLayout } from './roof-cover-layout.js';
+import {roofChecks} from './roof-checks.js';
+import {roofFacet} from './roof-project.js';
 import { exteriorWallConstruction } from './wall-construction.js';
 import { partitionSegments, partitionBacking, partitionJunctionStuds } from './partition-construction.js';
 import { localWallSettings } from '../planner/wall-layout.js';
@@ -582,6 +584,7 @@ export function calculateProductionCutting(project, calculation) {
     if ((plan.rooms || []).some(room => room.extension && room.include !== false)) issue('COMPLEX_PLAN', `${floor} этаж: пристроенные помещения требуют отдельной карты — внесите детали вручную.`, `floor-${floor}`);
   });
   const roof = calculation.roof || {};
+  const assembly=calculateAssemblyPlan(project,calculation,settings);
   const wallKeys = new Set(walls.map(wall => wall.key));
   if (Object.entries(settings.wallAdditions).some(([key, value]) => Number(value) && !wallKeys.has(key))) issue('STALE_HEIGHT', 'Контур стен изменился: часть сохранённых добавочных высот больше не привязана к стенам и не применяется. Перепроверьте высоты в исходных данных.');
   const roofSettings = project.settings?.roof || {}, roofGeometry = roof.geometry;
@@ -590,7 +593,14 @@ export function calculateProductionCutting(project, calculation) {
     const rectangular = Math.abs(polygonAreaMm(shape) - bounds.width * bounds.height) < 1;
     const addRoof = (id, name, shape, thickness = sip.ceilingThickness, horizontal = true) => addSurface({ id, name, floor: plans.length, horizontal, staggered: false, thickness: Number(thickness), family: horizontal ? sip.ceilingPanelFamily : sip.wallPanelFamily, geometry: clipping.union(shape), layoutWidth: mm(roof.sipFrameStep || f.panelWidth || 1.25) });
     const addGable=(id,name,geometry,type)=>{const surface=addRoof(id,`${name} · ${type==='sip'?'СИП':'каркас'}`,geometry,sip.wallThickness,false);surface.frameOnly=type==='cold';return surface;};
-    if (roof.mainRoofShape === 'tiered' && rectangular && Number(roof.warmSlopeArea) > 0) {
+    if(settings.roofDesign?.enabled){
+      for(const face of assembly.roofModel.faces.filter(f=>f.warm)){
+        const placement=face.structureHorizontal?roofFacet(face.id,face.name,face.vertices.map(p=>[p[0],p[1],assembly.roofModel.roofBase])):face;
+        const ring=[...placement.polygon,placement.polygon[0]];
+        const s=addRoof(face.id,`Кровля · ${face.name}`,[ring],face.thickness);
+        s.roofFaceId=face.id;s.roofPlacement=placement;s.staggered=settings.staggered;
+      }
+    }else if (roof.mainRoofShape === 'tiered' && rectangular && Number(roof.warmSlopeArea) > 0) {
       const settings = roofSettings.tiered || {};
       const warmLevel = settings.warmLevel || 'upper';
       const warmLevels = roofSettings.type === 'sip' || warmLevel === 'both' ? ['upper', 'lower'] : [warmLevel];
@@ -651,7 +661,7 @@ export function calculateProductionCutting(project, calculation) {
       } else issue('GABLE', 'Фронтоны сложной или односкатной кровли: требуются отдельные развёртки и проёмы.');
     }
   }
-  if ((project.plan.platforms || []).some(p => p.include !== false)) issue('PLATFORMS', 'Пристройки: задайте их производственные детали вручную по конструктивному проекту.');
+  if ((project.plan.platforms || []).some(p => p.include !== false)) issue('PLATFORMS',settings.roofDesign?.enabled?'Кровля пристроек включена в единую модель. Основание, настил, стойки террасы и узлы примыкания требуют отдельной производственной схемы.':'Пристройки: задайте их производственные детали вручную по конструктивному проекту.');
   const parts = [];
   if(settings.partitionSipAlignment)for(const surface of surfaces.filter(s=>s.exterior&&s.planStart)){
     const [a,b]=[surface.planStart,surface.planEnd],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),positions=[];
@@ -780,7 +790,6 @@ export function calculateProductionCutting(project, calculation) {
     if (manualCount > 10000) { issue('MANUAL_LIMIT', 'Более 10 000 ручных деталей: разделите комплект на партии.'); break; }
     for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, ...(item.hasStableSourceId===false?{}:sourceIdentity('manual-timber',item.id,i+1)), material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
-  const assembly=calculateAssemblyPlan(project,calculation,settings);
   if(settings.roofSupports.some(s=>s.autoLayout===FRAME_LAYOUT)&&settings.roofFrameConfig?.sourceKey&&settings.roofFrameConfig.sourceKey!==roofFrameSource(project,assembly,settings))issue('STALE_ROOF_FRAME','Геометрия крыши или заготовка изменена после размещения каркаса. Откройте «Элементы» и повторно примените опорный каркас; ручные и закреплённые детали сохранятся.');
   const roofCover=roofCoverLayout(assembly,settings.roofSheets);
   roofCover.issues.forEach(message=>issue('ROOF_SHEETS',message));
@@ -811,13 +820,14 @@ export function calculateProductionCutting(project, calculation) {
     member.profile=override.profile?.trim()||member.profile;member.nodeRef=override.nodeRef||member.nodeRef||'';member.processing=override.processing||member.processing||'';member.excluded=override.exclude===true;
   }
   refreshPartitionNotches(members);
+  if(settings.roofDesign.enabled)for(const m of members){const face=assembly.roofModel.faces.find(f=>f.id===m.surfaceId);if(face&&!m.nodeRef)m.nodeRef=face.nodeRef||'';}
   if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');
   assembly.issues.forEach(message=>issue('ASSEMBLY',message));
   if(services.roof && (roof.warmSlopeArea>0 || roof.rafterStructure?.system==='layered') && !assembly.supports.some(s=>s.type==='purlin'))
     issue('ROOF_SUPPORTS','Опоры кровли: задайте проектные прогоны, стойки и путь нагрузки до фундамента на вкладке «Крыша и опоры».');
   const markRegistry=assignProductionMarks(parts,members,settings.markRegistry);
   const marked=new Map(members.map(m=>[m.id,m.displayMark]));
-  for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[])m.displayMark=marked.get(m.id)||m.id;
+  for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[]){m.displayMark=marked.get(m.id)||m.id;const member=members.find(x=>x.id===m.id);if(member){m.profile=member.profile;m.excluded=member.excluded;if(settings.roofDesign.enabled&&Math.abs(member.length-m.length)>1)issue('ROOF_MEMBER_OVERRIDE',`${m.displayMark}: ручная длина ${member.length} мм отличается от геометрии ${m.length} мм; согласуйте рабочий контур.`);}}
   for(const support of assembly.supports)support.displayMark=marked.get(support.mark)||support.mark;
   const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
   const fabrication=stockJointPieces(members,settings);
@@ -833,7 +843,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ fabricationModel:217, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:218, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };
@@ -846,6 +856,8 @@ export function calculateProductionCutting(project, calculation) {
   report.markRegistry=markRegistry;
   report.constructionSourceRequests=[...new Map(surfaces.filter(s=>s.sourceIdentityStatus==='needs-registration').map(s=>[`${s.floor}:${s.sourceRole}`,s.floor===1?s.sourceRole:{floor:s.floor,role:s.sourceRole}])).values()];
   report.roofCover=roofCover;
+  report.roofChecks=roofChecks(project,assembly);
+  if(settings.roofDesign.enabled)for(const check of report.roofChecks.filter(c=>c.status==='open'))issue(`ROOF_CHECK:${check.code}`,`${check.message}. Где исправить: ${check.path}`);
   report.ceilingSupportChecks=surfaces.filter(s=>s.horizontal&&s.supportFloor).flatMap(s=>members.filter(m=>m.surfaceId===s.id&&m.seam&&!m.excluded).map(m=>connectorSupportCheck(m,s,plans[s.supportFloor-1],settings)));
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
   report.fabricationMembers=fabrication.pieces;

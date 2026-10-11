@@ -7,6 +7,7 @@ const familyOf = (material,profile) => {
   if(boardRoles.has(material))return 'Пиломатериалы';
   if(material==='Мауэрлат')return profile[0]<100?'Пиломатериалы':'Брус';
   if(material==='Брус обвязки')return 'Брус';
+  if(material==='Элемент ребра кровли')return profile[0]>=100?'Брус':'Пиломатериалы';
   if(['Термобрус','Клеёный пакет','Брус'].includes(material))return material;
   return null;
 };

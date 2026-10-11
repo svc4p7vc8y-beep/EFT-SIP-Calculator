@@ -1,0 +1,22 @@
+import {RoofProjectDrawing,RoofFacetSection} from './RoofProjectDrawing.jsx';
+import {DrawingCanvas} from './DrawingCanvas.jsx';
+import {roofLocal} from '../calculations/roof-project.js';
+import {groupMembers} from '../calculations/production-cutting.js';
+import {productionMark} from '../calculations/production-assembly.js';
+const chunks=(xs,n)=>Array.from({length:Math.ceil(xs.length/n)},(_,i)=>xs.slice(i*n,i*n+n));
+const Table=({heads,rows})=><table><thead><tr>{heads.map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((x,j)=><td key={j}>{x}</td>)}</tr>)}</tbody></table>;
+export function roofProjectSheets(report){
+ if(!report.settings.roofDesign?.enabled)return [];
+ const model=report.assembly.roofModel,d=report.settings.roofDesign,pages=[];
+ pages.push({title:'Кровля · единый план скатов, отметки и водоотвод',surfaceIds:model.faces.map(f=>f.id),content:<><div className="album-columns"><RoofProjectDrawing model={model} features={d.features}/><div><Table heads={['Скат','Площадь, м²','Уклон']} rows={model.faces.slice(0,12).map(f=>[f.id,f.area.toFixed(2),`${f.slopePercent.toFixed(1)}%`])}/><h3>Рёбра и узлы</h3><Table heads={['Марка','Тип','Длина, мм']} rows={model.edges.slice(0,14).map(e=>[e.id,({ridge:'Конёк',hip:'Накосное',valley:'Ендова',joint:'Стык',eave:'Карниз',verge:'Торец'})[e.kind],Math.round(e.length)])}/><p>{model.faces.length>12||model.edges.length>14?'Полный реестр координат и рёбер — roof.json; дополнительные грани на своих листах.':''}</p></div></div><p>X/Y/Z в мм. {model.datum}. Истинная площадь {model.area.toFixed(2)} м²; проекция {model.projection.toFixed(2)} м²; тёплая часть {model.warmArea.toFixed(2)} м². Не в масштабе; вид сверху; {report.revision}.</p><p>РК — ребро/узел; КР/КП — скат дома/пристройки. Рабочие узлы: {d.nodeDocument||'не заданы'}. Водоотвод: {d.drainageNote||'не подтверждён'}.</p></>});
+ pages.push({title:'Кровля · исходные данные и проектные проверки',content:<><Table heads={['Параметр','Проектное значение / документ']} rows={[
+ ['Участок / условия',`${d.site||'не задан'} / ${d.climate||'не заданы'}`],['Снег / ветер / постоянная нагрузка, кПа',[d.snow,d.wind,d.deadLoad].map(x=>x===''?'не задано':x).join(' / ')],['Расчёт / проверяющий',`${d.structuralDocument||'не задан'} / ${d.reviewer||'не задан'}`],['Паспорта SIP / покрытия',`${d.panelDocument||'не задан'} / ${d.coverDocument||'не задан'}`],['Влага / тепло',`${d.waterproofDocument||'не задано'} / ${d.thermalDocument||'не задано'}`],['Уклон по паспорту / пролёт SIP',`${d.minSlope===''?'не задан':d.minSlope}% / ${d.panelSpan===''?'не задан':d.panelSpan} мм`],['Вентзазор / материал разуклонки',`${d.ventilationGap===''?'не задан':d.ventilationGap} мм / ${d.taperMaterial||'не задан'}`]]}/><p>Реквизиты не заменяют расчёт и подтверждение этой ревизии. Проверки и причины блокировки — в реестре выпуска и roof.json. Несущая способность автоматически не подтверждается.</p></>});
+ for(const f of model.faces){
+  const rafters=report.assembly.rafters.filter(r=>r.faceId===f.id&&!r.excluded).map(r=>({...r,a:roofLocal(f,r.worldA),b:roofLocal(f,r.worldB),role:'frame'}));
+  const surface={id:f.id,name:f.name,horizontal:true,geometry:[[[...f.polygon,f.polygon[0]]]]};
+  const panels=report.parts.filter(p=>p.surfaceId===f.id),groups=groupMembers(report.members.filter(m=>m.faceId===f.id&&!m.excluded));
+  const lists=chunks(groups,10);if(!lists.length)lists.push([]);
+  lists.forEach((list,i)=>pages.push({title:`Кровля · ${f.name} · раскладка и разрез${i?` · ${i+1}`:''}`,surfaceIds:[f.id],content:<><div className="album-columns roof-project-facet"><div><DrawingCanvas surface={surface} parts={panels} members={rafters} layers={{panels:true,frame:true,labels:true,dimensions:true}} printable memberMarks/><p>{f.id} · {f.warm?'SIP':'стропильный скат'} · {f.area.toFixed(2)} м² · {f.angle.toFixed(2)}°. Узел: {f.nodeRef||'не задан'}.</p></div><div><RoofFacetSection face={f}/><Table heads={['Марка / деталь','Сечение','Длина, мм','Кол.']} rows={list.map(g=>[`${productionMark(g.member)} · ${g.member.material}`,g.member.profile,g.member.length,`×${g.qty}`])}/></div></div><p>Локальные U/V по плоскости ската; отметки Z от проектного нуля. Не в масштабе. Торцы, врубки, крепёж и опирание — по рабочему узлу. {f.structureHorizontal?'Разуклонка поверх горизонтального SIP-основания; это не наклон несущих деталей.':''}</p></> }));
+ }
+ return pages;
+}

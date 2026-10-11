@@ -4,6 +4,8 @@ import { roofDrawingData } from './roof-drawings.js';
 import { sourceIdentity } from '../state/production-identities.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { roofAxonometricLines } from './roof-drawings.js';
+import {roofProject} from './roof-project.js';
+import {roofFabrication} from './roof-fabrication.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -161,6 +163,20 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   issues.push(...assembly.roofDrawing.warnings);
   assembly.roofShape=roof.mainRoofShape;
   assembly.roofGeometry=g;
+  assembly.roofModel=roofProject(project,calculation,assembly);
+  if(settings.roofDesign?.enabled){
+    const fresh=roofFabrication(assembly.roofModel,project,calculation,settings);
+    assembly.members=members.filter(m=>m.surface!=='Кровля').concat(fresh.members);
+    Object.assign(assembly,{rafters:fresh.rafters,laths:fresh.laths,counterLaths:fresh.counterLaths,roofTimbers:fresh.roofTimbers});
+    assembly.issues=issues.filter(m=>!m.startsWith('Стропила сложной кровли')).concat(fresh.issues,assembly.roofModel.issues.map(i=>i.message));
+    assembly.roofDrawing.model=assembly.roofModel;
+    assembly.roofDrawing.sections=assembly.roofModel.faces.map(f=>{const list=assembly.rafters.filter(r=>r.faceId===f.id);return {name:f.name,profile:String(frame.section||'').replace('x','×'),ids:list.map(r=>r.id),faceId:f.id,angle:f.angle,length:Math.max(0,...list.map(r=>r.length)),qty:list.length};});
+    if(settings.rafterEndCuts)for(const r of assembly.rafters){
+      const cut=rafterEndOutline(r.worldA,r.worldB,Number(r.profile.split(/[×xх]/)[1])),m=assembly.members.find(m=>m.id===r.id);
+      if(cut&&m){m.cutLength=cut.blankLength+2*Number(settings.endAllowanceMm||0);m.endCutOutline=cut.outline;m.processing='Верхний торец вертикальный; нижний перпендикулярен стропилу. Опорные врубки и крепёж по рабочему узлу.';}
+    }
+    assembly.roofDrawing.estimateDifference=roof.mainRoofShape==='gable'&&assembly.rafters.length?assembly.rafters[0].length-assembly.roofDrawing.estimateLength:0;
+  }
   assembly.rafterSystem=frame.system;
   return assembly;
 }
