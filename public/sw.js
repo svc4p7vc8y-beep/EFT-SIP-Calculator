@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v221-building-documentation';
+const CACHE_NAME = 'eft-calculator-react-v222-sheet-axis-references';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

@@ -1,3 +1,4 @@
+import {releaseAxisReference} from '../calculations/release-sheet-context.js';
 import ProductionView from '../components/ProductionView.jsx';
 import { PrintPlanDiagram } from '../components/PrintProjectDiagrams.jsx';
 import { TechnicalDrawing } from './MountingAlbum.jsx';
@@ -17,7 +18,7 @@ function BarDrawing({bar,length}){return <svg className="release-stock-bar" view
 
 export function compactReleasePages(release){
   const {project,report,registers}=release,pages=[];
-  const add=(group,title,content,info={})=>{const id=`${group}${String(pages.filter(p=>p.group===group).length+1).padStart(2,'0')}`;pages.push({id,group,title,content,scale:'не в масштабе',units:'мм; м²; м³',direction:'сверху / аксонометрия / локальный вид по подписи',axes:'Проектные оси не назначены',layout:'visual-v2',...info});};
+  const add=(group,title,content,info={})=>{const id=`${group}${String(pages.filter(p=>p.group===group).length+1).padStart(2,'0')}`;pages.push({id,group,title,content,scale:'не в масштабе',units:'мм; м²; м³',direction:'сверху / аксонометрия / локальный вид по подписи',axes:releaseAxisReference(release),layout:'visual-v2',...info});};
   const view=(props={})=><ProductionView report={report} project={project} {...props}/>;
   add('ОБ','Домокомплект · общий вид и состав',<><div className="release-cover"><div>{view({layers:layers.shell,title:'Общий вид · панели и кровельный каркас'})}</div><div><h1>{project.meta.projectName||'Домокомплект SIP'}</h1><p>{project.meta.address||'Адрес не указан'}</p><Table head={['Параметр','Значение']} rows={[
     ['Габарит, м',`${project.plan.house.w} × ${project.plan.house.h}`],['Этажей',report.assembly.floors.length],['Панелей / деревянных деталей',`${report.parts.length} / ${report.members.filter(m=>!m.excluded).length}`],['Заготовка панели, мм',`${report.panelLength} × ${report.panelWidth}`],['Смета, ₽',new Intl.NumberFormat('ru-RU').format(release.calculation.totals.total)],['Резы панели / дерево',`${report.cutting.panelCuts} / ${report.cutting.timberCuts}`],['Открытых проверок',release.validation.blocks.length]]}/><p>ЧЕРНОВИК. Узлы и несущая способность требуют подтверждения. Полные ведомости, остатки, цены и проверки — в машинном комплекте и подробном приложении.</p><div className="release-cover-frame">{view({frame:true,title:'Каркас домокомплекта · без обшивок'})}</div></div></div><nav className="release-inline-index">{['ОБ · Общий вид','АР · Планы','КД · Конструкции','ПР · Детали и раскрой','ВП · Проверки'].join(' / ')}</nav></>);

@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {releaseAxisReference,releaseSheetMetadata} from '../src/react/calculations/release-sheet-context.js';
+const release=()=>({building:{settings:{axes:[{id:'x',name:'1',direction:'x',coordinateMm:0},{id:'y',name:'А',direction:'y',coordinateMm:2000}]}},views:{plans:[{},{}]}});
+test('assigned axes reference actual general-plan sheets instead of claiming absent axes',()=>{const r=release(),before=JSON.stringify(r),text=releaseAxisReference(r);assert.equal(text,'Оси 1, А: привязки см. АР-П1, АР-П2');assert.equal(JSON.stringify(r),before);});
+test('old snapshots without a building do not infer axes from current project defaults',()=>{assert.equal(releaseAxisReference({}),'Проектные оси не назначены');assert.equal(releaseAxisReference({building:{settings:{axes:[]}}}),'Проектные оси не назначены');});
+test('invalid axis input never becomes a false working reference',()=>{const r=release();r.building.settings.axes[0].coordinateMm='';assert.match(releaseAxisReference(r),/требуют исправления/);r.building.settings.axes[0].coordinateMm=NaN;assert.match(releaseAxisReference(r),/требуют исправления/);});
+test('assigned axes without generated plans state the missing general scheme',()=>{const r=release();delete r.views;assert.match(releaseAxisReference(r),/общая схема отсутствует/);});
+test('archived manifest metadata takes precedence without mutating it or replacing rendered content',()=>{const r={manifest:[{id:'КД01',axes:'Архивная запись',title:'Архивный лист',scale:'М 1:50'}]},page={id:'КД01',axes:'Новые данные',title:'Новая подпись',scale:'М 1:100',content:{svg:'saved geometry'}},before=JSON.stringify({r,page}),actual=releaseSheetMetadata(r,page);assert.equal(actual.axes,'Архивная запись');assert.equal(actual.scale,'М 1:50');assert.equal(actual.content,page.content);assert.equal(JSON.stringify({r,page}),before);assert.equal(releaseSheetMetadata(r,{id:'new'}).id,'new');});
