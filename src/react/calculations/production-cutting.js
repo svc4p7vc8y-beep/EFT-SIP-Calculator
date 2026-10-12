@@ -21,6 +21,7 @@ import { gapFragments } from './gap-fragments.js';
 import { floorOpenings } from '../planner/floor-openings.js';
 import { stairOpeningPolygon } from '../planner/stair-steps.js';
 import { fitSipSpline, fitSipEndBoard } from './sip-member-fit.js';
+import { fitSipTJunctions, sipMemberIntersections } from './sip-junctions.js';
 import { stockJointPieces } from './member-stock-joints.js';
 import { roofFrameSource,FRAME_LAYOUT } from './roof-support-frame.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
@@ -791,7 +792,7 @@ export function calculateProductionCutting(project, calculation) {
       const length = presentNumber(override.length) ? Number(override.length) : segment.length;
       if (!(length > 0 && length <= 100000)) { issue('MEMBER_OVERRIDE', `${id}: неверная длина`, key); return; }
       if ((override.exclude || override.profile || presentNumber(override.length)) && !override.nodeRef?.trim()) issue('MEMBER_NODE', `${id}: для изменения или исключения укажите рабочий узел`, key);
-      const replacedByJamb = jambs.some(jamb => Math.abs(segment.a[0]-jamb.x)<.01 && Math.abs(segment.b[0]-jamb.x)<.01);
+      const replacedByJamb = jambs.some(jamb => Math.abs(rawSegment.a[0]-jamb.x)<.01 && Math.abs(rawSegment.b[0]-jamb.x)<.01);
       // SIP profiles are core depth × face width, unlike partition studs.
       // Carry both dimensions explicitly to the shared 2D/3D drawing adapters.
       members.push({ ...segment, id, key, faceWidth:Number(selectedProfile.split(/[×xх]/)[1]),normalDepthMm:Number(selectedProfile.split(/[×xх]/)[0]), excluded: override.exclude === true || replacedByJamb, replacedByJamb, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: replacedByJamb ? 'Заменено полной стойкой проёма' : segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
@@ -823,6 +824,9 @@ export function calculateProductionCutting(project, calculation) {
         panels:parts.filter(part=>part.surfaceId===surface.id && (Math.abs(part.x-jamb.x)<.01 || Math.abs(part.x+part.width-jamb.x)<.01)).map(part=>part.id)});
     }
   }
+  fitSipTJunctions(members,settings,surfaces);
+  const sipJunctionConflicts=sipMemberIntersections(members);
+  for(const s of surfaces){const conflicts=sipJunctionConflicts.filter(c=>c.surfaceId===s.id);if(conflicts.length)issue('SIP_JUNCTION',`${s.name}: пересечения деревянных деталей ×${conflicts.length} (${conflicts.slice(0,5).map(c=>c.memberIds.join(' / ')).join('; ')}). Откройте развёртку и согласуйте стык/врубку по рабочему узлу; пересечение не считается готовым соединением.`,s.id);}
   const notices = [...profileMismatches].map(value => `Сечение раскроя / сметы: ${value} мм. Смета не изменена; подтвердите проектный профиль.`);
   if(assembly.usesRoofPlanes&&!settings.roofDesign.enabled&&Math.abs(assembly.roofModel.warmArea-Number(roof.warmSlopeArea||0))>.01)issue('ROOF_LAYOUT_ESTIMATE',`SIP-кровля: площадь по геометрии раскроя ${round(assembly.roofModel.warmArea)} м², сметная площадь ${roof.warmSlopeArea} м². Свесы продолжают уклон стен; действующая смета не изменена, закупку нужно согласовать.`, 'Кровля');
   const ids = new Set(); let manualCount = 0;
@@ -904,7 +908,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ fabricationModel:223, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:224, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };
@@ -914,6 +918,7 @@ export function calculateProductionCutting(project, calculation) {
     supports: assembly.piles, toleranceMm: settings.bindingJointToleranceMm,
   }) };
   report.cutting=calculateCutOperations(report);
+  report.sipJunctionConflicts=sipJunctionConflicts;
   report.markRegistry=markRegistry;
   report.constructionSourceRequests=[...new Map(surfaces.filter(s=>s.sourceIdentityStatus==='needs-registration').map(s=>[`${s.floor}:${s.sourceRole}`,s.floor===1?s.sourceRole:{floor:s.floor,role:s.sourceRole}])).values()];
   report.roofCover=roofCover;

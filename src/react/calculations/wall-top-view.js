@@ -22,7 +22,7 @@ export function wallTopView(report,floor=1,height=1000) {
     const angle=Math.atan2(s.planEnd[1]-s.planStart[1],s.planEnd[0]-s.planStart[0])*180/Math.PI;
     const panels=(partsByWall.get(s.id)||[]).flatMap(p=>panelSection(p,height));
     const studs=(membersByWall.get(s.id)||[]).filter(m=>m.a&&m.b&&Math.abs(m.a[0]-m.b[0])<.01&&Math.min(m.a[1],m.b[1])<=height&&Math.max(m.a[1],m.b[1])>=height)
-      .map(m=>({x:m.a[0],width:Number(m.profile?.split(/[×xх]/)[0])||45,member:m}));
+      .map(m=>({x:m.a[0],width:Number(m.faceWidth??m.profile?.split(/[×xх]/)[0])||45,depth:Number(m.normalDepthMm)||depth,member:m}));
     const openings=(s.openings||[]).filter(o=>o.gap||(Number(o.sill)<=height&&Number(o.sill)+o.height>height));
     return {surface:s,partition,frame,depth,offset,side,angle,panels,studs,openings};
   });
