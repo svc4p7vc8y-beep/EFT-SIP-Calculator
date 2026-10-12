@@ -792,7 +792,9 @@ export function calculateProductionCutting(project, calculation) {
       if (!(length > 0 && length <= 100000)) { issue('MEMBER_OVERRIDE', `${id}: неверная длина`, key); return; }
       if ((override.exclude || override.profile || presentNumber(override.length)) && !override.nodeRef?.trim()) issue('MEMBER_NODE', `${id}: для изменения или исключения укажите рабочий узел`, key);
       const replacedByJamb = jambs.some(jamb => Math.abs(segment.a[0]-jamb.x)<.01 && Math.abs(segment.b[0]-jamb.x)<.01);
-      members.push({ ...segment, id, key, excluded: override.exclude === true || replacedByJamb, replacedByJamb, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: replacedByJamb ? 'Заменено полной стойкой проёма' : segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
+      // SIP profiles are core depth × face width, unlike partition studs.
+      // Carry both dimensions explicitly to the shared 2D/3D drawing adapters.
+      members.push({ ...segment, id, key, faceWidth:Number(selectedProfile.split(/[×xх]/)[1]),normalDepthMm:Number(selectedProfile.split(/[×xх]/)[0]), excluded: override.exclude === true || replacedByJamb, replacedByJamb, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: replacedByJamb ? 'Заменено полной стойкой проёма' : segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
     });
     for (const [jambIndex,jamb] of jambs.entries()) {
       const id=`${surface.id}-С${jambIndex+1}-${jamb.side}-${round(jamb.x)}`;
@@ -816,7 +818,7 @@ export function calculateProductionCutting(project, calculation) {
       members.push({id,key,a,b,axisA:[jamb.x,0],axisB:[jamb.x,fullHeight],length,geometricLength,cutLength:length+2*Number(settings.endAllowanceMm||0),
         material:'Стойка проёма',source:'Стойка проёма',openingRef:`${jamb.opening.name} · ${jamb.side==='left'?'левая':'правая'}`,
         role:'jamb',profile:selectedProfile,estimateProfile,excluded:override.exclude===true,
-        faceWidth:jambFace,
+        faceWidth:jambFace,normalDepthMm:Number(selectedProfile.split(/[×xх]/)[0]),
         nodeRef:override.nodeRef||'',processing:override.processing||'',surface:surface.name,surfaceId:surface.id,
         panels:parts.filter(part=>part.surfaceId===surface.id && (Math.abs(part.x-jamb.x)<.01 || Math.abs(part.x+part.width-jamb.x)<.01)).map(part=>part.id)});
     }
@@ -902,7 +904,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ fabricationModel:221, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:223, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };
