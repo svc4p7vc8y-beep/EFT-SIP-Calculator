@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v224-sip-junctions';
+const CACHE_NAME = 'eft-calculator-react-v225-roof-layouts';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

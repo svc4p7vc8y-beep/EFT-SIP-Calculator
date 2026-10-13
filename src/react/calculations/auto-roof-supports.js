@@ -80,8 +80,8 @@ export function generateRoofSupportLayout(project,report,value) {
   return {items,errors,warnings,counts,baseZ};
 }
 
-export function mergeRoofSupportLayout(existing,generated) {
-  const kept=existing.filter(item=>item.autoLayout!==AUTO_ROOF_LAYOUT||item.autoLocked),mapping=new Map(),fresh=[];
+export function mergeRoofSupportLayout(existing,generated,layout=AUTO_ROOF_LAYOUT) {
+  const kept=existing.filter(item=>item.autoLayout!==layout||item.autoLocked),mapping=new Map(),fresh=[];
   const same=(a,b)=>a.type===b.type&&a.profile===b.profile&&['x1','y1','z1','x2','y2','z2'].every(key=>Number(a[key])===Number(b[key]));
   for(const item of generated){const match=kept.find(old=>old.id===item.id||same(old,item));if(match)mapping.set(item.id,match.id);else fresh.push({...item});}
   for(const item of fresh)for(const key of ['startSupport','endSupport','upperSupport'])if(mapping.has(item[key]))item[key]=mapping.get(item[key]);

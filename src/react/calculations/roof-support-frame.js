@@ -2,14 +2,18 @@ import { generateRoofSupportLayout } from './auto-roof-supports.js';
 import { clearGapPositions } from './clear-gap-framing.js';
 import { productionLevels } from './production-levels.js';
 import {roofAt} from './roof-project.js';
+import {roofAxonometricLines} from './roof-drawings.js';
+import {hasHorizontalCeiling} from '../../calculations/floor-height.js';
 export const FRAME_LAYOUT='roof-support-frame';
 export function roofFrameSource(project,assembly,settings){
- return JSON.stringify([assembly.bounds,assembly.axis,assembly.roofShape,assembly.roofDrawing?.model?assembly.roofModel.faces.map(f=>f.vertices):assembly.roofDrawing?.sections.map(s=>[s.a,s.b,s.profile]),productionLevels(project,assembly.floors.length).roofBase,project.settings.sip.ceilingThickness,settings.stockLengthMm,settings.endAllowanceMm]);
+ const levels=productionLevels(project,assembly.floors.length);
+ return JSON.stringify([assembly.bounds,assembly.axis,assembly.roofShape,assembly.rafterSystem,assembly.rafters.map(r=>[r.id,r.worldA||r.a,r.worldB||r.b,r.profile,r.excluded]),assembly.roofDrawing?.model?assembly.roofModel.faces.map(f=>f.vertices):assembly.roofDrawing?.sections.map(s=>[s.a,s.b,s.profile]),levels.roofBase,hasHorizontalCeiling(levels.plans.at(-1)),project.services.sipCeiling,project.settings.sip.ceilingThickness,settings.stockLengthMm,settings.endAllowanceMm]);
 }
 // A geometric support wall, not an engineered truss. Heights use the existing roof sections.
 export function roofSupportFrame(project,report,config={}) {
  const profile=config.profile==='50×100'?'50×100':'50×150',variant=config.variant||'double',gap=Number(config.gapMm)||590;
  const roofBase=report.assembly.roofDrawing?.model?report.assembly.roofModel.roofBase:productionLevels(project,report.assembly.floors.length).roofBase;
+ if(variant==='a-frame')return aFrameTies(project,report,config,profile,roofBase);
  const baseZ=config.baseZ===''||config.baseZ==null?roofBase+Number(project.settings.sip.ceilingThickness)/2:Number(config.baseZ);
  const template=generateRoofSupportLayout(project,report,{variant,baseZ,purlinProfile:profile,postProfile:profile,postCount:2});
  const fail=message=>({items:[],errors:[message],warnings:[],counts:{frames:0,posts:0},baseZ});
@@ -42,4 +46,25 @@ export function roofSupportFrame(project,report,config={}) {
  }
  if(items.length>200)return fail('Более 200 деталей каркаса: уменьшите число линий опор или разделите проект.');
  return {items,errors:[],warnings:['Опирание нижнего пояса, устойчивость каркаса, крепёж и несущая способность потолка требуют рабочего узла. Врубки не назначены автоматически. Стыки поясов размещены на стойках; соединение проверить по проекту.'],counts:{frames:new Set(items.map(s=>s.frameGroup)).size,posts:items.filter(s=>s.type==='post').length},baseZ};
+}
+
+// Ties at the existing rafter pairs, not a structural capacity calculation.
+function aFrameTies(project,report,config,profile,roofBase){
+ const fail=message=>({items:[],errors:[message],warnings:[],counts:{frames:0,posts:0,ties:0}}),a=report.assembly;
+ if(!project.services.roof)return fail('Кровля отключена в параметрах проекта.');
+ if(a.roofShape!=='gable'||a.usesRoofPlanes||a.roofDrawing?.model||!a.rafters.length)return fail('А-фрейм доступен для простой двускатной стропильной крыши. Для SIP или индивидуальных скатов требуется рабочая схема.');
+ const ceiling=report.surfaces.find(s=>s.id.endsWith('-ПТ')&&s.floor===a.floors.length);
+ const ceilingTop=roofBase+(ceiling?Number(ceiling.thickness)/2:0),tieDepth=Number(profile.split('×')[1]);
+ const z=config.baseZ===''||config.baseZ==null?ceilingTop+tieDepth/2:Number(config.baseZ),axis=a.axis==='x'?0:1,lines=roofAxonometricLines(a),pairs=new Map();
+ for(const r of lines){const key=r.a[axis].toFixed(3);if(!pairs.has(key))pairs.set(key,[]);pairs.get(key).push(r);}
+ const material=(project.priceMat||[]).find(r=>{const dims=r.name.replace(/[×хx*]/g,'×').match(/(\d+)\s*×\s*(\d+)/);return ['м3','м³'].includes(r.unit)&&dims&&`${dims[1]}×${dims[2]}`===profile;});
+ const items=[];
+ for(const [key,rows]of pairs){
+  if(rows.length!==2)return fail('Нет однозначной пары стропил для затяжки. Проверьте раскладку скатов.');
+  const ends=rows.map(r=>{const dz=r.b[2]-r.a[2],t=(z-roofBase-r.a[2])/dz;if(!Number.isFinite(t)||t<0||t>=1)return null;return r.a.map((n,i)=>i===2?z:n+(r.b[i]-n)*t);});
+  if(ends.some(p=>!p))return fail('Отметка затяжки должна пересекать оба стропила ниже конька.');
+  items.push({id:`frame-a-tie-${key}`,type:'tie',name:`А-фрейм · затяжка ${items.length+1}`,profile,autoLayout:FRAME_LAYOUT,frameGroup:'a-frame',nodeRef:'',normal:[0,0,1],x1:ends[0][0],y1:ends[0][1],z1:z,x2:ends[1][0],y2:ends[1][1],z2:z,startSupport:'',endSupport:'',foundationRef:'',estimateCatalogId:material?.id||'',estimateEnabled:!!material});
+ }
+ if(items.length>200)return fail('Более 200 затяжек: разделите проект.');
+ return {items,errors:[],baseZ:z,counts:{frames:items.length,posts:0,ties:items.length},warnings:['Сечение затяжки проектное, не подобрано по нагрузке. Узлы растяжения, опирание стропил и крепёж требуют расчёта; для поднятой затяжки нужен отдельный расчёт распорных усилий.',...(items.some(m=>Math.hypot(m.x2-m.x1,m.y2-m.y1)+2*Number(report.settings.endAllowanceMm||0)>report.settings.stockLengthMm)?['Затяжка длиннее заготовки: задайте расчётный стык на растяжение. Автоматического деления нет.']:[])]};
 }

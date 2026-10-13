@@ -55,7 +55,7 @@ export function stockCells(start,end,maximum,minimum=MIN_PANEL_WIDTH_MM) {
 }
 function tileStockWall(surface,panelWidth,panelLength) {
   const bounds=polygonBounds(surface.geometry.flat());
-  const anchors=[...new Set([bounds.x,bounds.x+bounds.width,...(surface.partitionSeams||[]),...(surface.openings||[]).flatMap(o=>[o.x,o.x+o.width])])].sort((a,b)=>a-b);
+  const anchors=[...new Set([bounds.x,bounds.x+bounds.width,...(surface.partitionSeams||[]),...(surface.roofSupportSeams||[]),...(surface.openings||[]).flatMap(o=>[o.x,o.x+o.width])])].sort((a,b)=>a-b);
   const parts=[];
   for(let i=0;i<anchors.length-1;i++){
     const left=anchors[i],right=anchors[i+1];
@@ -714,6 +714,19 @@ export function calculateProductionCutting(project, calculation) {
     surface.partitionSeams=[...new Set(positions)].sort((a,b)=>a-b);
     if(surface.partitionSeams.length&&(['originX','originY','step'].some(k=>presentNumber(surface.layout[k]))||settings.wallPanelMode!=='full'))issue('PARTITION_SIP_ALIGNMENT',`${surface.name}: ручная сетка сохранена; примыкания перегородок требуют проверки соединителей.`,surface.id);
   }
+  if(settings.roofSupportSipAlignment)for(const surface of surfaces.filter(s=>s.exterior&&s.planStart)){
+    const [a,b]=[surface.planStart,surface.planEnd],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),positions=[];
+    for(const support of settings.roofSupports.filter(s=>!s.referenceOnly&&['purlin','beam','post'].includes(s.type)))for(const p of [[support.x1,support.y1],[support.x2,support.y2]]){
+      if(!p.every(n=>n!==''&&n!=null&&Number.isFinite(Number(n))))continue;
+      const x=Number(p[0])-a[0],y=Number(p[1])-a[1],along=(x*dx+y*dy)/(L||1),distance=Math.abs(dx*y-dy*x)/(L||1);
+      if(along>1&&along<L-1&&distance<=surface.thickness+1)positions.push(Math.round(along));
+    }
+    surface.requiredRoofSupportSeams=[...new Set(positions)].sort((a,b)=>a-b);
+    const manualGrid=['originX','originY','step'].some(k=>presentNumber(surface.layout[k]))||surface.layout.direction&&surface.layout.direction!=='auto'||settings.wallPanelMode!=='full';
+    surface.roofSupportSeams=manualGrid?[]:surface.requiredRoofSupportSeams;
+    if(surface.requiredRoofSupportSeams.some(x=>(surface.openings||[]).some(o=>x>o.x+.01&&x<o.x+o.width-.01)))issue('ROOF_WALL_ALIGNMENT',`${surface.name}: опора кровли попадает в проём. Нужен рабочий узел передачи нагрузки; проём не перемещён.`,surface.id);
+    if(surface.requiredRoofSupportSeams.length&&manualGrid)issue('ROOF_WALL_ALIGNMENT',`${surface.name}: ручная сетка сохранена; совместите соединители под опорами кровли.`,surface.id);
+  }
   for (const surface of surfaces) {
     if(surface.id.startsWith('ФР-')&&!surface.frameOnly){
       const saved=settings.gableLinks?.[surface.layoutKey],wall=saved?surfaces.find(s=>s.layoutKey===saved.wallKey):surfaces.find(s=>s.id===surface.parentWallId);
@@ -826,7 +839,7 @@ export function calculateProductionCutting(project, calculation) {
   }
   fitSipTJunctions(members,settings,surfaces);
   const sipJunctionConflicts=sipMemberIntersections(members);
-  for(const s of surfaces){const conflicts=sipJunctionConflicts.filter(c=>c.surfaceId===s.id);if(conflicts.length)issue('SIP_JUNCTION',`${s.name}: пересечения деревянных деталей ×${conflicts.length} (${conflicts.slice(0,5).map(c=>c.memberIds.join(' / ')).join('; ')}). Откройте развёртку и согласуйте стык/врубку по рабочему узлу; пересечение не считается готовым соединением.`,s.id);}
+  for(const s of surfaces){const conflicts=sipJunctionConflicts.filter(c=>c.surfaceId===s.id);if(conflicts.length)issue('SIP_JUNCTION',`${s.name}: ${conflicts.some(c=>c.geometryError)?'неподтверждённые проверки геометрии / пересечения':'пересечения деревянных деталей'} ×${conflicts.length} (${conflicts.slice(0,5).map(c=>c.memberIds.join(' / ')).join('; ')}). Откройте развёртку и согласуйте стык/врубку по рабочему узлу; пересечение не считается готовым соединением.`,s.id);}
   const notices = [...profileMismatches].map(value => `Сечение раскроя / сметы: ${value} мм. Смета не изменена; подтвердите проектный профиль.`);
   if(assembly.usesRoofPlanes&&!settings.roofDesign.enabled&&Math.abs(assembly.roofModel.warmArea-Number(roof.warmSlopeArea||0))>.01)issue('ROOF_LAYOUT_ESTIMATE',`SIP-кровля: площадь по геометрии раскроя ${round(assembly.roofModel.warmArea)} м², сметная площадь ${roof.warmSlopeArea} м². Свесы продолжают уклон стен; действующая смета не изменена, закупку нужно согласовать.`, 'Кровля');
   const ids = new Set(); let manualCount = 0;
@@ -838,9 +851,13 @@ export function calculateProductionCutting(project, calculation) {
     if (manualCount > 10000) { issue('MANUAL_LIMIT', 'Более 10 000 ручных деталей: разделите комплект на партии.'); break; }
     for (let i = 0; i < quantity; i++) members.push({ id: `Р-${settings.manualParts.indexOf(item)+1}-${i + 1}`, ...(item.hasStableSourceId===false?{}:sourceIdentity('manual-timber',item.id,i+1)), material: item.name.trim(), profile: item.profile.trim(), length: Number(item.length), cutLength: Number(item.length) + 2 * Number(settings.endAllowanceMm || 0), source: 'Ручная деталь', surface: 'Спецузлы', panels: [] });
   }
-  if(settings.roofSupports.some(s=>s.autoLayout===FRAME_LAYOUT)&&settings.roofFrameConfig?.sourceKey&&settings.roofFrameConfig.sourceKey!==roofFrameSource(project,assembly,settings))issue('STALE_ROOF_FRAME','Геометрия крыши или заготовка изменена после размещения каркаса. Откройте «Элементы» и повторно примените опорный каркас; ручные и закреплённые детали сохранятся.');
   if(services.roof&&roofGeometryMatches){
     const levels=productionLevels(project,plans.length);
+    const ceiling=surfaces.find(s=>s.id.endsWith('-ПТ')&&s.floor===plans.length);
+    if(ceiling)for(const support of assembly.supports.filter(s=>s.type==='tie'&&!s.referenceOnly)){
+      const depth=Number(String(support.profile).split(/[×хx]/)[1]);
+      if(depth>0&&Math.min(support.a[2],support.b[2])-depth/2<levels.roofBase+Number(ceiling.thickness)/2-.1&&Math.max(support.a[2],support.b[2])+depth/2>levels.roofBase-Number(ceiling.thickness)/2+.1)issue('TIE_CEILING_INTERSECTION',`${support.mark}: затяжка пересекает SIP-потолок. Проверьте ось Z и рабочий узел; ручная отметка сохранена.`,support.id);
+    }
     for(const surface of surfaces.filter(s=>s.planStart&&!s.exterior&&s.floor===plans.length)){
       const excess=Math.max(0,...surface.geometry.flat(2).map(([x,y])=>{
         const t=x/surface.width,px=surface.planStart[0]+(surface.planEnd[0]-surface.planStart[0])*t,py=surface.planStart[1]+(surface.planEnd[1]-surface.planStart[1])*t;
@@ -892,6 +909,7 @@ export function calculateProductionCutting(project, calculation) {
   const markRegistry=assignProductionMarks(parts,members,settings.markRegistry);
   const marked=new Map(members.map(m=>[m.id,m.displayMark]));
   for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[]){m.displayMark=marked.get(m.id)||m.id;const member=members.find(x=>x.id===m.id);if(member){m.profile=member.profile;m.excluded=member.excluded;if(settings.roofDesign.enabled&&Math.abs(member.length-m.length)>1)issue('ROOF_MEMBER_OVERRIDE',`${m.displayMark}: ручная длина ${member.length} мм отличается от геометрии ${m.length} мм; согласуйте рабочий контур.`);}}
+  if(settings.roofSupports.some(s=>s.autoLayout===FRAME_LAYOUT)&&settings.roofFrameConfig?.sourceKey&&settings.roofFrameConfig.sourceKey!==roofFrameSource(project,assembly,settings))issue('STALE_ROOF_FRAME','Геометрия крыши или заготовка изменена после размещения каркаса. Откройте «Элементы» и повторно примените опорный каркас; ручные и закреплённые детали сохранятся.');
   for(const support of assembly.supports)support.displayMark=marked.get(support.mark)||support.mark;
   const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
   const fabrication=stockJointPieces(members,settings);
@@ -908,7 +926,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ fabricationModel:224, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:225, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };

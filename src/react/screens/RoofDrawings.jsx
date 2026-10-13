@@ -52,9 +52,11 @@ export function RoofSection({assembly}) {
   if(!d?.sections.length)return <p>Автоматический разрез для этой формы не сформирован. Добавьте индивидуальные элементы по проекту.</p>;
   const points=d.sections.flatMap(s=>[s.a,s.b]);const x=Math.min(0,...points.map(p=>p[0])),right=Math.max(d.span,...points.map(p=>p[0])),low=Math.min(0,...points.map(p=>p[1])),high=Math.max(0,...points.map(p=>p[1]));
   const size=Math.max(right-x,high-low,1000),pad=size*.18,font=size*.025;
+  const ties=new Map();for(const s of (assembly.supports||[]).filter(s=>s.type==='tie'&&!s.referenceOnly&&Math.abs(s.a[d.axis]-s.b[d.axis])<.1)){const baseZ=assembly.roofModel?.roofBase||0,a=[s.a[d.across]-d.origin[d.across],-(s.a[2]-baseZ)],b=[s.b[d.across]-d.origin[d.across],-(s.b[2]-baseZ)],key=JSON.stringify([a,b,s.profile]);const group=ties.get(key);if(group)group.qty++;else ties.set(key,{s,a,b,qty:1});}
   return <svg className="roof-document-drawing roof-section" viewBox={`${x-pad} ${-high-pad*.7} ${right-x+pad*2} ${high-low+pad*2.5}`} role="img" aria-label="Поперечный профиль крыши">
     <line x1={0} y1={0} x2={d.span} y2={0} stroke="#777" strokeDasharray="8 4" vectorEffect="non-scaling-stroke"/>
-    {d.sections.map(s=>{let angle=Math.atan2(s.a[1]-s.b[1],s.b[0]-s.a[0])*180/Math.PI;if(angle>90)angle-=180;if(angle<-90)angle+=180;return <g key={s.name}><Member a={[s.a[0],-s.a[1]]} b={[s.b[0],-s.b[1]]} profile={s.profile} font={font}/><g transform={`translate(${(s.a[0]+s.b[0])/2} ${-(s.a[1]+s.b[1])/2}) rotate(${angle})`}><text y={-font*1.5} fontSize={font} textAnchor="middle">{s.name} · {s.angle.toFixed(1)}°</text><text y={-font*.45} fontSize={font*.8} textAnchor="middle">{s.profile} · L={s.length}</text></g>{[s.a,s.b].map((p,i)=><text key={i} x={p[0]} y={-p[1]+font*1.8} textAnchor="middle" fontSize={font*.8}>отм. {round(p[1])}</text>)}</g>;})}
+    {[...ties.values()].map(({s,a,b,qty})=><g key={s.id}><Member a={a} b={b} profile={s.profile} width={Number(s.profile.split(/[×хx]/)[1])} font={font} label={`${productionMark(s)} · затяжка ×${qty}`}/><title>{s.profile} мм · L={s.length} мм · узел {s.nodeRef||'по проекту'}</title></g>)}
+    {d.sections.map(s=>{let angle=Math.atan2(s.a[1]-s.b[1],s.b[0]-s.a[0])*180/Math.PI;if(angle>90)angle-=180;if(angle<-90)angle+=180;return <g key={s.name}><Member a={[s.a[0],-s.a[1]]} b={[s.b[0],-s.b[1]]} profile={s.profile} width={Number(s.profile.split(/[×хx]/)[1])||50} font={font}/><g transform={`translate(${(s.a[0]+s.b[0])/2} ${-(s.a[1]+s.b[1])/2}) rotate(${angle})`}><text y={-font*1.5} fontSize={font} textAnchor="middle">{s.name} · {s.angle.toFixed(1)}°</text><text y={-font*.45} fontSize={font*.8} textAnchor="middle">{s.profile} · L={s.length}</text></g>{[s.a,s.b].map((p,i)=><text key={i} x={p[0]} y={-p[1]+font*1.8} textAnchor="middle" fontSize={font*.8}>отм. {round(p[1])}</text>)}</g>;})}
     {[0,d.span].map(v=><line key={v} x1={v} y1={-high-pad*.25} x2={v} y2={-low+pad*.6} stroke="#777" strokeDasharray="5 4" vectorEffect="non-scaling-stroke"/>)}
     <Dimensions values={[x,0,d.span,right,...points.map(p=>p[0])]} y={-low+pad*.85} font={font*.8}/>
     <text x={d.span/2} y={-low+pad*1.45} textAnchor="middle" fontSize={font*.65}>0 и {d.span} — наружные грани стен. Отметки условные, не высота от пола.</text>
@@ -95,7 +97,8 @@ export function SupportElevation({support:s}) {
   </svg>;
 }
 
-export function RoofFrameElevation({supports}) {
+export function RoofFrameElevation({supports,assembly}) {
+ if(supports.some(s=>s.type==='tie')&&assembly)return <RoofSection assembly={assembly}/>;
  const lower=supports.find(s=>s.name.includes('нижний пояс')),upper=supports.find(s=>s.name.includes('верхний пояс'));if(!lower||!upper)return null;
  const firstLength=Math.hypot(lower.b[0]-lower.a[0],lower.b[1]-lower.a[1]),ux=(lower.b[0]-lower.a[0])/firstLength,uy=(lower.b[1]-lower.a[1])/firstLength,L=Math.max(...supports.flatMap(s=>[s.a,s.b]).map(p=>(p[0]-lower.a[0])*ux+(p[1]-lower.a[1])*uy));
  const base=lower.a[2]-25,top=upper.a[2]+25,H=top-base,pad=Math.max(L,H)*.13,font=Math.max(L,H)*.018;

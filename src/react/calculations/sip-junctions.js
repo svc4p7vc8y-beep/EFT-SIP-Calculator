@@ -48,7 +48,9 @@ export function fitSipTJunctions(members,settings,surfaces=[]) {
 export function sipMemberIntersections(members) {
   const groups=new Map(),result=[];
   for(const m of members){
-    if(m.excluded||!m.normalDepthMm)continue;const ring=boardFootprint(m);if(!ring)continue;
+    if(m.excluded||!m.normalDepthMm)continue;const footprint=boardFootprint(m);if(!footprint)continue;
+    // Diagnostic precision only: never modify fabrication coordinates or lengths.
+    const ring=footprint.map(p=>p.map(n=>Math.round(n*10000)/10000));
     const xs=ring.map(p=>p[0]),ys=ring.map(p=>p[1]),entry={m,ring,minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys)};
     if(!groups.has(m.surfaceId))groups.set(m.surfaceId,[]);groups.get(m.surfaceId).push(entry);
   }
@@ -56,7 +58,9 @@ export function sipMemberIntersections(members) {
     items.sort((a,b)=>a.minX-b.minX);
     for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length&&items[j].minX<items[i].maxX-epsilon;j++){
       const a=items[i],b=items[j];if(b.minY>=a.maxY-epsilon||b.maxY<=a.minY+epsilon)continue;
-      const shapes=clipping.intersection([[...a.ring,a.ring[0]]],[[...b.ring,b.ring[0]]]);
+      let shapes;
+      try { shapes=clipping.intersection([[...a.ring,a.ring[0]]],[[...b.ring,b.ring[0]]]); }
+      catch { result.push({surfaceId:a.m.surfaceId,memberIds:[a.m.id,b.m.id],geometryError:true});continue; }
       const area=shapes.reduce((sum,poly)=>sum+poly.reduce((value,ring,index)=>value+(index?-1:1)*Math.abs(ring.reduce((v,p,k)=>{const q=ring[(k+1)%ring.length];return v+p[0]*q[1]-p[1]*q[0];},0))/2,0),0);
       if(area>1)result.push({surfaceId:a.m.surfaceId,memberIds:[a.m.id,b.m.id],areaMm2:area});
     }
