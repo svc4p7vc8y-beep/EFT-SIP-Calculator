@@ -1,7 +1,7 @@
 import { exteriorHeight } from '../../calculations/floor-height.js';
 import { gableLinks, drawingCategory } from './drawing-workbench.js';
 import { roofAxonometricLines } from './roof-drawings.js';
-import { boardFootprint } from './partition-geometry.js';
+import { boardSectionLayers,framingDepth,framingNormalOffset,spatialNotches } from './partition-geometry.js';
 import { productionLevels } from './production-levels.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { bindingPlanRows } from './binding-rows.js';
@@ -37,7 +37,9 @@ export function productionScene(report,project,{includePlatforms=report.settings
   // Invalid manufacturing surfaces remain visible as warning previews, never
   // as fabricated panels or purchasable stock.
   const previews=report.surfaces.filter(s=>s.blocked&&placements.has(s.id)).flatMap(s=>s.geometry.map((shape,i)=>({id:`preview:${s.id}:${i}`,surfaceId:s.id,layer:placements.get(s.id).layer,shape,placement:placements.get(s.id),thickness:s.thickness,preview:true})));
-  const boards=report.members.filter(m=>!m.excluded&&!m.worldA&&m.a&&m.b).flatMap(m=>{const p=placements.get(m.surfaceId);if(!p)return [];const outline=boardFootprint(m);return outline?[{id:m.id,layer:p.layer,shape:[outline],placement:p,thickness:Number(m.normalDepthMm??m.profile?.split(/[×xх]/)[m.role==='brace'?0:1])||45,timber:true}]:[];});
+  const surfaceMap=new Map(report.surfaces.map(s=>[s.id,s])),cutters=report.members.filter(m=>['brace','edge-board'].includes(m.role));
+  const boards=report.members.filter(m=>!m.excluded&&!m.worldA&&m.a&&m.b).flatMap(m=>{const p=placements.get(m.surfaceId);if(!p)return [];const surface=surfaceMap.get(m.surfaceId),depth=framingDepth(m),offset=framingNormalOffset(m,surface),notches=spatialNotches(m,surface,cutters);
+    return boardSectionLayers({...m,notches},depth).map((slice,i)=>({id:m.id,layer:p.layer,shape:slice.shape,placement:{...p,origin:p.origin.map((n,k)=>n+p.normal[k]*(offset+slice.normalOffsetMm))},thickness:slice.thickness,timber:true,notchContours:i===0?notches.filter(n=>!(Number(n.depthMm)>0)).flatMap(n=>n.shape.flat()):[],notchFaceOffsetMm:depth/2-slice.normalOffsetMm}));});
   const binding=report.assembly.binding.filter(m=>includePlatforms||m.group!=='platform').flatMap(m=>{
     const depth=Number(String(m.profile).split(/[×xх]/)[1])||150,z=-Number(project.settings.sip.floorThickness)-depth/2;
     return bindingPlanRows(m).map(row=>({...row,layer:'binding',a:[...row.a,z],b:[...row.b,z]}));

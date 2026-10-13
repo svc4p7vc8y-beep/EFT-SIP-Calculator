@@ -59,6 +59,36 @@ export function visibleBoardGeometry(member) {
   return notches.length?clipping.difference([closed(ring)],...notches):[[closed(ring)]];
 }
 
+// 3D removes material only at an explicitly supplied notch depth. The 2D
+// contact projection remains available for joints whose depth needs a project.
+export function boardSectionLayers(member,depthMm) {
+  const ring=boardFootprint(member);if(!ring)return [];
+  const cuts=(member.notches||[]).filter(n=>Number(n.depthMm)>0&&n.shape?.length).map(n=>({...n,from:Number(n.fromDepthMm)||0,to:n.toDepthMm==null?Number(n.depthMm):Number(n.toDepthMm)})).filter(n=>n.from>=0&&n.to<=depthMm&&n.to>n.from);
+  const stops=[...new Set([0,depthMm,...cuts.flatMap(n=>[n.from,n.to])])].sort((a,b)=>a-b);
+  return stops.slice(1).flatMap((to,i)=>{
+    const from=stops[i],active=cuts.filter(n=>n.from<=from&&n.to>=to);
+    const geometry=active.length?clipping.difference([closed(ring)],...active.map(n=>n.shape)):[[closed(ring)]];
+    return geometry.map(shape=>({shape,thickness:to-from,normalOffsetMm:depthMm/2-(from+to)/2}));
+  });
+}
+
+export function framingDepth(member){return Number(member.normalDepthMm??member.profile?.split(/[×xх]/)[['brace','edge-board'].includes(member.role)?0:1])||45;}
+export function framingNormalOffset(member,surface){
+  if(!['brace','edge-board'].includes(member.role))return 0;
+  const hostDepth=Number(surface?.frameProfile?.split(/[×xх]/)[1])||framingDepth(member),depth=framingDepth(member),notch=Number(member.notchDepthMm);
+  return hostDepth/2+depth/2-(notch>0&&notch<=hostDepth?notch:0);
+}
+export function spatialNotches(member,surface,cutters){
+  const depth=framingDepth(member),front=framingNormalOffset(member,surface)+depth/2,back=front-depth;
+  return (member.notches||[]).map(n=>{
+    if(!(Number(n.depthMm)>0))return n;
+    const cutter=cutters.find(c=>!c.excluded&&c.role===n.type&&c.surfaceId===member.surfaceId);
+    if(!cutter)return n;
+    const size=framingDepth(cutter),center=framingNormalOffset(cutter,surface),high=Math.min(front,center+size/2),low=Math.max(back,center-size/2);
+    return {...n,fromDepthMm:front-high,toDepthMm:front-low};
+  });
+}
+
 export function refreshPartitionNotches(members) {
   const groups=new Map();
   for(const member of members)if(member.role==='brace'||member.role==='edge-board'||member.notches){
