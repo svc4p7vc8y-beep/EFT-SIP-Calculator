@@ -14,6 +14,7 @@ on:
       - 'index.html'
       - 'EFT_client_questionnaire.html'
       - 'vite.public.config.js'
+      - 'scripts/prerender-public.mjs'
       - 'package.json'
       - 'package-lock.json'
       - 'tests/price-catalog.integration.php'
@@ -101,3 +102,6 @@ jobs:
         run: |
           test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/)" = "200"
           test "$(curl -Lso /dev/null -w '%{http_code}' --max-time 30 https://eftsip.ru/EFT_client_questionnaire.html)" = "200"
+          curl --fail --silent --show-error --max-time 30 https://eftsip.ru/ | grep -q '<h1'
+          curl --fail --silent --show-error --max-time 30 https://eftsip.ru/robots.txt | grep -q 'Sitemap: https://eftsip.ru/sitemap.xml'
+          curl --fail --silent --show-error --max-time 30 https://eftsip.ru/sitemap.xml | grep -q '<loc>https://eftsip.ru/</loc>'
