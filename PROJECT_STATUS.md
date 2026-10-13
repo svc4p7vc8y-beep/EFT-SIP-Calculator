@@ -35,6 +35,11 @@ Playwright на 1600/820/390 px:
 нет горизонтального переполнения и ошибок консоли. Снимки просмотрены.
 Browser-плагин отсутствует, использован локальный Playwright. Известное
 предупреждение Vite о крупных чанках сохранено.
+Опубликовано: код 4af810d в main; Beget 38450301992 и Pages 38450301881
+completed/success. Live calc.eftsip.ru: HTTP 200, service worker
+v227-partition-frames, react-B1cl-H-8.js; в опубликованном чанке проверены
+opening-insert, partitionNotchFace и partitionClearGapMm. Авторизованный
+live-сценарий не проверялся; интерактивная QA выполнена локально.
 
 ## v226 — наружные проёмы и утверждённые перегородки, 13.10.2026
 
