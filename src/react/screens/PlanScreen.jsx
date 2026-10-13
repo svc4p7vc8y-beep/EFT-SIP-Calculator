@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
@@ -4061,7 +4062,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
         {wall ? <>
           <Toggle label="Учитывать перегородку" checked={wall.include!==false} onChange={value=>update('walls',item=>{item.include=value;})}/>
           <Toggle label="Несущая перегородка" checked={!!wall.bearing} onChange={value=>update('walls',item=>{item.bearing=value;})}/>
-          <SelectField label="Сечение каркаса" value={wall.bearing?wall.bearingProfile||'':wall.frameProfile||''} options={[{value:'',label:'По общим параметрам'},{value:'50x100',label:'50×100 мм'},{value:'50x150',label:'50×150 мм'},{value:'50x200',label:'50×200 мм'}]} onChange={value=>update('walls',item=>{if(item.bearing)item.bearingProfile=value;else item.frameProfile=value;})}/>
+          <DraftText label="Сечение каркаса, мм · толщина × глубина" value={wall.bearing?wall.bearingProfile||'':wall.frameProfile||''} placeholder="Пусто — общие параметры; 50×100 или 45×145" onChange={raw=>{const value=raw.replace(/\s/g,'').replace(/[×х]/g,'x');if(value!==''&&(!/^\d+x\d+$/.test(value)||!value.split('x').every(n=>Number(n)>0)))return;update('walls',item=>{if(item.bearing)item.bearingProfile=value;else item.frameProfile=value;});}}/>
           <p className="inspector-note">Сечение каркасной перегородки задаёт её толщину на плане. Несущая способность и узлы — по проекту. SIP-перегородки задаются в разделе SIP.</p>
           <div className="form-grid">{['x1','y1','x2','y2'].map(key=><NumberField key={key} label={`${key.toUpperCase()} · ось`} value={wall[key]} suffix="м" step={.001} onChange={value=>update('walls',item=>{item[key]=value;})}/>)}</div>
           <div className="readout"><span>Изготовляемая длина</span><strong>{formatNumber(partitionRuns(plan).filter(([a,b])=>Math.abs((wall.x2-wall.x1)*((a.y+b.y)/2-wall.y1)-(wall.y2-wall.y1)*((a.x+b.x)/2-wall.x1))<.001&&Math.min(wall.x1,wall.x2)-.001<=(a.x+b.x)/2&&Math.max(wall.x1,wall.x2)+.001>=(a.x+b.x)/2&&Math.min(wall.y1,wall.y2)-.001<=(a.y+b.y)/2&&Math.max(wall.y1,wall.y2)+.001>=(a.y+b.y)/2).reduce((sum,[a,b])=>sum+Math.hypot(b.x-a.x,b.y-a.y),0))} м</strong></div>

@@ -23,6 +23,7 @@ import { stairOpeningPolygon } from '../planner/stair-steps.js';
 import { fitSipSpline, fitSipEndBoard } from './sip-member-fit.js';
 import { fitSipTJunctions, sipMemberIntersections } from './sip-junctions.js';
 import {completeSipOpeningBoards} from './sip-opening-frame.js';
+import {sipOpeningInserts} from './sip-opening-inserts.js';
 import { stockJointPieces } from './member-stock-joints.js';
 import { roofFrameSource,FRAME_LAYOUT } from './roof-support-frame.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
@@ -778,8 +779,8 @@ export function calculateProductionCutting(project, calculation) {
     if(surface.frameOnly){
       const frame=surface.partitionFrame?partitionFrameMembers(surface,settings):gableFrameMembers(surface,settings);
       if(surface.partitionFrame&&(surface.junctionStuds||[]).some(x=>(surface.openings||[]).some(o=>x>o.x+.01&&x<o.x+o.width-.01)))issue('PARTITION_JUNCTION',`${surface.id}: примыкание попадает в проём. Стойку нельзя поставить без изменения рабочего узла.`,surface.id);
-      if(surface.partitionFrame&&surface.bearing&&!surface.blocked){
-        if(settings.partitionBracing&&!frame.some(m=>m.material==='Укосина перегородки'))issue('PARTITION_BRACE',`${surface.id}: нет укосины, которая помещается без пересечения проёмов. Задайте рабочую схему связей.`,surface.id);
+      if(surface.partitionFrame&&!surface.blocked){
+        if((surface.bearing||surface.startExterior||surface.endExterior)&&settings.partitionBracing&&!frame.some(m=>m.material==='Укосина перегородки'))issue('PARTITION_BRACE',`${surface.id}: нет укосины, которая помещается без пересечения проёмов. Задайте рабочую схему связей.`,surface.id);
         const beam=frame.find(m=>m.material==='Опорная доска на ребре');
         if(beam&&(surface.openings||[]).some(o=>!o.gap&&Number(o.sill)+o.height>beam.a[1]-Number(beam.faceWidth)/2))issue('PARTITION_HEADER',`${surface.id}: проём пересекает доску на ребре. Высоту проёма / верхний узел требуется согласовать.`,surface.id);
       }
@@ -839,6 +840,7 @@ export function calculateProductionCutting(project, calculation) {
     }
   }
   for(const surface of surfaces.filter(s=>!s.frameOnly&&!s.horizontal))for(const key of completeSipOpeningBoards(surface,members,settings,issue))overrideKeys.add(key);
+  for(const surface of surfaces.filter(s=>s.exterior&&!s.frameOnly&&!s.horizontal))for(const member of sipOpeningInserts(surface,settings,issue)){members.push(member);overrideKeys.add(member.key);}
   fitSipTJunctions(members,settings,surfaces);
   const sipJunctionConflicts=sipMemberIntersections(members);
   for(const s of surfaces){const conflicts=sipJunctionConflicts.filter(c=>c.surfaceId===s.id);if(conflicts.length)issue('SIP_JUNCTION',`${s.name}: ${conflicts.some(c=>c.geometryError)?'неподтверждённые проверки геометрии / пересечения':'пересечения деревянных деталей'} ×${conflicts.length} (${conflicts.slice(0,5).map(c=>c.memberIds.join(' / ')).join('; ')}). Откройте развёртку и согласуйте стык/врубку по рабочему узлу; пересечение не считается готовым соединением.`,s.id);}
@@ -928,7 +930,7 @@ export function calculateProductionCutting(project, calculation) {
   // A new, unset diagnostic parameter must not invalidate old approvals.
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
-  const revision = cuttingRevision({ fabricationModel:226, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
+  const revision = cuttingRevision({ fabricationModel:227, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };

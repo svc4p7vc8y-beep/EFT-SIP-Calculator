@@ -76,7 +76,7 @@ export function framingDepth(member){return Number(member.normalDepthMm??member.
 export function framingNormalOffset(member,surface){
   if(!['brace','edge-board'].includes(member.role))return 0;
   const hostDepth=Number(surface?.frameProfile?.split(/[×xх]/)[1])||framingDepth(member),depth=framingDepth(member),notch=Number(member.notchDepthMm);
-  return hostDepth/2+depth/2-(notch>0&&notch<=hostDepth?notch:0);
+  return (member.normalSide===-1?-1:1)*(hostDepth/2+depth/2-(notch>0&&notch<=hostDepth?notch:0));
 }
 export function spatialNotches(member,surface,cutters){
   const depth=framingDepth(member),front=framingNormalOffset(member,surface)+depth/2,back=front-depth;

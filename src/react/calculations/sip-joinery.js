@@ -203,8 +203,9 @@ const openingStructuralFastenerCount = (plan, spacing, formulas = {}) =>
 export function calculateFramePartitionAssembly(plan, partitionLength, formulas = {}, section = "50x100") {
   const length = Math.max(0, Number(partitionLength) || 0);
   const wallHeight = partitionHeight(plan);
-  const boardWidth = 0.05;
-  const boardDepth = section === "50x150" ? 0.15 : 0.1;
+  const dimensions=section.split(/[x×х]/).map(Number);
+  const boardWidth = dimensions[0]>0?dimensions[0]/1000:0.05;
+  const boardDepth = dimensions[1]>0?dimensions[1]/1000:0.1;
   const clearSpacing = positive(formulas.partitionStudClearSpacingM, 0.59);
   const module = clearSpacing + boardWidth;
   const topPlateLayers = Math.max(1, Math.round(nonnegative(formulas.partitionTopPlateLayers, 1)));

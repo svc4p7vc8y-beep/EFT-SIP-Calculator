@@ -11,6 +11,7 @@ import { bearingEdges, partitionProfileShares } from './bearing-walls.js';
 import { clearGapPositions } from './clear-gap-framing.js';
 import { exteriorWallConstruction, wallTrimLength } from './wall-construction.js';
 import { partitionReinforcements, reinforcementBoardCount } from './partition-construction.js';
+import { projectOpeningInserts } from './sip-opening-inserts.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation, calculateConcreteBase } from "./foundation-model.js";
 import { deriveLinkedInputs } from "./calculation-links.js";
@@ -63,6 +64,14 @@ function findCatalog(index, query, kind) {
       (!kind || item.kind === kind) &&
       item.name.toLocaleLowerCase("ru").includes(normalized),
   );
+}
+
+function frameCatalog(index,profile) {
+  const normalized=profile.replace(/[хx]/g,'×');
+  const id={'25×100':'MAT-025','25×150':'MAT-026','50×100':'MAT-027','50×150':'MAT-023','50×200':'MAT-024','45×145':'MAT-006','45×195':'MAT-007','45×95':'MAT-008'}[normalized];
+  if(id)return index.byId.get(id);
+  const dimensions=normalized.split('×').map(Number);
+  return index.entries.find(item=>item.kind==='material'&&/доск/i.test(item.name)&&['м³','м3','м.п.','м'].includes(item.unit)&&(()=>{const m=item.name.match(/(\d+)\s*[×xх*]\s*(\d+)/i);return m&&((Number(m[1])===dimensions[0]&&Number(m[2])===dimensions[1])||(Number(m[1])===dimensions[1]&&Number(m[2])===dimensions[0]));})());
 }
 
 function makeLine(index, section, query, qty, options = {}) {
@@ -715,11 +724,12 @@ function sipSection(project, metrics, index, inputs, roofResult) {
   });
   if (project.services.partitions && sip.partitionType !== "sip") {
     const detailed=project.settings.productionCutting.detailedFrameEstimate!==false&&sip.partitionCalculationMode!=='area';
-    const partitionFrameSection = sip.partitionFrameSection === "50x150" ? "50x150" : "50x100";
+    const partitionFrameSection = /^\d+[x×х]\d+$/.test(sip.partitionFrameSection||'') ? sip.partitionFrameSection.replace(/[×х]/g,'x') : '50x100';
     const partitionBoardQuery = partitionFrameSection === "50x150"
       ? "Доска ест. влажн. сосна 50х150мм"
       : "Доска ест.влажн. сосна 50*100мм";
-    const partitionVolumeFactor = partitionFrameSection === "50x150" ? 1.5 : 1;
+    const [frameWidth,frameDepth]=partitionFrameSection.split('x').map(Number),partitionVolumeFactor=frameWidth*frameDepth/5000;
+    const baseCatalog=frameCatalog(index,partitionFrameSection),baseUnit=baseCatalog?.unit||'м³';
     [
       {
         key: "partitions",
@@ -751,21 +761,23 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       const customProfiles=shares.some(s=>s.profile!==partitionFrameSection);
       if(!detailed&&customProfiles){
         for(const share of shares){
-          const depth=Number(share.profile.split('x')[1])/1000;
-          const requiredLength=linearMode?assembly.requiredLength:boardVolume/(.05*Number(partitionFrameSection.split('x')[1])/1000);
+          const [widthMm,depthMm]=share.profile.split('x').map(Number),depth=depthMm/1000;
+          const requiredLength=linearMode?assembly.requiredLength:boardVolume/(frameWidth*frameDepth/1e6);
           const boardCount=Math.ceil(requiredLength*share.share/assembly.stockLength);
           const query={'50x100':'Доска ест.влажн. сосна 50*100мм','50x150':'Доска ест. влажн. сосна 50х150мм','50x200':'Доска ест. влажн. сосна 50х200мм'}[share.profile];
-          lines.push(makeLine(index,'sip',query,round(boardCount*assembly.stockLength*.05*depth,3),{key:`partition-board${suffix}-${share.profile}`,unit:'м³',source:key,estimateGroup:groupNames[key],name:`Каркас перегородок · доска ${share.profile.replace('x','×')} мм · ${boardCount} шт × ${assembly.stockLength} м · распределение по длинам стен`}));
+          const item=frameCatalog(index,share.profile),unit=item?.unit||'м³',qty=['м.п.','м'].includes(unit)?boardCount*assembly.stockLength:boardCount*assembly.stockLength*widthMm/1000*depth;
+          lines.push(makeLine(index,'sip',query||`Доска ${share.profile}`,round(qty,3),{key:`partition-board${suffix}-${share.profile}`,catalogId:item?.id,unit,source:key,estimateGroup:groupNames[key],name:`Каркас перегородок · доска ${share.profile.replace('x','×')} мм · ${boardCount} шт × ${assembly.stockLength} м · распределение по длинам стен`}));
         }
       } else if(!detailed) lines.push(
         makeLine(
           index,
           "sip",
-          partitionBoardQuery,
-          boardVolume,
+          baseCatalog?.name||`Доска каркаса ${partitionFrameSection}`,
+          ['м.п.','м'].includes(baseUnit)?boardVolume/(frameWidth*frameDepth/1e6):boardVolume,
           {
             key: `partition-board${suffix}`,
-            unit: "м³",
+            unit: baseUnit,
+            catalogId: baseCatalog?.id,
             source: key,
             estimateGroup: groupNames[key],
             name: linearMode
@@ -795,17 +807,25 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       const key=member.profile,group=extras.get(key)||{length:0,count:0,members:[]};group.length+=member.cutLength/1000;group.count++;group.members.push(member);extras.set(key,group);
     }
     for(const [profile,group]of extras){
-      const catalogId={'25×100':'MAT-025','25×150':'MAT-026','50×100':'MAT-027','50×150':'MAT-023','50×200':'MAT-024'}[profile];
+      const catalogId=frameCatalog(index,profile)?.id;
       const stock=Number(project.settings.productionCutting.stockLengthMm)/1000||6;
       const boards=reinforcementBoardCount(group.members,stock*1000,Number(project.settings.productionCutting.kerfMm)||0),[width,depth]=profile.split('×').map(Number);
       const oversize=group.members.filter(m=>m.cutLength>stock*1000).length;
       const key=detailed?(profile===partitionFrameSection.replace('x','×')?'partition-board':`partition-board-${profile}`):`partition-reinforcement-${profile}`;
-      lines.push(makeLine(index,'sip','Доска каркаса перегородок',boards*stock*width*depth/1e6,{key,catalogId,unit:'м³',digits:4,source:detailed?'partition-detail':'partition-reinforcement',estimateGroup:detailed?'Каркас и усиление перегородок':'Усиление и закладные перегородок',name:`${detailed?'Каркас перегородок по деталировке':'Усиление перегородок'} ${profile} мм · ${boards} шт × ${stock} м · ${group.count} деталей${oversize?` · предварительно: ${oversize} деталей длиннее хлыста; стыки по проекту`:''}`}));
+      const unit=index.byId.get(catalogId)?.unit||'м³',qty=['м.п.','м'].includes(unit)?boards*stock:boards*stock*width*depth/1e6;
+      lines.push(makeLine(index,'sip','Доска каркаса перегородок',qty,{key,catalogId,unit,digits:4,source:detailed?'partition-detail':'partition-reinforcement',estimateGroup:detailed?'Каркас и усиление перегородок':'Усиление и закладные перегородок',name:`${detailed?'Каркас перегородок по деталировке':'Усиление перегородок'} ${profile} мм · ${boards} шт × ${stock} м · ${group.count} деталей${oversize?` · предварительно: ${oversize} деталей длиннее хлыста; стыки по проекту`:''}`}));
     }
     for(const [i,row]of (project.settings.productionCutting.partitionFasteners||[]).entries()){
       const c=index.byId.get(row.catalogId);if(!c||row.qty===''||!(Number(row.qty)>0))continue;
       lines.push(makeLine(index,'sip',c.name,Number(row.qty),{key:`partition-project-fastener-${row.id||i}`,catalogId:c.id,unit:c.unit,source:'partition-project-fastener',estimateGroup:'Каркас и усиление перегородок',name:`${c.name} · крепёж перегородок по проекту`}));
     }
+  }
+  const openingInserts=new Map();
+  for(const member of projectOpeningInserts(project,metrics.floorPlans)){const group=openingInserts.get(member.profile)||[];group.push(member);openingInserts.set(member.profile,group);}
+  for(const [profile,members]of openingInserts){const stock=Number(project.settings.productionCutting.stockLengthMm)||6000,boards=reinforcementBoardCount(members,stock,Number(project.settings.productionCutting.kerfMm)||0);
+    const item=frameCatalog(index,profile),unit=item?.unit||'м.п.',[width,depth]=profile.split(/[×xх]/).map(Number);
+    const qty=['м.п.','м'].includes(unit)?boards*stock/1000:boards*stock*width*depth/1e9;
+    lines.push(makeLine(index,'sip',`Доска сухая строганая ${profile} мм`,qty,{key:`opening-inserts-${profile}`,catalogId:item?.id,unit,digits:unit==='м3'||unit==='м³'?4:2,source:'sip-opening-inserts',estimateGroup:'Обрамление проёмов',name:`Дополнительные доски проёмов ${profile} мм · ${members.length} деталей · ${boards} шт × ${stock/1000} м`}));
   }
   joinery.rows.forEach((row) => {
     const key = `${row.key}-connector`;

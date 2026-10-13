@@ -40,7 +40,7 @@ export function partitionProfileShares(plan,defaultProfile) {
   const raw=partitionRuns(plan);
   const runs=splitAtBearingEdges(plan,raw,raw.flat());
   const lengths=new Map(),seen=new Set();
-  for(const [a,b]of runs){const key=bearingWallKey(a,b);if(seen.has(key))continue;seen.add(key);const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2},local=(plan.walls||[]).find(w=>w.include!==false&&Math.hypot(w.x2-w.x1,w.y2-w.y1)>0&&Math.abs((w.x2-w.x1)*(mid.y-w.y1)-(w.y2-w.y1)*(mid.x-w.x1))/Math.hypot(w.x2-w.x1,w.y2-w.y1)<.001&&mid.x>=Math.min(w.x1,w.x2)-.001&&mid.x<=Math.max(w.x1,w.x2)+.001&&mid.y>=Math.min(w.y1,w.y2)-.001&&mid.y<=Math.max(w.y1,w.y2)+.001);const selected=(bearingForSegment(plan,a,b)?.profile||local?.frameProfile)?.replace('×','x'),profile=['50x100','50x150','50x200'].includes(selected)?selected:defaultProfile;lengths.set(profile,(lengths.get(profile)||0)+Math.hypot(b.x-a.x,b.y-a.y));}
+  for(const [a,b]of runs){const key=bearingWallKey(a,b);if(seen.has(key))continue;seen.add(key);const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2},local=(plan.walls||[]).find(w=>w.include!==false&&Math.hypot(w.x2-w.x1,w.y2-w.y1)>0&&Math.abs((w.x2-w.x1)*(mid.y-w.y1)-(w.y2-w.y1)*(mid.x-w.x1))/Math.hypot(w.x2-w.x1,w.y2-w.y1)<.001&&mid.x>=Math.min(w.x1,w.x2)-.001&&mid.x<=Math.max(w.x1,w.x2)+.001&&mid.y>=Math.min(w.y1,w.y2)-.001&&mid.y<=Math.max(w.y1,w.y2)+.001);const selected=(bearingForSegment(plan,a,b)?.profile||local?.frameProfile)?.replace('×','x'),profile=/^\d+x\d+$/.test(selected||'')?selected:defaultProfile;lengths.set(profile,(lengths.get(profile)||0)+Math.hypot(b.x-a.x,b.y-a.y));}
   const total=[...lengths.values()].reduce((s,n)=>s+n,0);
   return total?[...lengths].map(([profile,length])=>({profile,share:length/total})):[{profile:defaultProfile,share:1}];
 }

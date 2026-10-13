@@ -16,7 +16,7 @@ function throughAt(p,host,candidates) {
   return low<-epsilon&&high>epsilon?width:0;
 }
 export function fitSipTJunctions(members,settings,surfaces=[]) {
-  const seams=members.filter(m=>(m.seam||m.role==='jamb')&&!m.excluded&&m.normalDepthMm&&m.a&&m.b&&distance(m.a,m.b)>epsilon),edits=[];
+  const seams=members.filter(m=>(m.seam||m.role==='jamb'||m.role==='opening-insert')&&!m.excluded&&m.normalDepthMm&&m.a&&m.b&&distance(m.a,m.b)>epsilon),edits=[];
   const surfaceMap=new Map(surfaces.map(s=>[s.id,s]));
   const bySurface=new Map();for(const m of seams){if(!bySurface.has(m.surfaceId))bySurface.set(m.surfaceId,[]);bySurface.get(m.surfaceId).push(m);}
   for(const m of seams){

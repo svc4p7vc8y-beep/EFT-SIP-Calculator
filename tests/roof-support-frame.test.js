@@ -16,7 +16,7 @@ test('590 is a clear gap, not axis pitch; final shortened bays do not overlap',(
 });
 test('partition has 11 main studs instead of 12 at 6.4m and legacy mode is retained',()=>{
  const surface={id:'ПГ',name:'ПГ',width:6400,height:2500,frameProfile:'50×150',openings:[]},settings=base().settings.productionCutting;
- const old=partitionFrameMembers(surface,settings).filter(m=>m.material==='Стойка перегородки'),fresh=partitionFrameMembers(surface,{...settings,partitionClearGapMm:590}).filter(m=>m.material==='Стойка перегородки');assert.equal(old.length,12);assert.equal(fresh.length,11);
+ const old=partitionFrameMembers(surface,{...settings,partitionClearGapMm:''}).filter(m=>m.material==='Стойка перегородки'),fresh=partitionFrameMembers(surface,{...settings,partitionClearGapMm:590}).filter(m=>m.material==='Стойка перегородки');assert.equal(old.length,12);assert.equal(fresh.length,11);
 });
 test('frame has flat chords, correct board catalog and perpendicular upright section for both axes',()=>{
  for(const ridgeAxis of ['x','y'])for(const profile of ['50×150','50×100']){const p=base();p.settings.roof.ridgeAxis=ridgeAxis;const r=run(p),before=JSON.stringify({p,r}),f=roofSupportFrame(p,r,{profile,variant:'double'});assert.deepEqual(f.errors,[]);assert.equal(f.counts.frames,2);assert.ok(f.counts.posts>0);

@@ -1057,7 +1057,7 @@ test('SIP estimate is grouped by floor, walls, ceiling and partitions', () => {
   const project = createDefaultProject();
   const result = calculateProject(project);
   const sipLines = result.sections.find((section) => section.key === 'sip').lines;
-  assert.deepEqual([...new Set(sipLines.map((line) => line.estimateGroup))], ['Пол', 'Потолок', 'Наружные стены 1 этажа', 'Перегородки 1 этажа', 'Каркас и усиление перегородок']);
+  assert.deepEqual([...new Set(sipLines.map((line) => line.estimateGroup))], ['Пол', 'Потолок', 'Наружные стены 1 этажа', 'Перегородки 1 этажа', 'Каркас и усиление перегородок', 'Обрамление проёмов']);
   assert.ok(sipLines.some((line) => line.estimateGroup === 'Пол' && line.name.includes('Пеноклей')));
   assert.ok(sipLines.some((line) => line.estimateGroup === 'Наружные стены 1 этажа' && line.source === 'sip-walls-joints'));
 });

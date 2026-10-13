@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { DraftText } from './CuttingControls.jsx';
 import DeliveryVolume from '../components/DeliveryVolume.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
@@ -1399,7 +1400,7 @@ export default function Calculators({ type, onNavigate }) {
                 <SelectField label="Тип панели перегородок" value={project.settings.sip.partitionPanelFamily || "pps"} onChange={(value) => setSetting("sip", "partitionPanelFamily", value)} options={PANEL_FAMILIES} />
                 <SelectField label="Толщина перегородок" value={project.settings.sip.partitionThickness || "124"} onChange={(value) => setSetting("sip", "partitionThickness", value)} options={PANEL_THICKNESSES} />
               </> : <>
-                <SelectField label="Доска каркаса перегородок" value={project.settings.sip.partitionFrameSection || "50x100"} onChange={(value) => setSetting("sip", "partitionFrameSection", value)} options={[{ value: "50x100", label: "50×100 мм" }, { value: "50x150", label: "50×150 мм" }]} />
+                <DraftText label="Доска каркаса перегородок, мм · толщина × глубина" value={project.settings.sip.partitionFrameSection || '50x100'} placeholder="50×100 или строганая 45×145" onChange={value=>{if(/^\d+\s*[x×х]\s*\d+$/.test(value)&&value.split(/[x×х]/).every(n=>Number(n)>0))setSetting('sip','partitionFrameSection',value.replace(/\s/g,'').replace(/[×х]/g,'x'));}} />
                 <SelectField label="Расчёт каркаса перегородок" value={project.settings.sip.partitionCalculationMode || "linear"} onChange={(value) => setSetting("sip", "partitionCalculationMode", value)} options={[{ value: "linear", label: "По стойкам и обвязкам · точный" }, { value: "area", label: "По площади · старый быстрый" }]} />
               </>}
               <SelectField

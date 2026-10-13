@@ -48,8 +48,8 @@ test('concrete blocks cost exactly1500 installed, have editable unknown sizes an
  const old=createDefaultProject();delete old.settings.piles.pileType;assert.equal(migrateProject(old).settings.piles.pileType,'screw');
 });
 test('bearing reinforcement, bracing, grouped marks, purchase, estimate and cargo volumes agree',()=>{
- const p=house();p.plan.house={w:8,h:6,contourDefined:true};p.plan.rooms=[{id:'r',x:1,y:1,w:6,h:3,bearingWalls:{[bearingWallKey({x:1,y:1},{x:7,y:1})]:{enabled:true,profile:'50x150'}}}];
- p.plan.openings=[{id:'d',type:'door',outer:false,x:2,y:1,width:.9,height:2.1,orientation:'h'}];const c=calculateProject(p),r=run(p),extras=partitionReinforcements(p,p.plan,1),actual=r.members.filter(m=>m.reinforcement&&!m.excluded);
+ const p=house();p.plan.house={w:8,h:6,contourDefined:true};p.plan.rooms=[{id:'r',x:1,y:1,w:5,h:3,bearingWalls:{[bearingWallKey({x:1,y:1},{x:6,y:1})]:{enabled:true,profile:'50x150'}}}];
+ p.plan.rooms[0].w=5;p.plan.openings=[];const c=calculateProject(p),r=run(p),extras=partitionReinforcements(p,p.plan,1),actual=r.members.filter(m=>m.reinforcement&&!m.excluded);
  assert.deepEqual(extras.map(m=>[m.id,m.profile,m.cutLength]),actual.map(m=>[m.id,m.profile,m.cutLength]));
  assert.ok(actual.some(m=>m.material==='Опорная доска на ребре'));assert.ok(actual.some(m=>m.material==='Укосина перегородки'&&m.profile==='25×150'));assert.ok(actual.some(m=>m.backing));
  for(const g of [...r.panelGroups,...r.memberGroups]){const mark=(g.part||g.member).displayMark;assert.ok(/^[А-Я]+\d+$/.test(mark)&&mark.length<=5);assert.equal(new Set((g.part?g.instances.map(id=>r.parts.find(p=>p.id===id)):g.instances).map(m=>m.displayMark)).size,1);}

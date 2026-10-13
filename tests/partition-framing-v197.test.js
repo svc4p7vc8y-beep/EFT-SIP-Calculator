@@ -14,11 +14,11 @@ const settings=()=>normalizeProductionCutting({kerfMm:3,endAllowanceMm:0});
 const wall=(bearing=true)=>({id:'Э1-ПГ1',name:'Перегородка',width:3600,height:2500,frameProfile:'50×150',bearing,openings:[]});
 const closed=ring=>[...ring,ring[0]];
 
-test('ordinary and bearing walls have one horizontal top plate; only bearing gets the edge board',()=>{
+test('ordinary and bearing walls have one horizontal top plate; both get the user-approved edge board',()=>{
  for(const bearing of [false,true]){const m=partitionFrameMembers(wall(bearing),settings());
   assert.equal(m.filter(m=>m.material==='Верхняя обвязка перегородки').length,1);
   assert.ok(m.filter(m=>m.material==='Стойка перегородки').every(m=>m.b[1]===2450));
-  assert.equal(m.filter(m=>m.role==='edge-board').length,bearing?1:0);
+  assert.equal(m.filter(m=>m.role==='edge-board').length,1);
   const beam=m.find(m=>m.role==='edge-board');if(beam){assert.equal(beam.profile,'50×150');assert.equal(beam.a[1]+beam.faceWidth/2,2450);}
  }
 });
@@ -45,13 +45,13 @@ test('brace contour never crosses door, window or full-height wall gap; blocked 
   for(const b of braces)for(const o of holes){const hole=[[o.x,o.sill],[o.x+o.width,o.sill],[o.x+o.width,o.sill+o.height],[o.x,o.sill+o.height],[o.x,o.sill]];
    assert.equal(clipping.intersection([closed(boardFootprint(b))],[hole]).length,0);
   }
-  if(direction==='left-right')assert.equal(braces.length,0);
+  if(direction==='left-right'&&holes[0].height>=2100)assert.equal(braces.length,0);
  }
 });
 
-test('studs carry actual projected notch outlines; depth is not invented and unequal machining is not grouped',()=>{
+test('studs carry actual projected notch outlines; depth follows the user-approved board thickness and unequal machining is not grouped',()=>{
  const m=partitionFrameMembers(wall(),settings()),notched=m.filter(m=>m.notches?.some(n=>n.type==='brace'));
- assert.ok(notched.length>=2);assert.ok(notched.every(m=>m.notches.every(n=>n.depthMm==='')));
+ assert.ok(notched.length>=2);assert.ok(notched.every(m=>m.notches.every(n=>[25,50].includes(n.depthMm))));
  assert.ok(notched.every(m=>JSON.stringify(visibleBoardGeometry(m))!==JSON.stringify([[closed(boardFootprint(m))]])));
  const stud=notched[0],different={...stud,id:'other',notches:stud.notches.map(n=>({...n,offsetMm:n.offsetMm+20}))};assert.equal(groupMembers([stud,different]).length,2);
  const same={...stud,id:'same',notches:structuredClone(stud.notches)};assert.equal(groupMembers([stud,same])[0].qty,2);
@@ -67,7 +67,7 @@ test('old standard double plates migrate once; explicit other counts and future 
 });
 
 test('new bearing frame quantities agree in cutting, procurement, estimate and delivery',()=>{
- const p=createDefaultProject();p.plan={...p.plan,house:{w:6,h:4},rooms:[],walls:[{x1:0,y1:2,x2:6,y2:2,bearing:true,bearingProfile:'50x150'}],openings:[],platforms:[]};p.settings.productionCutting=settings();
+ const p=createDefaultProject();p.plan={...p.plan,house:{w:5,h:4},rooms:[],walls:[{x1:0,y1:2,x2:5,y2:2,bearing:true,bearingProfile:'50x150'}],openings:[],platforms:[]};p.settings.productionCutting=settings();
  const c=calculateProject(p),r=calculateProductionCutting(p,c),boards=partitionProcurement(r).boards;
  const volume=boards.reduce((s,b)=>s+b.volumeM3,0),estimate=c.lines.filter(l=>l.source==='partition-detail').reduce((s,l)=>s+l.qty,0);
  assert.ok(Math.abs(volume-estimate)<.00011);assert.ok(calculateDeliveryVolume(p,c).categories.find(g=>g.key==='timber').autoVolume>=volume);

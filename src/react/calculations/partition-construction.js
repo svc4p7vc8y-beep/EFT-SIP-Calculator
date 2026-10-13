@@ -37,7 +37,10 @@ export function partitionBacking(plan,a,b,segments=partitionSegments(plan)) {
     const outer=contour.some((q,i)=>q===u&&contour[(i+1)%contour.length]===v);
     return t>=-.001&&t<=1.001&&(outer?distance<.015||Math.abs(distance-(Number(plan.wallThickness)||.174))<.015:distance<.015||(plan.partitionJunctions==='butt'&&Math.abs(distance-partitionDepth(plan,u,v)/2)<.015));
   });
-  return {startBacking:connects(a),endBacking:connects(b)};
+  const exterior=p=>contour.some((u,i)=>{const v=contour[(i+1)%contour.length],dx=v.x-u.x,dy=v.y-u.y,l=Math.hypot(dx,dy);if(!l)return false;
+    const t=((p.x-u.x)*dx+(p.y-u.y)*dy)/(l*l),d=Math.abs(dx*(p.y-u.y)-dy*(p.x-u.x))/l;
+    return t>=-.001&&t<=1.001&&(d<.015||Math.abs(d-(Number(plan.wallThickness)||.174))<.015)&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))>.0001;});
+  return {startBacking:connects(a),endBacking:connects(b),startExterior:exterior(a),endExterior:exterior(b)};
 }
 export function partitionJunctionStuds(plan,a,b,segments=partitionSegments(plan)){
   const dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy);if(!l)return [];

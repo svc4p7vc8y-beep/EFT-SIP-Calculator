@@ -30,7 +30,7 @@ test('excluded partitions disappear from quantities, clear area and production',
 });
 test('26 mm endpoint gaps are visible, actual exterior faces receive backing',()=>{
  const p=fixture().plan;p.rooms=[room('a',.2,.174,5.6,1.826),room('b',.2,2,5.6,1.826)];assert.equal(planIssues(p).filter(i=>i.type==='junction-gap').length,2);
- p.rooms.forEach(r=>{r.x=.174;r.w=5.652;});const [a,b]=partitionSegments(p)[0];assert.deepEqual(partitionBacking(p,a,b),{startBacking:true,endBacking:true});
+ p.rooms.forEach(r=>{r.x=.174;r.w=5.652;});const [a,b]=partitionSegments(p)[0];assert.deepEqual(partitionBacking(p,a,b),{startBacking:true,endBacking:true,startExterior:true,endExterior:true});
 });
 test('room and explicit wall edits preserve door attachment without a second movement',()=>{
  const p=fixture().plan;p.rooms=[room('a',.174,.174,5.652,1.826)];p.openings=[{id:'d',type:'door',outer:false,orientation:'h',x:2,y:2,width:.8,height:2.1}];const before=structuredClone(p);
