@@ -141,11 +141,11 @@ function downloadProject(project) {
   setTimeout(() => URL.revokeObjectURL(link.href), 0);
 }
 
-function Screen({ active, calculation, teamProps, onNavigate }) {
+function Screen({ active, calculation, teamProps, onNavigate, planCommand, onPlanCommandHandled }) {
   if (active === "team") return <TeamWorkspaceScreen {...teamProps} />;
   if (active === "mail") return <MailScreen />;
   if (active === "files") return <FilesScreen />;
-  if (active === "plan") return <PlanScreen />;
+  if (active === "plan") return <PlanScreen planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
   if (active === "request") return <RequestScreen />;
@@ -177,6 +177,8 @@ export function App() {
     () => localStorage.getItem("eft-react-theme") || "light",
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const [planCommand, setPlanCommand] = useState(null);
+  const runPlanCommand = kind => { setActive('plan'); setMenuOpen(false); setPlanCommand({kind,id:Date.now()}); };
   const [backupOpen, setBackupOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [briefPreview, setBriefPreview] = useState(null);
@@ -431,6 +433,11 @@ export function App() {
             <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(adjustedPrice.total)}</strong>
           </div>
         </div>
+        <div className="mobile-quick-actions" aria-label="Действия с планом">
+          <button onClick={() => setActive('calculation-settings')} aria-label="Настройки"><Settings2/><span>Настройки</span></button>
+          <button onClick={() => runPlanCommand('openLibrary')} aria-label="Открыть библиотеку"><LibraryBig/><span>Библиотека</span></button>
+          <button onClick={() => runPlanCommand('saveLibrary')} aria-label="Сохранить в библиотеку"><Save/><span>Сохранить</span></button>
+        </div>
         <div className="header-actions">
           <button
             className="icon-button mobile-menu"
@@ -540,6 +547,12 @@ export function App() {
               <X />
             </button>
           </div>
+          <div className="sidebar-mobile-project-actions">
+            <button onClick={newProject}><FilePlus2/>Новый проект</button>
+            <button onClick={saveProject}><Save/>Сохранить файл проекта</button>
+            <button onClick={() => {fileRef.current?.click();setMenuOpen(false);}}><FileUp/>Открыть файл проекта</button>
+            <button onClick={() => setBackupOpen(true)}><History/>Резервные копии</button>
+          </div>
           <nav aria-label="Разделы калькулятора">
             {NAV_ITEMS.map(({ id, label, icon: Icon, group }, index) => (
               <div
@@ -642,6 +655,8 @@ export function App() {
             >
               {team.user && team.priceCatalog.status !== 'ready' && !['plan','parameters','team','files','mail','knowledge','sip-guide','price','cutting'].includes(active) ? <div className="notice">Для расчёта и печати необходимо получить актуальный серверный прайс.</div> : <Screen
                 active={active}
+                planCommand={planCommand}
+                onPlanCommandHandled={() => setPlanCommand(null)}
                 calculation={calculation}
                 onNavigate={setActive}
                 teamProps={{
@@ -666,6 +681,11 @@ export function App() {
           onNavigate={setActive}
         />}
       </div>
+      <nav className="mobile-bottom-nav" aria-label="Основные разделы">
+        {[
+          ['menu','Меню',Menu],['plan','План дома',Home],['parameters','Параметры',Settings2],['cutting','Раскрой',Ruler],['estimate','Смета',Calculator],
+        ].map(([id,label,Icon])=><button key={id} className={active===id?'active':''} aria-label={label} aria-current={active===id?'page':undefined} onClick={()=>id==='menu'?setMenuOpen(true):(setActive(id),setMenuOpen(false))}><Icon/><span>{label}</span></button>)}
+      </nav>
       {newProjectOpen ? (
         <ResidentialPresetDialog
           mode="new"

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v227-partition-frames';
+const CACHE_NAME = 'eft-calculator-react-v229-mobile-workbench';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {

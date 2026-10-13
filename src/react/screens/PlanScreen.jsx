@@ -73,8 +73,11 @@ import {
   bindingLinesFromPileRows,
   calculateFoundation,
   generateAutoPileRows,
+  pileOffsetAlongRow,
+  pileRowPoints,
 } from "../calculations/foundation-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
+import { attachedHouseContour, shiftPlanContents } from '../planner/attached-contour.js';
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
 import { RoomNameField } from "../components/RoomNameField.jsx";
 import {
@@ -167,6 +170,7 @@ const TOOLS = [
   ["extension", "Пристройка-комната", HousePlus],
   ["polygon", "Комната свободной формы", Pentagon],
   ["houseContour", "Контур дома", Home],
+  ["attachedContour", "Открытый контур пристройки", HousePlus],
   ["wall", "Перегородка", BrickWall],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
@@ -236,6 +240,11 @@ function previewPlan(source, gesture) {
     gesture.type === "room" ? gesture.id : null,
   );
   const itemFor = (key) => plan[key].find((item) => item.id === gesture.id);
+  if(gesture.kind==='rowPile'){
+    const row=(plan.pileRows||[]).find(item=>item.id===gesture.rowId);
+    if(row){const offset=pileOffsetAlongRow(row,gesture.index,end);if(offset!=null)row.pileOffsets={...(row.pileOffsets||{}),[gesture.index]:offset};}
+    return plan;
+  }
   if (gesture.kind === "vertex") {
     if (gesture.type === "houseContour") {
       if (plan.house.points?.[gesture.index]) {
@@ -1348,6 +1357,7 @@ function PlanCanvas({
       calculateFoundation(shownPlan, pileSettings),
     [shownPlan,pileSettings],
   );
+  const rowPileSources=useMemo(()=>(shownPlan.pileRows||[]).flatMap(row=>pileRowPoints(row).map((candidate,index)=>({row,index,candidate})).filter(({index})=>index>0&&index<Math.max(2,Math.round(row.count)||2)-1)),[shownPlan.pileRows]);
   const unifiedWalls = useMemo(
     () => unifiedWallSegments(shownPlan),
     [shownPlan],
@@ -1397,7 +1407,7 @@ function PlanCanvas({
       if (guide.axis === 'x') axes.xs.push(guide.target);
       else axes.ys.push(guide.target);
     }
-    if (["polygon", "houseContour"].includes(tool) && polygonDraft.length) {
+    if (["polygon", "houseContour", "attachedContour"].includes(tool) && polygonDraft.length) {
       polygonDraft.forEach((point) => {
         axes.xs.push(point.x);
         axes.ys.push(point.y);
@@ -1527,6 +1537,7 @@ function PlanCanvas({
           type,
           id,
           index: extra.index,
+          rowId: extra.rowId,
         });
         return;
       }
@@ -1543,7 +1554,7 @@ function PlanCanvas({
       return;
     }
     selectExisting({ type, id });
-    begin(event, { kind: extra.kind || "move", type, id, index: extra.index });
+    begin(event, { kind: extra.kind || "move", type, id, index: extra.index, rowId: extra.rowId });
   };
   const addAt = (point, type) => {
     if (type === "pile") {
@@ -1649,8 +1660,8 @@ function PlanCanvas({
       };
       return;
     }
-    if (tool === "polygon" || tool === "houseContour") {
-      if (shouldClosePolygon(polygonDraft, point)) {
+    if (["polygon", "houseContour", "attachedContour"].includes(tool)) {
+      if (tool!=="attachedContour" && shouldClosePolygon(polygonDraft, point)) {
         finishPolygon();
         return;
       }
@@ -1928,8 +1939,13 @@ function PlanCanvas({
       }
     } else {
       const next = previewPlan(plan, finalGesture);
-      if (JSON.stringify(next) !== JSON.stringify(plan))
+      if (JSON.stringify(next) !== JSON.stringify(plan)) {
         commitPlan((target) => Object.assign(target, next));
+        if(current.kind==='rowPile'){
+          const row=(next.pileRows||[]).find(item=>item.id===current.rowId),moved=row&&pileRowPoints(row)[current.index];
+          if(moved)setSelected({type:'derivedPile',id:`${roundCoord(moved.x)}:${roundCoord(moved.y)}`});
+        }
+      }
     }
     svgRef.current.releasePointerCapture?.(event.pointerId);
     setGesture(null);
@@ -2561,9 +2577,7 @@ function PlanCanvas({
                   cx={q.x}
                   cy={q.y}
                   r="7"
-                  onPointerDown={(event) =>
-                    objectDown(event, "derivedPile", id)
-                  }
+                  pointerEvents="none"
                 />
               );
             })
@@ -2916,14 +2930,14 @@ function PlanCanvas({
       {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} selected={selectedGuideId===guide.id} active={tool === 'guide'} onPointerDown={(event) => { event.stopPropagation();if(event.button!==0)return;if(selectedGuideId!==guide.id){setSelectedGuideId(guide.id);return;}begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
       {gesture?.kind === 'temporaryGuide' && !gesture.guideId ? <TemporaryGuide guide={moveTemporaryGuide(gesture.guideBase, gesture.end)} p={p} active={false} /> : null}
       {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={VIEW.width - 183} y="55" width="171" height="31" rx="7" /><text x={VIEW.width - 98} y="76">Очистить направляющие</text></g> : null}
-      {tool === "polygon" || tool === "houseContour" ? (
+      {["polygon", "houseContour", "attachedContour"].includes(tool) ? (
         <DraftPolygonEdge
           points={polygonDraft}
           hoverPoint={hoverSnap?.point}
           p={p}
         />
       ) : null}
-      {hoverSnap?.snap && (DRAW_TOOLS.has(tool) || ["polygon", "houseContour"].includes(tool)) ? (() => {
+      {hoverSnap?.snap && (DRAW_TOOLS.has(tool) || ["polygon", "houseContour", "attachedContour"].includes(tool)) ? (() => {
         const q = p(hoverSnap.point.x, hoverSnap.point.y);
         return <g className="draft-alignment-guides" aria-label="Направляющие выравнивания">
           {hoverSnap.snap.matchedX ? <line x1={q.x} y1="0" x2={q.x} y2={VIEW.height} /> : null}
@@ -2945,6 +2959,11 @@ function PlanCanvas({
           })()
         : null}
       {sourceFocus?.a&&sourceFocus?.b?(()=>{const a=p(sourceFocus.a[0]/1000,sourceFocus.a[1]/1000),b=p(sourceFocus.b[0]/1000,sourceFocus.b[1]/1000);return <g aria-label="Участок из чертежа" pointerEvents="none"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#087a49" strokeWidth="6" strokeDasharray="9 5"/><circle cx={a.x} cy={a.y} r="5" fill="#087a49"/><circle cx={b.x} cy={b.y} r="5" fill="#087a49"/></g>;})():null}
+      {tool==='select'&&visibleLayers.piles&&shownPlan.showPiles!==false?foundation.points.filter(point=>!hasManualPileAt(point)).map(point=>{
+        const id=`${roundCoord(point.x)}:${roundCoord(point.y)}`,q=p(point.x,point.y);
+        const source=rowPileSources.find(({candidate})=>Math.hypot(candidate.x-point.x,candidate.y-point.y)<.015);
+        return <circle key={`pile-hit-${id}`} className="derived-pile-handle" aria-label={`Выбрать расчётную сваю ${id}`} cx={q.x} cy={q.y} r="11" fill="#fff" fillOpacity="0.001" pointerEvents="all" onPointerDown={event=>objectDown(event,'derivedPile',id,source?{kind:'rowPile',rowId:source.row.id,index:source.index}:{})}/>;
+      }):null}
       <g ref={setLabelLayer} className="plan-label-foreground"/>
     </svg>
   );
@@ -3367,8 +3386,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
           </strong>
         </div>
         <p className="inspector-note">
-          Удаление исключает эту сваю из расчёта текущего проекта.
-          Автоматический ряд остаётся на месте.
+          Внутреннюю сваю можно выбрать и перетащить вдоль ряда. Концевые сваи
+          перемещаются ручками ряда. Удаление исключает сваю из расчёта проекта.
         </p>
         <button
           className="button danger-button"
@@ -3998,12 +4017,13 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
           <strong>{formatNumber(length)} м</strong>
         </div>
         <div className="readout">
-          <span>Фактическое расстояние</span>
+          <span>Шаг без ручных сдвигов</span>
           <strong>{formatNumber(spacing)} м</strong>
         </div>
         <p className="inspector-note">
           Зелёный ряд стоит точно по оси. Красный показывает небольшое случайное
-          смещение; янтарный — диагональный ряд.
+          смещение; янтарный — диагональный ряд. Внутреннюю сваю можно
+          перетащить вдоль ряда; соседние сваи не совмещаются.
         </p>
         <button className="button danger-button" onClick={remove}>
           <Trash2 />
@@ -4204,6 +4224,7 @@ const MOBILE_TOOLS = [
   ["extension", "Пристройка", HousePlus],
   ["polygon", "Свободная", Pentagon],
   ["houseContour", "Контур дома", Home],
+  ["attachedContour", "Пристройка контуром", HousePlus],
   ["wall", "Перегородка", BrickWall],
   ["gap", "Разрыв", Scissors],
   ["window", "Окно", PanelsTopLeft],
@@ -4957,7 +4978,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
   );
 }
 
-export default function PlanScreen({ onNavigate }) {
+export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
   const { project, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
@@ -5250,7 +5271,7 @@ export default function PlanScreen({ onNavigate }) {
     }
     setTool(id);
     if (id === "stairOpening") scrollToPlanCanvas();
-    if (!["polygon", "houseContour"].includes(id)) setPolygonDraft([]);
+    if (!["polygon", "houseContour", "attachedContour"].includes(id)) setPolygonDraft([]);
     if (["pile", "pileRow"].includes(id)) {
       setActiveLayer("piles");
       if (plan.showPiles === false)
@@ -5320,6 +5341,21 @@ export default function PlanScreen({ onNavigate }) {
     setSheetMode("peek");
   }, []);
   const finishPolygon = () => {
+    if(tool==='attachedContour'){
+      if(activeFloor!==1){setTransferStatus('Пристройку к основанию дома добавляйте на первом этаже.');return;}
+      const result=attachedHouseContour(plan,polygonDraft);
+      if(result.error){setTransferStatus(result.error);return;}
+      if(floorCount>1&&(result.shift.x||result.shift.y)){setTransferStatus('Для двухэтажного проекта пристройку слева или сверху нужно согласовать с координатами второго этажа. Пристройка справа или снизу доступна.');return;}
+      commitPlan(next=>{
+        shiftPlanContents(next,result.shift);
+        next.house.points=result.points;
+        const bounds=boundsOf(result.points);
+        next.house.w=roundCoord(bounds.w);next.house.h=roundCoord(bounds.h);next.house.contourDefined=true;
+      });
+      setPolygonDraft([]);setSelected({type:'houseContour',id:'house'});setTool('select');
+      setTransferStatus(`Пристройка добавлена: +${formatNumber(result.addedArea)} м² к контуру дома.`);
+      return;
+    }
     if (polygonDraft.length < 3 || polygonArea(polygonDraft) < 0.25) return;
     if (tool === "houseContour") {
       const points = polygonDraft.map((point) => ({
@@ -5431,6 +5467,12 @@ export default function PlanScreen({ onNavigate }) {
     setEditingLibraryId(entry.id);
     setTransferStatus(existing ? `План «${name}» обновлён в библиотеке` : `План «${name}» сохранён вместе с параметрами и ценой`);
   };
+  useEffect(() => {
+    if (!planCommand) return;
+    if (planCommand.kind === 'openLibrary') setLibraryOpen(true);
+    if (planCommand.kind === 'saveLibrary') saveSketch();
+    onPlanCommandHandled?.();
+  }, [planCommand?.id]);
   const renameLibraryPlan = (entry) => {
     const name = window.prompt("Новое название плана:", entry.name)?.trim();
     if (!name || name === entry.name) return;
@@ -5502,6 +5544,8 @@ export default function PlanScreen({ onNavigate }) {
         rowSpacing: draft.autoRowSpacing,
         includeInteriorWalls: draft.autoIncludeInteriorWalls,
       });
+      const previous=new Map((next.plan.pileRows||[]).filter(row=>row.auto).map(row=>[row.id,row]));
+      for(const row of autoRows){const old=previous.get(row.id);if(old&&old.count===row.count&&['x1','y1','x2','y2'].every(key=>Math.abs(old[key]-row[key])<.001))row.pileOffsets=old.pileOffsets;}
       next.plan.pileRows = [...manualRows, ...autoRows];
       if (draft.autoSyncBinding) next.plan.bindingLines = bindingLinesFromPileRows(next.plan.pileRows);
       next.plan.showPiles = true;
@@ -5686,6 +5730,8 @@ export default function PlanScreen({ onNavigate }) {
         ? "Ставьте углы комнаты. После третьей точки щёлкните по первой точке — контур замкнётся автоматически."
         : tool === "houseContour"
           ? "Нарисуйте замкнутый внешний контур дома: эркер, выступ или дом неправильной формы."
+          : tool === 'attachedContour'
+            ? 'Начните на наружной стене дома, обойдите внешние углы пристройки и закончите на той же стене. Затем нажмите «Присоединить».'
           : tool === "dimension"
             ? "Нажмите первую точку, затем вторую. Размер автоматически вынесется за контур дома и займёт свободный уровень."
             : tool === 'guide'
@@ -6318,16 +6364,16 @@ export default function PlanScreen({ onNavigate }) {
                 </button>
               ),
             )}
-            {["polygon", "houseContour"].includes(tool) &&
+            {["polygon", "houseContour", "attachedContour"].includes(tool) &&
             polygonDraft.length ? (
               <div className="polygon-actions">
                 <button
                   className="active"
                   onClick={finishPolygon}
-                  disabled={polygonDraft.length < 3}
+                  disabled={polygonDraft.length < (tool==='attachedContour'?4:3)}
                 >
                   <Save />
-                  <span>Замкнуть</span>
+                  <span>{tool==='attachedContour'?'Присоединить':'Замкнуть'}</span>
                 </button>
                 <button onClick={() => setPolygonDraft([])}>
                   <X />
@@ -6463,7 +6509,13 @@ export default function PlanScreen({ onNavigate }) {
           </div>
         </div>
         <aside className="planner-inspector" ref={inspectorRef}>
-          {tool === "houseContour" && polygonDraft.length >= 2 ? (
+          {tool === 'attachedContour' && polygonDraft.length >= 2 ? (
+            <div className="inspector-form contour-draft-inspector">
+              <h3>Открытый контур пристройки</h3>
+              <p className="inspector-note">Оба конца поставьте на одну наружную стену. Общий участок стены замкнёт пристройку; исходные помещения и проёмы сохраняются.</p>
+              <button className="button primary" disabled={polygonDraft.length<4} onClick={finishPolygon}><Save />Присоединить к дому</button>
+            </div>
+          ) : tool === "houseContour" && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">
               <h3>Новый контур</h3>
               <p className="inspector-note">На поле точки идут кратно 10 см. Здесь можно задать точный общий размер до замыкания.</p>

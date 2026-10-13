@@ -6,12 +6,29 @@ const round = (value, digits = 2) => {
   return Math.round((Number(value) || 0) * factor) / factor;
 };
 
-function rowPoints(row) {
+export function pileRowPoints(row) {
   const count = Math.max(2, Math.round(row.count) || 2);
+  const length = Math.hypot(row.x2-row.x1,row.y2-row.y1);
   return Array.from({ length: count }, (_, index) => {
-    const ratio = index / (count - 1);
+    const base=length*index/(count-1);
+    const saved=Number(row.pileOffsets?.[index]);
+    const offset=index>0&&index<count-1&&Number.isFinite(saved)?saved:0;
+    const distance=Math.max(0,Math.min(length,base+offset));
+    const ratio = length>0?distance/length:index/(count-1);
     return { x: row.x1 + (row.x2 - row.x1) * ratio, y: row.y1 + (row.y2 - row.y1) * ratio, source: row.group || 'house' };
   });
+}
+
+export function pileOffsetAlongRow(row,index,point) {
+  const count=Math.max(2,Math.round(row.count)||2),length=Math.hypot(row.x2-row.x1,row.y2-row.y1);
+  if(index<=0||index>=count-1||length<.3)return null;
+  const raw=((point.x-row.x1)*(row.x2-row.x1)+(point.y-row.y1)*(row.y2-row.y1))/length;
+  const positions=pileRowPoints(row);
+  const distance=Math.max(
+    Math.hypot(positions[index-1].x-row.x1,positions[index-1].y-row.y1)+.1,
+    Math.min(raw,Math.hypot(positions[index+1].x-row.x1,positions[index+1].y-row.y1)-.1)
+  );
+  return Math.round((distance-length*index/(count-1))*1000)/1000;
 }
 
 function perimeterRows(platform, spacing, house) {
@@ -236,9 +253,9 @@ export function generateAutoPileRows(plan, spacing = 2.5, options = {}) {
 export function calculateFoundation(plan, settings = {}) {
   const spacing = Math.max(0.5, Number(settings.spacing) || 2.5);
   const houseRows = (plan.pileRows || []).filter((row) => row.group !== 'platform');
-  const housePoints = uniquePoints([houseRows.flatMap(rowPoints).concat((plan.piles || []).map((pile) => ({ ...pile, source: 'house' })))], 0.05);
+  const housePoints = uniquePoints([houseRows.flatMap(pileRowPoints).concat((plan.piles || []).map((pile) => ({ ...pile, source: 'house' })))], 0.05);
   const platforms = settings.includePlatforms === false ? [] : (plan.platforms || []).filter((platform) => platform.include !== false && platform.foundation?.mode !== 'none');
-  const platformPoints = platforms.flatMap((platform) => perimeterRows(platform, spacing, plan.house).flatMap(rowPoints));
+  const platformPoints = platforms.flatMap((platform) => perimeterRows(platform, spacing, plan.house).flatMap(pileRowPoints));
   // Опора террасы/крыльца рядом с домовой опорой считается общей, даже если геометрически точки не совпали идеально.
   // Это убирает бессмысленные дубли свай вдоль примыкания площадки к дому.
   const sharedReuseDistance = Math.max(0.18, Math.min(0.6, Number(settings.sharedPileReuseDistance) || spacing * 0.2));
