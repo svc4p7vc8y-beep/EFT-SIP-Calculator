@@ -3,6 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
 require __DIR__ . '/mail-client.php';
 require __DIR__ . '/price-catalog.php';
+require __DIR__ . '/site-visits.php';
 
 eft_origin_headers();
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
@@ -179,6 +180,16 @@ if ($action === 'intake' && $method === 'POST') {
     eft_json(['ok' => true, 'id' => $id, 'number' => $number, 'mailAccepted' => $mailSent], 201);
 }
 
+if ($action === 'site-visit' && $method === 'POST') {
+    eft_require_allowed_origin();
+    $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+    if (!in_array($origin, ['https://eftsip.ru', 'https://www.eftsip.ru'], true)) eft_json(['ok' => false, 'code' => 'origin_forbidden'], 403);
+    if (($_SERVER['HTTP_DNT'] ?? '') === '1' || ($_SERVER['HTTP_SEC_GPC'] ?? '') === '1') eft_json(['ok' => true, 'counted' => false]);
+    $agent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+    if ($agent === '' || preg_match('/bot|crawl|spider|slurp|headless|lighthouse|preview/i', $agent)) eft_json(['ok' => true, 'counted' => false]);
+    eft_json(['ok' => true, 'counted' => eft_record_site_visit($pdo, $_SESSION, eft_site_today(), time())]);
+}
+
 $user = eft_user();
 if (!in_array($method, ['GET'], true)) eft_csrf();
 if (!in_array($method, ['GET'], true) && $user['role'] === 'viewer') {
@@ -190,6 +201,10 @@ if ($action === 'logout' && $method === 'POST') {
     $_SESSION = [];
     session_destroy();
     eft_json(['ok' => true]);
+}
+
+if ($action === 'site-stats' && $method === 'GET') {
+    eft_json(['ok' => true, 'stats' => eft_site_stats($pdo, eft_site_today())]);
 }
 
 if ($action === 'price-access' && $method === 'POST') {

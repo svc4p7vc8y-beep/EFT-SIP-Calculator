@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   FileClock,
   FilePlus2,
+  BarChart3,
   Inbox,
   LogOut,
   Pencil,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { clientBriefSummary } from "../storage/client-brief.js";
-import { resolveEftApiUrl } from "../../shared/team-api.js";
+import { eftApi, resolveEftApiUrl } from "../../shared/team-api.js";
 import { PasswordInput } from "../components/ui.jsx";
 
 const roleNames = {
@@ -33,6 +34,10 @@ export default function TeamWorkspaceScreen({
 }) {
   const team = useTeam();
   const [tab, setTab] = useState("projects");
+  const [siteStats, setSiteStats] = useState(null);
+  const [siteStatsError, setSiteStatsError] = useState("");
+  const [siteStatsLoading, setSiteStatsLoading] = useState(false);
+  const [statsRevision, setStatsRevision] = useState(0);
   const [notice, setNotice] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletePassword, setDeletePassword] = useState("");
@@ -44,6 +49,17 @@ export default function TeamWorkspaceScreen({
   const [versionPreview, setVersionPreview] = useState(null);
   const [historyBusy, setHistoryBusy] = useState(false);
   useEffect(() => { if (focusTab) setTab(focusTab); }, [focusTab]);
+  useEffect(() => {
+    if (tab !== "stats" || !team.user) return undefined;
+    let current = true;
+    setSiteStatsLoading(true);
+    setSiteStatsError("");
+    eftApi("site-stats")
+      .then((result) => { if (current) setSiteStats(result.stats); })
+      .catch((error) => { if (current) setSiteStatsError(error.message); })
+      .finally(() => { if (current) setSiteStatsLoading(false); });
+    return () => { current = false; };
+  }, [tab, team.user, statsRevision]);
   const [newUser, setNewUser] = useState({
     username: "",
     displayName: "",
@@ -170,6 +186,13 @@ export default function TeamWorkspaceScreen({
           <Inbox />
           Анкеты <b>{team.intakes.length}</b>
         </button>
+        <button
+          className={tab === "stats" ? "active" : ""}
+          onClick={() => setTab("stats")}
+        >
+          <BarChart3 />
+          Посещения сайта
+        </button>
         {team.user?.role === "admin" ? (
           <button
             className={tab === "users" ? "active" : ""}
@@ -290,6 +313,40 @@ export default function TeamWorkspaceScreen({
               <p className="empty-state">Новых анкет пока нет.</p>
             ) : null}
           </div>
+        </div>
+      ) : null}
+      {tab === "stats" ? (
+        <div className="team-panel site-stats-panel">
+          <div className="team-panel-head">
+            <div>
+              <h2>Посещения сайта</h2>
+              <p>Публичный сайт и анкета · данные по московскому времени.</p>
+            </div>
+            <button className="button secondary" onClick={() => setStatsRevision((value) => value + 1)} disabled={siteStatsLoading}>
+              <RefreshCw /> Обновить
+            </button>
+          </div>
+          {siteStatsLoading && !siteStats ? <p role="status">Загружаем статистику…</p> : null}
+          {siteStatsError ? <p className="notice" role="alert">Не удалось получить статистику: {siteStatsError}</p> : null}
+          {siteStats ? <>
+            <div className="site-stats-grid">
+              <div><span>Всего заходов</span><strong>{siteStats.allTimeVisits.toLocaleString("ru-RU")}</strong></div>
+              <div><span>Заходы сегодня</span><strong>{siteStats.today.visits.toLocaleString("ru-RU")}</strong></div>
+              <div><span>Посетители сегодня*</span><strong>{siteStats.today.visitors.toLocaleString("ru-RU")}</strong></div>
+              <div><span>Заходы за 7 дней</span><strong>{siteStats.last7.visits.toLocaleString("ru-RU")}</strong></div>
+              <div><span>Заходы за 30 дней</span><strong>{siteStats.last30.visits.toLocaleString("ru-RU")}</strong></div>
+            </div>
+            <p className="site-stats-note">* Посетители — приблизительное число браузерных сеансов за день, не число конкретных людей. Повторный заход в том же сеансе учитывается через 30 минут. Статистика собирается с даты включения счётчика; прежние посещения не восстановлены.</p>
+            <div className="site-stats-history">
+              <h3>Последние 14 дней</h3>
+              <div className="site-stats-table-wrap">
+                <table>
+                  <thead><tr><th>Дата</th><th>Заходы</th><th>Посетители*</th></tr></thead>
+                  <tbody>{siteStats.days.slice(-14).reverse().map((day) => <tr key={day.date}><td>{new Date(`${day.date}T12:00:00`).toLocaleDateString("ru-RU")}</td><td>{day.visits}</td><td>{day.visitors}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </div>
+          </> : null}
         </div>
       ) : null}
       {tab === "users" ? (

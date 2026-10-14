@@ -25,7 +25,7 @@ import {
   initialAnswers,
   QUESTIONNAIRE_STORAGE_KEY,
 } from "./brief.js";
-import { submitPublicIntake } from "../shared/team-api.js";
+import { recordPublicVisit, submitPublicIntake } from "../shared/team-api.js";
 import { formatRussianPhone, isValidRussianPhone } from "../shared/phone.js";
 import "./questionnaire.css";
 
@@ -1746,6 +1746,8 @@ function App() {
     </div>
   );
 }
+
+recordPublicVisit().catch(() => {});
 
 createRoot(document.getElementById("questionnaire-root")).render(
   <React.StrictMode>

@@ -10,9 +10,10 @@ import {
 import { asset, houses, projectCategories } from "./data.js";
 import Panels from "./Panels.jsx";
 import HeroIntro from "./HeroIntro.jsx";
+import Escrow from "./Escrow.jsx";
 import Locations from "./Locations.jsx";
 import { AnimatedLogo, ScrollProgress, useSiteMotion } from "./Motion.jsx";
-import { submitPublicIntake } from "../shared/team-api.js";
+import { recordPublicVisit, submitPublicIntake } from "../shared/team-api.js";
 import { formatRussianPhone, isValidRussianPhone } from "../shared/phone.js";
 
 const ProjectDialog = lazy(() => import("./ProjectDialog.jsx"));
@@ -355,6 +356,9 @@ export default function Site() {
   }
   useSiteMotion();
   useEffect(() => {
+    recordPublicVisit().catch(() => {});
+  }, []);
+  useEffect(() => {
     const escape = (event) => {
       if (event.key === "Escape") setMenuOpen(false);
     };
@@ -524,6 +528,7 @@ export default function Site() {
             </div>
           </div>
         </section>
+        <Escrow />
         <Contact
           cart={cart}
           selection={selection}

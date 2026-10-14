@@ -60,3 +60,10 @@ export async function eftApi(
 export function submitPublicIntake(payload) {
   return eftApi("intake", { method: "POST", body: payload });
 }
+
+export function recordPublicVisit(locationLike = globalThis.location) {
+  const hostname = String(locationLike?.hostname || "").toLowerCase();
+  if (hostname !== "eftsip.ru" && hostname !== "www.eftsip.ru")
+    return Promise.resolve({ counted: false });
+  return eftApi("site-visit", { method: "POST" });
+}

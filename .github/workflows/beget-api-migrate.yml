@@ -8,6 +8,7 @@ on:
       - 'server/beget-api/**'
       - '.github/workflows/beget-api-migrate.yml'
       - 'tests/price-catalog.integration.php'
+      - 'tests/site-visits.integration.php'
 
 permissions:
   contents: read
@@ -46,7 +47,9 @@ jobs:
           EFT_PRICE_TEST_DSN: mysql:host=127.0.0.1;port=33306;dbname=eft_price_test;charset=utf8mb4
           EFT_PRICE_TEST_USER: root
           EFT_PRICE_TEST_PASSWORD: eft-test
-        run: php tests/price-catalog.integration.php
+        run: |
+          php tests/price-catalog.integration.php
+          php tests/site-visits.integration.php
       - name: Upload API and run idempotent migration
         env:
           HOST: ${{ secrets.BEGET_SSH_HOST }}

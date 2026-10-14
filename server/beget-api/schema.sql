@@ -96,6 +96,13 @@ CREATE TABLE IF NOT EXISTS eft_counters (
   PRIMARY KEY (counter_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS eft_site_daily_stats (
+  visit_date DATE NOT NULL,
+  visits INT UNSIGNED NOT NULL DEFAULT 0,
+  visitors INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (visit_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS eft_questionnaire_attachments (
   id CHAR(36) NOT NULL,
   questionnaire_id CHAR(36) NOT NULL,
