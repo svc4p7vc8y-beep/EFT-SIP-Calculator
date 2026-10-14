@@ -25,7 +25,7 @@ import { normalizeFloorOpenings } from '../planner/floor-openings.js';
 import { normalizeDocumentation } from './project-documentation.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 
-export const REACT_PROJECT_VERSION = 229;
+export const REACT_PROJECT_VERSION = 230;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -371,6 +371,8 @@ export function createUpperFloorPlan(basePlan = createEmptyPlan()) {
   return {
     ...createBlankPlan(),
     house: clone(source.house),
+    existingBuilding: clone(source.existingBuilding),
+    attachment: clone(source.attachment),
     wallHeight: source.wallHeight,
     wallThickness: source.wallThickness,
     partitionThickness: source.partitionThickness,
@@ -909,6 +911,17 @@ export function migrateProject(raw) {
   const upperFloors = (Array.isArray(raw.upperFloors) ? raw.upperFloors : [])
     .slice(0, requestedFloorCount - 1)
     .map(normalizePlan);
+  // Older upper floors copied the footprint but lost the two host-wall links.
+  // Repair only an unchanged copied footprint; an edited upper contour keeps
+  // its own wall layout and must be reconciled by the project author.
+  if ((!Number.isFinite(savedVersion) || savedVersion < 230) && plan.attachment?.wallMode === 'existing') {
+    for (const upper of upperFloors) {
+      if (!upper.attachment && JSON.stringify(upper.house.points) === JSON.stringify(plan.house.points)) {
+        upper.existingBuilding = clone(plan.existingBuilding);
+        upper.attachment = clone(plan.attachment);
+      }
+    }
+  }
   while (upperFloors.length < requestedFloorCount - 1) {
     upperFloors.push(createUpperFloorPlan(plan));
   }

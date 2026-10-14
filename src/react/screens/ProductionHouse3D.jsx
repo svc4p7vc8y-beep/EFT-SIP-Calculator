@@ -4,11 +4,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { productionScene } from '../calculations/production-scene.js';
 import { beamFrame } from '../calculations/beam-frame.js';
 import {assemblyPlatformView} from '../calculations/platform-assembly.js';
+import {planPointToThree,planDirectionToThree} from '../calculations/plan-3d-orientation.js';
 import { Box,Frame,Scan,Layers,RotateCcw } from 'lucide-react';
 
 const layers={existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
-const vector=([x,y,z])=>new THREE.Vector3(x/1000,z/1000,-y/1000);
-const direction=([x,y,z])=>new THREE.Vector3(x,z,-y);
+const vector=point=>new THREE.Vector3(...planPointToThree(point));
+const direction=point=>new THREE.Vector3(...planDirectionToThree(point));
 function beamGeometry(item,width,depth,length){
  if(!item.endCutOutline)return new THREE.BoxGeometry(width/1000,length/1000,depth/1000);
  const vertices=[-width/2,width/2].flatMap(x=>item.endCutOutline.flatMap(([y,z])=>[x/1000,y/1000,z/1000]));

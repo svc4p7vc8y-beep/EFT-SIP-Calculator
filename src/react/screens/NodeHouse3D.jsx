@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { NODE_HOUSE_LAYERS as LAYERS, groupNodesAtAnchors, layerForNode, nextNodeAtAnchor } from './node-house-layers.js';
 import {calculateProject} from '../calculations/estimate-engine.js';
 import {calculateAssemblyPlan} from '../calculations/production-assembly.js';
+import {existingWallEdge} from '../planner/existing-building.js';
 
 const addBeam = (group, a, b, thickness, material) => {
   const from = new THREE.Vector3(...a), to = new THREE.Vector3(...b);
@@ -108,7 +109,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
     const panelLength = Math.max(0.5, Number(project.settings?.formulas?.panelLength) || 2.5);
     const addPanelSurface = (target, seamTarget, elevation, width, color) => {
       const panel = new THREE.Mesh(new THREE.ShapeGeometry(outline), new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.84, roughness: 0.88 }));
-      panel.rotation.x = -Math.PI / 2;
+      panel.rotation.x = Math.PI / 2;
       panel.position.y = elevation;
       target.add(panel);
       const seam = new THREE.MeshStandardMaterial({ color: 0x9c7048, roughness: 0.82 });
@@ -128,8 +129,10 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
           }
         }
       }
-      points.forEach((start, index) => {
-        const end = points[(index + 1) % points.length];
+      const floorPoints=contour(item.plan);
+      floorPoints.forEach((start, index) => {
+        const end = floorPoints[(index + 1) % floorPoints.length];
+        if(existingWallEdge(item.plan,start,end))return;
         addBeam(seamTarget, [start.x - cx, elevation + 0.035, start.y - cy], [end.x - cx, elevation + 0.035, end.y - cy], 0.065, timber);
       });
     };
@@ -213,7 +216,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
     };
     if (roofShape === 'flat') {
       const roof = new THREE.Mesh(new THREE.ShapeGeometry(outline), roofMat);
-      roof.rotation.x = -Math.PI / 2;
+      roof.rotation.x = Math.PI / 2;
       roof.position.y = top + 0.1;
       groups.roof.add(roof);
       for (let x = minX + rafterStep, count = 0; x < maxX && count < 120; x += rafterStep, count++) {
@@ -290,7 +293,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
       }
     } else {
       const roof = new THREE.Mesh(new THREE.ShapeGeometry(outline), roofMat);
-      roof.rotation.x = -Math.PI / 2;
+      roof.rotation.x = Math.PI / 2;
       roof.position.y = top + 0.15;
       groups.roof.add(roof);
       for (let x = minX + rafterStep, count = 0; x < maxX && count < 120; x += rafterStep, count++) {
