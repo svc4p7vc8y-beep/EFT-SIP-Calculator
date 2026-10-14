@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {roofFacet} from '../src/react/calculations/roof-project.js';
-import {roofPanelCapacityChecks,roofFaceCapacitySignature} from '../src/react/calculations/roof-panel-capacity.js';
+import {roofPanelCapacityChecks,roofFaceCapacitySignature,roofLoadCasePressure} from '../src/react/calculations/roof-panel-capacity.js';
 import {createDefaultProject,migrateProject} from '../src/react/state/project-model.js';
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
 import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
@@ -24,6 +24,21 @@ test('a shorter project span needs a recorded support reason',()=>{
  assert.equal(roofPanelCapacityChecks(model,signed).at(-1).status,'pass');
  const changed=roofFacet('С1','Тёплый скат',[[0,0,3000],[4000,0,3000],[4000,2100,4050],[0,2100,4050]],{warm:true,thickness:174});
  assert.equal(roofPanelCapacityChecks({faces:[changed]},signed).at(-1).status,'open');
+});
+test('load case can calculate from documented components or retain a manual pressure',()=>{
+ const downward={...engineering.loadCases[0],mode:'components',deadFactor:1.1,snowFactor:1.4,windFactor:''},base={deadLoad:.5,snow:1.2,wind:''};
+ assert.ok(Math.abs(roofLoadCasePressure(downward,base)-2.23)<1e-12);
+ assert.equal(roofPanelCapacityChecks(model,{...engineering,loadCases:[downward]},base).at(-1).status,'fail');
+ assert.equal(roofLoadCasePressure(downward,{...base,snow:''}),null);
+ const uplift={...downward,kind:'uplift',deadFactor:.9,snowFactor:0,windFactor:-1.4};
+ assert.ok(Math.abs(roofLoadCasePressure(uplift,{...base,wind:1})-.95)<1e-12);
+ assert.equal(roofPanelCapacityChecks(model,{...engineering,loadCases:[uplift]}, {...base,wind:1}).at(-1).status,'pass');
+ assert.equal(roofLoadCasePressure({...uplift,windFactor:1.4},{...base,wind:1}),null);
+ assert.equal(roofLoadCasePressure({...downward,mode:'manual'},base),1.2);
+ const project=createDefaultProject(),design=project.settings.productionCutting.roofDesign;
+ design.deadLoad=.5;design.snow=1.2;design.engineering={...engineering,loadCases:[downward]};
+ const reopened=migrateProject(JSON.parse(JSON.stringify(project))).settings.productionCutting.roofDesign;
+ assert.ok(Math.abs(roofLoadCasePressure(reopened.engineering.loadCases[0],reopened)-2.23)<1e-12);
 });
 test('engineering inputs survive JSON migration and failed capacity blocks release without changing estimate',()=>{
  const p=createDefaultProject();p.settings.roof.type='sip';p.settings.productionCutting.roofDesign.enabled=true;

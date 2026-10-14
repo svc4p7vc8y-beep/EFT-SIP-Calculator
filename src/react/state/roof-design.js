@@ -8,7 +8,7 @@ export function normalizeRoofDesign(value={}){
  edgeProfiles:Object.fromEntries(Object.entries(records(v.edgeProfiles)).slice(0,300).map(([id,p])=>[id,text(p).replace(/[хx]/g,'×')])),
  edgeGeometry:Object.fromEntries(Object.entries(records(v.edgeGeometry)).slice(0,300).map(([id,p])=>[id,text(p)])),
  engineering:{
-  loadCases:Array.isArray(v.engineering?.loadCases)?v.engineering.loadCases.slice(0,20).filter(item=>item&&typeof item==='object').map((item,i)=>({id:text(item.id)||`Н${i+1}`,name:text(item.name),kind:item.kind==='uplift'?'uplift':'downward',pressureKPa:number(item.pressureKPa),source:text(item.source)})):[],
+  loadCases:Array.isArray(v.engineering?.loadCases)?v.engineering.loadCases.slice(0,20).filter(item=>item&&typeof item==='object').map((item,i)=>({id:text(item.id)||`Н${i+1}`,name:text(item.name),kind:item.kind==='uplift'?'uplift':'downward',pressureKPa:number(item.pressureKPa),source:text(item.source),...(item.mode==='components'?{mode:'components',deadFactor:number(item.deadFactor),snowFactor:number(item.snowFactor),windFactor:number(item.windFactor)}:{})})):[],
   panelCapacities:Array.isArray(v.engineering?.panelCapacities)?v.engineering.panelCapacities.slice(0,100).filter(item=>item&&typeof item==='object').map((item,i)=>({id:text(item.id)||`П${i+1}`,thicknessMm:number(item.thicknessMm),maxSpanMm:number(item.maxSpanMm),downwardKPa:number(item.downwardKPa),upliftKPa:number(item.upliftKPa),source:text(item.source)})):[],
   spanOverrides:Object.fromEntries(Object.entries(records(v.engineering?.spanOverrides)).slice(0,100).map(([id,item])=>[id,{spanMm:number(item?.spanMm),reason:text(item?.reason),geometry:text(item?.geometry)}])),
  },

@@ -26,7 +26,7 @@ export function roofChecks(project,assembly){
  for(const feature of d.features||[]){const hits=model&&[feature.x,feature.y].every(Number.isFinite)?roofAt(model,feature.x,feature.y):[];add(`FEATURE:${feature.id}`,hits?.some(h=>h.face.id===feature.faceId)&&!!feature.nodeRef?.trim(),`${feature.name||feature.id}: точка внутри своего ската и рабочий узел`,'Кровля: проект → элементы');}
  for(const f of d.features||[])if(f.type==='penetration')add(`OPENING:${f.id}`,false,`${f.id}: обозначение проходки не задаёт вырез и обрамление; внесите согласованный раскрой и узел`,'Кровля: проект → проектные элементы / ручные детали');
  if(model?.faces.length===0)add('SURFACES',false,'Нет корректных проектных скатов','Кровля: проект → геометрия');
- for(const check of roofPanelCapacityChecks(model,d.engineering))checks.push({...check,path:'Кровля: проект → паспортная проверка SIP'});
+ for(const check of roofPanelCapacityChecks(model,d.engineering,d))checks.push({...check,path:'Кровля: проект → паспортная проверка SIP'});
  return checks;
 }
 function calculationCoverNeeded(project){return project.settings.roof.includeCovering!==false;}
