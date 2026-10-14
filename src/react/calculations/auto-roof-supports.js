@@ -1,6 +1,10 @@
 import { productionLevels } from './production-levels.js';
 import { productionScene } from './production-scene.js';
 import {roofAt} from './roof-project.js';
+import {facetSupportProposal,roofSupportOpeningAt} from './roof-facet-supports.js';
+import {houseContourPoints} from '../planner/geometry.js';
+import {roofTrussTemplate} from './roof-truss-template.js';
+import {roofGeometrySignature} from './roof-detailing.js';
 
 import { AUTO_ROOF_LAYOUT,normalizeAutoRoofSupports } from '../state/auto-roof-supports.js';
 export { AUTO_ROOF_LAYOUT,ROOF_SUPPORT_VARIANTS,normalizeAutoRoofSupports } from '../state/auto-roof-supports.js';
@@ -23,9 +27,11 @@ export function generateRoofSupportLayout(project,report,value) {
   const fail=message=>({items:[],errors:[message],warnings,counts:{purlins:0,posts:0}});
   if(!project.services.roof)return fail('Кровля отключена в параметрах проекта.');
   const floor=a.floors.at(-1),ring=floor?.contour||[];
-  if(ring.length!==4||new Set(ring.map(p=>p.join(','))).size!==4||!ring.every((p,i)=>{const q=ring[(i+1)%4];return p.every(Number.isFinite)&&(p[0]===q[0]||p[1]===q[1]);}))return fail('Автосхема доступна для прямоугольного контура. Для сложной крыши разместите прогоны вручную.');
-  if(!['gable','flat','tiered'].includes(a.roofShape)||a.rafterSystem==='truss')return fail('Для этой конструкции кровли требуется ручная проектная схема опор.');
-  if(a.roofShape==='flat'&&project.settings.roof.flatSlopeMode==='tapered')return fail('Разуклонка не задаёт наклон несущей конструкции. Сначала укажите конструктивную схему кровли.');
+  const rectangular=ring.length===4&&new Set(ring.map(p=>p.join(','))).size===4&&ring.every((p,i)=>{const q=ring[(i+1)%4];return p.every(Number.isFinite)&&(p[0]===q[0]||p[1]===q[1]);});
+  if(!rectangular){const savedContour=houseContourPoints(project.upperFloors?.at(-1)||project.plan).map(p=>[Math.round(p.x*1000),Math.round(p.y*1000)]);if(ring.length!==savedContour.length||ring.some(p=>!savedContour.some(q=>Math.hypot(p[0]-q[0],p[1]-q[1])<1)))return fail('Контур расчёта и план проекта не совпадают. Пересчитайте кровлю перед авторасстановкой.');}
+  if(a.rafterSystem==='truss'||project.settings.roof.structureMode==='manual'&&project.settings.roof.rafterSystem==='truss')return roofTrussTemplate(project,report,config);
+  if(a.roofShape==='flat'&&project.settings.roof.flatSlopeMode!=='structural')return facetSupportProposal(project,report,config,{groups:config.includePlatforms?'all':'main'});
+  if(!rectangular||!['gable','flat','tiered'].includes(a.roofShape))return facetSupportProposal(project,report,config,{groups:config.includePlatforms?'all':'main'});
   if(!section(config.purlinProfile)||!section(config.postProfile))return fail('Задайте положительные проектные сечения прогонов и стоек.');
   if(config.distribution==='uniform'&&(!Number.isInteger(config.postCount)||config.postCount<2||config.postCount>30))return fail('Количество стоек на прогон: целое число от 2 до 30.');
   const roofBase=a.roofDrawing?.model?a.roofModel.roofBase:productionLevels(project,a.floors.length).roofBase,baseZ=config.baseZ===''?roofBase:config.baseZ;
@@ -64,16 +70,24 @@ export function generateRoofSupportLayout(project,report,value) {
     }else positions=Array.from({length:config.postCount},(_,i)=>i/(config.postCount-1));
     const posts=positions.map((t,i)=>{
       const [x,y]=xy(length*t).map(Math.round),topZ=Math.round(z+(zEnd-z)*t);
+      if(roofSupportOpeningAt(project,x,y,config.postProfile)){errors.push(`Прогон ${index+1}: стойка ${i+1} попадает на проём. Измените схему опирания или положение стойки.`);return null;}
       if(topZ<=baseZ){errors.push(`Прогон ${index+1}: нижняя отметка стойки должна быть ниже прогона.`);return null;}
       return {id:`${beamId}-s${i+1}`,type:'post',name:`Стойка ${index+1}.${i+1}`,profile:config.postProfile,nodeRef:config.nodeRef,
         x1:x,y1:y,z1:baseZ,x2:x,y2:y,z2:topZ,upperSupport:beamId,startSupport:'',endSupport:'',foundationRef:'',autoLayout:AUTO_ROOF_LAYOUT,
         estimateCatalogId:config.postCatalogId,estimateEnabled:config.estimateEnabled&&!!config.postCatalogId};
     }).filter(Boolean);
+    if(posts.length<2){errors.push(`Прогон ${index+1}: осталось менее двух допустимых стоек.`);continue;}
     const beam={id:beamId,type:'purlin',name:`Прогон ${index+1}`,profile:config.purlinProfile,nodeRef:config.nodeRef,x1:start[0],y1:start[1],z1:Math.round(z),x2:end[0],y2:end[1],z2:Math.round(zEnd),startSupport:posts[0]?.id||'',endSupport:posts.at(-1)?.id||'',foundationRef:'',autoLayout:AUTO_ROOF_LAYOUT,
       estimateCatalogId:config.purlinCatalogId,estimateEnabled:config.estimateEnabled&&!!config.purlinCatalogId};
     items.push(beam,...posts);
   }
+  if(config.includePlatforms&&a.roofModel.faces.some(face=>face.group!=='main')){
+    const extra=facetSupportProposal(project,report,config,{groups:'platforms'});
+    items.push(...extra.items);warnings.push(...extra.warnings);
+    errors.push(...extra.errors);
+  }
   if(items.length>200)errors.push('Автосхема превышает ограничение 200 элементов. Уменьшите количество стоек.');
+  for(const item of items)item.roofSourceKey=roofGeometrySignature(a.roofModel);
   warnings.push('Расстановка геометрическая: крайние стойки и промежуточные опоры не подтверждают передачу нагрузки к фундаменту. Нижние опоры, сечения, осевые отметки и рабочие узлы проверить по проекту.');
   if(errors.length)return {items:[],errors,warnings,counts:{purlins:0,posts:0}};
   const counts={purlins:items.filter(i=>i.type==='purlin').length,posts:items.filter(i=>i.type==='post').length};

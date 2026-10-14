@@ -1,6 +1,7 @@
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { bearingEdges } from './bearing-walls.js';
 import { roofDrawingData } from './roof-drawings.js';
+import {roofGeometrySignature} from './roof-detailing.js';
 import { sourceIdentity } from '../state/production-identities.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { roofAxonometricLines } from './roof-drawings.js';
@@ -165,6 +166,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   assembly.roofShape=roof.mainRoofShape;
   assembly.roofGeometry=g;
   assembly.roofModel=roofProject(project,calculation,assembly);
+  const roofSourceKey=roofGeometrySignature(assembly.roofModel);
+  for(const item of settings.roofSupports)if(item.roofSourceKey&&item.roofSourceKey!==roofSourceKey)issues.push(`${item.name||item.id}: кровля изменилась после авторасстановки. Проверьте координаты, опирание и повторите расстановку; ручная правка сохранена.`);
   const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
   assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable;
   if(plainSipGable&&!settings.roofDesign.enabled){

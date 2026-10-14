@@ -63,8 +63,9 @@ export function productionScene(report,project,{includePlatforms=report.settings
   };
   const beams=[...roofAxonometricLines(assembly).map(m=>({...m,layer:'rafters',endCutOutline:report.settings.rafterEndCuts?rafterEndOutline(m.a,m.b,Number(m.profile.split(/[×xх]/)[1]))?.outline:null,a:[m.a[0],m.a[1],m.a[2]+roofBase],b:[m.b[0],m.b[1],m.b[2]+roofBase]})),
     ...(assembly.roofTimbers||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'roofTimbers')),...(assembly.laths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'laths')),...(assembly.counterLaths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'counterLaths')),
-    ...assembly.supports.filter(m=>!m.referenceOnly).map(m=>({...m,id:m.mark,layer:'supports'})),...binding];
+    ...assembly.supports.filter(m=>!m.referenceOnly||m.trussTemplate).map(m=>({...m,id:m.mark,layer:m.trussTemplate?'trussTemplates':'supports'})),...binding];
   const platforms=includePlatforms?(assembly.platforms||[]):[];
+  const coldRoofSurfaces=(assembly.roofModel?.faces||[]).filter(f=>f.group==='main'&&!panels.some(p=>p.faceId===f.id)).map(f=>({id:f.id,faceId:f.id,layer:'roofSurface',shape:[f.polygon],placement:{origin:f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
   const platformPanels=platforms.flatMap(p=>{
     const placement={origin:[0,0,p.deckZ-p.thickness/2],u:[1,0,0],v:[0,1,0],normal:[0,0,1],layer:'platforms'};
     const deck={id:`platform:${p.id}:deck`,layer:'platforms',shape:[p.contour],placement,thickness:p.thickness,timber:true,referenceOnly:true};
@@ -76,5 +77,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const platformFaceIds=new Set((assembly.platforms||[]).flatMap(p=>p.faces.map(f=>f.id)));
   const visible=item=>includePlatforms||!(platformFaceIds.has(item.faceId)||String(item.placement?.layer)==='roof'&&platformFaceIds.has(item.surfaceId));
   const foundation=foundationGeometry(report,project,includePlatforms);
-  return {panels:[...panels.filter(visible),...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true}))],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true}))],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
 }

@@ -1,7 +1,7 @@
 import {roofHeight} from '../calculations/roof-project.js';
 const pts=p=>p.map(a=>a.slice(0,2).join(',')).join(' ');
 const names={ridge:'Конёк',hip:'Ребро',valley:'Ендова',eave:'Карниз',verge:'Торец',joint:'Стык'};
-export function RoofProjectDrawing({model,selected='',onSelect,onPlace,features=[],layers={}}){
+export function RoofProjectDrawing({model,selected='',onSelect,onPlace,features=[],layers={},supports=[],selectedSupport='',onSelectSupport}){
  if(!model?.faces.length)return <p>Скаты не сформированы. Проверьте контур или задайте проектные вершины XYZ.</p>;
  const all=model.faces.flatMap(f=>f.vertices),xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y,size=Math.max(w,h),pad=size*.17,font=size*.035;
  const place=e=>{if(!onPlace)return;const svg=e.currentTarget,p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const local=p.matrixTransform(svg.getScreenCTM().inverse());onPlace([Math.round(local.x),Math.round(local.y)]);};
@@ -10,6 +10,7 @@ export function RoofProjectDrawing({model,selected='',onSelect,onPlace,features=
   {layers.edges!==false?model.edges.map(e=><g key={e.id}><line x1={e.a[0]} y1={e.a[1]} x2={e.b[0]} y2={e.b[1]} stroke={e.kind==='valley'?'#2172a0':'#000'} strokeWidth={['ridge','hip','valley'].includes(e.kind)?1.5:.5} strokeDasharray={e.kind==='valley'?'6 3':undefined} vectorEffect="non-scaling-stroke"/>{layers.labels!==false?<text x={(e.a[0]+e.b[0])/2} y={(e.a[1]+e.b[1])/2-font*.45} fontSize={font*.6} textAnchor="middle" paintOrder="stroke" stroke="#fff" strokeWidth={font*.12}>{e.id} · {names[e.kind]} · {Math.round(e.length)}</text>:null}</g>):null}
   {layers.levels!==false?all.filter((p,i)=>all.findIndex(q=>q.join(',')===p.join(','))===i).map((p,i)=><text key={i} x={p[0]+font*.15} y={p[1]+font} fontSize={font*.6}>Z {Math.round(p[2])}</text>):null}
   {features.map(f=><g key={f.id}><circle cx={f.x} cy={f.y} r={font*.45} fill="#fff" stroke="#000" vectorEffect="non-scaling-stroke"/><text x={f.x+font*.65} y={f.y} fontSize={font*.7}>{f.id}</text></g>)}
+  {layers.supports!==false?supports.map(s=><g key={s.id} role={onSelectSupport?'button':undefined} tabIndex={onSelectSupport?0:undefined} aria-label={`${s.mark} ${s.name}`} onClick={event=>{if(!onPlace){event.stopPropagation();onSelectSupport?.(s.mark);}}} onKeyDown={event=>{if(event.key==='Enter')onSelectSupport?.(s.mark);}}><line x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke={selectedSupport===s.mark?'#087748':s.trussTemplate?'#b37939':'#a65b24'} strokeDasharray={s.referenceOnly?'6 4':undefined} strokeWidth="2" vectorEffect="non-scaling-stroke"/><circle cx={s.a[0]} cy={s.a[1]} r={font*.18} fill="#a65b24"/><text x={(s.a[0]+s.b[0])/2} y={(s.a[1]+s.b[1])/2-font*.3} fontSize={font*.7} textAnchor="middle">{s.mark}</text><title>{`${s.name} · ${s.profile} · ${s.nodeRef||'узел не задан'}`}</title></g>):null}
   {layers.dimensions!==false?<><line x1={x} y1={y+h+pad*.5} x2={x+w} y2={y+h+pad*.5} stroke="#000" vectorEffect="non-scaling-stroke"/><text x={x+w/2} y={y+h+pad*.45} fontSize={font} textAnchor="middle">{Math.round(w)} мм</text><text x={x-pad*.6} y={y+h/2} fontSize={font} transform={`rotate(-90 ${x-pad*.6} ${y+h/2})`} textAnchor="middle">{Math.round(h)} мм</text></>:null}
  </svg>;
 }

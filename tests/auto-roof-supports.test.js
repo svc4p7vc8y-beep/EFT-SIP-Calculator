@@ -29,12 +29,12 @@ test('bearing intersection preset deduplicates shared wall endpoints and adds ed
 });
 test('invalid dimensions, trusses, complex footprints and tapered insulation cannot fake a support model',()=>{
  const p=base(),r=run(p);for(const config of [{postCount:1},{postCount:2.5},{postCount:100},{purlinProfile:''},{baseZ:100000}])assert.ok(generateRoofSupportLayout(p,r,config).errors.length);
- r.assembly.rafterSystem='truss';assert.equal(generateRoofSupportLayout(p,r,{}).items.length,0);r.assembly.rafterSystem='hanging';r.assembly.floors.at(-1).contour.push([1,1]);assert.ok(generateRoofSupportLayout(p,r,{}).errors.length);
+ r.assembly.rafterSystem='truss';const truss=generateRoofSupportLayout(p,r,{});assert.ok(truss.items.length>0);assert.ok(truss.items.every(item=>item.trussTemplate&&item.referenceOnly&&!item.estimateEnabled));r.assembly.rafterSystem='hanging';r.assembly.floors.at(-1).contour.push([1,1]);assert.ok(generateRoofSupportLayout(p,r,{}).errors.length);
 });
 test('single-slope structural and tiered roofs use existing sections, not a new pitch formula',()=>{
  const p=base();p.settings.roof.shape='flat';p.settings.roof.flatSlopeMode='structural';p.settings.roof.flatSlopePercent=5;
  let r=run(p),a=generateRoofSupportLayout(p,r,{baseZ:2000});assert.deepEqual(a.errors,[]);assert.ok(a.items.filter(i=>i.type==='post').every(i=>i.z2>2000));
- p.settings.roof.flatSlopeMode='tapered';r=run(p);assert.ok(generateRoofSupportLayout(p,r,{}).errors.length);
+ p.settings.roof.flatSlopeMode='tapered';r=run(p);const tapered=generateRoofSupportLayout(p,r,{});assert.deepEqual(tapered.errors,[]);assert.ok(tapered.items.filter(i=>i.type==='purlin').every(i=>i.z1===r.assembly.roofModel.roofBase&&i.z2===i.z1));
  p.settings.roof.shape='tiered';p.settings.roof.type='cold';r=run(p);a=generateRoofSupportLayout(p,r,{variant:'double',baseZ:2000});assert.deepEqual(a.errors,[]);assert.equal(a.counts.purlins,2);
 });
 test('warm gable roof places supports using SIP panel planes when rafters are absent',()=>{
