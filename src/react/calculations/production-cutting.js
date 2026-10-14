@@ -945,7 +945,7 @@ export function calculateProductionCutting(project, calculation) {
   report.constructionSourceRequests=[...new Map(surfaces.filter(s=>s.sourceIdentityStatus==='needs-registration').map(s=>[`${s.floor}:${s.sourceRole}`,s.floor===1?s.sourceRole:{floor:s.floor,role:s.sourceRole}])).values()];
   report.roofCover=roofCover;
   report.roofChecks=roofChecks(project,assembly);
-  if(settings.roofDesign.enabled)for(const check of report.roofChecks.filter(c=>c.status==='open'))issue(`ROOF_CHECK:${check.code}`,`${check.message}. Где исправить: ${check.path}`);
+  if(settings.roofDesign.enabled)for(const check of report.roofChecks.filter(c=>c.status==='open'||c.status==='fail'))issue(`ROOF_CHECK:${check.code}`,`${check.message}. Где исправить: ${check.path}`);
   report.ceilingSupportChecks=surfaces.filter(s=>s.horizontal&&s.supportFloor).flatMap(s=>members.filter(m=>m.surfaceId===s.id&&m.seam&&!m.excluded).map(m=>connectorSupportCheck(m,s,plans[s.supportFloor-1],settings)));
   report.partitionFasteners=(calculation.lines||[]).filter(l=>/^(?:sip-)?partitions(?:SecondFloor)?$/.test(l.source)&&/саморез|крепёж|скоб/i.test(l.name)&&l.kind!=='labor').map(l=>({id:l.id,name:l.name,unit:l.unit,qty:l.qty,catalogId:l.catalogId}));
   report.fabricationMembers=fabrication.pieces;

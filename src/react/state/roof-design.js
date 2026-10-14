@@ -7,6 +7,11 @@ export function normalizeRoofDesign(value={}){
  faceOverrides:Object.fromEntries(Object.entries(records(v.faceOverrides)).slice(0,100).map(([id,r])=>[id,{...(typeof r?.warm==='boolean'?{warm:r.warm}:{}),...(r?.thickness!=null?{thickness:Number(r.thickness)}:{}),...(typeof r?.nodeRef==='string'?{nodeRef:text(r.nodeRef)}:{})}])),
  edgeProfiles:Object.fromEntries(Object.entries(records(v.edgeProfiles)).slice(0,300).map(([id,p])=>[id,text(p).replace(/[хx]/g,'×')])),
  edgeGeometry:Object.fromEntries(Object.entries(records(v.edgeGeometry)).slice(0,300).map(([id,p])=>[id,text(p)])),
+ engineering:{
+  loadCases:Array.isArray(v.engineering?.loadCases)?v.engineering.loadCases.slice(0,20).filter(item=>item&&typeof item==='object').map((item,i)=>({id:text(item.id)||`Н${i+1}`,name:text(item.name),kind:item.kind==='uplift'?'uplift':'downward',pressureKPa:number(item.pressureKPa),source:text(item.source)})):[],
+  panelCapacities:Array.isArray(v.engineering?.panelCapacities)?v.engineering.panelCapacities.slice(0,100).filter(item=>item&&typeof item==='object').map((item,i)=>({id:text(item.id)||`П${i+1}`,thicknessMm:number(item.thicknessMm),maxSpanMm:number(item.maxSpanMm),downwardKPa:number(item.downwardKPa),upliftKPa:number(item.upliftKPa),source:text(item.source)})):[],
+  spanOverrides:Object.fromEntries(Object.entries(records(v.engineering?.spanOverrides)).slice(0,100).map(([id,item])=>[id,{spanMm:number(item?.spanMm),reason:text(item?.reason)}])),
+ },
  manualFaces:Array.isArray(v.manualFaces)?v.manualFaces.slice(0,100).filter(f=>f&&typeof f==='object').map((f,i)=>({id:text(f.id)||`КР-Р${i+1}`,name:text(f.name)||`Проектный скат ${i+1}`,group:text(f.group)||'main',warm:f.warm===true,thickness:number(f.thickness),nodeRef:text(f.nodeRef),vertices:Array.isArray(f.vertices)?f.vertices.slice(0,200).map(p=>Array.isArray(p)?p.slice(0,3).map(Number):[]):[]})):[],
  features:Array.isArray(v.features)?v.features.slice(0,200).filter(f=>f&&typeof f==='object').map((f,i)=>({id:text(f.id)||`КЭ${i+1}`,type:['drain','penetration','snow','joint'].includes(f.type)?f.type:'drain',faceId:text(f.faceId),x:number(f.x),y:number(f.y),nodeRef:text(f.nodeRef),name:text(f.name)})):[]};
 }
