@@ -31,6 +31,20 @@ test('tapered warm roof has horizontal structure, separate inclined covering and
 test('legacy default remains unchanged and new parameters migrate without changing prices',()=>{const p=createDefaultProject(),c=calculateProject(p),r=run(p);assert.equal(p.settings.productionCutting.roofDesign.enabled,false);assert.equal(r.assembly.rafters.length,30);const next=migrateProject(JSON.parse(JSON.stringify(p)));assert.equal(calculateProject(next).totals.total,c.totals.total);assert.equal(next.settings.productionCutting.roofDesign.enabled,false);});
 test('warm facets use master placement, true area and stable technical IDs',()=>{const p=fixture();p.settings.roof.type='sip';const r=run(p);assert.equal(r.assembly.rafters.length,0);const s=r.surfaces.filter(s=>s.roofFaceId);assert.equal(s.length,2);assert.ok(s.every(s=>s.roofPlacement.id===s.id));const scene=productionScene(r,p);assert.ok(scene.panels.filter(p=>p.layer==='roof').length>0);});
 test('invalid manual facets reject nonplanar, crossing, vertical and infinite coordinates',()=>{for(const pts of [[[0,0,0],[2000,0,0],[2000,2000,0],[0,2000,100]],[[0,0,0],[2000,2000,0],[0,2000,0],[2000,0,0]],[[0,0,0],[0,0,100],[0,100,100]],[[0,0,0],[Infinity,0,0],[0,100,100]]])assert.throws(()=>roofFacet('Р1','Скат',pts));});
+test('manual facet rejects a retraced edge but keeps a forward collinear layout point',()=>{
+ const retraced=[[0,0,0],[2000,0,0],[1000,0,0],[2000,2000,0],[0,2000,0]];
+ assert.throws(()=>roofFacet('Р1','Скат',retraced),/самопересечение/);
+ const valid=[[0,0,0],[1000,0,0],[2000,0,0],[2000,2000,0],[0,2000,0]];
+ assert.equal(roofFacet('Р1','Скат',valid).projectedArea,4);
+});
+test('retraced manual face is excluded from production and blocks roof approval',()=>{
+ const p=fixture();p.settings.productionCutting.roofDesign.manualFaces=[{id:'Р1',name:'Скат',vertices:[[0,0,0],[2000,0,0],[1000,0,0],[2000,2000,0],[0,2000,0]]}];
+ const r=run(p);
+ assert.equal(r.assembly.roofModel.faces.length,0);
+ assert.ok(r.assembly.roofModel.issues.some(i=>i.code==='ROOF_FACE'&&i.target==='Р1'));
+ assert.ok(r.issues.some(i=>i.code==='ASSEMBLY'&&i.message.includes('самопересечение границы ската')));
+ assert.equal(r.approvalStatus,'draft');
+});
 test('manual geometry diagnoses gaps, overlaps, duplicate marks and missing face geometry',()=>{
  const p=fixture();const face={id:'Р1',name:'Малый скат',vertices:[[0,0,3000],[1000,0,3000],[1000,1000,3100],[0,1000,3100]],warm:false};p.settings.productionCutting.roofDesign.manualFaces=[face,{...face,id:'Р2'},{...face}];const r=run(p);assert.ok(r.issues.some(i=>i.message.includes('не закрывает')));assert.ok(r.issues.some(i=>i.message.includes('перекрываются')));assert.ok(r.issues.some(i=>i.message.includes('повторная марка')));
 });

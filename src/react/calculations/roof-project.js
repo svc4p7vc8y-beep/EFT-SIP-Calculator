@@ -24,7 +24,9 @@ export function roofFacet(id,name,vertices,extra={}){
  const v=unit(cross(normal,u)),polygon=clean.map(p=>[roofDot(sub(p,origin),u),roofDot(sub(p,origin),v)]);
  const area=polygonArea(polygon)/1e6,projectedArea=polygonArea(clean.map(p=>p.slice(0,2)))/1e6;
  const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
- for(let i=0;i<polygon.length;i++)for(let j=i+2;j<polygon.length;j++){if(i===0&&j===polygon.length-1)continue;const a=polygon[i],b=polygon[(i+1)%polygon.length],c=polygon[j],d=polygon[(j+1)%polygon.length];if(orient(a,b,c)*orient(a,b,d)<0&&orient(c,d,a)*orient(c,d,b)<0)throw new Error(`${name}: самопересечение границы ската.`);}
+ const onSegment=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(length*length);return t>=-.000001&&t<=1.000001&&Math.abs(orient(a,b,p))/length<.001;};
+ for(let i=0;i<polygon.length;i++){const a=polygon[i],b=polygon[(i+1)%polygon.length],c=polygon[(i+2)%polygon.length],dx=b[0]-a[0],dy=b[1]-a[1],nextX=c[0]-b[0],nextY=c[1]-b[1];if(Math.abs(orient(a,b,c))/Math.hypot(dx,dy)<.001&&dx*nextX+dy*nextY<0)throw new Error(`${name}: самопересечение границы ската.`);}
+ for(let i=0;i<polygon.length;i++)for(let j=i+2;j<polygon.length;j++){if(i===0&&j===polygon.length-1)continue;const a=polygon[i],b=polygon[(i+1)%polygon.length],c=polygon[j],d=polygon[(j+1)%polygon.length];if(orient(a,b,c)*orient(a,b,d)<0&&orient(c,d,a)*orient(c,d,b)<0||onSegment(c,a,b)||onSegment(d,a,b)||onSegment(a,c,d)||onSegment(b,c,d))throw new Error(`${name}: самопересечение границы ската.`);}
  if(area<.000001)throw new Error(`${name}: нулевая площадь.`);
  return {id,name,vertices:clean,origin,u,v,normal,polygon,area,projectedArea,slopePercent:100*Math.hypot(normal[0],normal[1])/normal[2],angle:Math.acos(Math.min(1,normal[2]))*180/Math.PI,...extra};
 }
