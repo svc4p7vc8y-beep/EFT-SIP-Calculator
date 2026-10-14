@@ -1,6 +1,7 @@
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from './floor-height.js';
 import { partitionRuns } from '../react/planner/geometry.js';
 import clipping from 'polygon-clipping';
+import { existingWallLength } from '../react/planner/existing-building.js';
 const DEFAULT_TOLERANCE = 0.04;
 
 const round = (value, digits = 3) => {
@@ -207,7 +208,7 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
   const houseContour = houseContourPoints(plan);
   const contourDefined = plan.house.contourDefined !== false;
   const perimeter = contourDefined
-    ? Math.max(0, polygonPerimeter(houseContour) + extensionPerimeterDelta)
+    ? Math.max(0, polygonPerimeter(houseContour) + extensionPerimeterDelta - existingWallLength(plan))
     : 0;
   const floorArea = contourDefined ? polygonArea(houseContour) + extensionArea : 0;
   openCeilingArea = Math.min(floorArea, openCeilingArea);

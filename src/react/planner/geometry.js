@@ -1,6 +1,7 @@
 import { normalizeStairDirection } from "./stair-steps.js";
 import clipping from 'polygon-clipping';
 import { gapFragments } from '../calculations/gap-fragments.js';
+import { existingWallEdge } from './existing-building.js';
 
 const EPS = 0.035;
 
@@ -111,6 +112,7 @@ export function collectSnapAxes(plan, excludeRoomId) {
       [0, wall, plan.house.h - wall, plan.house.h].forEach((y) => addPoint({ x, y }));
     });
   }
+  for (const point of plan.existingBuilding?.points || []) addPoint(point);
   for (const room of plan.rooms || []) {
     if (room.id === excludeRoomId || plan.layoutMode==='walls') continue;
     for (const point of roomPoints(room)) addPoint(point);
@@ -438,7 +440,7 @@ export function preservePlanAttachments(plan,before) {
 
 export function allOpeningSegments(plan) {
   const contour = houseContourPoints(plan);
-  const outerSegments = contour.map((point, index) => axialSegment(point, contour[(index + 1) % contour.length], { outer: true })).filter((segment) => segment.axis !== 'd');
+  const outerSegments = contour.map((point, index) => existingWallEdge(plan,point,contour[(index+1)%contour.length])?null:axialSegment(point, contour[(index + 1) % contour.length], { outer: true })).filter((segment) => segment && segment.axis !== 'd');
   const segments = [
     ...outerSegments,
     ...unifiedWallSegments(plan).filter((segment) => segment.axis !== 'd').map((segment) => ({ ...segment, outer: false })),

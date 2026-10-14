@@ -1,5 +1,6 @@
 import { boundsOf, houseContourPoints } from '../planner/geometry.js';
 import { exteriorHeight } from '../../calculations/floor-height.js';
+import { existingWallEdge } from '../planner/existing-building.js';
 
 // External house contour is never edited. Assembly lengths use a consistent
 // clockwise butt corner: horizontal runs through, vertical runs between them.
@@ -12,19 +13,20 @@ export function exteriorWallConstruction(plan, sip={}, roof={}, topFloor=true, e
   const riseAt=p=>slope*(direction==='left'?p.x-bounds.x:direction==='right'?bounds.x+bounds.w-p.x:direction==='front'?p.y-bounds.y:bounds.y+bounds.h-p.y);
   return points.map((a,i)=>{
     const b=points[(i+1)%points.length],prev=points[(i+points.length-1)%points.length],next=points[(i+2)%points.length];
+    if(existingWallEdge(plan,a,b))return null;
     const dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy),vertical=Math.abs(dx)<.001,horizontal=Math.abs(dy)<.001;
     const cross1=(a.x-prev.x)*dy-(a.y-prev.y)*dx,cross2=dx*(next.y-b.y)-dy*(next.x-b.x);
     const signedArea=points.reduce((s,p,j)=>s+p.x*points[(j+1)%points.length].y-p.y*points[(j+1)%points.length].x,0);
     // At a re-entrant corner the butting wall extends into the inner band.
     // Positive trim is a convex butt; negative trim is the concave extension.
-    const trimStart=vertical&&Math.abs(prev.y-a.y)<.001&&Math.abs(cross1)>1e-8?Math.sign(cross1*signedArea)*thickness:0;
-    const trimEnd=vertical&&Math.abs(next.y-b.y)<.001&&Math.abs(cross2)>1e-8?Math.sign(cross2*signedArea)*thickness:0;
+    const trimStart=!existingWallEdge(plan,prev,a)&&vertical&&Math.abs(prev.y-a.y)<.001&&Math.abs(cross1)>1e-8?Math.sign(cross1*signedArea)*thickness:0;
+    const trimEnd=!existingWallEdge(plan,b,next)&&vertical&&Math.abs(next.y-b.y)<.001&&Math.abs(cross2)>1e-8?Math.sign(cross2*signedArea)*thickness:0;
     const start={x:a.x+dx*(trimStart/(length||1)),y:a.y+dy*(trimStart/(length||1))};
     const end={x:b.x-dx*(trimEnd/(length||1)),y:b.y-dy*(trimEnd/(length||1))};
     return {index:i,a,b,start,end,externalLength:length,length:length-trimStart-trimEnd,trimStart,trimEnd,
       heightStart:base+riseAt(start),heightEnd:base+riseAt(end),baseHeight:base,
       needsCornerDetail:!vertical&&!horizontal,thickness};
-  });
+  }).filter(Boolean);
 }
 
 export function wallTrimLength(walls,panelWidth=1.25,panelLength=2.5) {

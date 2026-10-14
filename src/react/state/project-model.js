@@ -106,6 +106,8 @@ export function createDefaultPlan() {
     showPlan: true,
     showRoof: false,
     showDimensions: true,
+    existingBuilding: null,
+    attachment: null,
     rooms: [
       polygonRoom(
         "room-1",
@@ -302,6 +304,8 @@ export function createEmptyPlan() {
     showPlan: true,
     showRoof: false,
     showDimensions: true,
+    existingBuilding: null,
+    attachment: null,
     rooms: [],
     walls: [],
     wallGaps: [],
@@ -731,6 +735,12 @@ export function normalizePlan(plan) {
     ...fallback,
     ...plan,
     house,
+    existingBuilding: Array.isArray(plan.existingBuilding?.points) && plan.existingBuilding.points.length >= 3
+      ? { id: 'existing-1', referenceOnly: true, wallHeightMm: null, baseZMm: null, ...plan.existingBuilding }
+      : null,
+    attachment: plan.attachment?.wallMode === 'existing' && Array.isArray(plan.attachment.sharedEdges)
+      ? { ...plan.attachment, wallMode: 'existing' }
+      : null,
     floorType: plan.floorType === 'attic' ? 'attic' : 'regular',
     wallHeight: exteriorHeight(plan),
     partitionHeight: plan.floorType === 'attic' ? partitionHeight(plan) : exteriorHeight(plan),

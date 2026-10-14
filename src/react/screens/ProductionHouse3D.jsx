@@ -6,7 +6,7 @@ import { beamFrame } from '../calculations/beam-frame.js';
 import {assemblyPlatformView} from '../calculations/platform-assembly.js';
 import { Box,Frame,Scan,Layers,RotateCcw } from 'lucide-react';
 
-const layers={foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
+const layers={existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
 const vector=([x,y,z])=>new THREE.Vector3(x/1000,z/1000,-y/1000);
 const direction=([x,y,z])=>new THREE.Vector3(x,z,-y);
 function beamGeometry(item,width,depth,length){
@@ -31,7 +31,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
       const shape=new THREE.Shape();item.shape[0].forEach(([x,y],i)=>i?shape.lineTo(x/1000,y/1000):shape.moveTo(x/1000,y/1000));shape.closePath();
       for(const ring of item.shape.slice(1)){const hole=new THREE.Path();ring.forEach(([x,y],i)=>i?hole.lineTo(x/1000,y/1000):hole.moveTo(x/1000,y/1000));hole.closePath();shape.holes.push(hole);}
       const geo=new THREE.ExtrudeGeometry(shape,{depth:item.thickness/1000,bevelEnabled:false});geo.translate(0,0,-item.thickness/2000);
-      const color=item.layer==='foundation'?'#999':item.preview?'#e08c75':item.timber?'#ba9562':item.layer==='roof'?'#91adbf':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0});
+      const color=item.layer==='existingBuilding'?'#94a3b8':item.layer==='foundation'?'#999':item.preview?'#e08c75':item.timber?'#ba9562':item.layer==='roof'?'#91adbf':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0});
       const mesh=new THREE.Mesh(geo,material),p=item.placement;mesh.matrix.makeBasis(direction(p.u),direction(p.v),direction(p.normal));mesh.matrix.setPosition(vector(p.origin));mesh.matrixAutoUpdate=false;mesh.userData={id:item.preview?item.surfaceId:item.id,layer:item.layer,color};
       mesh.userData.panel=!item.timber;mesh.userData.preview=!!item.preview;
       mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:'#253229'})));model.add(mesh);meshes.push(mesh);
@@ -64,6 +64,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     {data.previews.length?<small role="alert">Красным показаны конструкции с ошибкой раскроя. Это контуры для проверки, не изготовленные панели; они не входят в производственную ведомость.</small>:null}
     {report.issues.filter(i=>['PARTITION_ROOF_INTERSECTION','SUPPORT_ROOF_INTERSECTION','GABLE_OPENING'].includes(i.code)).map(i=><small role="alert" key={`${i.code}:${i.target}`}>{i.message}</small>)}
     {data.platforms.length?<small>Терраса и крыльцо: настил 45×145, ступени и стойки — схема по плану. Отметка настила по умолчанию — уровень пола дома; лаги, косоуры, опирание и узлы требуют проекта. Схематические элементы не создают повторный заказ.</small>:null}
+    {project.plan?.existingBuilding?<small>Серым показан справочный контур существующего здания. При неизвестной высоте стены показаны низким контуром. В материалы и смету существующее здание не входит.</small>:null}
     {!project.services.terrace&&foundation.binding.some(m=>m.group==='platform')?<small>В основании учтены сохранённые площадки, хотя раздел «Терраса» отключён. Их обвязка показана без настила; состав основания настраивается в «Сваи» → «Учитывать террасы и крыльца».</small>:null}
   </section>;
 });

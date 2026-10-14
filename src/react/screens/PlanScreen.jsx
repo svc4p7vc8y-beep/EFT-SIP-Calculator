@@ -78,6 +78,7 @@ import {
 } from "../calculations/foundation-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { attachedHouseContour, shiftPlanContents } from '../planner/attached-contour.js';
+import { referenceBuildingContour, newHouseAtExistingCorner } from '../planner/existing-building.js';
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
 import { RoomNameField } from "../components/RoomNameField.jsx";
 import {
@@ -170,6 +171,7 @@ const TOOLS = [
   ["extension", "Пристройка-комната", HousePlus],
   ["polygon", "Комната свободной формы", Pentagon],
   ["houseContour", "Контур дома", Home],
+  ["existingContour", "Существующее здание", Home],
   ["attachedContour", "Открытый контур пристройки", HousePlus],
   ["wall", "Перегородка", BrickWall],
   ["gap", "Разрыв стены", Scissors],
@@ -205,6 +207,7 @@ function layoutFor(plan) {
     ...(plan.dimensions || []).flatMap(item => [{ x: item.x1, y: item.y1 }, { x: item.x2, y: item.y2 }]),
     ...(plan.annotations || []).flatMap(item => [{ x: item.x, y: item.y }, { x: item.targetX, y: item.targetY }]),
     ...(plan.rooms || []).filter(room => Number.isFinite(Number(room.labelX)) && Number.isFinite(Number(room.labelY))).map(room => ({ x: Number(room.labelX), y: Number(room.labelY) })),
+    ...(plan.existingBuilding?.points || []),
     ...getFloorOpenings(plan).filter(o=>Number.isFinite(Number(o.labelX))&&Number.isFinite(Number(o.labelY))).map(o=>({x:Number(o.labelX),y:Number(o.labelY)})),
   ];
   const bounds = extraPoints.reduce((result, point) => ({
@@ -1407,7 +1410,7 @@ function PlanCanvas({
       if (guide.axis === 'x') axes.xs.push(guide.target);
       else axes.ys.push(guide.target);
     }
-    if (["polygon", "houseContour", "attachedContour"].includes(tool) && polygonDraft.length) {
+    if (["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool) && polygonDraft.length) {
       polygonDraft.forEach((point) => {
         axes.xs.push(point.x);
         axes.ys.push(point.y);
@@ -1660,7 +1663,7 @@ function PlanCanvas({
       };
       return;
     }
-    if (["polygon", "houseContour", "attachedContour"].includes(tool)) {
+    if (["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool)) {
       if (tool!=="attachedContour" && shouldClosePolygon(polygonDraft, point)) {
         finishPolygon();
         return;
@@ -1954,6 +1957,8 @@ function PlanCanvas({
 
   const houseContour = houseContourPoints(shownPlan);
   const houseDefined = shownPlan.house?.contourDefined !== false;
+  const existingContour=shownPlan.existingBuilding?.points||[];
+  const existingBounds=existingContour.length>=3?boundsOf(existingContour):null;
   const houseBounds = boundsOf(houseContour);
   const topLeft = p(houseBounds.x, houseBounds.y);
   const bottomRight = p(houseBounds.x2, houseBounds.y2);
@@ -2177,6 +2182,10 @@ function PlanCanvas({
           </text>
         </g>
       ) : null}
+      {existingBounds && (visibleLayers.plan || visibleLayers.roof) ? <g className="existing-building-reference" pointerEvents="none">
+        <polygon points={existingContour.map(point=>{const q=p(point.x,point.y);return `${q.x},${q.y}`;}).join(' ')} fill="#cbd5e1" fillOpacity=".3" stroke="#64748b" strokeWidth="4" strokeDasharray="10 6" />
+        <text x={p(existingBounds.x+existingBounds.w/2,existingBounds.y+existingBounds.h/2).x} y={p(existingBounds.x+existingBounds.w/2,existingBounds.y+existingBounds.h/2).y} fill="#475569" textAnchor="middle">Существующее здание · справочно</text>
+      </g> : null}
       {visibleLayers.plan || visibleLayers.roof || visibleLayers.piles || visibleLayers.binding
         ? (shownPlan.platforms || []).map((platform) => {
             const q = p(platform.x, platform.y);
@@ -2393,7 +2402,7 @@ function PlanCanvas({
               strokeWidth: Math.max(0,outerWallWidth * 2 - 2),
             }}
           />
-          {selected?.type === "houseContour"
+          {selected?.type === "houseContour" && !shownPlan.attachment
             ? houseContour.map((point, index) => {
                 const q = p(point.x, point.y);
                 return (
@@ -2415,6 +2424,7 @@ function PlanCanvas({
             : null}
         </g>
       ) : null}
+      {(visibleLayers.plan || visibleLayers.roof) && shownPlan.attachment?.sharedEdges?.map((edge,index)=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y);return <line key={`existing-joint-${index}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#2563eb" strokeWidth="6" strokeDasharray="8 4" pointerEvents="none"><title>Существующая стена · в смету новой стены не входит</title></line>;})}
       {visibleLayers.plan
         ? unifiedWalls.map((segment, index) =>
             drawSegment(segment, `unified-${index}`),
@@ -2930,14 +2940,14 @@ function PlanCanvas({
       {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} selected={selectedGuideId===guide.id} active={tool === 'guide'} onPointerDown={(event) => { event.stopPropagation();if(event.button!==0)return;if(selectedGuideId!==guide.id){setSelectedGuideId(guide.id);return;}begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
       {gesture?.kind === 'temporaryGuide' && !gesture.guideId ? <TemporaryGuide guide={moveTemporaryGuide(gesture.guideBase, gesture.end)} p={p} active={false} /> : null}
       {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={VIEW.width - 183} y="55" width="171" height="31" rx="7" /><text x={VIEW.width - 98} y="76">Очистить направляющие</text></g> : null}
-      {["polygon", "houseContour", "attachedContour"].includes(tool) ? (
+      {["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool) ? (
         <DraftPolygonEdge
           points={polygonDraft}
           hoverPoint={hoverSnap?.point}
           p={p}
         />
       ) : null}
-      {hoverSnap?.snap && (DRAW_TOOLS.has(tool) || ["polygon", "houseContour", "attachedContour"].includes(tool)) ? (() => {
+      {hoverSnap?.snap && (DRAW_TOOLS.has(tool) || ["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool)) ? (() => {
         const q = p(hoverSnap.point.x, hoverSnap.point.y);
         return <g className="draft-alignment-guides" aria-label="Направляющие выравнивания">
           {hoverSnap.snap.matchedX ? <line x1={q.x} y1="0" x2={q.x} y2={VIEW.height} /> : null}
@@ -3407,6 +3417,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
   if (selected.type === "houseContour") {
     const contour = houseContourPoints(plan);
     const contourBounds = boundsOf(contour);
+    if(plan.attachment) return <div className="inspector-form"><h3>Новый дом у существующего угла</h3><div className="readout"><span>Площадь нового дома</span><strong>{formatNumber(polygonArea(contour))} м²</strong></div><div className="readout"><span>Используемые существующие стены</span><strong>{formatNumber(plan.attachment.sharedEdges.reduce((sum,edge)=>sum+Math.hypot(edge.b.x-edge.a.x,edge.b.y-edge.a.y),0))} м</strong></div><NumberField label="Высота существующих стен (0 — неизвестна)" value={(plan.existingBuilding?.wallHeightMm||0)/1000} suffix="м" min={0} step={0.01} onChange={value=>commitPlan(next=>{next.existingBuilding.wallHeightMm=Math.round(value*1000);})}/><NumberField label="Отметка низа существующих стен" value={(plan.existingBuilding?.baseZMm||0)/1000} suffix="м" min={-20} step={0.01} onChange={value=>commitPlan(next=>{next.existingBuilding.baseZMm=Math.round(value*1000);})}/><p className="inspector-note">Для изменения пятна нарисуйте открытый контур заново. Узлы примыкания, отметки и несущую способность существующих стен следует проверить в проекте.</p></div>;
     return (
       <div className="inspector-form">
         <h3>Внешний контур дома</h3>
@@ -4224,6 +4235,7 @@ const MOBILE_TOOLS = [
   ["extension", "Пристройка", HousePlus],
   ["polygon", "Свободная", Pentagon],
   ["houseContour", "Контур дома", Home],
+  ["existingContour", "Существующее здание", Home],
   ["attachedContour", "Пристройка контуром", HousePlus],
   ["wall", "Перегородка", BrickWall],
   ["gap", "Разрыв", Scissors],
@@ -4861,15 +4873,18 @@ function MobileSelectionAdjuster({
 
 function PlanLibraryThumbnail({ plan }) {
   const contour = houseContourPoints(plan);
-  const bounds = boundsOf(contour);
+  const host = plan.existingBuilding?.points || [];
+  const bounds = boundsOf([...contour,...host]);
   const padding = Math.max(bounds.w, bounds.h) * 0.08 || 0.5;
   const points = (items) => items.map((point) => `${point.x},${point.y}`).join(" ");
   return (
     <svg className="plan-library-thumbnail" viewBox={`${bounds.x - padding} ${bounds.y - padding} ${bounds.w + padding * 2} ${bounds.h + padding * 2}`} role="img" aria-label="Миниатюра плана">
       <defs><pattern id="library-grid" width="0.5" height="0.5" patternUnits="userSpaceOnUse"><path d="M .5 0 L 0 0 0 .5" fill="none" stroke="#dce7d8" strokeWidth="0.018" /></pattern></defs>
       <rect x={bounds.x - padding} y={bounds.y - padding} width={bounds.w + padding * 2} height={bounds.h + padding * 2} fill="url(#library-grid)" />
+      {host.length>=3?<polygon points={points(host)} fill="#cbd5e1" fillOpacity=".5" stroke="#64748b" strokeWidth="0.08" strokeDasharray="0.15 0.08" />:null}
       {(plan.rooms || []).map((room) => <polygon key={room.id} points={points(roomPoints(room))} fill="#f6f3dd" stroke="#75826f" strokeWidth="0.045" />)}
-      <polygon points={points(contour)} fill="none" stroke="#172018" strokeWidth="0.16" strokeLinejoin="round" />
+      {plan.house?.contourDefined!==false?<polygon points={points(contour)} fill="none" stroke="#172018" strokeWidth="0.16" strokeLinejoin="round" />:null}
+      {plan.attachment?.sharedEdges?.map((edge,i)=><line key={i} x1={edge.a.x} y1={edge.a.y} x2={edge.b.x} y2={edge.b.y} stroke="#2563eb" strokeWidth="0.1" />)}
       {(plan.walls || []).map((wall) => <line key={wall.id} x1={wall.x1} y1={wall.y1} x2={wall.x2} y2={wall.y2} stroke="#344238" strokeWidth="0.09" />)}
       {(plan.openings || []).map((opening) => <circle key={opening.id} cx={opening.x} cy={opening.y} r="0.11" fill={opening.type === "window" ? "#36a9c4" : "#d47a22"} />)}
     </svg>
@@ -4890,7 +4905,7 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
             const savedPlan = snapshot.plan || entry.plan;
             const settings = snapshot.settings || {};
             const floors = Math.max(1, Number(snapshot.meta?.floors) || 1);
-            const area = Math.abs(polygonArea(houseContourPoints(savedPlan)));
+            const area = savedPlan.house?.contourDefined===false?0:Math.abs(polygonArea(houseContourPoints(savedPlan)));
             const roofNames = { gable: "двухскатная", hip: "вальмовая", shed: "односкатная", flat: "плоская" };
             const partition = settings.sip?.partitionType === "sip"
               ? `SIP ${settings.sip.partitionThickness || 124} мм`
@@ -5255,6 +5270,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     });
   }, [libraryPlans, libraryOpen, project]);
   const selectTool = (id) => {
+    if (id === 'extension' && plan.existingBuilding) {
+      setTransferStatus('Для нового дома у существующего угла используйте открытый контур. «Пристройка-комната» добавит площадь повторно.');
+      return;
+    }
     if (id === "stairOpening" && floorCount < 2) {
       setStairSetupRequired(true);
       setTransferStatus("Лестничный проём относится к перекрытию второго этажа. Сначала добавьте этаж.");
@@ -5271,7 +5290,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     }
     setTool(id);
     if (id === "stairOpening") scrollToPlanCanvas();
-    if (!["polygon", "houseContour", "attachedContour"].includes(id)) setPolygonDraft([]);
+    if (!["polygon", "houseContour", "existingContour", "attachedContour"].includes(id)) setPolygonDraft([]);
     if (["pile", "pileRow"].includes(id)) {
       setActiveLayer("piles");
       if (plan.showPiles === false)
@@ -5341,8 +5360,26 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     setSheetMode("peek");
   }, []);
   const finishPolygon = () => {
+    if(tool==='existingContour'){
+      if(activeFloor!==1||plan.house.contourDefined!==false||plan.rooms?.length){setTransferStatus('Существующее здание задавайте на новом чистом плане первого этажа.');return;}
+      const result=referenceBuildingContour(polygonDraft);
+      if(result.error){setTransferStatus(result.error);return;}
+      commitPlan(next=>{next.existingBuilding=result.building;next.attachment=null;});
+      setPolygonDraft([]);setTool('attachedContour');
+      setTransferStatus('Существующее здание сохранено как справочный контур. Нарисуйте открытый контур нового дома от одной стены до соседней.');
+      return;
+    }
     if(tool==='attachedContour'){
       if(activeFloor!==1){setTransferStatus('Пристройку к основанию дома добавляйте на первом этаже.');return;}
+      if(plan.existingBuilding){
+        if(floorCount>1){setTransferStatus('Примыкание к существующему зданию сначала завершите на одном этаже.');return;}
+        const result=newHouseAtExistingCorner(plan,polygonDraft);
+        if(result.error){setTransferStatus(result.error);return;}
+        commitPlan(next=>{shiftPlanContents(next,result.shift);next.house.points=result.points;const bounds=boundsOf(result.points);next.house.w=roundCoord(bounds.w);next.house.h=roundCoord(bounds.h);next.house.contourDefined=true;next.existingBuilding=result.existingBuilding;next.attachment=result.attachment;});
+        setPolygonDraft([]);setSelected({type:'houseContour',id:'house'});setTool('select');
+        setTransferStatus(`Новый дом ${formatNumber(result.addedArea)} м². Существующие стены ${formatNumber(result.sharedLength)} м исключены из новых стен. Узел примыкания и высотные отметки требуют проверки.`);
+        return;
+      }
       const result=attachedHouseContour(plan,polygonDraft);
       if(result.error){setTransferStatus(result.error);return;}
       if(floorCount>1&&(result.shift.x||result.shift.y)){setTransferStatus('Для двухэтажного проекта пристройку слева или сверху нужно согласовать с координатами второго этажа. Пристройка справа или снизу доступна.');return;}
@@ -5358,6 +5395,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     }
     if (polygonDraft.length < 3 || polygonArea(polygonDraft) < 0.25) return;
     if (tool === "houseContour") {
+      if(plan.attachment){setTransferStatus('Для сохранения двух примыканий изменяйте дом инструментом «Открытый контур пристройки».');return;}
       const points = polygonDraft.map((point) => ({
         x: roundCoord(point.x),
         y: roundCoord(point.y),
@@ -5730,8 +5768,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         ? "Ставьте углы комнаты. После третьей точки щёлкните по первой точке — контур замкнётся автоматически."
         : tool === "houseContour"
           ? "Нарисуйте замкнутый внешний контур дома: эркер, выступ или дом неправильной формы."
+          : tool === 'existingContour'
+            ? 'На новом чистом плане нарисуйте замкнутый контур существующего здания. Он будет справочным и не войдёт в смету.'
           : tool === 'attachedContour'
-            ? 'Начните на наружной стене дома, обойдите внешние углы пристройки и закончите на той же стене. Затем нажмите «Присоединить».'
+            ? plan.existingBuilding ? 'Начните на стене существующего здания, обойдите внешние углы нового дома и закончите на соседней стене.' : 'Начните на наружной стене дома, обойдите внешние углы пристройки и закончите на той же стене. Затем нажмите «Присоединить».'
           : tool === "dimension"
             ? "Нажмите первую точку, затем вторую. Размер автоматически вынесется за контур дома и займёт свободный уровень."
             : tool === 'guide'
@@ -6364,7 +6404,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 </button>
               ),
             )}
-            {["polygon", "houseContour", "attachedContour"].includes(tool) &&
+            {["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool) &&
             polygonDraft.length ? (
               <div className="polygon-actions">
                 <button
@@ -6512,10 +6552,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           {tool === 'attachedContour' && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">
               <h3>Открытый контур пристройки</h3>
-              <p className="inspector-note">Оба конца поставьте на одну наружную стену. Общий участок стены замкнёт пристройку; исходные помещения и проёмы сохраняются.</p>
+              <p className="inspector-note">{plan.existingBuilding?'Начните на одной стене существующего здания, обойдите наружные углы нового дома и закончите на соседней стене. Две общие стороны используют существующие стены.':'Оба конца поставьте на одну наружную стену. Общий участок стены замкнёт пристройку; исходные помещения и проёмы сохраняются.'}</p>
               <button className="button primary" disabled={polygonDraft.length<4} onClick={finishPolygon}><Save />Присоединить к дому</button>
             </div>
-          ) : tool === "houseContour" && polygonDraft.length >= 2 ? (
+          ) : ["houseContour", "existingContour"].includes(tool) && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">
               <h3>Новый контур</h3>
               <p className="inspector-note">На поле точки идут кратно 10 см. Здесь можно задать точный общий размер до замыкания.</p>
