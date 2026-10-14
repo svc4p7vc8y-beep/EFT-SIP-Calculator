@@ -2158,6 +2158,65 @@ select,
 .planner-shell.is-fullscreen .planner-hint {
   max-width: min(720px, calc(100% - 24px));
 }
+.plan-fullscreen-bar {
+  position: absolute;
+  z-index: 8;
+  top: 61px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: end;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border: 1px solid #d6e0d4;
+  border-radius: 9px;
+  background: rgba(255,255,255,.97);
+  box-shadow: 0 3px 12px rgba(28,52,23,.08);
+}
+.plan-fullscreen-bar .field { flex: 0 0 82px; gap: 2px; font-size: 9px; white-space: nowrap; }
+.plan-fullscreen-bar .field:nth-of-type(4),
+.plan-fullscreen-bar .field:nth-of-type(5) { flex-basis: 96px; }
+.plan-fullscreen-bar .numeric-input { grid-template-columns: minmax(0,1fr); }
+.plan-fullscreen-bar .numeric-step-button { display: none; }
+.plan-fullscreen-bar .field input,
+.plan-fullscreen-bar .field select { width: 100%; min-width: 0; height: 29px; padding: 3px 5px; font-size: 11px; }
+.plan-fullscreen-bar .numeric-input-value input { border-radius: 6px; }
+.plan-fullscreen-bar .numeric-input-value.has-suffix input { padding-right: 22px; }
+.plan-fullscreen-bar .numeric-input-value em { right: 5px; }
+.plan-fullscreen-bar > button,
+.plan-fullscreen-floors button { flex: 0 0 auto; min-height: 29px; padding: 4px 6px; border: 1px solid #d6e0d4; border-radius: 6px; background: #f4f8f1; color: #315d27; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.plan-fullscreen-bar > button.active,
+.plan-fullscreen-bar > button[aria-pressed="true"],
+.plan-fullscreen-floors button[aria-pressed="true"] { border-color: #77a55f; background: #dff0d5; }
+.plan-fullscreen-floors { display: flex; align-items: end; gap: 3px; flex: 0 0 auto; padding-bottom: 1px; }
+.plan-3d-preview { position: absolute; z-index: 7; top: 125px; right: 12px; width: 340px; max-width: calc(100% - 24px); padding: 7px; border: 1px solid #c8d8c2; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(26,49,30,.17); }
+.plan-3d-preview.size-small { width: 260px; }
+.plan-3d-preview.size-large { width: 440px; }
+.plan-3d-preview-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; color: #315d27; font-size: 11px; }
+.plan-3d-preview-heading > div { display: flex; flex-wrap: wrap; gap: 2px; }
+.plan-3d-preview-heading button { padding: 3px 5px; border: 1px solid #c8d8c2; border-radius: 5px; background: #fff; color: #315d27; font-size: 9px; }
+.plan-3d-preview-heading button[aria-pressed="true"] { background: #dff0d5; border-color: #77a55f; }
+.plan-3d-preview .production-3d { margin: 0; }
+.plan-3d-preview .production-3d-toolbar strong { width: auto; margin-right: auto; }
+.plan-3d-preview .production-3d-toolbar button { min-height: 26px; min-width: 26px; padding: 3px; }
+.plan-3d-preview .production-3d-canvas { height: 210px; }
+.plan-3d-preview.size-small .production-3d-canvas { height: 150px; }
+.plan-3d-preview.size-large .production-3d-canvas { height: 280px; }
+.plan-3d-preview .production-3d small { display: none; }
+.plan-3d-preview .production-3d small[role="alert"] { display: block; }
+.plan-3d-loading { min-height: 130px; margin: 0; display: grid; place-items: center; color: #536056; font-size: 11px; }
+@media (min-width: 761px) and (max-width: 900px) {
+  .plan-3d-preview { width: 230px; }
+  .plan-3d-preview.size-small { width: 180px; }
+  .plan-3d-preview.size-large { width: 280px; }
+  .plan-3d-preview .production-3d-canvas { height: 150px; }
+  .plan-3d-preview.size-small .production-3d-canvas { height: 120px; }
+  .plan-3d-preview.size-large .production-3d-canvas { height: 190px; }
+}
 .planner-hint {
   position: absolute;
   left: 12px;
@@ -5302,6 +5361,7 @@ select,
   .request-editor-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
+  .plan-fullscreen-bar, .plan-3d-preview { display: none; }
   .request-mode-bar { align-items: stretch; flex-direction: column; }
   .request-mode-bar .segmented { width: 100%; }
   .request-mode-bar .segmented button { flex: 1; }

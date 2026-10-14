@@ -16,7 +16,7 @@ function beamGeometry(item,width,depth,length){
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
  geometry.setIndex([0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,3,0,4,3,4,7]);geometry.computeVertexNormals();return geometry;
 }
-export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,pan=false}) {
+export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,pan=false,initialZoom=1}) {
   const host=useRef(null),api=useRef(null),selection=useRef(selected),callback=useRef(onSelect),view=useRef(null);
   const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(['ceiling']);
   const [display,setDisplay]=useState('solid');
@@ -45,13 +45,13 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     scene.add(new THREE.HemisphereLight(0xffffff,0x8a9c85,2));const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(10,20,15);scene.add(light);
     const box=new THREE.Box3().setFromObject(model),center=box.isEmpty()?new THREE.Vector3():box.getCenter(new THREE.Vector3()),span=box.isEmpty()?5:Math.max(...box.getSize(new THREE.Vector3()).toArray(),1);
     const camera=new THREE.PerspectiveCamera(42,1,.01,span*30),controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.minDistance=.15;controls.maxDistance=span*8;
-    const reset=()=>{const distance=span/Math.max(.05,Math.min(1,camera.aspect));camera.position.copy(center).add(new THREE.Vector3(distance,distance*.85,distance));controls.target.copy(center);controls.update();};reset();if(view.current){camera.position.copy(view.current.position);controls.target.copy(view.current.target);controls.update();}
+    const reset=()=>{const distance=span*initialZoom/Math.max(.05,Math.min(1,camera.aspect));camera.position.copy(center).add(new THREE.Vector3(distance,distance*.85,distance));controls.target.copy(center);controls.update();};reset();if(view.current){camera.position.copy(view.current.position);controls.target.copy(view.current.target);controls.update();}
     const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();let start;
     const down=e=>{start=e.button===0?[e.clientX,e.clientY]:null;};const pick=e=>{if(e.button!==0||!start||Math.hypot(e.clientX-start[0],e.clientY-start[1])>4)return;const b=renderer.domElement.getBoundingClientRect();mouse.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);ray.setFromCamera(mouse,camera);const hit=ray.intersectObjects(meshes.filter(m=>m.visible&&m.userData.id),false)[0];if(hit)callback.current?.(hit.object.userData.id);};renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointerup',pick);
     const resize=()=>{const {width,height}=el.getBoundingClientRect();if(width<1||height<1)return;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();if(!view.current)reset();};const observer=new ResizeObserver(resize);observer.observe(el);resize();
     api.current={meshes,reset,controls,camera};if(controlsRef)controlsRef.current={reset,zoom:factor=>{camera.position.sub(controls.target).multiplyScalar(factor).add(controls.target);controls.update();}};let frame;const animate=()=>{frame=requestAnimationFrame(animate);if(el.clientWidth<1||el.clientHeight<1)return;controls.update();view.current={position:camera.position.clone(),target:controls.target.clone()};for(const mesh of meshes)mesh.material.color.set(selection.current.includes(mesh.userData.id)?'#17734b':mesh.userData.color);renderer.render(scene,camera);};animate();
     return()=>{cancelAnimationFrame(frame);observer.disconnect();controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',pick);scene.traverse(n=>{n.geometry?.dispose();if(n.material)(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();api.current=null;};
-  },[data,foundation,controlsRef]);
+  },[data,foundation,controlsRef,initialZoom]);
   useEffect(()=>{for(const m of api.current?.meshes||[]){m.visible=!hidden.includes(m.userData.layer)&&!(display==='frame'&&m.userData.panel);if(m.userData.panel){m.material.transparent=display==='transparent';m.material.opacity=display==='transparent'?.28:1;m.material.depthWrite=display!=='transparent';m.material.needsUpdate=true;}}},[hidden,display,data]);
   useEffect(()=>{if(api.current){api.current.controls.mouseButtons.LEFT=THREE.MOUSE.ROTATE;api.current.controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;api.current.controls.mouseButtons.RIGHT=THREE.MOUSE.PAN;}},[data]);
   return <section className={`production-3d ${large?'is-large':''}`} aria-label="Интерактивный 3D домокомплекта">

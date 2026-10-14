@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
@@ -98,6 +98,7 @@ import {
 } from "../state/project-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
+const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
 import {
   applyPlanTransfer,
@@ -5020,6 +5021,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   );
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
+  const [plan3DSize,setPlan3DSize]=useState('medium');
+  const [showPlan3D,setShowPlan3D]=useState(true);
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
   const [foundationDraft, setFoundationDraft] = useState(() => ({
     ...DEFAULT_FOUNDATION_DRAFT,
@@ -6512,6 +6515,28 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
           </div>
+          {isPlanFullscreen ? <>
+            <div className="plan-fullscreen-bar" role="group" aria-label="Параметры полноэкранного плана">
+              <div className="plan-fullscreen-floors" role="group" aria-label="Этаж плана">
+                <button type="button" aria-pressed={activeFloor===1} onClick={()=>setActiveFloor(1)}>1 этаж</button>
+                {floorCount>1?<button type="button" aria-pressed={activeFloor===2} onClick={()=>setActiveFloor(2)}>2 этаж</button>:<button type="button" onClick={()=>addSecondFloor()}>+ этаж</button>}
+              </div>
+              <NumberField label="Длина" value={plan.house.w} suffix="м" min={3} onChange={value=>resizeHouse(value,plan.house.h)}/>
+              <NumberField label="Ширина" value={plan.house.h} suffix="м" min={3} onChange={value=>resizeHouse(plan.house.w,value)}/>
+              <NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={value=>commitPlan(next=>{next.wallHeight=value;})}/>
+              <SelectField label="Наружные стены" value={String(Math.round((plan.wallThickness||0.174)*1000))} options={WALL_THICKNESS_OPTIONS} onChange={changeWallThickness}/>
+              <SelectField label="Перегородки" value={String(Math.round((plan.partitionThickness||0.1)*1000))} options={PARTITION_THICKNESS_OPTIONS} onChange={changePartitionThickness}/>
+              <button type="button" className={tool==='houseContour'?'active':''} aria-pressed={tool==='houseContour'} onClick={()=>selectTool('houseContour')}>Контур</button>
+              <button type="button" className={tool==='wall'?'active':''} aria-pressed={tool==='wall'} onClick={()=>selectTool('wall')}>Перегородка</button>
+              <button type="button" aria-pressed={showPlan3D} onClick={()=>setShowPlan3D(value=>!value)}>3D</button>
+            </div>
+            {showPlan3D?<aside className={`plan-3d-preview size-${plan3DSize}`} aria-label="3D модель рядом с планом">
+              <div className="plan-3d-preview-heading"><strong>3D · текущий проект</strong><div role="group" aria-label="Размер окна 3D">
+                {[['small','Малое'],['medium','Среднее'],['large','Большое']].map(([size,label])=><button key={size} type="button" aria-label={`${label} окно 3D`} aria-pressed={plan3DSize===size} onClick={()=>setPlan3DSize(size)}>{label}</button>)}
+              </div></div>
+              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
+            </aside>:null}
+          </>:null}
           {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
             sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
