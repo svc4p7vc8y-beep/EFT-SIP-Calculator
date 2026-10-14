@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {roofFacet} from '../src/react/calculations/roof-project.js';
-import {roofPanelCapacityChecks} from '../src/react/calculations/roof-panel-capacity.js';
+import {roofPanelCapacityChecks,roofFaceCapacitySignature} from '../src/react/calculations/roof-panel-capacity.js';
 import {createDefaultProject,migrateProject} from '../src/react/state/project-model.js';
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
 import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
@@ -20,7 +20,10 @@ test('passport check compares actual sloped length with a suitable documented ro
 test('a shorter project span needs a recorded support reason',()=>{
  const data={...engineering,spanOverrides:{С1:{spanMm:1500,reason:''}}};
  assert.equal(roofPanelCapacityChecks(model,data).at(-1).status,'open');
- assert.equal(roofPanelCapacityChecks(model,{...data,spanOverrides:{С1:{spanMm:1500,reason:'Прогон П1, чертёж КР-2'}}}).at(-1).status,'pass');
+ const signed={...data,spanOverrides:{С1:{spanMm:1500,reason:'Прогон П1, чертёж КР-2',geometry:roofFaceCapacitySignature(face)}}};
+ assert.equal(roofPanelCapacityChecks(model,signed).at(-1).status,'pass');
+ const changed=roofFacet('С1','Тёплый скат',[[0,0,3000],[4000,0,3000],[4000,2100,4050],[0,2100,4050]],{warm:true,thickness:174});
+ assert.equal(roofPanelCapacityChecks({faces:[changed]},signed).at(-1).status,'open');
 });
 test('engineering inputs survive JSON migration and failed capacity blocks release without changing estimate',()=>{
  const p=createDefaultProject();p.settings.roof.type='sip';p.settings.productionCutting.roofDesign.enabled=true;
