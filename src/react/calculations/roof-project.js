@@ -4,6 +4,7 @@ import {lRoofFrame} from '../planner/l-roof-frame.js';
 import {platformRoofFrame} from '../planner/platform-roof-frame.js';
 import {normalizeTerracePlatform} from '../../calculations/terrace-model.js';
 import clipping from 'polygon-clipping';
+import {hipRoofFromContour} from './hip-roof-geometry.js';
 
 export const roofDot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
 const sub=(a,b)=>a.map((x,i)=>x-b[i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>a.map(x=>x/Math.hypot(...a));
@@ -66,6 +67,12 @@ export function roofProject(project,calculation,assembly){
    add(id,name,[at(-t,pos(start),z(start)),at(L+t,pos(start),z(start)),at(L+t,pos(end),z(end)),at(-t,pos(end),z(end))],{warm:settings.type==='sip'||settings.type==='combo'&&((q.warmLevel||'upper')==='both'||(id==='КР-В'?'upper':'lower')===(q.warmLevel||'upper')),junction:true});
   }
   issue('ROOF_JUNCTION','Перепад уровней: узел водозащиты и передачи нагрузки требует подтверждения.');
+ }else if(shape==='hip'&&design.hipGeometry?.mode==='contour'){
+  try{
+   const result=hipRoofFromContour(contour,{angleDeg:design.hipGeometry.angleDeg,edgeAngles:design.hipGeometry.edgeAngles,overhangMm:e,roofBase,eaveZ:design.hipGeometry.eaveZ});
+   result.facets.forEach((facet,i)=>add(`КР-К-${facet.edgeKey.replaceAll(',', '_').replace('|', '-')}`,`Вальма · скат ${i+1}`,facet.vertices,{hipEdgeKey:facet.edgeKey}));
+   if(result.wallAlignmentReview)issue('ROOF_WALL_ALIGNMENT','Разные уклоны и общий карниз: отметки опирания по стенам требуют отдельной проверки.');
+  }catch(error){issue('ROOF_HIP_GEOMETRY',error.message,'main');}
  }else if(rectangle&&shape==='hip'){
   // Match the existing equal-pitch hip convention; long roof axis is the long wall.
   const along=b.width>=b.height?0:1,A=along===0?b.width:b.height,S=along===0?b.height:b.width,slope=h/(S/2||1),zE=-e*slope;

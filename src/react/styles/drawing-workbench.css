@@ -142,6 +142,7 @@
 .roof-design-tool details { margin:12px 0; padding:8px; border:1px solid #c5d2bd; border-radius:8px; }
 .roof-design-tool details>summary { cursor:pointer; color:#000; }
 .roof-design-tool table { width:100%; table-layout:fixed; }
+.roof-design-tool .roof-rafter-spec table { min-width:760px; table-layout:auto; }
 .roof-design-tool input,.roof-design-tool textarea { max-width:100%; box-sizing:border-box; }
 @media print {
  .mounting-album .roof-project-facet .roof-document-drawing { height:70mm; max-height:70mm; }
