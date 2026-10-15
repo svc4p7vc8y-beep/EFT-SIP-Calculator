@@ -39,11 +39,12 @@ export function roofFabrication(model,project,calculation,settings){
   if(!A||!B){issues.push('Мауэрлат: границы стены не привязаны к скатам.');continue;}
   const p=[...a,roofHeight(A,...a)],q=[...b,roofHeight(B,...b)];append({id:`КР-М${i+1}`,faceId:A.id,name:'Мауэрлат',a,b,worldA:p,worldB:q,length:Math.ceil(Math.hypot(...q.map((n,j)=>n-p[j]))),profile:'100×150'},'Мауэрлат',roofTimbers);
  }
- for(const edge of model.edges.filter(e=>['ridge','hip','valley'].includes(e.kind))){const profile=settings.roofDesign.edgeProfiles?.[edge.id],cold=edge.faces.some(id=>model.faces.find(f=>f.id===id)?.warm===false);
+ const autoHipProfile=calculation.roof.mainRoofShape==='hip'&&settings.roofDesign.enabled&&settings.roofDesign.hipGeometry?.mode==='contour'?section:'';
+ for(const edge of model.edges.filter(e=>['ridge','hip','valley'].includes(e.kind))){const savedProfile=settings.roofDesign.edgeProfiles?.[edge.id],profile=savedProfile||autoHipProfile,cold=edge.faces.some(id=>model.faces.find(f=>f.id===id)?.warm===false);
   if(edge.kind==='ridge'&&settings.roofFrameConfig?.replaceRidge&&settings.roofSupports.some(s=>s.autoLayout==='roof-support-frame'&&s.type==='purlin'))continue;
-  const saved=settings.roofDesign.edgeGeometry?.[edge.id];if(saved&&saved!==roofEdgeSignature(edge)){issues.push(`${edge.id}: геометрия ребра изменилась; повторно задайте проектное сечение и узел.`);continue;}
+  const saved=settings.roofDesign.edgeGeometry?.[edge.id];if(savedProfile&&saved&&saved!==roofEdgeSignature(edge)){issues.push(`${edge.id}: геометрия ребра изменилась; повторно задайте проектное сечение и узел.`);continue;}
   if(!cold)continue;if(!/^\d+×\d+$/.test(profile||'')){issues.push(`${edge.id}: задайте проектное сечение ${edge.kind==='ridge'?'конька':edge.kind==='valley'?'ендовы':'накосного элемента'}.`);continue;}
-  append({id:`КР-${edge.id}`,faceId:edge.faces[0],name:edge.kind==='ridge'?'Конёк':edge.kind==='valley'?'Ендова':'Накосное стропило',roofMemberKind:edge.kind,a:edge.a.slice(0,2),b:edge.b.slice(0,2),worldA:edge.a,worldB:edge.b,length:Math.ceil(edge.length),profile},'Элемент ребра кровли',roofTimbers);
+  append({id:`КР-${edge.id}`,faceId:edge.faces[0],name:edge.kind==='ridge'?'Конёк':edge.kind==='valley'?'Ендова':'Накосное стропило',roofMemberKind:edge.kind,profileSource:savedProfile?'project-override':'rafter-section-proposal',a:edge.a.slice(0,2),b:edge.b.slice(0,2),worldA:edge.a,worldB:edge.b,length:Math.ceil(edge.length),profile},'Элемент ребра кровли',roofTimbers);
  }
  return {rafters,members,laths,counterLaths,roofTimbers,issues};
 }

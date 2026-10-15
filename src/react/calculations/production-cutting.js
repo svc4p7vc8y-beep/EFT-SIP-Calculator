@@ -309,9 +309,28 @@ export function tileProductionSurface(surface, panelWidth, panelLength, step, st
     const layout=surface.layout||{};
     if(error.code!=='MIN_PANEL_WIDTH'||!surface.horizontal||(layout.direction&&layout.direction!=='auto')||
       ['originX','originY','step'].some(key=>presentNumber(layout[key])))throw error;
-    const parts=tileSurface({...surface,layout:{...layout,direction:'y'}},panelWidth,panelLength,step,staggered);
-    surface.automaticDirection='y';
-    return parts;
+    try {
+      const parts=tileSurface({...surface,layout:{...layout,direction:'y'}},panelWidth,panelLength,step,staggered);
+      surface.automaticDirection='y';
+      return parts;
+    } catch(rotatedError) {
+      if(rotatedError.code!=='MIN_PANEL_WIDTH'||!surface.roofFaceId)throw rotatedError;
+      // A triangular hip can leave a sub-250 mm tip on both default axes.
+      // Move only an automatic grid; project-set grids remain untouched.
+      const bounds=polygonBounds(surface.geometry.flat()),width=Math.min(panelWidth,surface.layoutWidth||panelWidth,step);
+      const offsets=(size)=>[0,MIN_PANEL_WIDTH_MM,size/4,size/2,3*size/4].filter((value,index,list)=>value<size&&list.indexOf(value)===index);
+      let best=null;
+      for(const direction of ['x','y'])for(const dx of offsets(width))for(const dy of offsets(panelLength)){
+        let parts;
+        try { parts=tileSurface({...surface,layout:{...layout,direction,originX:bounds.x+dx,originY:bounds.y+dy}},panelWidth,panelLength,step,staggered); }
+        catch{continue;}
+        const waste=parts.reduce((sum,part)=>sum+part.width*part.height-part.area,0),score=waste+parts.length;
+        if(!best||score<best.score)best={parts,score,direction,originX:bounds.x+dx,originY:bounds.y+dy};
+      }
+      if(!best)throw rotatedError;
+      surface.automaticRoofGrid={direction:best.direction,originX:best.originX,originY:best.originY};
+      return best.parts;
+    }
   }
 }
 

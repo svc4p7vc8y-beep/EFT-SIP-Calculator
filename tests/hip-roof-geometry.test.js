@@ -61,16 +61,66 @@ test('hip fabrication identifies common and jack rafters, diagonals and 3D membe
  p.settings.roof.shape='hip';p.settings.roof.eaveOverhang=0;p.settings.productionCutting.roofDesign.enabled=true;
  p.settings.productionCutting.roofDesign.hipGeometry={mode:'contour',angleDeg:30,eaveZ:'',edgeAngles:{}};
  let result=calculateProductionCutting(p,calculateProject(p));
- p.settings.productionCutting.roofDesign.edgeProfiles=Object.fromEntries(result.assembly.roofModel.edges.filter(edge=>['hip','ridge'].includes(edge.kind)).map(edge=>[edge.id,'50×200']));
+ assert.equal(result.assembly.roofTimbers.filter(item=>item.roofMemberKind==='hip').length,4);
+ assert.equal(result.assembly.roofTimbers.filter(item=>item.roofMemberKind==='ridge').length,1);
+ assert.ok(result.assembly.roofTimbers.filter(item=>['hip','ridge'].includes(item.roofMemberKind)).every(item=>item.profileSource==='rafter-section-proposal'));
+ const firstHip=result.assembly.roofModel.edges.find(edge=>edge.kind==='hip');
+ p.settings.productionCutting.roofDesign.edgeProfiles={[firstHip.id]:'50×200'};
  result=calculateProductionCutting(p,calculateProject(p));
  const rafters=result.assembly.rafters,diagonals=result.assembly.roofTimbers.filter(item=>item.roofMemberKind==='hip');
  assert.ok(rafters.some(item=>item.rafterKind==='common'));
  assert.ok(rafters.some(item=>item.rafterKind==='jack'&&item.compoundCutRequired));
  assert.equal(diagonals.length,4);
+ assert.equal(diagonals.find(item=>item.id===`КР-${firstHip.id}`).profile,'50×200');
+ assert.equal(diagonals.find(item=>item.id===`КР-${firstHip.id}`).profileSource,'project-override');
  assert.ok(rafters.every(item=>item.length>0&&item.volumeM3>0&&Number.isFinite(item.plumbCutDeg)));
  const scene=productionScene(result,p);
  assert.ok(rafters.every(item=>scene.beams.some(beam=>beam.id===item.id&&beam.layer==='rafters')));
  assert.ok(diagonals.every(item=>scene.beams.some(beam=>beam.id===item.id&&beam.layer==='roofTimbers')));
+});
+
+test('one hip contour can be built from boards or SIP panels without duplicate roof members',()=>{
+ const p=createDefaultProject();p.plan.house={w:10,h:8};p.plan.rooms=[];p.plan.openings=[];
+ p.settings.roof.shape='hip';p.settings.roof.ridgeHeight=4*Math.tan(Math.PI/6);p.settings.roof.eaveOverhang=0;
+ p.settings.productionCutting.roofDesign.enabled=true;
+ p.settings.productionCutting.roofDesign.hipGeometry={mode:'contour',angleDeg:30,eaveZ:'',edgeAngles:{}};
+ p.settings.roof.type='cold';
+ const legacy=migrateProject(JSON.parse(JSON.stringify(p)));
+ legacy.settings.productionCutting.roofDesign.hipGeometry.mode='height';
+ const legacyReport=calculateProductionCutting(legacy,calculateProject(legacy));
+ assert.equal(legacyReport.assembly.roofTimbers.filter(item=>['hip','ridge'].includes(item.roofMemberKind)).length,0);
+ const boards=calculateProductionCutting(p,calculateProject(p));
+ assert.ok(boards.assembly.rafters.length>0);
+ assert.equal(boards.parts.filter(part=>boards.assembly.roofModel.faces.some(face=>face.id===part.surfaceId)).length,0);
+ assert.equal(boards.assembly.roofTimbers.filter(item=>['hip','ridge'].includes(item.roofMemberKind)).length,5);
+ p.settings.roof.type='sip';
+ const reopened=migrateProject(JSON.parse(JSON.stringify(p))),panels=calculateProductionCutting(reopened,calculateProject(reopened));
+ const roofFaceIds=new Set(panels.assembly.roofModel.faces.filter(face=>face.group==='main').map(face=>face.id));
+ const roofParts=panels.parts.filter(part=>roofFaceIds.has(part.surfaceId));
+ assert.equal(panels.assembly.rafters.length,0);
+ assert.equal(panels.assembly.roofTimbers.filter(item=>['hip','ridge'].includes(item.roofMemberKind)).length,0);
+ assert.ok(roofParts.length>0);
+ const scene=productionScene(panels,reopened);
+ assert.ok(roofParts.every(part=>scene.panels.some(panel=>panel.id===part.id&&panel.layer==='roof')));
+});
+
+test('automatic SIP grid closes both triangular hips on the default 8.66 × 12.975 m plan',()=>{
+ const p=createDefaultProject();p.settings.roof.shape='hip';p.settings.roof.type='sip';
+ p.settings.productionCutting.roofDesign.enabled=true;
+ p.settings.productionCutting.roofDesign.hipGeometry={mode:'contour',angleDeg:22.57,eaveZ:'',edgeAngles:{}};
+ const estimate=calculateProject(p).totals.total,report=calculateProductionCutting(p,calculateProject(p));
+ const faces=report.assembly.roofModel.faces.filter(face=>face.group==='main');
+ assert.equal(faces.length,4);
+ for(const face of faces){
+  const surface=report.surfaces.find(item=>item.id===face.id),parts=report.parts.filter(part=>part.surfaceId===face.id);
+  assert.ok(parts.length>0,face.id);
+  assert.ok(!surface.panelLayoutIncomplete,face.id);
+  assert.ok(parts.every(part=>Math.min(part.width,part.height)>=250-.001),face.id);
+  close(parts.reduce((sum,part)=>sum+part.area,0),face.area*1e6,.01);
+ }
+ assert.equal(faces.filter(face=>report.surfaces.find(surface=>surface.id===face.id)?.automaticRoofGrid).length,2);
+ assert.equal(report.issues.filter(issue=>issue.code==='MIN_PANEL_WIDTH').length,0);
+ assert.equal(calculateProject(p).totals.total,estimate);
 });
 
 test('concave contours and incompatible common-eave inputs stop before manufacturing geometry',()=>{
