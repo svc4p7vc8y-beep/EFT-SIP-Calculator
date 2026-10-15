@@ -124,7 +124,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     else download(name,text,'image/svg+xml');
   };
   const scene=()=>{
-    if(category==='roof'&&view==='roofproject')return <RoofProjectDrawing model={report.assembly.roofModel} features={settings.roofDesign.features} supports={report.assembly.supports} selected={chosenRoofFace?.id||''} selectedSupport={chosenSupport?.mark||''} onSelect={id=>setSelection([id])} onSelectSupport={id=>setSelection([id])}/>;
+    if(category==='roof'&&view==='roofproject')return <RoofProjectDrawing model={report.assembly.roofModel} features={settings.roofDesign.features} supports={report.assembly.supports} rafters={report.assembly.rafters} selected={chosenRoofFace?.id||''} selectedSupport={chosenSupport?.mark||''} onSelect={id=>setSelection([id])} onSelectSupport={id=>setSelection([id])}/>;
         if(category==='overview')return <WallPanelPlan report={report} floor={floor} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
     if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
     if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={{...layers,platforms:settings.showPlatforms!==false}} fontScale={fontScale}/>;
