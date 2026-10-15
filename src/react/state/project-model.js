@@ -693,6 +693,7 @@ export function createDefaultProject() {
     }),
     estimateOverrides: [],
     customEstimateLines: [],
+    customEstimateGroups: [],
   };
 }
 
@@ -1072,6 +1073,9 @@ export function migrateProject(raw) {
       : [],
     customEstimateLines: Array.isArray(raw.customEstimateLines)
       ? raw.customEstimateLines
+      : [],
+    customEstimateGroups: Array.isArray(raw.customEstimateGroups)
+      ? raw.customEstimateGroups.filter((group) => group && typeof group.id === 'string' && typeof group.name === 'string')
       : [],
   };
 }

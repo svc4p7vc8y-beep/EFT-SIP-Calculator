@@ -227,7 +227,8 @@ function applyProjectEstimateEdits(project, sections) {
       kind: line.kind === "labor" ? "labor" : "material",
     });
   });
-  return sections.map((section) => {
+  const allSections = [...sections, ...(project.customEstimateGroups || []).map((group) => ({ key: group.id, title: group.name.trim() || 'Новая группа', lines: [], custom: true }))];
+  return allSections.map((section) => {
     const sourceLines=['roof','sip'].includes(section.key)?[...section.lines,...productionEstimateLines(project).filter(line=>line.section===section.key)]:section.lines;
     const generated = sourceLines.flatMap((line) => {
       const override = overrides.get(line.id);
@@ -3133,6 +3134,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   ]).filter(
     (section) =>
       section.lines.length ||
+      section.custom ||
       (project.estimateOverrides || []).some(
         (item) => item.section === section.key,
       ),

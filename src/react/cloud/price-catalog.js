@@ -3,6 +3,7 @@ export function applySharedPriceCatalog(project, catalog, revision) {
   if (!catalog || !(revision > 0)) return project;
   const byId = new Map([...catalog.priceMat, ...catalog.priceLab].map(row => [row.id, row]));
   const currentPrice = line => {
+    if (!line.catalogId) return { ...line, price: Math.max(0, Number(line.price) || 0), pricePending: !(Number(line.price) > 0) };
     const row = byId.get(line.catalogId);
     return { ...line, ...(row ? { kind: row.kind, unit: row.unit } : {}), price: Number(row?.price) || 0, pricePending: !(Number(row?.price) > 0) };
   };

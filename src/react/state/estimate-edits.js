@@ -89,6 +89,23 @@ export function addEstimateLine(project, section) {
   return line;
 }
 
+export function addEstimateGroup(project) {
+  const group = { id: uid('estimate-group'), name: 'Новая группа' };
+  project.customEstimateGroups = [...(project.customEstimateGroups || []), group];
+  return group;
+}
+
+export function renameEstimateGroup(project, id, name) {
+  const group = (project.customEstimateGroups || []).find((item) => item.id === id);
+  if (group) group.name = name;
+}
+
+export function removeEmptyEstimateGroup(project, id) {
+  if ((project.customEstimateLines || []).some((line) => line.section === id)) return false;
+  project.customEstimateGroups = (project.customEstimateGroups || []).filter((item) => item.id !== id);
+  return true;
+}
+
 export function resetEstimateSection(project, section) {
   project.estimateOverrides = (project.estimateOverrides || []).filter((item) => item.section !== section);
   project.customEstimateLines = (project.customEstimateLines || []).filter((item) => item.section !== section);

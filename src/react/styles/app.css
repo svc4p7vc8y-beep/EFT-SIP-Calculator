@@ -4082,6 +4082,27 @@ select,
   margin: 22px 0;
   break-inside: avoid;
 }
+.estimate-custom-groups-toolbar, .estimate-custom-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.estimate-custom-groups-toolbar { margin: 14px 0; }
+.estimate-custom-groups-toolbar span { color: var(--muted); font-size: 12px; }
+.estimate-custom-group-title { margin-bottom: 8px; }
+.estimate-custom-group-title input {
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--green-dark);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
 .estimate-section h2 {
   margin: 0 0 8px;
   padding-bottom: 7px;

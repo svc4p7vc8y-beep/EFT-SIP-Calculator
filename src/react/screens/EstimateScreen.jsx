@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { AlertTriangle, FileSpreadsheet, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
@@ -11,7 +11,7 @@ import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../comp
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
 import { ProposalOverview } from '../components/ProposalOverview.jsx';
 import { formatMoney, formatNumber } from '../utils/format.js';
-import { addEstimateLine, changeEstimateLine, removeEstimateLine, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
+import { addEstimateGroup, addEstimateLine, changeEstimateLine, removeEmptyEstimateGroup, removeEstimateLine, renameEstimateGroup, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
 import { MAX_ESTIMATE_IMAGES, MAX_ESTIMATE_IMAGE_DATA, prepareEstimateImage } from '../state/estimate-images.js';
 import { useCurrentPriceAction } from '../cloud/useCurrentPriceAction.js';
 
@@ -27,7 +27,7 @@ function EstimateSectionEditor({ section, project, commit }) {
     onRemoveLine={(line) => update((next) => removeEstimateLine(next, line))}
     onResetLine={(line) => update((next) => resetEstimateLine(next, line.id))}
     onAddLine={() => update((next) => addEstimateLine(next, section.key))}
-    onResetSection={() => update((next) => resetEstimateSection(next, section.key))}
+    onResetSection={section.custom ? null : () => update((next) => resetEstimateSection(next, section.key))}
   />;
 }
 
@@ -100,7 +100,7 @@ export default function EstimateScreen() {
           ? section.lines.filter((line) => line.kind !== 'labor' || isEstimateCutting(line))
           : section.lines,
       }))
-      .filter((section) => section.lines.length),
+      .filter((section) => section.lines.length || section.custom),
     [calculation, printOptions.includeLabor],
   );
   const handlePrint = () => {
@@ -122,7 +122,7 @@ export default function EstimateScreen() {
   ];
   return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent}><Printer />Печать / PDF</button></>} />
     <label className="super-compact-option no-print"><input type="checkbox" checked={printOptions.superCompact === true} onChange={event => setPrintOption('superCompact', event.target.checked)} /><span><strong>Суперкомпактное предложение</strong><small>Шапка, стоимость, схемы и состав комплектации. Без перечня номенклатуры.</small></span></label>
-    {pendingClientPrices.length ? <div className="estimate-price-warning no-print"><AlertTriangle /><div><strong>В предложении есть позиции без цены</strong><span>{pendingClientPrices.map((line) => line.name).join(' · ')}. {project.sharedPriceCatalog ? 'Укажите цену в общем прайс-листе или привяжите ручную позицию к нему либо исключите позицию из предложения.' : 'Укажите цену в прайс-листе или ведомости проекта либо исключите эти позиции из предложения.'}</span></div></div> : null}
+    {pendingClientPrices.length ? <div className="estimate-price-warning no-print"><AlertTriangle /><div><strong>В предложении есть позиции без цены</strong><span>{pendingClientPrices.map((line) => line.name).join(' · ')}. Укажите цену своей позиции в смете, либо выберите позицию общего прайса, либо исключите строку из предложения.</span></div></div> : null}
     <section className="print-diagram-options no-print" aria-label="Настройки предложения"><div><strong>Смета для клиента</strong></div><div className="print-option-group"><label className="maximum-compact-option"><input type="checkbox" checked={printOptions.maximumCompact === true} onChange={(event) => setPrintOption('maximumCompact', event.target.checked)} />Максимально компактная смета</label><label><input type="checkbox" checked={printOptions.includeLabor !== false} onChange={(event) => setPrintOption('includeLabor', event.target.checked)} />Включить работы</label><label><input type="checkbox" checked={printOptions.includeAccessories !== false} onChange={(event) => setPrintOption('includeAccessories', event.target.checked)} />Включить крепёж и сопутствующие товары</label><label><input type="checkbox" checked={printOptions.compactAccessories !== false} onChange={(event) => setPrintOption('compactAccessories', event.target.checked)} />Сгруппировать их в монтажные комплекты</label></div><div><strong>Планы из редактора дома</strong><small>Планы этажей формируются из текущего проекта и обновляются вместе с ним.</small></div><div className="print-option-group"><label><input type="checkbox" checked={printOptions.includePlan !== false} onChange={(event) => setPrintOption('includePlan', event.target.checked)} />Планы этажей в смете</label><label><input type="checkbox" checked={printOptions.separatePlanSheets !== false} disabled={printOptions.includePlan === false} onChange={(event) => setPrintOption('separatePlanSheets', event.target.checked)} />Каждый этаж отдельным листом</label><label><input type="checkbox" checked={printOptions.includeRoof === true} onChange={(event) => setPrintOption('includeRoof', event.target.checked)} />Крыша на контуре дома</label><label><input type="checkbox" checked={printOptions.separatePileSheet === true} onChange={(event) => setPrintOption('separatePileSheet', event.target.checked)} />Свайное поле отдельным листом</label><label><input type="checkbox" checked={printOptions.separateRoofSheet !== false} disabled={printOptions.includeRoof !== true} onChange={(event) => setPrintOption('separateRoofSheet', event.target.checked)} />Крыша отдельным листом</label></div>{printOptions.includePlan !== false ? <div className="print-option-group plan-layers"><span>Слои плана:</span>{planLayers.map(([key, label]) => <label key={key}><input type="checkbox" checked={printOptions[key] !== false} onChange={(event) => setPrintOption(key, event.target.checked)} />{label}</label>)}</div> : null}</section>
     {printOptions.maximumCompact === true && !printOptions.superCompact ? <section className="compact-estimate-preview no-print"><header><div><strong>Предпросмотр компактной сметы</strong><span>Одинаковые позиции всех разделов объединены. Исходная ведомость для правок сохранена ниже.</span></div><strong>{clientEstimate.compactLines.length} строк</strong></header><PreviewTable lines={clientEstimate.compactLines} /></section> : null}
     <section className="print-sheet"><header className="print-title"><div className="print-brand"><img src="./icons/eft-logo.png" alt="ЭФТ" /><div><strong>ЭнергоЭффективные Технологии</strong><span>Расчёт комплектации дома</span></div></div><div><h1>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1><strong>Проект № {project.meta.projectNum || '—'}</strong></div></header>
@@ -159,7 +159,7 @@ export default function EstimateScreen() {
         <footer>В стоимость входят только перечисленные выше разделы. {printOptions.superCompact ? 'Предложение показывает состав и стоимость выбранной комплектации. Детальная спецификация доступна в полной смете; дополнительные работы и изменения согласуются отдельно.' : 'Подробные количества, цены материалов и работ приведены далее в смете.'}</footer>
       </section>
       {!printOptions.superCompact ? <>
-        <details className="estimate-source-ledger no-print" open={!printOptions.maximumCompact}><summary>Исходная ведомость для редактирования</summary>{visibleManagerSections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}</details>
+        <details className="estimate-source-ledger no-print" open={!printOptions.maximumCompact}><summary>Исходная ведомость для редактирования</summary><div className="estimate-custom-groups-toolbar"><button type="button" className="button secondary compact-button" onClick={() => commit((next) => { addEstimateGroup(next); return next; })}><Plus />Добавить группу сметы</button><span>Новая группа и её строки сохраняются в проекте и попадают в итог, Excel и PDF.</span></div>{visibleManagerSections.map((section) => <section className="estimate-section" key={section.key}>{section.custom ? <div className="estimate-custom-group-title"><input aria-label={`Название группы: ${section.title}`} value={(project.customEstimateGroups || []).find((group) => group.id === section.key)?.name || ''} onChange={(event) => commit((next) => { renameEstimateGroup(next, section.key, event.target.value); return next; })} placeholder="Название группы" /><button type="button" className="icon-button danger" aria-label={`Удалить пустую группу: ${section.title}`} title={section.lines.length ? 'Сначала удалите позиции группы' : 'Удалить пустую группу'} disabled={section.lines.length > 0} onClick={() => commit((next) => { removeEmptyEstimateGroup(next, section.key); return next; })}><Trash2 /></button></div> : <h2>{section.title}</h2>}<EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}</details>
         <div className="print-only">{printOptions.maximumCompact ? <section className="estimate-section"><h2>Сводная смета</h2><PreviewTable lines={clientEstimate.compactLines} /></section> : clientEstimate.sections.map((section) => <section className="estimate-section" key={section.key}><h2>{section.title}</h2><PreviewTable lines={section.lines} /></section>)}</div>
       </> : null}
       <footer className="estimate-footer"><p>Расчёт сформирован в калькуляторе ЭФТ. Итоговая стоимость уточняется после проверки проекта специалистом.</p><strong>Итого: {formatMoney(clientEstimate.totals.total)}</strong></footer>
