@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { useProject } from "../state/ProjectContext.jsx";
+import { priceCatalogFingerprint, showLocalPriceChangeNotice } from '../state/price-change-notice.js';
 import { isPriceEditorUnlocked, verifyPricePasscode, setPriceEditorUnlocked } from '../security/price-access.js';
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { calculateAdjustedPrice } from "../calculations/price-adjustments.js";
@@ -184,6 +185,7 @@ export function App() {
   const [briefPreview, setBriefPreview] = useState(null);
   const [teamFocus, setTeamFocus] = useState("projects");
   const [notice, setNotice] = useState("Готово");
+  const [dismissedPriceFingerprint, setDismissedPriceFingerprint] = useState(() => localStorage.getItem('eft-dismissed-price-notice') || '');
   const [appUpdateReady, setAppUpdateReady] = useState(false);
   useEffect(() => {
     const ready = () => setAppUpdateReady(true);
@@ -201,6 +203,7 @@ export function App() {
     () => summarizePriceCatalogChanges(project),
     [project.priceMat, project.priceLab],
   );
+  const priceFingerprint = useMemo(() => priceCatalogFingerprint(project), [project.priceMat, project.priceLab]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -413,7 +416,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge">Версия {REACT_PROJECT_VERSION}</span>
+          <span className="version-badge" title={`Сборка сайта; формат файла проекта ${REACT_PROJECT_VERSION}`}>Сборка {import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -617,7 +620,7 @@ export function App() {
             {team.mailError ? `Статус почты может быть неактуален: ${team.mailError}.` : ""}
             <button className="button secondary" onClick={() => { team.refresh().catch(() => {}); team.refreshMailStatus().catch(() => {}); }}>Повторить</button>
           </div> : null}
-          {priceChanges.total ? (
+          {showLocalPriceChangeNotice(team.user, priceChanges, priceFingerprint, dismissedPriceFingerprint) ? (
             <div><button
               className="price-change-banner no-print"
               onClick={() => setActive("price")}
@@ -639,7 +642,6 @@ export function App() {
                 </small>
               </span>
             </button><button className="button secondary no-print" onClick={() => {
-              if (team.user) { setActive('price'); setNotice('Базовые цены общего прайса восстанавливаются в его редакторе'); return; }
               if (!isPriceEditorUnlocked()) {
                 const code = window.prompt('Введите код доступа к прайс-листу');
                 if (code === null) return;
@@ -647,7 +649,7 @@ export function App() {
                 setPriceEditorUnlocked(true);
               }
               if (window.confirm('Восстановить базовый прайс? Изменённые цены и добавленные позиции будут сброшены. Действие можно отменить.')) commit(next => ({ ...next, ...createDefaultPriceLists() }));
-            }}>Сбросить прайс</button></div>
+            }}>Сбросить прайс</button><button className="button secondary no-print" onClick={() => { localStorage.setItem('eft-dismissed-price-notice', priceFingerprint); setDismissedPriceFingerprint(priceFingerprint); }}>Скрыть уведомление</button></div>
           ) : null}
           <ScreenErrorBoundary key={active} onBack={() => setActive("plan")}>
             <Suspense

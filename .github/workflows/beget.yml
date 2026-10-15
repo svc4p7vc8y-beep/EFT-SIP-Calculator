@@ -46,6 +46,7 @@ jobs:
       - name: Build production files
         env:
           VITE_TEAM_ENABLED: 'true'
+          VITE_BUILD_REVISION: ${{ github.sha }}
         run: npm run build
 
       - name: Keep calculator at the Beget domain root
