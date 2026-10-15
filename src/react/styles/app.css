@@ -2131,6 +2131,9 @@ select,
   font-size: 9px;
   font-weight: 800;
 }
+@media (min-width: 761px) and (max-width: 1400px) {
+  .planner-shell:not(.is-fullscreen) .canvas-history-controls { top: 66px; }
+}
 .plan-svg.viewport-pan-enabled.is-viewport-panning {
   cursor: grabbing !important;
 }
@@ -2208,6 +2211,8 @@ select,
 .plan-3d-preview.size-large .production-3d-canvas { height: 280px; }
 .plan-3d-preview .production-3d small { display: none; }
 .plan-3d-preview .production-3d small[role="alert"] { display: block; }
+.plan-3d-bearing-summary, .plan-3d-bearing-detail { margin: 5px 0 0; font-size: 10px; line-height: 1.35; color: #315d27; }
+.plan-3d-bearing-detail { padding: 5px; border-radius: 5px; background: #f2f8ed; }
 .plan-3d-loading { min-height: 130px; margin: 0; display: grid; place-items: center; color: #536056; font-size: 11px; }
 @media (min-width: 761px) and (max-width: 900px) {
   .plan-3d-preview { width: 230px; }

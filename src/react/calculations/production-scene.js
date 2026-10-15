@@ -64,6 +64,9 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const beams=[...roofAxonometricLines(assembly).map(m=>({...m,layer:'rafters',endCutOutline:report.settings.rafterEndCuts?rafterEndOutline(m.a,m.b,Number(m.profile.split(/[×xх]/)[1]))?.outline:null,a:[m.a[0],m.a[1],m.a[2]+roofBase],b:[m.b[0],m.b[1],m.b[2]+roofBase]})),
     ...(assembly.roofTimbers||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'roofTimbers')),...(assembly.laths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'laths')),...(assembly.counterLaths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'counterLaths')),
     ...assembly.supports.filter(m=>!m.referenceOnly||m.trussTemplate).map(m=>({...m,id:m.mark,layer:m.trussTemplate?'trussTemplates':'supports'})),...binding];
+  const bearingPoints=[...assembly.rafters,...(assembly.roofTimbers||[]).filter(item=>item.roofMemberKind==='hip')]
+    .filter(item=>!item.excluded&&item.bearingStatus==='geometry-only'&&item.bearingPoint)
+    .map(item=>({id:item.id,mauerlatId:item.bearingMauerlatId,point:item.bearingPoint}));
   const platforms=includePlatforms?(assembly.platforms||[]):[];
   const coldRoofSurfaces=(assembly.roofModel?.faces||[]).filter(f=>f.group==='main'&&!panels.some(p=>p.faceId===f.id)).map(f=>({id:f.id,faceId:f.id,layer:'roofSurface',shape:[f.polygon],placement:{origin:f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
   const platformPanels=platforms.flatMap(p=>{
@@ -82,5 +85,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
     const b=hostPoints[(i+1)%hostPoints.length],dx=(b.x-a.x)*1000,dy=(b.y-a.y)*1000,length=Math.hypot(dx,dy);
     return length>1?{id:`existing:${host.id||'building'}:wall:${i}`,layer:'existingBuilding',referenceOnly:true,shape:[[[0,0],[length,0],[length,hostHeight||40],[0,hostHeight||40]]],placement:{origin:[a.x*1000,a.y*1000,hostBase],u:[dx/length,dy/length,0],v:[0,0,1],normal:[dy/length,-dx/length,0]},thickness:20}:null;
   }).filter(Boolean):[];
-  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],bearingPoints,platforms,missing,world,roofBase,bases,placements};
 }

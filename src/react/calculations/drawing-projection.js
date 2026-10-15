@@ -41,6 +41,10 @@ export function drawingProjection(model,{direction='north',section,floor,cutHeig
  const faces=[],issues=[],projectionIds=new Set();
  for(const object of model.objects){
   if(layers&&!layers.includes(object.layer)||floor&&object.floor&&object.floor!==floor)continue;
+  // Architectural hip elevations show the roof envelope. The framing remains
+  // available in 3D, roof drawings and structural sections, where its many
+  // intersecting solids do not corrupt facade visibility clipping.
+  if(!cut&&model.roofShape==='hip'&&['rafters','roofTimbers','laths','counterLaths'].includes(object.layer))continue;
   if(cut){try{const rings=meshSection(object.faces,view);if(rings.length){faces.push({id:object.id,sourceId:object.sourceId,hostId:object.hostId,mark:object.mark,status:object.status,rings,cut:true,depth:Infinity,layer:object.layer});projectionIds.add(object.id);}}catch(error){issues.push({code:'AR_VIEWS',message:`${view.title}, ${object.mark}: сечение не построено (${error.message})`,path:'Документация: диагностика геометрии'});}}
   for(const originalFace of object.faces){
    let face=originalFace;

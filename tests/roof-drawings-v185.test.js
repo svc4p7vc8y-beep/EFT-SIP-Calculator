@@ -47,9 +47,11 @@ test('binding plan keeps separate package layers and roof timbers match their me
  for(const b of a.roofTimbers)assert.ok(Math.abs(Math.hypot(b.b[0]-b.a[0],b.b[1]-b.a[1])-b.length)<1);
  p.settings.piles.bindingType='timber';assert.ok(run(p).assembly.binding.every(b=>b.layers===1&&b.profile==='150×150'));
 });
-test('complex roof does not fabricate a section or perspective',()=>{
+test('cold hip selected in the plan fabricates spatial rafters from its roof facets',()=>{
  const p=createDefaultProject();p.settings.roof.shape='hip';const a=run(p).assembly;
- assert.equal(a.roofDrawing.sections.length,0);assert.deepEqual(roofAxonometricLines(a),[]);
+ assert.equal(a.roofDrawing.sections.length,4);
+ assert.equal(roofAxonometricLines(a).length,a.rafters.length);
+ assert.ok(a.rafters.length>0);
 });
 test('shed profile falls toward the chosen direction, not away from it',()=>{
  for(const direction of ['front','back','left','right']){

@@ -79,6 +79,55 @@ test('hip fabrication identifies common and jack rafters, diagonals and 3D membe
  assert.ok(diagonals.every(item=>scene.beams.some(beam=>beam.id===item.id&&beam.layer==='roofTimbers')));
 });
 
+test('cold hip selected in the plan draws mauerlat and geometric rafter bearings without a separate design toggle',()=>{
+ const p=createDefaultProject();p.settings.roof.shape='hip';p.settings.roof.type='cold';
+ const before=calculateProject(p).totals.total;
+ assert.equal(p.settings.productionCutting.roofDesign.enabled,false);
+ const report=calculateProductionCutting(p,calculateProject(p)),assembly=report.assembly,scene=productionScene(report,p);
+ const mauerlats=assembly.roofTimbers.filter(item=>item.name==='Мауэрлат');
+ assert.equal(mauerlats.length,4);
+ assert.equal(assembly.rafters.length,70);
+ assert.equal(assembly.roofTimbers.filter(item=>item.roofMemberKind==='hip').length,4);
+ assert.equal(assembly.roofTimbers.filter(item=>item.roofMemberKind==='ridge').length,1);
+ assert.equal(scene.beams.filter(item=>item.layer==='roofTimbers'&&item.name==='Мауэрлат').length,4);
+ assert.equal(scene.bearingPoints.length,72);
+ assert.equal(assembly.rafters.filter(item=>item.bearingStatus==='unresolved').length,2);
+ for(const item of assembly.rafters.filter(item=>item.bearingStatus==='geometry-only')){
+  const mauerlat=mauerlats.find(line=>line.id===item.bearingMauerlatId);
+  assert.ok(mauerlat,item.id);
+  const [a,b]=[mauerlat.worldA,mauerlat.worldB],point=item.bearingPoint;
+  const fraction=Math.abs(b[0]-a[0])>1?(point[0]-a[0])/(b[0]-a[0]):(point[1]-a[1])/(b[1]-a[1]);
+  assert.ok(fraction>=-.001&&fraction<=1.001,item.id);
+  assert.ok(Math.hypot(point[0]-a[0]-fraction*(b[0]-a[0]),point[1]-a[1]-fraction*(b[1]-a[1]))<1,item.id);
+  assert.ok(Math.abs(point[2]-a[2]-fraction*(b[2]-a[2]))<=5,item.id);
+ }
+ assert.equal(calculateProject(p).totals.total,before);
+ assert.equal(p.settings.productionCutting.roofDesign.enabled,false);
+});
+
+test('disabled mauerlat leaves hip rafter bearing unresolved',()=>{
+ const p=createDefaultProject();p.settings.roof.shape='hip';p.settings.roof.type='cold';p.settings.roof.mauerlatLayout='none';
+ const report=calculateProductionCutting(p,calculateProject(p));
+ assert.equal(report.assembly.roofTimbers.filter(item=>item.name==='Мауэрлат').length,0);
+ assert.ok(report.assembly.rafters.length>0);
+ assert.ok(report.assembly.rafters.every(item=>item.bearingStatus==='unresolved'));
+ assert.match(report.assembly.issues.join(' '),/опирание/);
+});
+
+test('manual exclusion of a mauerlat segment removes its 3D support points and opens a bearing check',()=>{
+ const p=createDefaultProject();p.settings.roof.shape='hip';p.settings.roof.type='cold';
+ const baseline=calculateProductionCutting(p,calculateProject(p)),mauerlat=baseline.members.find(item=>item.id==='КР-М1');
+ const affected=baseline.assembly.rafters.filter(item=>item.bearingMauerlatId==='КР-М1');
+ assert.ok(mauerlat?.key&&affected.length>0);
+ p.settings.productionCutting.memberOverrides[mauerlat.key]={exclude:true,nodeRef:'Узел М1'};
+ const report=calculateProductionCutting(p,calculateProject(p)),scene=productionScene(report,p);
+ assert.ok(report.assembly.roofTimbers.find(item=>item.id==='КР-М1').excluded);
+ assert.ok(affected.every(item=>report.assembly.rafters.find(rafter=>rafter.id===item.id).bearingStatus==='unresolved'));
+ assert.ok(!scene.beams.some(item=>item.id==='КР-М1'));
+ assert.ok(!scene.bearingPoints.some(item=>item.mauerlatId==='КР-М1'));
+ assert.ok(report.issues.some(item=>item.code==='ROOF_BEARING'));
+});
+
 test('one hip contour can be built from boards or SIP panels without duplicate roof members',()=>{
  const p=createDefaultProject();p.plan.house={w:10,h:8};p.plan.rooms=[];p.plan.openings=[];
  p.settings.roof.shape='hip';p.settings.roof.ridgeHeight=4*Math.tan(Math.PI/6);p.settings.roof.eaveOverhang=0;

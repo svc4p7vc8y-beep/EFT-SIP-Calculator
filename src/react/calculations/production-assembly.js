@@ -169,7 +169,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const roofSourceKey=roofGeometrySignature(assembly.roofModel);
   for(const item of settings.roofSupports)if(item.roofSourceKey&&item.roofSourceKey!==roofSourceKey)issues.push(`${item.name||item.id}: кровля изменилась после авторасстановки. Проверьте координаты, опирание и повторите расстановку; ручная правка сохранена.`);
   const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
-  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable;
+  const automaticColdHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
+  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticColdHip;
   if(plainSipGable&&!settings.roofDesign.enabled){
     assembly.roofDrawing.model=assembly.roofModel;
     const outline=assembly.roofModel.projection[0]?.[0];if(outline)assembly.roofOutline=outline.slice(0,-1);
@@ -179,7 +180,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       if(a&&b){member.worldA=[...member.a,a.z];member.worldB=[...member.b,b.z];}
     }
   }
-  if(settings.roofDesign?.enabled){
+  if(settings.roofDesign?.enabled||automaticColdHip){
     const fresh=roofFabrication(assembly.roofModel,project,calculation,settings);
     assembly.members=members.filter(m=>m.surface!=='Кровля').concat(fresh.members);
     Object.assign(assembly,{rafters:fresh.rafters,laths:fresh.laths,counterLaths:fresh.counterLaths,roofTimbers:fresh.roofTimbers});

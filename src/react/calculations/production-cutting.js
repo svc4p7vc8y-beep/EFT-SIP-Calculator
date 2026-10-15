@@ -931,7 +931,15 @@ export function calculateProductionCutting(project, calculation) {
     issue('ROOF_SUPPORTS','Опоры кровли: задайте проектные прогоны, стойки и путь нагрузки до фундамента на вкладке «Крыша и опоры».');
   const markRegistry=assignProductionMarks(parts,members,settings.markRegistry);
   const marked=new Map(members.map(m=>[m.id,m.displayMark]));
-  for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[]){m.displayMark=marked.get(m.id)||m.id;const member=members.find(x=>x.id===m.id);if(member){m.profile=member.profile;m.excluded=member.excluded;if(settings.roofDesign.enabled&&Math.abs(member.length-m.length)>1)issue('ROOF_MEMBER_OVERRIDE',`${m.displayMark}: ручная длина ${member.length} мм отличается от геометрии ${m.length} мм; согласуйте рабочий контур.`);}}
+  for(const list of [assembly.rafters,assembly.roofTimbers,assembly.laths,assembly.counterLaths])for(const m of list||[]){m.displayMark=marked.get(m.id)||m.id;const member=members.find(x=>x.id===m.id);if(member){m.profile=member.profile;m.excluded=member.excluded;if(assembly.usesRoofPlanes&&Math.abs(member.length-m.length)>1)issue('ROOF_MEMBER_OVERRIDE',`${m.displayMark}: ручная длина ${member.length} мм отличается от геометрии ${m.length} мм; согласуйте рабочий контур.`);}}
+  const activeMauerlats=new Set(assembly.roofTimbers.filter(item=>item.name==='Мауэрлат'&&!item.excluded).map(item=>item.id));
+  const missingBearings=new Map();
+  for(const item of [...assembly.rafters,...assembly.roofTimbers.filter(member=>member.roofMemberKind==='hip')])if(item.bearingMauerlatId&&!activeMauerlats.has(item.bearingMauerlatId)){
+    item.bearingStatus='unresolved';
+    const member=members.find(member=>member.id===item.id);if(member)member.bearingStatus='unresolved';
+    missingBearings.set(item.bearingMauerlatId,(missingBearings.get(item.bearingMauerlatId)||0)+1);
+  }
+  for(const [mauerlatId,count]of missingBearings)issue('ROOF_BEARING',`${mauerlatId}: участок мауэрлата исключён из производства; опирание ${count} стропильных элементов не подтверждено.`,mauerlatId);
   if(settings.roofSupports.some(s=>s.autoLayout===FRAME_LAYOUT)&&settings.roofFrameConfig?.sourceKey&&settings.roofFrameConfig.sourceKey!==roofFrameSource(project,assembly,settings))issue('STALE_ROOF_FRAME','Геометрия крыши или заготовка изменена после размещения каркаса. Откройте «Элементы» и повторно примените опорный каркас; ручные и закреплённые детали сохранятся.');
   for(const support of assembly.supports)support.displayMark=marked.get(support.mark)||support.mark;
   const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
