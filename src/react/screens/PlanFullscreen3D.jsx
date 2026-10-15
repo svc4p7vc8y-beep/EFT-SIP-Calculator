@@ -18,6 +18,6 @@ export default function PlanFullscreen3D({project,calculation}) {
   if(result.project!==project)return <p role="status" className="plan-3d-loading">Обновляю 3D по плану…</p>;
   if(result.error)return <p role="alert" className="plan-3d-loading">{result.error}</p>;
   return <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>
-    <ProductionHouse3D report={result.report} project={project} initialZoom={0.9}/>
+    <ProductionHouse3D report={result.report} project={project} initialZoom={0.9} showRoofStructureByDefault/>
   </Suspense>;
 }

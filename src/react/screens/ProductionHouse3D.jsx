@@ -8,6 +8,7 @@ import {planPointToThree,planDirectionToThree} from '../calculations/plan-3d-ori
 import { Box,Frame,Scan,Layers,RotateCcw } from 'lucide-react';
 
 const layers={existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
+const roofCoverLayers=['roofSurface','laths','counterLaths'];
 const vector=point=>new THREE.Vector3(...planPointToThree(point));
 const direction=point=>new THREE.Vector3(...planDirectionToThree(point));
 function beamGeometry(item,width,depth,length){
@@ -16,11 +17,12 @@ function beamGeometry(item,width,depth,length){
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
  geometry.setIndex([0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,3,0,4,3,4,7]);geometry.computeVertexNormals();return geometry;
 }
-export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,pan=false,initialZoom=1}) {
+export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,pan=false,initialZoom=1,showRoofStructureByDefault=false}) {
   const host=useRef(null),api=useRef(null),selection=useRef(selected),callback=useRef(onSelect),view=useRef(null);
-  const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(['ceiling']);
+  const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(()=>['ceiling',...(showRoofStructureByDefault?roofCoverLayers:[])]);
   const [display,setDisplay]=useState('solid');
   const data=useMemo(()=>productionScene(report,project),[report,project]);
+  const hasColdRoofSurface=data.panels.some(item=>item.layer==='roofSurface');
   const foundation=useMemo(()=>assemblyPlatformView(report.assembly,report.settings.showPlatforms!==false),[report]);
   selection.current=selected;callback.current=onSelect;
   useEffect(()=>{
@@ -57,7 +59,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
   return <section className={`production-3d ${large?'is-large':''}`} aria-label="Интерактивный 3D домокомплекта">
     <div className="production-3d-toolbar"><strong>3D · домокомплект</strong><div role="group" aria-label="Режим детализации 3D">
       {[['solid','Панели и каркас',Box],['frame','Только каркас',Frame],['transparent','Прозрачные панели',Scan]].map(([id,label,Icon])=><button key={id} title={label} aria-label={label} aria-pressed={display===id} onClick={()=>setDisplay(id)}><Icon size={18}/></button>)}
-    </div><button aria-label="Сбросить 3D вид" title="Сбросить 3D вид" onClick={()=>api.current?.reset()}><RotateCcw size={18}/></button><button aria-expanded={showLayers} onClick={()=>setShowLayers(!showLayers)}><Layers size={18}/>Слои 3D</button>{onExpand?<button onClick={onExpand}>Крупнее</button>:null}</div>
+    </div>{hasColdRoofSurface?<button type="button" className="production-3d-roof-structure" aria-label="Показать стропила без покрытия и обрешётки" title="Показать стропила без покрытия и обрешётки" aria-pressed={hidden.includes('roofSurface')} onClick={()=>setHidden(old=>old.includes('roofSurface')?old.filter(layer=>!roofCoverLayers.includes(layer)):[...new Set([...old,...roofCoverLayers])])}>Стропила</button>:null}<button aria-label="Сбросить 3D вид" title="Сбросить 3D вид" onClick={()=>api.current?.reset()}><RotateCcw size={18}/></button><button aria-expanded={showLayers} onClick={()=>setShowLayers(!showLayers)}><Layers size={18}/>Слои 3D</button>{onExpand?<button onClick={onExpand}>Крупнее</button>:null}</div>
     {showLayers?<div className="production-3d-layers" role="group" aria-label="Слои модели">{Object.entries(layers).map(([key,name])=><button key={key} aria-pressed={!hidden.includes(key)} onClick={()=>setHidden(old=>old.includes(key)?old.filter(k=>k!==key):[...old,key])}>{name}</button>)}</div>:null}
     <div ref={host} className="production-3d-canvas" role="img" aria-label="Объёмный дом: левая кнопка вращает, средняя и правая перемещают, колесо приближает"/>{error?<p role="alert">{error}</p>:null}
     <small>Левая кнопка — вращение · нажатое колесо или правая кнопка — перемещение · колесо — масштаб. Пальцем — вращение, двумя — масштаб и перемещение. Опоры без полного размера — маркеры осей.</small>{data.missing.length?<small>Нет пространственной привязки: {data.missing.join(', ')}. Нужен рабочий узел.</small>:null}
