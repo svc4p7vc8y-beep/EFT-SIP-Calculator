@@ -20,9 +20,10 @@ test('10 × 8 m, 30° equal-eave hip finds a 2 m ridge and four corner hips',()=
  close(withEave.eaveZ,2500-500*Math.tan(Math.PI/6));
  assert.deepEqual(withEave.eaves.map(point=>point.map(Math.round)),[[-500,-500],[10500,-500],[10500,8500],[-500,8500]]);
  const p=createDefaultProject();p.plan.house={w:10,h:8};p.plan.rooms=[];p.plan.openings=[];
- p.settings.roof.shape='hip';p.settings.roof.eaveOverhang=0;
+ p.settings.roof.shape='hip';p.settings.roof.eaveOverhang=0;p.settings.roof.ridgeHeight=4*Math.tan(Math.PI/6);
  const legacyTotal=calculateProject(p).totals.total;
  p.settings.productionCutting.roofDesign.enabled=true;
+ const legacy=calculateProductionCutting(p,calculateProject(p)).assembly;
  p.settings.productionCutting.roofDesign.hipGeometry={mode:'contour',angleDeg:30,eaveZ:'',edgeAngles:{}};
  const estimate=calculateProject(p).totals.total,reopened=migrateProject(JSON.parse(JSON.stringify(p)));
  const report=calculateProductionCutting(reopened,calculateProject(reopened)),model=report.assembly.roofModel;
@@ -30,6 +31,9 @@ test('10 × 8 m, 30° equal-eave hip finds a 2 m ridge and four corner hips',()=
  assert.equal(model.edges.filter(e=>e.kind==='hip').length,4);
  assert.equal(model.edges.filter(e=>e.kind==='ridge').length,1);
  close(model.edges.find(e=>e.kind==='ridge').length,2000);
+ close(model.area,legacy.roofModel.area,.002);
+ assert.equal(report.assembly.rafters.length,legacy.rafters.length);
+ assert.equal(report.assembly.laths.length,legacy.laths.length);
  assert.equal(calculateProject(reopened).totals.total,estimate);
  assert.equal(estimate,legacyTotal);
 });
