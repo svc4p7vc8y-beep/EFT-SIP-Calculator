@@ -3,6 +3,7 @@ import {buildingModel,buildingDataChecks,BUILDING_AUDIT} from '../calculations/b
 import {architecturalViews} from '../calculations/drawing-projection.js';
 import {productionCatalogMapping} from '../calculations/production-catalog-mapping.js';
 import BuildingDrawing from '../components/BuildingDrawing.jsx';
+import ViewSwitcher from './ViewSwitcher.jsx';
 const finite=v=>v!==''&&Number.isFinite(Number(v));
 export default function BuildingDocumentationEditor({project,report,calculation,onChange,onLocate}){
  const model=useMemo(()=>buildingModel(project,report),[project,report]);
@@ -21,6 +22,7 @@ export default function BuildingDocumentationEditor({project,report,calculation,
  const changeMapping=(key,value)=>patch({catalogMappings:[...settings.catalogMappings.filter(r=>r.key!==key),{...settings.catalogMappings.find(r=>r.key===key),key,...value}]});
  const check=buildingDataChecks(model),choice=all.map(v=>({v,id:v.sectionId||v.direction+(v.direction==='plan'?v.view.origin[2]:'')}));
  return <details className="building-editor" open><summary>Общие виды · оси, отметки, разрезы и материалы</summary><p>Единая геометрия с 3D и раскроем. Оси — проектные привязки, а не новые стены. Отметки проверяются, не сдвигают существующие конструкции.</p>
+ <ViewSwitcher items={choice.map(c=>({id:c.id,label:c.v.title,description:c.v.direction==='plan'?'План этажа':c.v.direction==='section'?'Разрез':'Фасад'}))} selected={choice.find(c=>c.v===view)?.id} onChange={id=>{setViewId(id);setStart(null);setTool('select');}} label="Общий вид здания"/>
  <div className="release-controls"><label>Общий вид<select aria-label="Общий вид здания" value={choice.find(c=>c.v===view)?.id||''} onChange={e=>{setViewId(e.target.value);setStart(null);setTool('select');}}>{choice.map(c=><option key={c.id} value={c.id}>{c.v.title}</option>)}</select></label><button onClick={()=>setZoom(z=>Math.min(5,z*1.25))}>Приблизить вид</button><button onClick={()=>setZoom(z=>Math.max(.25,z/1.25))}>Отдалить вид</button><button onClick={()=>setZoom(1)}>Вписать вид</button>{view.direction==='plan'?<><button aria-pressed={tool==='x'} onClick={()=>setTool('x')}>Нанести ось X</button><button aria-pressed={tool==='y'} onClick={()=>setTool('y')}>Нанести ось Y</button><button aria-pressed={tool==='section'} onClick={()=>{setTool('section');setStart(null);}}>Нанести разрез</button></>:null}<button onClick={()=>{setTool('select');setStart(null);}}>Выбор</button></div>
  <div className="release-controls"><button aria-pressed={tool==='labels'} onClick={()=>{setTool('labels');setStart(null);}}>Перемещать подписи</button><button onClick={()=>patch({annotations:[]})} disabled={!settings.annotations.length}>Сбросить смещения подписей</button></div>
  <div className="building-stage" onClick={pick}><div style={{width:`${zoom*100}%`}}><BuildingDrawing view={view} model={model} selected={selected} onSelect={tool==='select'?setSelected:undefined} onAnnotationMove={tool==='labels'?annotation=>patch({annotations:[...settings.annotations.filter(a=>a.viewId!==annotation.viewId||a.id!==annotation.id),annotation]}):undefined}/></div></div>

@@ -653,9 +653,14 @@ function RoofConstructionPanels({
                       ? project.settings.roof.layeredFramePositions[j] : Math.round((j+1)*100/(count+1)));
                     positions[i]=value; setSetting('roof','layeredFramePositions',positions);}}/>) }
               </> : null}
-              <NumberField label="Макс. расстояние стоек для раскроя" value={(project.settings.roof.layeredFramePostSpacingMm || 6000)/1000}
-                suffix="м" min={1} max={6} step={0.5}
-                onChange={value=>setSetting('roof','layeredFramePostSpacingMm',Math.round(value*1000))}/>
+              <SelectField label="Шаг стоек" value={project.settings.roof.layeredFramePostSpacingMode || 'auto'}
+                onChange={value=>setSetting('roof','layeredFramePostSpacingMode',value)} options={[
+                  {value:'auto',label:'Автоматически · около 1 м'},
+                  {value:'manual',label:'Задать вручную'},
+                ]}/>
+              {project.settings.roof.layeredFramePostSpacingMode === 'manual' ? <NumberField label="Макс. расстояние стоек" value={(project.settings.roof.layeredFramePostSpacingMm || 1000)/1000}
+                suffix="м" min={1} max={6} step={0.1}
+                onChange={value=>setSetting('roof','layeredFramePostSpacingMm',Math.round(value*1000))}/> : null}
               <p className="inspector-note">Прогон и стойки — доска 50×150 мм, лежень — как мауэрлат. Схема размещения проектная; опирание стоек, соединения и сечения требуют расчёта.</p>
             </> : null}
           </> : null}

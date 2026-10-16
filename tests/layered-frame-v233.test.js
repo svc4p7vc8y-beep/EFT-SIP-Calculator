@@ -5,6 +5,7 @@ import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting } from '../src/react/calculations/production-cutting.js';
 import { productionScene } from '../src/react/calculations/production-scene.js';
 import { layeredFrameFractions } from '../src/react/calculations/layered-frame.js';
+import { beamFrame } from '../src/react/calculations/beam-frame.js';
 
 const projectFor = (width = 8, length = 10) => {
   const p = createDefaultProject();
@@ -29,9 +30,12 @@ test('10 × 8 m cold layered roof shares two geometric frames between estimate, 
   assert.deepEqual(calculation.roof.layeredFrame.fractions, [1 / 3, 2 / 3]);
   const items = report.assembly.supports.filter(item => item.autoLayout === 'layered-frame');
   assert.equal(items.length, calculation.roof.layeredFrame.items);
-  assert.equal(items.filter(item => item.role === 'purlin').length, 4);
-  assert.equal(items.filter(item => item.role === 'sleeper').length, 4);
-  assert.equal(items.filter(item => item.role === 'post').length, 6);
+  assert.equal(items.filter(item => item.role === 'purlin').length, 20);
+  assert.equal(items.filter(item => item.role === 'sleeper').length, 20);
+  assert.equal(items.filter(item => item.role === 'post').length, 22);
+  assert.ok(items.filter(item => item.role === 'post').every(item => item.normal[1] === 1));
+  assert.ok(items.filter(item => item.role === 'post').every(item => Math.abs(beamFrame(item.a,item.b,item.normal).depth[1]) === 1));
+  assert.ok(items.filter(item => item.role === 'post').every(item => item.a[0] === item.b[0] && item.a[1] === item.b[1]));
   const purlinYs = [...new Set(items.filter(item => item.role === 'purlin').map(item => Math.round(item.a[1])))];
   assert.deepEqual(purlinYs, [2667, 5333]);
   assert.ok(items.filter(item => item.role === 'sleeper').every(item => item.heightMm === 100 && item.profile === '100×150'));
@@ -45,6 +49,17 @@ test('10 × 8 m cold layered roof shares two geometric frames between estimate, 
     assert.ok(line.catalogId);
   }
   assert.ok(report.assembly.issues.some(issue => issue.includes('не проверены расчётом')));
+});
+
+test('saved legacy 6 m spacing adopts automatic 1 m stations; manual override remains available', () => {
+  const p = projectFor(); p.settings.roof.layeredFramePostSpacingMm = 6000;
+  delete p.settings.roof.layeredFramePostSpacingMode;
+  assert.equal(migrateProject(JSON.parse(JSON.stringify(p))).settings.roof.layeredFramePostSpacingMode, 'auto');
+  const auto = calculateProductionCutting(p, calculateProject(p)).assembly.supports.filter(item => item.role === 'post');
+  assert.equal(auto.length, 22);
+  p.settings.roof.layeredFramePostSpacingMode = 'manual';
+  const manual = calculateProductionCutting(p, calculateProject(p)).assembly.supports.filter(item => item.role === 'post');
+  assert.equal(manual.length, 6);
 });
 
 test('sleeper follows wall plate profile, manual placement survives JSON, saved purlins suppress derived frames', () => {

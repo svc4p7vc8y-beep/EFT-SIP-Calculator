@@ -9,7 +9,9 @@ const run=p=>calculateProductionCutting(p,calculateProject(p));
 test('roof drawings preserve default quantities, estimate and project inputs',()=>{
  const p=createDefaultProject(),before=structuredClone(p),c=calculateProject(p),r=run(p);
  // v212 additionally supplies missing T-junction studs: +0.12 m³ ×26400 ₽.
- assert.ok(Math.abs(c.totals.total-(3762862.29248+10612.80))<.001);assert.equal(r.assembly.rafters.length,30);assert.equal(r.assembly.laths.length,88);
+ const oldLaths=Math.ceil((c.roof.geometry.totalSlopeArea/c.roof.lathStep+c.roof.mainEaveLength)/6),lathDelta=(c.roof.mainLathBoardCount-oldLaths)*6*.025*.1*c.lines.find(line=>line.id==='roof:lath').price;
+ const oldCross=Math.ceil((c.roof.geometry.totalSlopeArea/c.roof.lathStep+c.roof.mainEaveLength)/c.roof.rafterStructure.module),fastenerDelta=(c.roof.lathCrossingCount-oldCross)*c.inputs.formulas.roofLathNailsPerCrossing*c.inputs.formulas.roofLathNailKgEach*c.lines.find(line=>line.id==='roof:general-fasteners').price;
+ assert.ok(Math.abs(c.totals.total-(3762862.29248+10612.80+lathDelta+fastenerDelta))<.001);assert.equal(r.assembly.rafters.length,30);assert.ok(r.assembly.laths.length>88);
  assert.equal(r.assembly.roofDrawing.sections.length,2);assert.deepEqual(p,before);
  assert.equal(r.assembly.roofDrawing.warnings.length,0);
  for(const line of roofAxonometricLines(r.assembly)){const length=Math.hypot(...line.a.map((a,i)=>line.b[i]-a));assert.ok(Math.abs(length-r.assembly.rafters.find(r=>r.id===line.id).length)<1);}

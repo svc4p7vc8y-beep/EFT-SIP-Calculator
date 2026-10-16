@@ -54,7 +54,8 @@ export function layeredFrameLayout(project, calculation, bounds, axis, stockLeng
   const allowance = Math.max(0, Number(project.settings.productionCutting?.endAllowanceMm) || 0);
   const usable = stock - 2 * allowance;
   if (usable < 1000) return { items: [], issues: ['Прогоны: заготовка слишком короткая с учётом припусков.'], fractions: [] };
-  const spacing = Math.min(usable, Math.max(1000, Number(settings.layeredFramePostSpacingMm) || usable));
+  const spacing = Math.min(usable, Math.max(1000, settings.layeredFramePostSpacingMode === 'manual'
+    ? Number(settings.layeredFramePostSpacingMm) || 1000 : 1000));
   const items = [], issues = [];
   const xy = (along, across) => axis === 'x' ? [bounds.x + along, bounds.y + across] : [bounds.x + across, bounds.y + along];
   for (const [index, fraction] of fractions.entries()) {

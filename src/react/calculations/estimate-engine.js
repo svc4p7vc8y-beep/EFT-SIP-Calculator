@@ -9,6 +9,7 @@ import {
 import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { bearingEdges, partitionProfileShares } from './bearing-walls.js';
 import { clearGapPositions } from './clear-gap-framing.js';
+import { roofLathRows } from './roof-lathing.js';
 import { exteriorWallConstruction, wallTrimLength } from './wall-construction.js';
 import { partitionReinforcements, reinforcementBoardCount } from './partition-construction.js';
 import { projectOpeningInserts } from './sip-opening-inserts.js';
@@ -1447,7 +1448,9 @@ function roofSection(project, metrics, index, inputs) {
   const mainGableBoardVolume = mainGableBoardCount * 6 * 0.05 * 0.15;
   const lathStep = Math.min(1.2, Math.max(0.1, Number(roof.lathStep) || 0.35));
   const mainLathRequiredLength = includeCovering && mainArea
-    ? mainArea / lathStep + mainEaveLength
+    ? Number(geometry.slopeLength) > 0 && mainRoofShape !== 'tiered'
+      ? mainArea / Number(geometry.slopeLength) * roofLathRows(Number(geometry.slopeLength) * 1000, lathStep * 1000).length
+      : mainArea / lathStep + mainEaveLength
     : 0;
   const mainLathBoardCount = mainLathRequiredLength
     ? Math.ceil(mainLathRequiredLength / 6)

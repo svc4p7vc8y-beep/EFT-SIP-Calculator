@@ -1,0 +1,7 @@
+.view-switcher{display:inline-flex;align-items:stretch;gap:2px;min-width:0;max-width:100%;height:38px;border:1px solid #cbd7cb;border-radius:9px;background:#f8fbf6;overflow:hidden}
+.view-switcher button{display:grid;place-items:center;flex:none;min-width:34px;padding:0 6px;border:0;background:transparent;color:#34543b;cursor:pointer}
+.view-switcher button:hover{background:#e8f2e7}
+.view-switcher output{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:120px;max-width:240px;padding:2px 7px;text-align:center;line-height:1.1;overflow:hidden}
+.view-switcher strong,.view-switcher small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.view-switcher strong{font-size:12px}.view-switcher small{font-size:10px;color:#637163}
+@media(max-width:700px){.view-switcher{width:100%}.view-switcher output{flex:1;max-width:none}}

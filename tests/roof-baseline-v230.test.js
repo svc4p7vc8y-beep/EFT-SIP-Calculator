@@ -4,15 +4,15 @@ import {createDefaultProject} from '../src/react/state/project-model.js';
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
 import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
 
-// v230 costs remain the reference before the optional v232 hanging rigel line.
+// v230 costs remain the reference before the v232 rigel and v234 lath-row rule.
 const cases=[
   {name:'cold gable',shape:'gable',faces:2,area:70.205,rafters:30,oldCost:1773629.50,cost:1773329.50},
   {name:'warm SIP gable',shape:'gable',type:'sip',faces:2,area:70.205,warmArea:70.205,rafters:0,roofSurfaces:2,oldCost:2132073.90,cost:2131773.90},
-  {name:'cold hip',shape:'hip',faces:4,area:73.470,rafters:46,oldCost:1986081.00,cost:1985631.00},
+  {name:'cold hip',shape:'hip',faces:4,area:73.470,rafters:46,oldCost:1986081.00,cost:1986528.60},
   {name:'cold tiered',shape:'tiered',faces:2,area:68.534,rafters:30,oldCost:1781627.55,cost:1770272.75},
   {name:'structural flat',shape:'flat',flatSlopeMode:'structural',faces:1,area:60.275,rafters:15,oldCost:1622214.65,cost:1652391.45},
   {name:'tapered flat',shape:'flat',flatSlopeMode:'tapered',faces:1,area:60.275,rafters:0,oldCost:1605359.15,cost:1635535.95},
-  {name:'L-shaped hip',shape:'hip',lShaped:true,faces:8,area:75.340,rafters:63,oldCost:2326238.48,cost:2325788.48},
+  {name:'L-shaped hip',shape:'hip',lShaped:true,faces:8,area:75.340,rafters:63,oldCost:2326238.48,cost:2326765.28},
   {name:'gable with terrace roof',shape:'gable',terrace:true,faces:4,area:70.205,rafters:40,oldCost:1978169.15,cost:1977869.15},
 ];
 
@@ -32,6 +32,11 @@ for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   assert.equal(report.assembly.rafters.length,scenario.rafters);
   assert.equal(report.surfaces.filter(surface=>surface.roofFaceId).length,scenario.roofSurfaces||0);
   const rigelCost=scenario.shape==='gable'&&scenario.type!=='sip'?10111.20:0;
-  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost)*100)/100);
+  const oldLathCount=Math.ceil((calculation.roof.geometry.totalSlopeArea/calculation.roof.lathStep+calculation.roof.mainEaveLength)/6);
+  const lathPrice=calculation.lines.find(line=>line.id==='roof:lath')?.price||0;
+  const lathDelta=scenario.shape==='tiered'?0:(calculation.roof.mainLathBoardCount-oldLathCount)*6*.025*.1*lathPrice;
+  const oldCross=Math.ceil((calculation.roof.geometry.totalSlopeArea/calculation.roof.lathStep+calculation.roof.mainEaveLength)/calculation.roof.rafterStructure.module);
+  const fastenerDelta=scenario.shape==='tiered'||!calculation.roof.rafterStructure.pairCount?0:(calculation.roof.lathCrossingCount-oldCross)*calculation.inputs.formulas.roofLathNailsPerCrossing*calculation.inputs.formulas.roofLathNailKgEach*(calculation.lines.find(line=>line.id==='roof:general-fasteners')?.price||0);
+  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta)*100)/100);
   assert.equal(calculation.lines.find(line=>line.id==='roof:hanging-rigels')?.qty||0,rigelCost?.383:0);
 });

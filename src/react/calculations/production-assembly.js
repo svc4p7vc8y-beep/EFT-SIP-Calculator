@@ -11,6 +11,7 @@ import {platformAssembly} from './platform-assembly.js';
 import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
 import { hangingRiegelEnabled, hangingRiegelMembers } from './hanging-riegel.js';
 import { layeredFrameLayout } from './layered-frame.js';
+import { roofLathRows } from './roof-lathing.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -102,13 +103,13 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const laths=[],counterLaths=[];
   if(project.services.roof&&roof.includeCovering&&rafters.length){
     for(const name of [...new Set(rafters.map(r=>r.name))]){
-      const run=rafters.filter(r=>r.name===name),sample=run[0],rowCount=Math.ceil(sample.length/mm(roof.lathStep||.35));
+      const run=rafters.filter(r=>r.name===name),sample=run[0];
       const alongIndex=axis==='x'?0:1,acrossIndex=1-alongIndex;
       const anchors=[-gable,...run.map(r=>r.a[alongIndex]-(axis==='x'?bounds.x:bounds.y)),axisLength+gable].sort((a,b)=>a-b);
       const spans=[];let start=anchors[0];
-      while(start<anchors.at(-1)-.1){const choices=anchors.filter(x=>x>start+.1&&x-start<=settings.stockLengthMm-2*Number(settings.endAllowanceMm||0));const end=choices.at(-1)||anchors.find(x=>x>start+.1);spans.push([start,end]);start=end;}
-      for(let row=0;row<=rowCount;row++)for(const [from,to]of spans){const t=row/rowCount,across=sample.a[acrossIndex]+(sample.b[acrossIndex]-sample.a[acrossIndex])*t-(axis==='x'?bounds.y:bounds.x),a=at(from,across),b=at(to,across),id=`КР-ОБ${laths.length+1}`,length=Math.round(to-from);
-        const item={id,a,b,length,profile:'25×100',name,slopeY:Math.round(sample.length*t)};laths.push(item);members.push({...item,material:'Обрешётка',cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Шаг обрешётки текущей кровли',surface:'Кровля',panels:[],processing:'Стыки на стропилах; первый ряд и крепление уточнить по покрытию'});
+      while(start<anchors.at(-1)-.1){const choices=anchors.filter(x=>x>start+.1&&x-start<=settings.stockLengthMm-2*Number(settings.endAllowanceMm||0));const end=choices.at(-1);if(end==null){issues.push(`${name}: нет стропильной опоры для стыка обрешётки в пределах заготовки ${settings.stockLengthMm} мм.`);break;}spans.push([start,end]);start=end;}
+      for(const slopeY of roofLathRows(sample.length,mm(roof.lathStep||.35)))for(const [from,to]of spans){const t=slopeY/sample.length,across=sample.a[acrossIndex]+(sample.b[acrossIndex]-sample.a[acrossIndex])*t-(axis==='x'?bounds.y:bounds.x),a=at(from,across),b=at(to,across),id=`КР-ОБ${laths.length+1}`,length=Math.round(to-from);
+        const item={id,a,b,length,profile:'25×100',name,slopeY:Math.round(slopeY)};laths.push(item);members.push({...item,material:'Обрешётка',cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Три сплошные доски у каждого края ската; остальные с проектным шагом',surface:'Кровля',panels:[],processing:'Стыки на стропилах; крепление по рабочему узлу'});
       }
     }
     if(/^\d+×\d+$/.test(settings.counterLathProfile)&&settings.counterLathProfile.split('×').every(v=>Number(v)>0))for(const r of rafters){const item={...r,id:`КР-КО${counterLaths.length+1}`,profile:settings.counterLathProfile};counterLaths.push(item);members.push({...item,material:'Контробрешётка',cutLength:r.length+2*Number(settings.endAllowanceMm||0),source:'Проектное сечение',surface:'Кровля',panels:[],processing:'Вентиляционный зазор и крепление по проекту'});}
@@ -201,8 +202,9 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   for(const item of settings.roofSupports)if(item.roofSourceKey&&item.roofSourceKey!==roofSourceKey)issues.push(`${item.name||item.id}: кровля изменилась после авторасстановки. Проверьте координаты, опирание и повторите расстановку; ручная правка сохранена.`);
   const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
   const automaticColdHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
-  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticColdHip;
-  if(plainSipGable&&!settings.roofDesign.enabled){
+  const automaticSipHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='sip'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
+  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticColdHip;
+  if((plainSipGable||automaticSipHip)&&!settings.roofDesign.enabled){
     assembly.roofDrawing.model=assembly.roofModel;
     const outline=assembly.roofModel.projection[0]?.[0];if(outline)assembly.roofOutline=outline.slice(0,-1);
   }
@@ -234,7 +236,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for (const item of layout.items) {
       const type = item.role === 'purlin' ? 'purlin' : item.role === 'post' ? 'post' : 'beam';
       assembly.supports.push({ ...item, type, mark: item.id, a: item.a, b: item.b,
-        flat: item.flat, normal: [0, 0, 1], referenceOnly: false,
+        flat: item.flat, normal: item.role === 'post' ? [0, 1, 0] : [0, 0, 1], referenceOnly: false,
         loadPath: { complete: false, text: 'Опирание на несущие стены и фундамент не подтверждено' } });
       assembly.members.push({ id: item.id, material: item.name, profile: item.profile,
         length: item.length, cutLength: item.length + 2 * Number(settings.endAllowanceMm || 0),

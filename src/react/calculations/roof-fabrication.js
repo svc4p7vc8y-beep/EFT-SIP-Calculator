@@ -2,6 +2,7 @@ import {roofWorld,roofEdgeSignature} from './roof-project.js';
 import {clearGapPositions} from './clear-gap-framing.js';
 import {roofMemberGeometry,roofRafterDetail} from './roof-rafter-detail.js';
 import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
+import { roofLathRows } from './roof-lathing.js';
 export function roofLineIntervals(polygon,x){
  const hits=[];for(let i=0;i<polygon.length;i++){const a=polygon[i],b=polygon[(i+1)%polygon.length];if((a[0]<=x&&b[0]>x)||(b[0]<=x&&a[0]>x))hits.push(a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0]));}
  hits.sort((a,b)=>a-b);return Array.from({length:Math.floor(hits.length/2)},(_,i)=>[hits[2*i],hits[2*i+1]]);
@@ -33,8 +34,8 @@ export function roofFabrication(model,project,calculation,settings){
   }
   if(calculation.roof.includeCovering){
    const ys=f.polygon.map(p=>p[1]),v0=Math.min(...ys),v1=Math.max(...ys),step=Number(calculation.roof.lathStep||.35)*1000;
-   const count=Math.ceil((v1-v0)/step),transposed=f.polygon.map(([x,y])=>[y,x]);
-   for(let j=0;j<=count;j++){const y=j===count?v1-.01:v0+.01+j*(v1-v0)/count;for(const [a,b]of roofLineIntervals(transposed,y)){
+   const transposed=f.polygon.map(([x,y])=>[y,x]);
+   for(const row of roofLathRows(v1-v0,step)){const y=v0+row;for(const [a,b]of roofLineIntervals(transposed,y)){
     let from=a;while(from<b-.01){const max=Number(settings.stockLengthMm)-2*Number(settings.endAllowanceMm||0),anchors=positions.filter(x=>x>from+.01&&x<=from+max),to=b-from<=max?b:anchors.at(-1);if(to==null){issues.push(`${f.name}: нет стропила для стыка обрешётки.`);break;}
      const A=roofWorld(f,[from,y]),B=roofWorld(f,[to,y]),id=`${f.id}-ОБ${laths.length+1}`;append({id,name:f.name,faceId:f.id,normal:f.normal,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(to-from),profile:'25×100',flat:true},'Обрешётка',laths);from=to;
     }
