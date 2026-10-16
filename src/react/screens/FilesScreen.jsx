@@ -12,6 +12,7 @@ const formatSize = (value) => {
 
 const formatDate = (value) => value ? new Date(value.replace?.(" ", "T") || value).toLocaleString("ru-RU") : "";
 const isImage = (mime) => String(mime || "").startsWith("image/");
+const CRM_API = "https://crm.eftsip.ru/api/api.php";
 
 export default function FilesScreen() {
   const team = useTeam();
@@ -23,8 +24,21 @@ export default function FilesScreen() {
   const [query, setQuery] = useState("");
   const [newFolder, setNewFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
+  const [crmFiles, setCrmFiles] = useState([]);
+  const [crmConnected, setCrmConnected] = useState(false);
   const canWrite = Boolean(team.user && team.user.role !== "viewer" && folderId !== "questionnaires");
   const apiBase = useMemo(() => resolveEftApiUrl(), []);
+  const loadCrm = useCallback(async () => {
+    try {
+      const session = await fetch(`${CRM_API}?action=session`, { credentials: "include" }).then((response) => response.json());
+      if (!session.authenticated) { setCrmConnected(false); setCrmFiles([]); return; }
+      const response = await fetch(`${CRM_API}?action=files.list`, { credentials: "include" });
+      if (!response.ok) throw new Error("Файлы CRM недоступны");
+      const result = await response.json();
+      setCrmFiles((result.files || []).map((file) => ({ id: `crm:${file.id}`, original_name: file.name, mime_type: file.mime, size_bytes: file.size, created_at: file.createdAt, created_by: `CRM · ${file.siteName || file.author}`, source: "crm", href: `${CRM_API}?action=files.download&id=${encodeURIComponent(file.id)}` })));
+      setCrmConnected(true);
+    } catch { setCrmConnected(false); setCrmFiles([]); }
+  }, []);
 
   const load = useCallback(async (nextFolder = folderId) => {
     setLoading(true);
@@ -42,7 +56,7 @@ export default function FilesScreen() {
     finally { setLoading(false); }
   }, [folderId, team.user]);
 
-  useEffect(() => { load(""); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(""); loadCrm(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createFolder = async (event) => {
     event.preventDefault();
@@ -73,16 +87,16 @@ export default function FilesScreen() {
   };
 
   const visibleFolders = data.folders?.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())) || [];
-  const visibleFiles = data.files?.filter((item) => item.original_name.toLowerCase().includes(query.toLowerCase())) || [];
+  const visibleFiles = [...(data.files || []), ...(!folderId ? crmFiles : [])].filter((item) => item.original_name.toLowerCase().includes(query.toLowerCase()));
   const openFolder = (id) => load(id);
-  const fileHref = (file) => `${apiBase}?action=${file.downloadAction || "file-download"}&id=${encodeURIComponent(file.id)}`;
+  const fileHref = (file) => file.href || `${apiBase}?action=${file.downloadAction || "file-download"}&id=${encodeURIComponent(file.id)}`;
 
   return (
     <section className="screen files-screen">
       <header className="screen-header">
         <div><p className="eyebrow">Общее хранилище</p><h1>Файлы</h1><p>Документы, фотографии и файлы анкет доступны всем сотрудникам после входа.</p></div>
         <div className="screen-actions">
-          <button className="button secondary" onClick={() => load(folderId)}><RefreshCw />Обновить</button>
+          <button className="button secondary" onClick={() => { load(folderId); loadCrm(); }}><RefreshCw />Обновить</button>
           {canWrite ? <button className="button secondary" onClick={() => setNewFolder(true)}><FolderPlus />Новая папка</button> : null}
           {canWrite ? <button className="button" onClick={() => inputRef.current?.click()}><Upload />Загрузить</button> : null}
           <input ref={inputRef} className="visually-hidden" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.rar,.7z,.dwg,.dxf,.json" onChange={upload} />
@@ -95,6 +109,7 @@ export default function FilesScreen() {
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти файл или папку" aria-label="Поиск файлов" />
       </div>
       {notice ? <div className="notice">{notice}</div> : null}
+      {!folderId && !crmConnected ? <div className="files-info"><Folder /><span>Для просмотра файлов CRM войдите в CRM и обновите список.</span><a href="https://crm.eftsip.ru/" target="_blank" rel="noreferrer">Открыть CRM</a></div> : null}
       {folderId === "questionnaires" ? <div className="files-info"><HardDrive /><span><strong>Файлы из анкет</strong> сохраняются автоматически вместе с заявкой. Здесь они больше не перекрывают рабочее поле.</span></div> : null}
       <div className="file-grid" aria-busy={loading}>
         {!folderId && data.questionnaireCount > 0 ? <button className="folder-card featured" onClick={() => openFolder("questionnaires")}><Folder /><span><strong>Файлы из анкет</strong><small>{data.questionnaireCount} файлов</small></span></button> : null}

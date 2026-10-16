@@ -44,7 +44,7 @@ function eft_db(): PDO {
 function eft_origin_headers(): void {
     $config = eft_config();
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if ($origin !== '' && in_array($origin, $config['allowed_origins'] ?? [], true)) {
+    if ($origin !== '' && (in_array($origin, $config['allowed_origins'] ?? [], true) || $origin === 'https://crm.eftsip.ru')) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Access-Control-Allow-Credentials: true');
         header('Vary: Origin');
@@ -57,7 +57,7 @@ function eft_origin_headers(): void {
 
 function eft_require_allowed_origin(): void {
     $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
-    if ($origin !== '' && !in_array($origin, eft_config()['allowed_origins'] ?? [], true)) {
+    if ($origin !== '' && !in_array($origin, eft_config()['allowed_origins'] ?? [], true) && $origin !== 'https://crm.eftsip.ru') {
         eft_json(['ok' => false, 'code' => 'origin_forbidden', 'message' => 'Источник запроса не разрешён.'], 403);
     }
 }
