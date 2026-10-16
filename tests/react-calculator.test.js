@@ -28,7 +28,7 @@ test('roof controls only expose parameters that affect the selected construction
 
   const flat = roofControlVisibility({ shape: 'flat', type: 'cold' });
   assert.equal(flat.showRafterSystem, false);
-  assert.equal(flat.showMauerlat, false);
+  assert.equal(flat.showMauerlat, true);
   assert.equal(flat.showMainAccessories, false);
   assert.equal(flat.showRafterDimensions, true);
 
@@ -664,7 +664,7 @@ test('gable roof uses a full-perimeter SIP mauerlat and adds the ridge board to 
   const project = createDefaultProject();
   const result = calculateProject(project);
   const houseLength = project.plan.house.w;
-  const perimeter = 2 * (project.plan.house.w + project.plan.house.h);
+  const perimeter = 2 * (project.plan.house.w + project.plan.house.h) - 0.6;
   const mauerlat = result.lines.find((line) => line.id === 'roof:mauerlat-timber');
   const mauerlatWork = result.lines.find((line) => line.id === 'roof:mauerlat-work');
   const screws = result.lines.find((line) => line.id === 'roof:mauerlat-screws');
@@ -701,8 +701,8 @@ test('mauerlat can use only bearing walls, anchors or be disabled', () => {
   project.settings.roof.mauerlatLayout = 'supports';
   project.settings.roof.mauerlatFastener = 'anchors';
   const supports = calculateProject(project);
-  const expectedLength = project.plan.house.w * 2;
-  const expectedAnchors = 2 * (Math.ceil(project.plan.house.w / supports.inputs.formulas.mauerlatAnchorSpacing) + 1);
+  const expectedLength = project.plan.house.w * 2 - 0.3;
+  const expectedAnchors = 2 * (Math.ceil((project.plan.house.w - 0.15) / supports.inputs.formulas.mauerlatAnchorSpacing) + 1);
   assert.equal(supports.roof.mauerlatLength, expectedLength);
   assert.equal(supports.roof.mauerlatAnchors, expectedAnchors);
   assert.equal(supports.lines.find((line) => line.id === 'roof:mauerlat-anchors').qty, expectedAnchors);

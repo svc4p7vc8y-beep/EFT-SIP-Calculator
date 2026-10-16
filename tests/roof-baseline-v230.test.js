@@ -4,16 +4,16 @@ import {createDefaultProject} from '../src/react/state/project-model.js';
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
 import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
 
-// Freeze the current geometry, detail counts and estimate before revising roof rules.
+// v230 prices are retained as the old reference; cost is the new centered wall-plate takeoff.
 const cases=[
-  {name:'cold gable',shape:'gable',faces:2,area:70.205,rafters:30,cost:1773629.50},
-  {name:'warm SIP gable',shape:'gable',type:'sip',faces:2,area:70.205,warmArea:70.205,rafters:0,roofSurfaces:2,cost:2132073.90},
-  {name:'cold hip',shape:'hip',faces:4,area:73.470,rafters:46,cost:1986081.00},
-  {name:'cold tiered',shape:'tiered',faces:2,area:68.534,rafters:30,cost:1781627.55},
-  {name:'structural flat',shape:'flat',flatSlopeMode:'structural',faces:1,area:60.275,rafters:15,cost:1622214.65},
-  {name:'tapered flat',shape:'flat',flatSlopeMode:'tapered',faces:1,area:60.275,rafters:0,cost:1605359.15},
-  {name:'L-shaped hip',shape:'hip',lShaped:true,faces:8,area:75.340,rafters:63,cost:2326238.48},
-  {name:'gable with terrace roof',shape:'gable',terrace:true,faces:4,area:70.205,rafters:40,cost:1978169.15},
+  {name:'cold gable',shape:'gable',faces:2,area:70.205,rafters:30,oldCost:1773629.50,cost:1773329.50},
+  {name:'warm SIP gable',shape:'gable',type:'sip',faces:2,area:70.205,warmArea:70.205,rafters:0,roofSurfaces:2,oldCost:2132073.90,cost:2131773.90},
+  {name:'cold hip',shape:'hip',faces:4,area:73.470,rafters:46,oldCost:1986081.00,cost:1985631.00},
+  {name:'cold tiered',shape:'tiered',faces:2,area:68.534,rafters:30,oldCost:1781627.55,cost:1770272.75},
+  {name:'structural flat',shape:'flat',flatSlopeMode:'structural',faces:1,area:60.275,rafters:15,oldCost:1622214.65,cost:1652391.45},
+  {name:'tapered flat',shape:'flat',flatSlopeMode:'tapered',faces:1,area:60.275,rafters:0,oldCost:1605359.15,cost:1635535.95},
+  {name:'L-shaped hip',shape:'hip',lShaped:true,faces:8,area:75.340,rafters:63,oldCost:2326238.48,cost:2325788.48},
+  {name:'gable with terrace roof',shape:'gable',terrace:true,faces:4,area:70.205,rafters:40,oldCost:1978169.15,cost:1977869.15},
 ];
 
 for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{

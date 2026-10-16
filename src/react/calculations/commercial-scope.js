@@ -91,7 +91,7 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
           : `основная кровля, ${roof.rafterStructure?.system === 'layered' ? 'наслонная система' : roof.rafterStructure?.system === 'truss' ? 'стропильные фермы' : 'висячая система'} с чистым шагом ${formatNumber(roof.rafterStructure?.step || .6)} м`,
         project.settings.roof.shape === 'tiered' && 'опоры перепада уровней, высотные отметки и гидроизоляция примыкания — по конструктивному проекту',
         roof.layeredRidgeLength > 0 && `два ряда конькового прогона 100×50 мм с монтажом; несущие опоры и их крепление уточняются по конструктивному проекту`,
-        roof.mauerlatLength > 0 && `мауэрлат 100×150 мм: ${formatNumber(roof.mauerlatLength)} м, ${roof.mauerlatBoardCount || 0} брусьев по 6 м`,
+        roof.mauerlatLength > 0 && `мауэрлат ${roof.mauerlatProfile} мм плашмя: ${formatNumber(roof.mauerlatLength)} м, ${roof.mauerlatBoardCount || 0} заготовок по 6 м`,
         roof.mauerlatFastener === 'sip-screws' && `крепление мауэрлата: ${roof.mauerlatScrewCount || 0} конструкционных саморезов ${roof.mauerlatScrewSize || ''}`,
         roof.mauerlatFastener === 'anchors' && `крепление мауэрлата: ${roof.mauerlatAnchors || 0} анкер-шпилек`,
         `крепёж стропильных узлов ${roof.framingNailCount || 0} шт, обрешётки ${roof.lathNailCount || 0} шт`,

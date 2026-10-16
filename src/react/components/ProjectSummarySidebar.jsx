@@ -397,7 +397,7 @@ export default function ProjectSummarySidebar({
           />
           <SummaryValue
             label="Мауэрлат"
-            value={`${formatNumber(roof.mauerlatLength)} м · ${roof.mauerlatBoardCount || 0} брус.`}
+            value={`${formatNumber(roof.mauerlatLength)} м · ${roof.mauerlatBoardCount || 0} шт ${roof.mauerlatProfile}`}
           />
           <SummaryValue
             label="Крепёж каркаса"

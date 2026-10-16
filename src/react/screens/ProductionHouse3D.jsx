@@ -12,6 +12,19 @@ const roofCoverLayers=['roofSurface','laths','counterLaths'];
 const vector=point=>new THREE.Vector3(...planPointToThree(point));
 const direction=point=>new THREE.Vector3(...planDirectionToThree(point));
 function beamGeometry(item,width,depth,length){
+ if(item.layer==='rafters'&&item.bearingStatus==='geometry-only'&&item.bearingPoint&&item.bearingNotchMm>0){
+  const frame=beamFrame(item.a,item.b,item.normal),delta=item.bearingPoint.map((value,index)=>value-item.a[index]);
+  const seat=delta.reduce((sum,value,index)=>sum+value*frame.along[index],0)-length/2;
+  const halfSeat=25,lo=Math.max(-length/2+1,seat-halfSeat),hi=Math.min(length/2-1,seat+halfSeat);
+  if(hi>lo&&item.bearingNotchMm<=50){
+   const base=item.endCutOutline||[[-length/2,-depth/2],[length/2,-depth/2],[length/2,depth/2],[-length/2,depth/2]];
+   const shape=new THREE.Shape(),points=[base[0],base[1],base[2],[hi,depth/2],[hi,depth/2-item.bearingNotchMm],[lo,depth/2-item.bearingNotchMm],[lo,depth/2],base[3]];
+   points.forEach(([y,z],index)=>index?shape.lineTo(y/1000,z/1000):shape.moveTo(y/1000,z/1000));shape.closePath();
+   const geometry=new THREE.ExtrudeGeometry(shape,{depth:width/1000,bevelEnabled:false});
+   geometry.applyMatrix4(new THREE.Matrix4().makeBasis(new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,1),new THREE.Vector3(1,0,0)));
+   geometry.translate(-width/2000,0,0);return geometry;
+  }
+ }
  if(!item.endCutOutline)return new THREE.BoxGeometry(width/1000,length/1000,depth/1000);
  const vertices=[-width/2,width/2].flatMap(x=>item.endCutOutline.flatMap(([y,z])=>[x/1000,y/1000,z/1000]));
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));

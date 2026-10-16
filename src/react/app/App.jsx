@@ -416,7 +416,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка сайта; формат файла проекта ${REACT_PROJECT_VERSION}`}>Сборка {import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 231</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>

@@ -4,10 +4,11 @@ import { productionLevels } from './production-levels.js';
 import {roofAt} from './roof-project.js';
 import {roofAxonometricLines} from './roof-drawings.js';
 import {hasHorizontalCeiling} from '../../calculations/floor-height.js';
+import { ceilingTopElevation } from './roof-wall-plate.js';
 export const FRAME_LAYOUT='roof-support-frame';
 export function roofFrameSource(project,assembly,settings){
  const levels=productionLevels(project,assembly.floors.length);
- return JSON.stringify([assembly.bounds,assembly.axis,assembly.roofShape,assembly.rafterSystem,assembly.rafters.map(r=>[r.id,r.worldA||r.a,r.worldB||r.b,r.profile,r.excluded]),assembly.roofDrawing?.model?assembly.roofModel.faces.map(f=>f.vertices):assembly.roofDrawing?.sections.map(s=>[s.a,s.b,s.profile]),levels.roofBase,hasHorizontalCeiling(levels.plans.at(-1)),project.services.sipCeiling,project.settings.sip.ceilingThickness,settings.stockLengthMm,settings.endAllowanceMm]);
+ return JSON.stringify([assembly.bounds,assembly.axis,assembly.roofShape,assembly.rafterSystem,assembly.rafters.map(r=>[r.id,r.a,r.b,r.worldA,r.worldB,r.profile,r.excluded]),assembly.roofDrawing?.model?assembly.roofModel.faces.map(f=>f.vertices):assembly.roofDrawing?.sections.map(s=>[s.a,s.b,s.profile]),levels.roofBase,hasHorizontalCeiling(levels.plans.at(-1)),project.services.sipCeiling,project.settings.sip.ceilingThickness,settings.stockLengthMm,settings.endAllowanceMm]);
 }
 // A geometric support wall, not an engineered truss. Heights use the existing roof sections.
 export function roofSupportFrame(project,report,config={}) {
@@ -54,7 +55,7 @@ function aFrameTies(project,report,config,profile,roofBase){
  if(!project.services.roof)return fail('Кровля отключена в параметрах проекта.');
  if(a.roofShape!=='gable'||a.usesRoofPlanes||a.roofDrawing?.model||!a.rafters.length)return fail('А-фрейм доступен для простой двускатной стропильной крыши. Для SIP или индивидуальных скатов требуется рабочая схема.');
  const ceiling=report.surfaces.find(s=>s.id.endsWith('-ПТ')&&s.floor===a.floors.length);
- const ceilingTop=roofBase+(ceiling?Number(ceiling.thickness)/2:0),tieDepth=Number(profile.split('×')[1]);
+ const ceilingTop=ceilingTopElevation(project,report.calculation||{metrics:{ceilingArea:ceiling?1:0}},a.floors.length).topZ,tieDepth=Number(profile.split('×')[1]);
  const z=config.baseZ===''||config.baseZ==null?ceilingTop+tieDepth/2:Number(config.baseZ),axis=a.axis==='x'?0:1,lines=roofAxonometricLines(a),pairs=new Map();
  for(const r of lines){const key=r.a[axis].toFixed(3);if(!pairs.has(key))pairs.set(key,[]);pairs.get(key).push(r);}
  const material=(project.priceMat||[]).find(r=>{const dims=r.name.replace(/[×хx*]/g,'×').match(/(\d+)\s*×\s*(\d+)/);return ['м3','м³'].includes(r.unit)&&dims&&`${dims[1]}×${dims[2]}`===profile;});

@@ -716,10 +716,19 @@ function RoofConstructionPanels({
         {roofVisibility.showMauerlat ? <section className="roof-main-section">
           <h3>{roofVisibility.showRafterSupport ? "Мауэрлат и крепёж стропильной системы" : "Мауэрлат и крепёж кровли"}</h3>
           <p className="roof-section-note">
-            Мауэрлат считается шестиметровыми брусьями. Крепёж формируется по
+            Мауэрлат лежит плашмя на краю потолка и считается шестиметровыми заготовками. Крепёж формируется по
             точкам опирания, узлам конька, затяжкам и пересечениям обрешётки.
           </p>
           <div className="form-grid four">
+            <SelectField
+              label="Сечение мауэрлата · плашмя"
+              value={project.settings.roof.mauerlatProfile || "100x150"}
+              onChange={(value) => setSetting("roof", "mauerlatProfile", value)}
+              options={[
+                { value: "100x150", label: "Брус 100 × 150 мм" },
+                { value: "50x150", label: "Доска 50 × 150 мм" },
+              ]}
+            />
             <SelectField
               label="Схема мауэрлата"
               value={project.settings.roof.mauerlatLayout || "perimeter"}
@@ -750,7 +759,7 @@ function RoofConstructionPanels({
               ]}
             /> : null}
             <div className="readout">
-              <span>Мауэрлат 100×150</span>
+              <span>Мауэрлат {calculation.roof.mauerlatProfile}</span>
               <strong>
                 {formatNumber(calculation.roof.mauerlatLength)} м · {calculation.roof.mauerlatBoardCount || 0} шт × 6 м
               </strong>
@@ -1682,7 +1691,7 @@ export default function Calculators({ type, onNavigate }) {
               tone={calculation.roof.insulatedRafterArea ? "accent" : ""}
             />
             <Stat
-              label="Мауэрлат 100×150"
+              label={`Мауэрлат ${calculation.roof.mauerlatProfile}`}
               value={`${formatNumber(calculation.roof.mauerlatLength)} м.п. · ${calculation.roof.mauerlatBoardCount || 0} шт × 6 м`}
             />
             <Stat

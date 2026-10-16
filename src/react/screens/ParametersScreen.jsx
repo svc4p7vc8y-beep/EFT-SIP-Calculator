@@ -1103,6 +1103,15 @@ export default function ParametersScreen() {
                 ],
               },
               {
+                path: "settings.roof.mauerlatProfile",
+                label: "Сечение мауэрлата · плашмя",
+                type: "select",
+                options: [
+                  { value: "100x150", label: "Брус 100 × 150 мм" },
+                  { value: "50x150", label: "Доска 50 × 150 мм" },
+                ],
+              },
+              {
                 path: "settings.roof.mauerlatFastener",
                 label: "Крепление мауэрлата",
                 type: "select",

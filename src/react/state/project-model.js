@@ -619,6 +619,7 @@ export function createDefaultProject() {
         rafterSection: "50x150",
         lathStep: 0.35,
         mauerlatLayout: "perimeter",
+        mauerlatProfile: "100x150",
         mauerlatFastener: "sip-screws",
         rafterSupportConnection: "nails",
         showRoofCover: true,

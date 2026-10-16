@@ -90,8 +90,8 @@ test('cold hip selected in the plan draws mauerlat and geometric rafter bearings
  assert.equal(assembly.roofTimbers.filter(item=>item.roofMemberKind==='hip').length,4);
  assert.equal(assembly.roofTimbers.filter(item=>item.roofMemberKind==='ridge').length,1);
  assert.equal(scene.beams.filter(item=>item.layer==='roofTimbers'&&item.name==='Мауэрлат').length,4);
- assert.equal(scene.bearingPoints.length,72);
- assert.equal(assembly.rafters.filter(item=>item.bearingStatus==='unresolved').length,2);
+ assert.equal(scene.bearingPoints.length,70);
+ assert.equal(assembly.rafters.filter(item=>item.bearingStatus==='unresolved').length,4);
  for(const item of assembly.rafters.filter(item=>item.bearingStatus==='geometry-only')){
   const mauerlat=mauerlats.find(line=>line.id===item.bearingMauerlatId);
   assert.ok(mauerlat,item.id);
@@ -99,7 +99,8 @@ test('cold hip selected in the plan draws mauerlat and geometric rafter bearings
   const fraction=Math.abs(b[0]-a[0])>1?(point[0]-a[0])/(b[0]-a[0]):(point[1]-a[1])/(b[1]-a[1]);
   assert.ok(fraction>=-.001&&fraction<=1.001,item.id);
   assert.ok(Math.hypot(point[0]-a[0]-fraction*(b[0]-a[0]),point[1]-a[1]-fraction*(b[1]-a[1]))<1,item.id);
-  assert.ok(Math.abs(point[2]-a[2]-fraction*(b[2]-a[2]))<=5,item.id);
+  assert.ok(Math.abs(point[2]-mauerlat.plateTopZ)<=5,item.id);
+  assert.ok(item.bearingNotchMm<=50,item.id);
  }
  assert.equal(calculateProject(p).totals.total,before);
  assert.equal(p.settings.productionCutting.roofDesign.enabled,false);
@@ -111,7 +112,7 @@ test('disabled mauerlat leaves hip rafter bearing unresolved',()=>{
  assert.equal(report.assembly.roofTimbers.filter(item=>item.name==='Мауэрлат').length,0);
  assert.ok(report.assembly.rafters.length>0);
  assert.ok(report.assembly.rafters.every(item=>item.bearingStatus==='unresolved'));
- assert.match(report.assembly.issues.join(' '),/опирание/);
+ assert.match(report.assembly.issues.join(' '),/Опирание/);
 });
 
 test('manual exclusion of a mauerlat segment removes its 3D support points and opens a bearing check',()=>{

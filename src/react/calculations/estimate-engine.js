@@ -35,6 +35,7 @@ import { calculateConstructionNodes } from './construction-nodes.js';
 import { calculateSnowGuards } from './snow-guards.js';
 import { productionEstimateLines } from './production-estimate.js';
 import { calculateTieredRoofGeometry, normalizeTieredRoof, resolveTieredGables } from './tiered-roof.js';
+import { mauerlatProfile, mauerlatWallRuns, mauerlatRunLength } from './roof-wall-plate.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -1301,29 +1302,22 @@ function roofSection(project, metrics, index, inputs) {
     (sum, item) => sum + item.result.postCount,
     0,
   );
+  const plateProfile = mauerlatProfile(roof);
   const perimeterRuns = housePerimeterRuns(project.plan);
   const mauerlatLayout = ["perimeter", "supports", "none"].includes(
     roof.mauerlatLayout,
   )
     ? roof.mauerlatLayout
     : "perimeter";
-  const mauerlatRuns =
-    mainRoofShape === "flat" || mauerlatLayout === "none"
-      ? []
-      : mainRoofShape === 'tiered'
-        ? mauerlatLayout === 'perimeter'
-          ? [...perimeterRuns, geometry.junctionLength]
-          : [houseLength, houseLength, geometry.junctionLength]
-      : mainRoofShape === "hip" || mauerlatLayout === "perimeter"
-        ? perimeterRuns
-        : [houseLength, houseLength];
-  const mauerlatLength = mauerlatRuns.reduce((sum, length) => sum + length, 0);
+  const plateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout }, roofAxes.ridgeAxis);
+  const mauerlatRuns = plateGeometry.runs.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000);
+  const mauerlatLength = mauerlatRunLength(plateGeometry.runs);
   const mauerlatPurchaseLength =
     mauerlatLength * inputs.formulas.mauerlatReserve;
   const mauerlatBoardCount = mauerlatPurchaseLength
     ? Math.ceil(mauerlatPurchaseLength / 6)
     : 0;
-  const mauerlatVolume = mauerlatBoardCount * 6 * 0.1 * 0.15;
+  const mauerlatVolume = mauerlatBoardCount * 6 * plateProfile.heightMm * plateProfile.widthMm / 1e6;
   const mauerlatFastener = ["sip-screws", "anchors", "none"].includes(
     roof.mauerlatFastener,
   )
@@ -2082,20 +2076,20 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(
       index,
       "roof",
-      "Брус ест.влажн. сосна 100×150 мм",
+      plateProfile.catalogName,
       mauerlatVolume,
       {
         key: "mauerlat-timber",
         unit: "м³",
         digits: 3,
-        name: `Мауэрлат 100×150 мм · ${mauerlatBoardCount} шт × 6 м`,
+        name: `Мауэрлат ${plateProfile.profile} мм · ${mauerlatBoardCount} шт × 6 м`,
         exactQuantity: true,
       },
     ),
     makeLine(index, "roof", "Монтаж мауэрлата", mauerlatLength, {
       key: "mauerlat-work",
       kind: "labor",
-      name: "Монтаж мауэрлата 100×150 мм",
+      name: `Монтаж мауэрлата ${plateProfile.profile} мм`,
     }),
     makeLine(
       index,
@@ -2607,6 +2601,8 @@ function roofSection(project, metrics, index, inputs) {
     tieredStepSupportLength: mainRoofShape === 'tiered' && mauerlatLayout !== 'none' ? geometry.junctionLength : 0,
     mauerlatPurchaseLength: round(mauerlatPurchaseLength, 3),
     mauerlatBoardCount,
+    mauerlatProfile: plateProfile.profile,
+    mauerlatPlacementIssue: plateGeometry.issue,
     mauerlatAnchors,
     mauerlatLayout,
     mauerlatFastener,

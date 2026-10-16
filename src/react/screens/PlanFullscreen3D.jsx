@@ -25,6 +25,6 @@ export default function PlanFullscreen3D({project,calculation}) {
   return <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>
     <ProductionHouse3D report={result.report} project={project} initialZoom={0.9} showRoofStructureByDefault showBearingPoints selected={selectedMemberId?[selectedMemberId]:[]} onSelect={setSelectedMemberId}/>
     {mauerlats.length?<p className="plan-3d-bearing-summary">Мауэрлат (зелёный): {mauerlats.length} участка · геометрическое пересечение: {bearingCount}/{rafters.length} стропил. Оранжевые точки — места пересечения, без расчёта врубки и крепежа.</p>:null}
-    {selected?<p className="plan-3d-bearing-detail">{selected.id} · {selected.name||selected.material} · {Math.round(selected.length)} мм{selected.bearingPoint?` · мауэрлат ${selected.bearingMauerlatId} · XYZ ${selected.bearingPoint.map(Math.round).join(' / ')} мм`:selected.bearingStatus==='unresolved'?' · опирание на мауэрлат не найдено':''}</p>:null}
+    {selected?<p className="plan-3d-bearing-detail">{selected.id} · {selected.name||selected.material} · {Math.round(selected.length)} мм{selected.bearingPoint?` · мауэрлат ${selected.bearingMauerlatId} · врезка ${Math.round(selected.bearingNotchMm||0)} мм (предел 50 мм) · XYZ ${selected.bearingPoint.map(Math.round).join(' / ')} мм`:selected.bearingStatus==='unresolved'?' · опирание на мауэрлат не подтверждено':''}</p>:null}
   </Suspense>;
 }

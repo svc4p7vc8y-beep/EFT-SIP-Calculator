@@ -17,6 +17,7 @@ const simple = () => {
 
 test('production wall cuts preserve opening area and add a labelled upper course without changing estimate', () => {
   const p = simple();
+  p.services.roof = false;
   p.plan.openings = [{ id: 'window', type: 'window', outer: true, x: 2, y: 0, width: 1, height: 1.2 }];
   p.settings.productionCutting.openingSills['1:window'] = 800;
   p.settings.productionCutting.wallAdditions['Э1-С1@0,0:5000,0'] = 200;

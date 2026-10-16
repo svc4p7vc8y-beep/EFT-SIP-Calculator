@@ -6,8 +6,9 @@ import { sourceIdentity } from '../state/production-identities.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { roofAxonometricLines } from './roof-drawings.js';
 import {roofProject,roofAt} from './roof-project.js';
-import {roofFabrication} from './roof-fabrication.js';
+import {roofFabrication,planIntersection} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
+import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -84,10 +85,16 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   } else if(project.services.roof && roof.coldSlopeArea>0)issues.push('Стропила сложной кровли или фермы: внесите детали по рабочему проекту.');
   const roofTimbers=[];
   const addRoofMember=(id,material,profile,length,a,b)=>{members.push({id,material,profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия кровли',surface:'Кровля',panels:[],processing:'Соединение длинных элементов и опорные узлы по проекту'});if(a&&b)roofTimbers.push({id,material,profile,length,a,b});};
-  if(project.services.roof && rectangular && roof.mauerlatLength>0){
-    const runs=roof.mauerlatLayout==='perimeter'?contour.map((a,i)=>[a,contour[(i+1)%contour.length]]):[[at(0,0),at(axisLength,0)],[at(0,span),at(axisLength,span)]];
-    if(roof.mainRoofShape==='tiered'){const junction=project.settings.roof?.tiered?.upperSide==='second'?span-mm(g.upperSpan):mm(g.upperSpan);runs.push([at(-gable,junction),at(axisLength+gable,junction)]);}
-    runs.forEach(([a,b],i)=>addRoofMember(`КР-М${i+1}`,'Мауэрлат','100×150',Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])),a,b));
+  if(project.services.roof && roof.mauerlatLength>0){
+    const plate=mauerlatProfile(project.settings.roof),layout=mauerlatWallRuns(project,{...project.settings.roof,shape:roof.mainRoofShape},axis);
+    const elevation=ceilingTopElevation(project,calculation,floors.length);
+    if(layout.issue)issues.push(layout.issue);
+    if(!elevation.hasCeiling)issues.push('Мауэрлат: верх потолка отсутствует в расчёте; показана опора на верх стены. Проверьте рабочий узел.');
+    layout.runs.forEach(([a,b],i)=>{
+      const id=`КР-М${i+1}`,length=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1]));
+      addRoofMember(id,'Мауэрлат',plate.profile,length,a,b);
+      Object.assign(roofTimbers.at(-1),{name:'Мауэрлат',flat:true,normal:[0,0,1],worldA:[...a,elevation.topZ+plate.heightMm/2],worldB:[...b,elevation.topZ+plate.heightMm/2],plateTopZ:elevation.topZ+plate.heightMm});
+    });
   }
   if(project.services.roof && roof.layeredRidgeLength>0)for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength),...(roof.mainRoofShape==='gable'&&rectangular?[at(-gable,span/2),at(-gable+mm(roof.layeredRidgeLength),span/2)]:[]));
   const laths=[],counterLaths=[];
@@ -166,6 +173,28 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   assembly.roofShape=roof.mainRoofShape;
   assembly.roofGeometry=g;
   assembly.roofModel=roofProject(project,calculation,assembly);
+  if(!settings.roofDesign?.enabled && roof.mainRoofShape!=='hip'){
+    const plates=assembly.roofTimbers.filter(item=>item.name==='Мауэрлат');
+    let unresolved=0;
+    for(const rafter of assembly.rafters){
+      const face=assembly.roofModel.faces.find(face=>face.group==='main'&&face.name===rafter.name)||assembly.roofModel.faces.find(face=>face.group==='main'&&roofAt({faces:[face]},...rafter.a).length);
+      if(!face){rafter.bearingStatus='unresolved';unresolved++;continue;}
+      rafter.worldA=[...rafter.a,roofAt({faces:[face]},...rafter.a)[0]?.z??assembly.roofModel.roofBase];
+      rafter.worldB=[...rafter.b,roofAt({faces:[face]},...rafter.b)[0]?.z??assembly.roofModel.roofBase];
+      rafter.normal=face.normal;
+      const depth=Number(rafter.profile.split(/[×xх]/)[1])||0;
+      const candidates=plates.flatMap(plate=>{
+        const hit=planIntersection(rafter.worldA,rafter.worldB,plate.worldA,plate.worldB);
+        if(!hit)return [];
+        const centerZ=rafter.worldA[2]+(rafter.worldB[2]-rafter.worldA[2])*hit.t;
+        const notchMm=plate.plateTopZ-centerZ+depth*face.normal[2]/2;
+        return notchMm>=-5&&notchMm/face.normal[2]<=50?[{plate,point:[rafter.worldA[0]+(rafter.worldB[0]-rafter.worldA[0])*hit.t,rafter.worldA[1]+(rafter.worldB[1]-rafter.worldA[1])*hit.t,plate.plateTopZ],notchMm:Math.max(0,notchMm/face.normal[2])}]:[];
+      });
+      if(candidates.length){const bearing=candidates[0];Object.assign(rafter,{bearingStatus:'geometry-only',bearingMauerlatId:bearing.plate.id,bearingPoint:bearing.point,bearingNotchMm:bearing.notchMm});}
+      else {rafter.bearingStatus='unresolved';unresolved++;}
+    }
+    if(unresolved)issues.push(`Опирание на мауэрлат не подтверждено для ${unresolved} стропил: нет пересечения, есть зазор или врезка превышает 50 мм.`);
+  }
   const roofSourceKey=roofGeometrySignature(assembly.roofModel);
   for(const item of settings.roofSupports)if(item.roofSourceKey&&item.roofSourceKey!==roofSourceKey)issues.push(`${item.name||item.id}: кровля изменилась после авторасстановки. Проверьте координаты, опирание и повторите расстановку; ручная правка сохранена.`);
   const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
@@ -174,11 +203,6 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   if(plainSipGable&&!settings.roofDesign.enabled){
     assembly.roofDrawing.model=assembly.roofModel;
     const outline=assembly.roofModel.projection[0]?.[0];if(outline)assembly.roofOutline=outline.slice(0,-1);
-    for(const member of assembly.roofTimbers){
-      if(!member.material?.startsWith('Мауэрлат'))continue;
-      const a=roofAt(assembly.roofModel,...member.a)[0],b=roofAt(assembly.roofModel,...member.b)[0];
-      if(a&&b){member.worldA=[...member.a,a.z];member.worldB=[...member.b,b.z];}
-    }
   }
   if(settings.roofDesign?.enabled||automaticColdHip){
     const fresh=roofFabrication(assembly.roofModel,project,calculation,settings);

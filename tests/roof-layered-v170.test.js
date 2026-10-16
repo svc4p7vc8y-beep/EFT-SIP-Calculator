@@ -18,8 +18,8 @@ test('layered roof prices two 100×50 ridge rows and their installation without 
   const layered = roofCase('layered');
   const byId = id => layered.lines.find(line => line.id === `roof:${id}`);
   // v212: T-junction studs add 0.12 m³ ×26400 ₽ independently of roof type.
-  assert.equal(hanging.totals.total, 3763162.2924800003);
-  assert.equal(layered.totals.total, 3775564.2924800003);
+  assert.equal(hanging.totals.total, 3762862.2924800003);
+  assert.equal(layered.totals.total, 3775264.2924800003);
   assert.ok(layered.totals.total > hanging.totals.total);
   assert.equal(layered.roof.rafterBoardCount, 41);
   assert.equal(layered.roof.layeredRidgeBoardCount, 4);
