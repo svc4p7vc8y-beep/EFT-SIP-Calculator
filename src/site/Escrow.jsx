@@ -1,4 +1,5 @@
-import { ArrowUpRight, House, ShieldCheck } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { asset } from "./data.js";
 
 export default function Escrow() {
   return (
@@ -24,13 +25,13 @@ export default function Escrow() {
             </a>
           </details>
         </div>
-        <div className="escrow-mark" aria-hidden="true">
-          <ShieldCheck className="escrow-shield" strokeWidth={1.15} />
-          <div className="escrow-mark-bottom">
-            <House strokeWidth={1.15} />
-            <span />
-            <strong>БАНК</strong>
-          </div>
+        <div className="escrow-mark">
+          <img
+            src={asset("escrow-domrf-logo.png")}
+            alt="Знак Банка ДОМ.РФ"
+            width="415"
+            height="340"
+          />
         </div>
       </div>
     </section>

@@ -7,7 +7,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { asset, houses, projectCategories } from "./data.js";
+import { asset, contacts, houses, projectCategories } from "./data.js";
 import Panels from "./Panels.jsx";
 import HeroIntro from "./HeroIntro.jsx";
 import Escrow from "./Escrow.jsx";
@@ -396,18 +396,27 @@ export default function Site() {
         К содержанию
       </a>
       <header className="site-header welcome-header">
-        <a
-          className="wordmark header-wordmark"
-          href="#"
-          aria-label="ЭФТ — на главную"
-        >
-          <AnimatedLogo />
-          <span className="brand-caption">
-            Энергоэффективные
-            <br />
-            технологии
-          </span>
-        </a>
+        <div className="header-brand-group">
+          <a
+            className="wordmark header-wordmark"
+            href="#"
+            aria-label="ЭФТ — на главную"
+          >
+            <AnimatedLogo />
+            <span className="brand-caption">
+              Энергоэффективные
+              <br />
+              технологии
+            </span>
+          </a>
+          <div className="header-contact">
+            <a className="header-phone" href={`tel:${contacts.phones[0].replace(/[^+\d]/g, "")}`}>
+              {contacts.phones[0]}
+            </a>
+            <span>Московская область</span>
+            <span>Калужская область</span>
+          </div>
+        </div>
         <nav
           className={menuOpen ? "site-nav open" : "site-nav"}
           id="main-navigation"
@@ -453,6 +462,7 @@ export default function Site() {
       />
       <main id="main">
         <HeroIntro />
+        <Escrow />
         {projectCategories.map((category) => (
           <ProjectCollection
             key={category.id}
@@ -528,7 +538,6 @@ export default function Site() {
             </div>
           </div>
         </section>
-        <Escrow />
         <Contact
           cart={cart}
           selection={selection}

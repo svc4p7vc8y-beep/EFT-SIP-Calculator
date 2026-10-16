@@ -256,13 +256,13 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .feedback.warning,.feedback.error{color:#a44338}
 @media(max-width:700px){.collection-open{width:100%;justify-content:center;font-size:14px}.catalog-toolbar{display:block}.reference-plan-heading{align-items:flex-start;flex-direction:column;gap:7px}.reference-plan-heading small{white-space:normal}.reference-room-list li{font-size:9px}.section-number{font-size:10px}.house-meta{font-size:11px}.site-footer p,.site-footer nav,.footer-note{font-size:13px}}
 
-/* Escrow is an inline disclosure, so the one-page navigation is preserved. */
-.escrow-section{padding-top:10px}
-.escrow-card{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(220px,.75fr);gap:45px;align-items:center;min-height:430px;padding:clamp(32px,5vw,74px);border-radius:8px;background:#294653;color:#fff;overflow:hidden}
+/* Escrow is a compact inline disclosure directly below the opening image. */
+.escrow-section{padding-top:38px;padding-bottom:48px}
+.escrow-card{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.65fr);gap:30px;align-items:center;width:min(100%,1040px);min-height:0;margin-inline:auto;padding:28px clamp(28px,4vw,52px);border-radius:8px;background:#2b4552;color:#fff;overflow:hidden}
 .escrow-card .section-number{color:#c6d4d9}
-.escrow-copy h2{font-size:clamp(36px,4.2vw,64px);line-height:1.13;letter-spacing:-2px}
-.escrow-copy>p{max-width:650px;margin-top:22px;color:#d6e0e2;font-size:15px;line-height:1.8}
-.escrow-details{margin-top:30px;max-width:660px}
+.escrow-copy h2{font-size:clamp(32px,3vw,43px);line-height:1.13;letter-spacing:-1.5px}
+.escrow-copy>p{max-width:590px;margin-top:15px;color:#d6e0e2;font-size:14px;line-height:1.65}
+.escrow-details{margin-top:19px;max-width:660px}
 .escrow-details summary{display:inline-flex;align-items:center;justify-content:center;gap:22px;min-height:56px;padding:13px 25px;border:1px solid #d6ba69;list-style:none;cursor:pointer;font-size:16px;font-weight:700;transition:background .2s,color .2s}
 .escrow-details summary::-webkit-details-marker{display:none}
 .escrow-details summary:hover,.escrow-details summary:focus-visible{background:#d6ba69;color:#213c45}
@@ -271,11 +271,7 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .escrow-details li::marker{color:#e1c97f;font-weight:700}
 .escrow-details li strong{color:#fff}
 .escrow-details>a{display:inline-flex;align-items:center;gap:8px;color:#e1c97f;font-size:13px;text-decoration:underline;text-underline-offset:4px}
-.escrow-mark{display:grid;justify-items:center;gap:9px;align-self:center;color:#fff}
-.escrow-shield{width:min(180px,45%);height:auto}
-.escrow-mark-bottom{display:flex;align-items:center;gap:23px}
-.escrow-mark-bottom>svg{width:95px;height:95px}
-.escrow-mark-bottom>span{height:85px;width:2px;background:#e1c97f}
-.escrow-mark-bottom strong{font-size:27px;letter-spacing:2px;font-weight:700}
-@media(max-width:800px){.escrow-card{gap:22px}.escrow-mark-bottom{gap:12px}.escrow-mark-bottom>svg{width:70px;height:70px}.escrow-mark-bottom>span{height:63px}.escrow-mark-bottom strong{font-size:19px}}
-@media(max-width:600px){.escrow-section{padding-top:0}.escrow-card{grid-template-columns:1fr;min-height:0;padding:35px 25px;gap:35px}.escrow-copy h2{font-size:36px;letter-spacing:-1.2px}.escrow-copy h2 br{display:none}.escrow-copy>p{font-size:14px}.escrow-details{margin-top:24px}.escrow-details summary{width:100%;min-height:54px}.escrow-mark{grid-row:1;gap:2px}.escrow-shield{width:85px}.escrow-mark-bottom>svg{width:49px;height:49px}.escrow-mark-bottom>span{height:43px}.escrow-mark-bottom strong{font-size:16px}}
+.escrow-mark{display:grid;place-items:center;align-self:center}
+.escrow-mark img{display:block;width:min(100%,270px);height:auto}
+@media(max-width:800px){.escrow-card{gap:20px;grid-template-columns:minmax(0,1fr) minmax(180px,.55fr);padding:25px}.escrow-mark img{width:min(100%,220px)}}
+@media(max-width:600px){.escrow-section{padding-top:20px;padding-bottom:28px}.escrow-card{grid-template-columns:1fr;padding:25px 23px;gap:10px}.escrow-copy h2{font-size:34px;letter-spacing:-1.2px}.escrow-copy h2 br{display:none}.escrow-copy>p{font-size:14px}.escrow-details{margin-top:20px}.escrow-details summary{width:100%;min-height:54px}.escrow-mark{grid-row:1}.escrow-mark img{width:170px}}
