@@ -34,9 +34,9 @@ for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   const rigelCost=scenario.shape==='gable'&&scenario.type!=='sip'?10111.20:0;
   const oldLathCount=Math.ceil((calculation.roof.geometry.totalSlopeArea/calculation.roof.lathStep+calculation.roof.mainEaveLength)/6);
   const lathPrice=calculation.lines.find(line=>line.id==='roof:lath')?.price||0;
-  const lathDelta=scenario.shape==='tiered'?0:(calculation.roof.mainLathBoardCount-oldLathCount)*6*.025*.1*lathPrice;
+  const lathDelta=(calculation.roof.mainLathBoardCount-oldLathCount)*6*.025*.1*lathPrice;
   const oldCross=Math.ceil((calculation.roof.geometry.totalSlopeArea/calculation.roof.lathStep+calculation.roof.mainEaveLength)/calculation.roof.rafterStructure.module);
-  const fastenerDelta=scenario.shape==='tiered'||!calculation.roof.rafterStructure.pairCount?0:(calculation.roof.lathCrossingCount-oldCross)*calculation.inputs.formulas.roofLathNailsPerCrossing*calculation.inputs.formulas.roofLathNailKgEach*(calculation.lines.find(line=>line.id==='roof:general-fasteners')?.price||0);
+  const fastenerDelta=!calculation.roof.rafterStructure.pairCount?0:(calculation.roof.lathCrossingCount-oldCross)*calculation.inputs.formulas.roofLathNailsPerCrossing*calculation.inputs.formulas.roofLathNailKgEach*(calculation.lines.find(line=>line.id==='roof:general-fasteners')?.price||0);
   assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta)*100)/100);
   assert.equal(calculation.lines.find(line=>line.id==='roof:hanging-rigels')?.qty||0,rigelCost?.383:0);
 });

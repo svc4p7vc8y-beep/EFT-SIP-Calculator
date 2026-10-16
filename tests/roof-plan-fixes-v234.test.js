@@ -45,11 +45,12 @@ test('lath rows have three touching 100 mm boards at both ends and never exceed 
   assert.deepEqual(rows.slice(0, 3), [50, 150, 250]);
   assert.deepEqual(rows.slice(-3), [4750, 4850, 4950]);
   assert.ok(rows.slice(1).every((row, i) => row - rows[i] <= 350 + 1e-9));
-  for (const shape of ['gable', 'hip']) {
+  for (const shape of ['gable', 'hip', 'tiered']) {
     const project = createDefaultProject(); project.settings.roof.type = 'cold'; project.settings.roof.shape = shape;
     const calculation = calculateProject(project), production = calculateProductionCutting(project, calculation);
     assert.ok(production.assembly.laths.length > 0);
     assert.ok(production.assembly.laths.every(item => item.length <= production.settings.stockLengthMm));
     assert.equal(calculation.roof.mainLathBoardCount, Math.ceil(calculation.roof.mainLathRequiredLength / 6));
+    if (shape === 'tiered') assert.ok(Math.abs(calculation.roof.mainLathRequiredLength - production.assembly.laths.reduce((sum, item) => sum + item.length, 0) / 1000) < .05);
   }
 });

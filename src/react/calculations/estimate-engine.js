@@ -1448,7 +1448,10 @@ function roofSection(project, metrics, index, inputs) {
   const mainGableBoardVolume = mainGableBoardCount * 6 * 0.05 * 0.15;
   const lathStep = Math.min(1.2, Math.max(0.1, Number(roof.lathStep) || 0.35));
   const mainLathRequiredLength = includeCovering && mainArea
-    ? Number(geometry.slopeLength) > 0 && mainRoofShape !== 'tiered'
+    ? mainRoofShape === 'tiered' && Number(geometry.upperSlopeLength) > 0 && Number(geometry.lowerSlopeLength) > 0
+      ? ['upper', 'lower'].reduce((sum, level) => sum + Number(geometry[`${level}Area`]) / Number(geometry[`${level}SlopeLength`])
+        * roofLathRows(Number(geometry[`${level}SlopeLength`]) * 1000, lathStep * 1000).length, 0)
+      : Number(geometry.slopeLength) > 0
       ? mainArea / Number(geometry.slopeLength) * roofLathRows(Number(geometry.slopeLength) * 1000, lathStep * 1000).length
       : mainArea / lathStep + mainEaveLength
     : 0;
