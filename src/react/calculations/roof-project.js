@@ -5,7 +5,7 @@ import {platformRoofFrame} from '../planner/platform-roof-frame.js';
 import {normalizeTerracePlatform} from '../../calculations/terrace-model.js';
 import clipping from 'polygon-clipping';
 import {hipRoofFromContour} from './hip-roof-geometry.js';
-import { ceilingTopElevation, mauerlatProfile } from './roof-wall-plate.js';
+import { roofBaseElevation } from './roof-wall-plate.js';
 
 export const roofDot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
 const sub=(a,b)=>a.map((x,i)=>x-b[i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>a.map(x=>x/Math.hypot(...a));
@@ -44,12 +44,8 @@ export function roofProject(project,calculation,assembly){
  const settings=project.settings.roof,design=project.settings.productionCutting?.roofDesign||{},g=calculation.roof.geometry||{},faces=[],issues=[];
  const issue=(code,message,target='')=>issues.push({code,message,target});
  const defaultBase=productionLevels(project,assembly.floors.length).roofBase,b=assembly.bounds,axis=assembly.axis==='x'?0:1,span=axis===0?b.height:b.width,L=axis===0?b.width:b.height;
- const profile=mauerlatProfile(settings),ceiling=ceilingTopElevation(project,calculation,assembly.floors.length),shape=calculation.roof.mainRoofShape;
- const structuralDepth=Number(String(calculation.roof.rafterStructure?.section||'50x150').split(/[×xх]/)[1])||150;
- const roofThickness=settings.type==='sip'?Number(project.settings.sip.ceilingThickness)||174:structuralDepth;
- const pitch=Math.atan2(Number(settings.ridgeHeight||0)*1000,span/2||1),insetRise=Math.tan(pitch)*profile.widthMm/2;
- const alignedBase=ceiling.topZ+profile.heightMm+roofThickness*Math.cos(pitch)/2-(settings.type==='sip'?0:25)-insetRise;
- const roofBase=design.baseZ!==''&&design.baseZ!=null&&Number.isFinite(Number(design.baseZ))?Number(design.baseZ):ceiling.hasCeiling&&['gable','hip'].includes(shape)&&calculation.roof.mauerlatLength>0?alignedBase:defaultBase;
+ const shape=calculation.roof.mainRoofShape;
+ const roofBase=roofBaseElevation(project,calculation,assembly.floors.length,span,shape);
  const at=(a,c,z)=>axis===0?[b.x+a,b.y+c,roofBase+z]:[b.x+c,b.y+a,roofBase+z];
  const warm=settings.type==='sip',e=Number(g.eaveOverhang||0)*1000,t=Number(g.gableOverhang||0)*1000,h=Number(settings.ridgeHeight||0)*1000;
  const add=(id,name,points,extra={})=>{try{if(!id||faces.some(f=>f.id===id))throw new Error(`${name}: пустая или повторная марка ската ${id}.`);const override=design.faceOverrides?.[id]||{};faces.push(roofFacet(id,name,points,{group:'main',warm,thickness:Number(project.settings.sip.ceilingThickness),...extra,...override}));}catch(error){issue('ROOF_FACE',error.message,id);}};

@@ -6,9 +6,11 @@ import {calculateProductionCutting} from '../calculations/production-cutting.js'
 import {mergeRoofSupportLayout} from '../calculations/auto-roof-supports.js';
 export default function RoofSupportFrame({project,report,settings,update,NumberInput}){
  const {commit}=useProject();
- const [config,setConfig]=useState(()=>({variant:'double',profile:'50×150',gapMm:590,...settings.roofFrameConfig}));
+ const span=report.assembly.axis==='x'?report.assembly.bounds.height:report.assembly.bounds.width;
+ const autoVariant=span<=6000?'single':span<=10000?'double':'triple';
+ const [config,setConfig]=useState(()=>({variant:autoVariant,profile:'50×150',gapMm:590,...settings.roofFrameConfig}));
  const savedConfigKey=JSON.stringify(settings.roofFrameConfig??{});
- useEffect(()=>{setConfig({variant:'double',profile:'50×150',gapMm:590,...JSON.parse(savedConfigKey)});},[savedConfigKey]);
+ useEffect(()=>{setConfig({variant:autoVariant,profile:'50×150',gapMm:590,...JSON.parse(savedConfigKey)});},[savedConfigKey,autoVariant]);
  const previewModel=useMemo(()=>{if(!report.assembly.rafters.length)return {project,report};const next=structuredClone(project);next.settings.roof={...next.settings.roof,structureMode:'manual',rafterSystem:config.variant==='a-frame'?'hanging':'layered'};const calculation=calculateProject(next);return {project:next,report:calculateProductionCutting(next,calculation)};},[project,report,config.variant]);
  const preview=useMemo(()=>roofSupportFrame(previewModel.project,previewModel.report,config),[previewModel,config]);
  const apply=()=>{

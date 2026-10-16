@@ -225,34 +225,15 @@ function RafterSystemPreview({ calculation, roofSettings }) {
           )}
           {!flat && layered ? (
             <>
-              <rect
-                className="roof-scheme-mauerlat"
-                x="155"
-                y="127"
-                width="30"
-                height="8"
-              />
-              <line
-                className="roof-scheme-support"
-                x1="170"
-                y1="46"
-                x2="170"
-                y2="127"
-              />
-              <line
-                className="roof-scheme-support"
-                x1="170"
-                y1="121"
-                x2="108"
-                y2="83"
-              />
-              <line
-                className="roof-scheme-support"
-                x1="170"
-                y1="121"
-                x2="232"
-                y2="83"
-              />
+              {(roof.layeredFrame?.fractions || []).map((fraction, i) => {
+                const x = 35 + 270 * fraction;
+                const y = 135 - 97 * (1 - Math.abs(2 * fraction - 1));
+                return <g key={i}>
+                  <rect className="roof-scheme-mauerlat" x={x - 12} y="127" width="24" height="8" />
+                  <line className="roof-scheme-support" x1={x} y1={y + 8} x2={x} y2="127" />
+                  <line className="roof-scheme-support" x1={x - 13} y1={y + 8} x2={x + 13} y2={y + 8} />
+                </g>;
+              })}
             </>
           ) : !flat && truss ? (
             <>
@@ -298,7 +279,7 @@ function RafterSystemPreview({ calculation, roofSettings }) {
             {flat
               ? `Плоская кровля · ${flatHasSlope ? `уклон ${formatNumber(flatSlopePercent)}% ${flatDirectionLabels[flatSlopeDirection]}` : "без уклона"}`
               : layered
-              ? "Наслонная · прогон, стойка и подкосы"
+              ? `Наслонная · ${roof.layeredFrame?.fractions?.length || 0} прогон(а) со стойками и лежнями`
               : truss
                 ? "Стропильная ферма · пояс и решётка"
                 : roof.hangingRiegel?.count > 0
@@ -327,6 +308,8 @@ function RafterSystemPreview({ calculation, roofSettings }) {
           {planRafters.map((x) => (
             <line key={x} x1={x} y1="38" x2={x} y2="187" />
           ))}
+          {layered ? (roof.layeredFrame?.fractions || []).map((fraction, i) =>
+            <line key={`purlin-${i}`} className="roof-scheme-support" x1="370" y1={45 + 135 * fraction} x2="688" y2={45 + 135 * fraction} />) : null}
           <text x="529" y="207" textAnchor="middle">
             {structure.pairCount || 0} {flat ? "балок" : "пар"} · шаг{" "}
             {formatNumber(structure.step || 0.6)} м
@@ -646,6 +629,36 @@ function RoofConstructionPanels({
             /> : null}
             <p className="inspector-note roof-rigel-note">Ригель связывает пару стропил на выбранной высоте. Исходное положение 50% — эскизное; оно не подтверждает защиту стен от распора. Сечение, крепёж и путь нагрузки проверяются расчётом по проекту.</p>
           </> : null}
+          {roofVisibility.showRafterStructure && calculation.roof.mainRoofShape === 'gable'
+            && calculation.roof.rafterStructure.system === 'layered' && project.settings.roof.type === 'cold' ? <>
+            <Toggle label="Опорные рамы наслонных стропил" checked={project.settings.roof.layeredFrameEnabled !== false}
+              onChange={value => setSetting('roof', 'layeredFrameEnabled', value)}/>
+            {project.settings.roof.layeredFrameEnabled !== false ? <>
+              <SelectField label="Расположение прогонов" value={project.settings.roof.layeredFrameMode || 'auto'}
+                onChange={value => setSetting('roof', 'layeredFrameMode', value)} options={[
+                  {value:'auto',label:'Авто: до 6 м — 1; до 10 м — 2; больше — 3'},
+                  {value:'manual',label:'Ручное расположение'},
+                ]}/>
+              {project.settings.roof.layeredFrameMode === 'manual' ? <>
+                <SelectField label="Число прогонов" value={String(project.settings.roof.layeredFrameCount || 2)}
+                  onChange={value => setSetting('roof', 'layeredFrameCount', Number(value))}
+                  options={[1,2,3].map(value=>({value:String(value),label:`${value} шт`}))}/>
+                {Array.from({length: Number(project.settings.roof.layeredFrameCount) || 2}, (_,i) => <NumberField
+                  key={i} label={`Прогон ${i+1} · от края ширины`}
+                  value={(project.settings.roof.layeredFramePositions?.length === Number(project.settings.roof.layeredFrameCount)
+                    ? project.settings.roof.layeredFramePositions[i] : undefined) ?? Math.round((i+1)*100/((Number(project.settings.roof.layeredFrameCount)||2)+1))}
+                  suffix="%" min={5} max={95} step={1}
+                  onChange={value => {const count=Number(project.settings.roof.layeredFrameCount)||2;
+                    const positions=Array.from({length:count},(_,j)=>project.settings.roof.layeredFramePositions?.length === count
+                      ? project.settings.roof.layeredFramePositions[j] : Math.round((j+1)*100/(count+1)));
+                    positions[i]=value; setSetting('roof','layeredFramePositions',positions);}}/>) }
+              </> : null}
+              <NumberField label="Макс. расстояние стоек для раскроя" value={(project.settings.roof.layeredFramePostSpacingMm || 6000)/1000}
+                suffix="м" min={1} max={6} step={0.5}
+                onChange={value=>setSetting('roof','layeredFramePostSpacingMm',Math.round(value*1000))}/>
+              <p className="inspector-note">Прогон и стойки — доска 50×150 мм, лежень — как мауэрлат. Схема размещения проектная; опирание стоек, соединения и сечения требуют расчёта.</p>
+            </> : null}
+          </> : null}
           {project.settings.roof.includeCovering !== false ? <NumberField
             label="Шаг обрешётки"
             value={project.settings.roof.lathStep ?? 0.35}
@@ -723,6 +736,10 @@ function RoofConstructionPanels({
           {calculation.roof.hangingRiegel?.count > 0 ? <div className="readout">
             <span>Ригели висячих пар 25×150 мм</span>
             <strong>{calculation.roof.hangingRiegel.count} шт × {formatNumber(calculation.roof.hangingRiegel.length)} м · высота {calculation.roof.hangingRiegel.heightPercent}%</strong>
+          </div> : null}
+          {calculation.roof.layeredFrame?.fractions?.length ? <div className="readout">
+            <span>Опорные рамы наслонных стропил</span>
+            <strong>{calculation.roof.layeredFrame.fractions.length} линии · прогоны / стойки 50×150 мм · лежень {calculation.roof.mauerlatProfile}</strong>
           </div> : null}
           {roofVisibility.showSipFrame ? <div className="readout">
             <span>Каркас SIP-кровли</span>

@@ -10,6 +10,7 @@ import {roofFabrication,planIntersection} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
 import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
 import { hangingRiegelEnabled, hangingRiegelMembers } from './hanging-riegel.js';
+import { layeredFrameLayout } from './layered-frame.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -227,6 +228,22 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     assembly.issues.push(...rigels.issues);
     if (rigels.items.length !== roof.hangingRiegel?.count)
       assembly.issues.push(`Ригели: смета учитывает ${roof.hangingRiegel?.count || 0} шт, геометрия построила ${rigels.items.length} шт. Сверьте раскладку до выпуска.`);
+  }
+  if (rectangular) {
+    const layout = layeredFrameLayout(project, calculation, bounds, axis, settings.stockLengthMm);
+    for (const item of layout.items) {
+      const type = item.role === 'purlin' ? 'purlin' : item.role === 'post' ? 'post' : 'beam';
+      assembly.supports.push({ ...item, type, mark: item.id, a: item.a, b: item.b,
+        flat: item.flat, normal: [0, 0, 1], referenceOnly: false,
+        loadPath: { complete: false, text: 'Опирание на несущие стены и фундамент не подтверждено' } });
+      assembly.members.push({ id: item.id, material: item.name, profile: item.profile,
+        length: item.length, cutLength: item.length + 2 * Number(settings.endAllowanceMm || 0),
+        source: 'Автоматическая проектная схема наслонных опор', surface: 'Кровля',
+        panels: [], role: item.role, processing: 'Узлы и несущая способность по проекту' });
+    }
+    assembly.issues.push(...layout.issues);
+    if (roof.layeredFrame && layout.items.length !== roof.layeredFrame.items)
+      assembly.issues.push(`Наслонные опоры: чертёж содержит ${layout.items.length} деталей, смета учитывает ${roof.layeredFrame?.items || 0}. Сверьте параметры.`);
   }
   assembly.rafterSystem=frame.system;
   assembly.pileSources=(calculation.foundation?.points||[]).map(p=>p.source);

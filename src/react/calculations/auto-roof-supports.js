@@ -38,7 +38,9 @@ export function generateRoofSupportLayout(project,report,value) {
   if(!Number.isFinite(baseZ)||Math.abs(baseZ)>100000)return fail('Неверная нижняя отметка стоек.');
   const axis=a.axis==='x'?0:1,across=1-axis,origin=[a.bounds.x,a.bounds.y],length=axis===0?a.bounds.width:a.bounds.height,span=across===0?a.bounds.width:a.bounds.height;
   if(![...origin,length,span].every(Number.isFinite)||length<=0||span<=0)return fail('Задайте корректные положительные размеры контура кровли.');
-  const fractions=config.variant==='single'?[.5]:config.variant==='double'?[.25,.75]:[.25,.5,.75];
+  const fractions=config.variant==='single'?[.5]:config.variant==='double'
+    ? a.roofShape==='gable'&&a.rafterSystem==='layered'?[1/3,2/3]:[.25,.75]
+    :[.25,.5,.75];
   const scene=a.roofDrawing?.sections?.length?null:productionScene(report,project);
   const roofZ=(x,y)=>{
     if(a.roofDrawing?.model){const hits=roofAt(a.roofModel,x,y);return hits.length?Math.max(...hits.map(h=>h.z)):null;}

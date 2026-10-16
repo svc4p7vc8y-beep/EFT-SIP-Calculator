@@ -37,6 +37,7 @@ import { productionEstimateLines } from './production-estimate.js';
 import { calculateTieredRoofGeometry, normalizeTieredRoof, resolveTieredGables } from './tiered-roof.js';
 import { mauerlatProfile, mauerlatWallRuns, mauerlatRunLength } from './roof-wall-plate.js';
 import { hangingRiegelEnabled, hangingRiegelRatio, RIEGEL_PROFILE } from './hanging-riegel.js';
+import { layeredFrameLayout, layeredFramePurchases } from './layered-frame.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -2098,6 +2099,13 @@ function roofSection(project, metrics, index, inputs) {
     ) +
       1);
   const snowGuards = calculateSnowGuards(roof, geometry.roofLength, [...project.priceMat, ...project.priceLab]);
+  const layeredFrame = layeredFrameLayout(project, { metrics, roof: {
+    mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea, mauerlatLength,
+  } }, roofAxes.ridgeAxis === 'x'
+    ? { x: 0, y: 0, width: houseLength * 1000, height: span * 1000 }
+    : { x: 0, y: 0, width: span * 1000, height: houseLength * 1000 },
+  roofAxes.ridgeAxis, Number(project.settings.productionCutting?.stockLengthMm) || 6000);
+  const layeredFramePurchasing = layeredFramePurchases(layeredFrame);
   const lines = [...applyMainRoofComplexity(compact([
     makeLine(
       index,
@@ -2205,6 +2213,12 @@ function roofSection(project, metrics, index, inputs) {
       digits: 3,
       name: `Ригели висячих стропил ${RIEGEL_PROFILE} мм · ${riegelCount} шт × ${formatNumberForName(riegelLength)} м${riegelBoardCount ? ` · ${riegelBoardCount} досок × 6 м с запасом 10%` : ' · нужна заготовка длиннее 6 м или проектный узел соединения'}`,
     }),
+    ...layeredFramePurchasing.map(group => makeLine(index, 'roof', group.profile === '100×150'
+      ? 'Брус ест.влажн. сосна 100×150 мм' : 'Доска ест. влажн. сосна 50х150мм', group.volume, {
+      key: `layered-frame-${group.role}`,
+      unit: 'м³', digits: 3,
+      name: `${group.role === 'purlin' ? 'Прогоны' : group.role === 'sleeper' ? 'Лежни' : 'Стойки'} наслонной системы ${group.profile} мм · ${group.items.length} деталей · ${group.count} заготовок × ${formatNumberForName(layeredFrame.stockLengthMm / 1000)} м с запасом 10%`,
+    })),
     makeLine(index, "roof", "Монтаж конькового прогона", layeredRidgeLength * 2, {
       key: "layered-ridge-work",
       kind: "labor",
@@ -2617,6 +2631,9 @@ function roofSection(project, metrics, index, inputs) {
     mainGableType,
     mainGableArea: round(mainGableArea),
     rafterStructure,
+    layeredFrame: { fractions: layeredFrame.fractions, items: layeredFrame.items.length,
+      purchases: layeredFramePurchasing.map(({ role, profile, count, volume }) => ({ role, profile, count, volume })),
+      issues: layeredFrame.issues, structuralStatus: 'unverified' },
     hangingRiegel: { count: riegelCount, heightPercent: riegelHeightRatio * 100,
       length: round(riegelLength, 3), boardCount: riegelBoardCount, volume: round(riegelVolume, 3),
       structuralStatus: 'unverified' },

@@ -16,6 +16,24 @@ export function ceilingTopElevation(project, calculation, floorCount) {
   return { wallTop, hasCeiling, topZ: wallTop + (hasCeiling ? Number(project.settings.sip.ceilingThickness || 0) / 2 : 0) };
 }
 
+export function roofBaseElevation(project, calculation, floorCount, spanMm, shape) {
+  const settings = project.settings.roof;
+  const design = project.settings.productionCutting?.roofDesign || {};
+  const defaultBase = productionLevels(project, floorCount).roofBase;
+  const profile = mauerlatProfile(settings);
+  const ceiling = ceilingTopElevation(project, calculation, floorCount);
+  const depth = settings.type === 'sip'
+    ? Number(project.settings.sip.ceilingThickness) || 174
+    : Number(String(calculation.roof?.rafterStructure?.section || '50x150').split(/[×xх]/)[1]) || 150;
+  const pitch = Math.atan2(Number(settings.ridgeHeight || 0) * 1000, spanMm / 2 || 1);
+  const aligned = ceiling.topZ + profile.heightMm + depth * Math.cos(pitch) / 2
+    - (settings.type === 'sip' ? 0 : 25) - Math.tan(pitch) * profile.widthMm / 2;
+  return design.baseZ !== '' && design.baseZ != null && Number.isFinite(Number(design.baseZ))
+    ? Number(design.baseZ)
+    : ceiling.hasCeiling && ['gable', 'hip'].includes(shape) && calculation.roof?.mauerlatLength > 0
+      ? aligned : defaultBase;
+}
+
 const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
 export function insetRoofContour(points, insetMm) {
   if (points.length < 3) return null;

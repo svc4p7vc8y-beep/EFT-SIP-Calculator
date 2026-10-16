@@ -20,7 +20,12 @@ test('partition has 11 main studs instead of 12 at 6.4m and legacy mode is retai
 });
 test('frame has flat chords, correct board catalog and perpendicular upright section for both axes',()=>{
  for(const ridgeAxis of ['x','y'])for(const profile of ['50×150','50×100']){const p=base();p.settings.roof.ridgeAxis=ridgeAxis;const r=run(p),before=JSON.stringify({p,r}),f=roofSupportFrame(p,r,{profile,variant:'double'});assert.deepEqual(f.errors,[]);assert.equal(f.counts.frames,2);assert.ok(f.counts.posts>0);
- for(const m of f.items){assert.equal(m.estimateCatalogId,profile==='50×150'?'MAT-023':'MAT-027');if(m.type==='post'){assert.ok(m.z2>m.z1);const axes=beamFrame([m.x1,m.y1,m.z1],[m.x2,m.y2,m.z2],m.normal);assert.ok(Math.abs(axes.across[r.assembly.axis==='x'?0:1])>.999);}else assert.equal(m.flat,true);}assert.equal(JSON.stringify({p,r}),before);}
+ for(const m of f.items){assert.equal(m.estimateCatalogId,m.id.includes('bottom')?'MAT-018':profile==='50×150'?'MAT-023':'MAT-027');if(m.id.includes('bottom'))assert.equal(m.profile,'100×150');if(m.type==='post'){assert.ok(m.z2>m.z1);const axes=beamFrame([m.x1,m.y1,m.z1],[m.x2,m.y2,m.z2],m.normal);assert.ok(Math.abs(axes.across[r.assembly.axis==='x'?0:1])>.999);}else assert.equal(m.flat,true);}assert.equal(JSON.stringify({p,r}),before);}
+});
+test('manual support frame lower chord follows the flat wall plate profile',()=>{
+ const p=base();p.settings.roof.mauerlatProfile='50x150';const f=roofSupportFrame(p,run(p),{variant:'double'});
+ assert.deepEqual(f.errors,[]);
+ assert.ok(f.items.filter(m=>m.id.includes('bottom')).every(m=>m.profile==='50×150'&&m.estimateCatalogId==='MAT-023'));
 });
 test('generated supports appear once in stock, estimate and 3D and survive JSON migration',()=>{
  const p=base(),r=run(p),f=roofSupportFrame(p,r);p.settings.productionCutting.roofSupports=f.items;p.settings.productionCutting.roofFrameConfig={variant:'double',profile:'50×150',gapMm:590};
