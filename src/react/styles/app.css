@@ -761,6 +761,10 @@ button:disabled {
 .form-grid.four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
+.roof-rigel-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
 .span-2 {
   grid-column: span 2;
 }

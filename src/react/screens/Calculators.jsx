@@ -128,7 +128,7 @@ function SectionResult({ calculation, sectionKey }) {
   );
 }
 
-function RafterSystemPreview({ calculation }) {
+function RafterSystemPreview({ calculation, roofSettings }) {
   const roof = calculation.roof;
   const structure = roof.rafterStructure || {};
   const flat = roof.mainRoofShape === "flat";
@@ -285,13 +285,13 @@ function RafterSystemPreview({ calculation }) {
                 y2="127"
               />
             </>
-          ) : !flat ? (
+          ) : !flat && roof.hangingRiegel?.count > 0 && roofSettings.hangingRiegelEnabled !== false ? (
             <line
               className="roof-scheme-support"
-              x1="84"
-              y1="100"
-              x2="256"
-              y2="100"
+              x1={35 + 135 * (roof.hangingRiegel?.heightPercent ?? 50) / 100}
+              y1={135 - 97 * (roof.hangingRiegel?.heightPercent ?? 50) / 100}
+              x2={305 - 135 * (roof.hangingRiegel?.heightPercent ?? 50) / 100}
+              y2={135 - 97 * (roof.hangingRiegel?.heightPercent ?? 50) / 100}
             />
           ) : null}
           <text x="170" y="207" textAnchor="middle">
@@ -301,7 +301,9 @@ function RafterSystemPreview({ calculation }) {
               ? "Наслонная · прогон, стойка и подкосы"
               : truss
                 ? "Стропильная ферма · пояс и решётка"
-                : "Висячая система · поднятая затяжка A-frame"}
+                : roof.hangingRiegel?.count > 0
+                  ? `Висячая система · ригель на ${roof.hangingRiegel.heightPercent}% подъёма`
+                  : "Висячая система · ригель отключён"}
           </text>
         </g>
         <g className="roof-scheme-plan">
@@ -626,6 +628,24 @@ function RoofConstructionPanels({
               { value: "50x200", label: "50×200 мм" },
             ]}
           /> : null}
+          {roofVisibility.showRafterStructure && calculation.roof.mainRoofShape === "gable"
+            && calculation.roof.rafterStructure.system === "hanging" && project.settings.roof.type === "cold" ? <>
+            <Toggle
+              label="Ригели висячих пар · 25×150 мм"
+              checked={project.settings.roof.hangingRiegelEnabled !== false}
+              onChange={(value) => setSetting("roof", "hangingRiegelEnabled", value)}
+            />
+            {project.settings.roof.hangingRiegelEnabled !== false ? <NumberField
+              label="Высота ригеля · % подъёма конька"
+              value={project.settings.roof.hangingRiegelHeightPercent ?? 50}
+              suffix="%"
+              min={10}
+              max={90}
+              step={5}
+              onChange={(value) => setSetting("roof", "hangingRiegelHeightPercent", value)}
+            /> : null}
+            <p className="inspector-note roof-rigel-note">Ригель связывает пару стропил на выбранной высоте. Исходное положение 50% — эскизное; оно не подтверждает защиту стен от распора. Сечение, крепёж и путь нагрузки проверяются расчётом по проекту.</p>
+          </> : null}
           {project.settings.roof.includeCovering !== false ? <NumberField
             label="Шаг обрешётки"
             value={project.settings.roof.lathStep ?? 0.35}
@@ -700,6 +720,10 @@ function RoofConstructionPanels({
               {formatNumber(calculation.roof.rafterStructure.module, 2)} м
             </strong>
           </div> : null}
+          {calculation.roof.hangingRiegel?.count > 0 ? <div className="readout">
+            <span>Ригели висячих пар 25×150 мм</span>
+            <strong>{calculation.roof.hangingRiegel.count} шт × {formatNumber(calculation.roof.hangingRiegel.length)} м · высота {calculation.roof.hangingRiegel.heightPercent}%</strong>
+          </div> : null}
           {roofVisibility.showSipFrame ? <div className="readout">
             <span>Каркас SIP-кровли</span>
             <strong>{calculation.roof.mainSipFramePieces || 0} шт × 6 м · {formatNumber(calculation.roof.mainSipFramePurchaseLength)} м</strong>
@@ -710,7 +734,7 @@ function RoofConstructionPanels({
           </div> : null}
         </div>
         {roofVisibility.showRafterStructure && !isTieredRoof ? (
-          <RafterSystemPreview calculation={calculation} />
+          <RafterSystemPreview calculation={calculation} roofSettings={project.settings.roof} />
         ) : null}
         </section>
         {roofVisibility.showMauerlat ? <section className="roof-main-section">

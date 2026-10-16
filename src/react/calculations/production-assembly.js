@@ -9,6 +9,7 @@ import {roofProject,roofAt} from './roof-project.js';
 import {roofFabrication,planIntersection} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
 import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
+import { hangingRiegelEnabled, hangingRiegelMembers } from './hanging-riegel.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -216,6 +217,16 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       if(cut&&m){m.cutLength=cut.blankLength+2*Number(settings.endAllowanceMm||0);m.endCutOutline=cut.outline;m.processing='Верхний торец вертикальный; нижний перпендикулярен стропилу. Опорные врубки и крепёж по рабочему узлу.';}
     }
     assembly.roofDrawing.estimateDifference=roof.mainRoofShape==='gable'&&assembly.rafters.length?assembly.rafters[0].length-assembly.roofDrawing.estimateLength:0;
+  }
+  if (rectangular && project.settings.roof.type === 'cold'
+    && !settings.roofDesign?.manualFaces?.length
+    && hangingRiegelEnabled(project.settings.roof, roof)) {
+    const rigels = hangingRiegelMembers(assembly, project.settings.roof, settings);
+    assembly.roofTimbers.push(...rigels.items);
+    assembly.members.push(...rigels.members);
+    assembly.issues.push(...rigels.issues);
+    if (rigels.items.length !== roof.hangingRiegel?.count)
+      assembly.issues.push(`Ригели: смета учитывает ${roof.hangingRiegel?.count || 0} шт, геометрия построила ${rigels.items.length} шт. Сверьте раскладку до выпуска.`);
   }
   assembly.rafterSystem=frame.system;
   assembly.pileSources=(calculation.foundation?.points||[]).map(p=>p.source);

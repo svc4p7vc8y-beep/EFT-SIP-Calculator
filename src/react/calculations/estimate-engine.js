@@ -36,6 +36,7 @@ import { calculateSnowGuards } from './snow-guards.js';
 import { productionEstimateLines } from './production-estimate.js';
 import { calculateTieredRoofGeometry, normalizeTieredRoof, resolveTieredGables } from './tiered-roof.js';
 import { mauerlatProfile, mauerlatWallRuns, mauerlatRunLength } from './roof-wall-plate.js';
+import { hangingRiegelEnabled, hangingRiegelRatio, RIEGEL_PROFILE } from './hanging-riegel.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -1298,6 +1299,31 @@ function roofSection(project, metrics, index, inputs) {
   );
   const rafterSection = rafterStructure.section;
   const rafterDepth = rafterSection === "50x200" ? 0.2 : 0.15;
+  const riegelTopContour = houseContourPoints(project.upperFloors?.at(-1) || project.plan);
+  const rectangularRoof = riegelTopContour.length === 4 && riegelTopContour.every((a, i) => {
+    const b = riegelTopContour[(i + 1) % riegelTopContour.length];
+    return a.x === b.x || a.y === b.y;
+  });
+  const riegelHeightRatio = hangingRiegelRatio(roof);
+  const detailedRafters = project.settings.productionCutting?.roofDesign?.enabled === true;
+  const detailedRiegelCount = detailedRafters ? clearGapPositions(
+    25, Math.max(25, (roofAxes.ridgeBaseLength + 2 * gableOverhang) * 1000 - 25), 50,
+    Number(project.settings.productionCutting?.rafterClearGapMm) || rafterStructure.step * 1000,
+  ).length : rafterStructure.pairCount;
+  const riegelCount = rectangularRoof && !project.settings.productionCutting?.roofDesign?.manualFaces?.length
+    && roof.type === 'cold' && hangingRiegelEnabled(roof, {
+    mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea,
+  }) ? detailedRiegelCount : 0;
+  const riegelLength = riegelCount ? span * (1 - riegelHeightRatio) : 0;
+  // One unspliced piece per pair. Short pieces may share a 6 m blank; long
+  // pieces stay in the estimate but require a different blank or designed joint.
+  const riegelPiecesPerBlank = riegelLength > 0 && riegelLength <= 6
+    ? Math.max(1, Math.floor(6 / (riegelLength + 0.005))) : 0;
+  const riegelBoardCount = riegelPiecesPerBlank
+    ? Math.ceil(Math.ceil(riegelCount / riegelPiecesPerBlank) * 1.1) : 0;
+  const riegelVolume = riegelBoardCount
+    ? riegelBoardCount * 6 * 0.025 * 0.15
+    : Math.ceil(riegelCount * riegelLength * 0.025 * 0.15 * 1.1 * 1000) / 1000;
   const terracePostCount = terraceRoofs.reduce(
     (sum, item) => sum + item.result.postCount,
     0,
@@ -2173,6 +2199,12 @@ function roofSection(project, metrics, index, inputs) {
       digits: 3,
       name: `Коньковый прогон 100×50 мм · верхний и нижний ряд · ${layeredRidgeBoardCount} шт × 6 м`,
     }),
+    makeLine(index, "roof", "Доска ест.влажн. сосна 25*150мм", riegelVolume, {
+      key: "hanging-rigels",
+      unit: "м³",
+      digits: 3,
+      name: `Ригели висячих стропил ${RIEGEL_PROFILE} мм · ${riegelCount} шт × ${formatNumberForName(riegelLength)} м${riegelBoardCount ? ` · ${riegelBoardCount} досок × 6 м с запасом 10%` : ' · нужна заготовка длиннее 6 м или проектный узел соединения'}`,
+    }),
     makeLine(index, "roof", "Монтаж конькового прогона", layeredRidgeLength * 2, {
       key: "layered-ridge-work",
       kind: "labor",
@@ -2585,6 +2617,9 @@ function roofSection(project, metrics, index, inputs) {
     mainGableType,
     mainGableArea: round(mainGableArea),
     rafterStructure,
+    hangingRiegel: { count: riegelCount, heightPercent: riegelHeightRatio * 100,
+      length: round(riegelLength, 3), boardCount: riegelBoardCount, volume: round(riegelVolume, 3),
+      structuralStatus: 'unverified' },
     coldSlopeArea: round(coldSlopeArea),
     warmSlopeArea: round(warmSlopeArea),
     coldGableArea: round(coldGableArea),

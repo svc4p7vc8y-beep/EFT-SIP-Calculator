@@ -4,7 +4,7 @@ import {createDefaultProject} from '../src/react/state/project-model.js';
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
 import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
 
-// v230 prices are retained as the old reference; cost is the new centered wall-plate takeoff.
+// v230 costs remain the reference before the optional v232 hanging rigel line.
 const cases=[
   {name:'cold gable',shape:'gable',faces:2,area:70.205,rafters:30,oldCost:1773629.50,cost:1773329.50},
   {name:'warm SIP gable',shape:'gable',type:'sip',faces:2,area:70.205,warmArea:70.205,rafters:0,roofSurfaces:2,oldCost:2132073.90,cost:2131773.90},
@@ -31,5 +31,7 @@ for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   assert.ok(Math.abs(model.warmArea-(scenario.warmArea||0))<.001,`${model.warmArea} m² warm`);
   assert.equal(report.assembly.rafters.length,scenario.rafters);
   assert.equal(report.surfaces.filter(surface=>surface.roofFaceId).length,scenario.roofSurfaces||0);
-  assert.equal(Math.round(calculation.totals.total*100)/100,scenario.cost);
+  const rigelCost=scenario.shape==='gable'&&scenario.type!=='sip'?10111.20:0;
+  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost)*100)/100);
+  assert.equal(calculation.lines.find(line=>line.id==='roof:hanging-rigels')?.qty||0,rigelCost?.383:0);
 });

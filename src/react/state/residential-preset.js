@@ -70,6 +70,8 @@ export function applyResidentialPreset(project) {
     gableOverhang: 0.5,
     structureMode: 'auto',
     rafterSystem: 'hanging',
+    hangingRiegelEnabled: true,
+    hangingRiegelHeightPercent: 50,
     rafterStep: 0.6,
     rafterSection: '50x150',
     lathStep: 0.5,

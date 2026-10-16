@@ -7,7 +7,7 @@ import {assemblyPlatformView} from '../calculations/platform-assembly.js';
 import {planPointToThree,planDirectionToThree} from '../calculations/plan-3d-orientation.js';
 import { Box,Frame,Scan,Layers,RotateCcw } from 'lucide-react';
 
-const layers={existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
+const layers={existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',rafters:'Стропила',roofTimbers:'Мауэрлат, конёк и ригели',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
 const roofCoverLayers=['roofSurface','laths','counterLaths'];
 const vector=point=>new THREE.Vector3(...planPointToThree(point));
 const direction=point=>new THREE.Vector3(...planDirectionToThree(point));

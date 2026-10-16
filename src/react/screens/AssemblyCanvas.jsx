@@ -3,7 +3,7 @@ import { snapAssemblyPoint } from '../calculations/roof-drawings.js';
 import { pointerDragged } from '../planner/interactions.js';
 import {pointBounds} from '../calculations/drawing-dimensions.js';
 
-const layerNames={roof:'Контур кровли',rooms:'Стены и комнаты',openings:'Проёмы',rafters:'Стропила',roofTimbers:'Мауэрлат и конёк',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',binding:'Обвязка',piles:'Фундамент',panels:'Панели потолка',labels:'Марки и размеры'};
+const layerNames={roof:'Контур кровли',rooms:'Стены и комнаты',openings:'Проёмы',rafters:'Стропила',roofTimbers:'Мауэрлат, конёк и ригели',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',binding:'Обвязка',piles:'Фундамент',panels:'Панели потолка',labels:'Марки и размеры'};
 export default function AssemblyCanvas({assembly,onPick,onMove,draft,initialFloor,onSelect,selected,onMovePoint,onTranslate,onFloorChange}) {
   const drag=useRef(null),[dragPreview,setDragPreview]=useState(null);
   const [snap,setSnap]=useState(true);

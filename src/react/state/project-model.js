@@ -617,6 +617,8 @@ export function createDefaultProject() {
         rafterSystem: "hanging",
         rafterStep: 0.6,
         rafterSection: "50x150",
+        hangingRiegelEnabled: true,
+        hangingRiegelHeightPercent: 50,
         lathStep: 0.35,
         mauerlatLayout: "perimeter",
         mauerlatProfile: "100x150",
