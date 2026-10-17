@@ -69,11 +69,12 @@ function openingLabel(opening) {
 }
 
 function SectionMaterials({ calculation, sectionKey }) {
-  const lines = calculation.sections?.find((section) => section.key === sectionKey)?.lines || [];
+  const section = calculation.sections?.find((item) => item.key === sectionKey);
+  const lines = section?.lines || [];
   const money = (value) => `${formatNumber(value, 0)} ₽`;
   return (
     <details className="summary-estimate-materials">
-      <summary>Позиции сметы · {lines.length}<strong>{money(lines.reduce((total, line) => total + Number(line.qty || 0) * Number(line.price || 0), 0))}</strong></summary>
+      <summary>Позиции: {section?.title || sectionKey} · {lines.length}<strong>{money(lines.reduce((total, line) => total + Number(line.qty || 0) * Number(line.price || 0), 0))}</strong></summary>
       {lines.length ? lines.map((line) => (
         <div key={line.id} className="summary-estimate-row">
           <span>{line.name}<small>{line.catalogId || 'Своя позиция'} · {line.kind === 'labor' ? 'работа' : 'материал'}</small></span>
@@ -544,6 +545,16 @@ export default function ProjectSummarySidebar({
         </p>
         {['engineering', 'internal', 'external', 'delivery'].map((key) => <SectionMaterials key={key} calculation={calculation} sectionKey={key} />)}
       </SummarySection>
+      {(calculation.sections || []).some((section) => section.custom) ? <SummarySection
+        title="Свои группы сметы"
+        icon={Layers3}
+        target="estimate"
+        onNavigate={onNavigate}
+        open={openSections.has('custom')}
+        onToggle={() => toggleSection('custom')}
+      >
+        {calculation.sections.filter((section) => section.custom).map((section) => <SectionMaterials key={section.key} calculation={calculation} sectionKey={section.key} />)}
+      </SummarySection> : null}
     </aside>
   );
 }
