@@ -415,7 +415,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 237</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 238</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -541,7 +541,7 @@ export function App() {
           />
         </div>
       </header>
-      <div className="app-layout">
+      <div className={`app-layout${active === 'plan' ? ' plan-app-layout' : ''}`}>
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <div className="sidebar-mobile-head">
             <strong>Разделы</strong>
@@ -676,7 +676,7 @@ export function App() {
             </Suspense>
           </ScreenErrorBoundary>
         </main>
-        {team.user && team.priceCatalog.status !== 'ready' ? null : <ProjectSummarySidebar
+        {active === 'plan' || (team.user && team.priceCatalog.status !== 'ready') ? null : <ProjectSummarySidebar
           project={project}
           calculation={calculation}
           onNavigate={setActive}

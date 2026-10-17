@@ -6944,3 +6944,67 @@ select,
 @media (max-width:400px){.mobile-quick-actions button{font-size:10px}.mobile-quick-actions svg{width:14px;height:14px}}
 @media (max-width:360px){.brand img{width:74px;height:54px}}
 @media print{.mobile-bottom-nav,.mobile-quick-actions{display:none!important}}
+
+/* One-screen plan workspace: editor, live 3D and house settings share the canvas. */
+.app-layout.plan-app-layout { grid-template-columns: 254px minmax(0, 1fr); }
+.plan-screen-v2 .plan-status-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 12px; padding: 7px 9px; }
+.plan-screen-v2 .plan-floor-switcher { flex: 0 0 auto; }
+.plan-top-advanced { order: 3; flex: 0 0 auto; color: var(--green-dark); font-size: 10px; }
+.plan-top-advanced[open] { flex-basis: 100%; }
+.plan-top-advanced summary { cursor: pointer; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-weight: 700; }
+.plan-top-advanced .plan-house-fields { margin-top: 10px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.plan-screen-v2 .plan-view-switches { flex: 1 1 auto; justify-content: flex-end; flex-wrap: wrap; }
+.plan-screen-v2 .planner-shell:not(.is-fullscreen) { height: max(620px, calc(100dvh - 245px)); grid-template-columns: 88px minmax(0, 1fr) 370px; }
+.plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 88px minmax(0, 1fr) 370px; }
+.plan-screen-v2 .planner-inspector:has(.room-summary) { display: flex; }
+.plan-screen-v2 .planner-inspector { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.plan-right-3d { flex: 0 0 auto; padding: 10px 10px 8px; border-bottom: 1px solid #dce4dc; background: #fff; }
+.plan-right-3d-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.plan-right-3d-heading strong, .plan-right-3d-heading small { display: block; }
+.plan-right-3d-heading strong { font-size: 13px; }
+.plan-right-3d-heading small { margin-top: 2px; color: #667069; font-size: 9px; line-height: 1.25; }
+.plan-right-3d-actions { display: flex; gap: 3px; flex: 0 0 auto; }
+.plan-right-3d-actions button, .plan-right-3d-sizes button { padding: 4px 5px; border: 1px solid #c8d8c2; border-radius: 5px; background: #f4f8f1; color: #315d27; font-size: 9px; }
+.plan-right-3d-view { margin-top: 7px; max-height: 235px; overflow: auto; }
+.plan-right-3d-view.size-small { max-height: 185px; }
+.plan-right-3d-view.size-large { max-height: 320px; }
+.plan-right-3d-view .production-3d { margin: 0; }
+.plan-right-3d-view .production-3d-canvas { height: 135px; }
+.plan-right-3d-view.size-small .production-3d-canvas { height: 105px; }
+.plan-right-3d-view.size-large .production-3d-canvas { height: 205px; }
+.plan-right-3d-view .production-3d-toolbar button { min-height: 26px; min-width: 26px; padding: 3px; }
+.plan-right-3d-view .production-3d small { display: none; }
+.plan-right-3d-view .production-3d small[role="alert"] { display: block; }
+.plan-right-3d-view .plan-3d-drawing .workbench-drawing { width: 100%; height: 180px; }
+.plan-right-3d-placeholder { margin: 10px 0 0; color: #667069; font-size: 10px; }
+.plan-right-3d-sizes { display: flex; justify-content: flex-end; gap: 4px; margin-top: 5px; }
+.plan-right-3d-sizes button[aria-pressed="true"] { background: #dff0d5; border-color: #77a55f; }
+.plan-right-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px 10px; border-bottom: 1px solid #dce4dc; background: #f8faf7; }
+.plan-right-tabs button { padding: 7px 5px; border: 1px solid #d0deca; border-radius: 7px; background: #fff; color: #315d27; font-size: 10px; font-weight: 700; }
+.plan-right-tabs button[aria-pressed="true"] { background: #dff0d5; border-color: #77a55f; }
+.planner-inspector-detail { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 11px; }
+.planner-inspector-detail[hidden] { display: none; }
+.plan-right-house { display: grid; gap: 10px; }
+.plan-right-floors { display: flex; gap: 4px; }
+.plan-right-floors button { flex: 1; padding: 7px; border: 1px solid #d0deca; border-radius: 7px; background: #fff; color: #315d27; font-size: 10px; font-weight: 700; }
+.plan-right-floors button[aria-pressed="true"] { background: #dff0d5; border-color: #77a55f; }
+.plan-right-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.plan-right-fields .field { min-width: 0; }
+.plan-right-fields .field input, .plan-right-fields .field select { width: 100%; min-width: 0; }
+.plan-right-full { grid-column: 1 / -1; }
+.planner-shell.is-fullscreen .plan-right-3d-view { max-height: 290px; }
+.planner-shell.is-fullscreen .plan-right-3d-view .production-3d-canvas { height: 185px; }
+@media (max-width: 1100px) and (min-width: 701px) {
+  .app-layout.plan-app-layout { grid-template-columns: 204px minmax(0, 1fr); }
+  .plan-screen-v2 .planner-shell:not(.is-fullscreen), .plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 70px minmax(0, 1fr) 290px; grid-template-rows: 1fr; height: max(620px, calc(100dvh - 245px)); min-height: 0; overflow: hidden; }
+  .plan-screen-v2 .planner-tools { flex-direction: column; overflow: hidden; border-right: 1px solid #dce4dc; border-bottom: 0; }
+  .plan-screen-v2 .planner-tools-scroll { overflow-y: auto; }
+  .plan-right-fields .numeric-step-button { display: none; }
+}
+@media (max-width: 700px) {
+  .app-layout.plan-app-layout { grid-template-columns: minmax(0, 1fr); }
+  .plan-screen-v2 .planner-shell:not(.is-fullscreen), .plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 1fr; grid-template-rows: 64px 570px auto; height: auto; min-height: 0; overflow: visible; }
+  .plan-screen-v2 .planner-inspector { max-height: 710px; }
+  .plan-screen-v2 .plan-view-switches { justify-content: flex-start; }
+  .plan-top-advanced { order: 4; }
+}

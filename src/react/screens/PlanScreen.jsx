@@ -5023,7 +5023,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
   const [plan3DSize,setPlan3DSize]=useState('medium');
-  const [showPlan3D,setShowPlan3D]=useState(false);
+  const [showPlan3D,setShowPlan3D]=useState(true);
+  const [plan3DPlacement,setPlan3DPlacement]=useState('dock');
+  const [inspectorTab,setInspectorTab]=useState('house');
   const [showFullscreenInspector,setShowFullscreenInspector]=useState(true);
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
   const [foundationDraft, setFoundationDraft] = useState(() => ({
@@ -5037,6 +5039,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const planFileRef = useRef(null);
   const inspectorRef = useRef(null);
   const plannerCanvasRef = useRef(null);
+  useEffect(() => {
+    if (selected || activeLayer !== 'plan' || (polygonDraft.length && tool !== 'select')) setInspectorTab('element');
+    else setInspectorTab('house');
+  }, [selected, activeLayer, tool, polygonDraft.length]);
   const scrollToPlanCanvas = () =>
     window.requestAnimationFrame(() =>
       plannerCanvasRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -6224,6 +6230,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </button>
           )}
         </div>
+        <details className="plan-top-advanced">
+          <summary>Дополнительные настройки плана</summary>
         <div className="plan-house-fields">
           <div style={{gridColumn:'1 / -1'}}>
             <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
@@ -6335,6 +6343,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </>
           ) : null}
         </div>
+        </details>
         <div className="plan-view-switches">
           <Toggle
             label="Сваи"
@@ -6535,7 +6544,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <button type="button" className={tool==='wall'?'active':''} aria-pressed={tool==='wall'} onClick={()=>selectTool('wall')}>Перегородка</button>
             </div>
           </>:null}
-          {showPlan3D ? <FloatingPlan3D containerRef={plannerCanvasRef} size={plan3DSize} onSizeChange={setPlan3DSize}>
+          {showPlan3D && plan3DPlacement === 'floating' ? <FloatingPlan3D containerRef={plannerCanvasRef} size={plan3DSize} onSizeChange={setPlan3DSize}>
             <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
           </FloatingPlan3D> : null}
           {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
@@ -6575,6 +6584,45 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
         </div>
         <aside className="planner-inspector" ref={inspectorRef}>
+          <div className="plan-right-3d" aria-label="3D и параметры дома">
+            <div className="plan-right-3d-heading">
+              <div><strong>Дом в 3D</strong><small>Текущий проект · изменения отображаются здесь</small></div>
+              <div className="plan-right-3d-actions">
+                {plan3DPlacement === 'floating' ? <button type="button" onClick={() => setPlan3DPlacement('dock')}>Вернуть справа</button> : <button type="button" onClick={() => setPlan3DPlacement('floating')} disabled={!showPlan3D}>Открепить</button>}
+                <button type="button" onClick={() => setShowPlan3D((value) => !value)}>{showPlan3D ? 'Скрыть' : 'Показать'}</button>
+              </div>
+            </div>
+            {showPlan3D && plan3DPlacement === 'dock' ? <div className={`plan-right-3d-view size-${plan3DSize}`}>
+              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
+            </div> : <p className="plan-right-3d-placeholder">{showPlan3D ? '3D-окно находится поверх плана.' : '3D-вид скрыт.'}</p>}
+            {showPlan3D && plan3DPlacement === 'dock' ? <div className="plan-right-3d-sizes" role="group" aria-label="Размер 3D-вида">
+              {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}
+            </div> : null}
+          </div>
+          <div className="plan-right-tabs" role="group" aria-label="Настройки справа">
+            <button type="button" aria-pressed={inspectorTab === 'house'} onClick={() => setInspectorTab('house')}>Параметры дома</button>
+            <button type="button" aria-pressed={inspectorTab === 'element'} onClick={() => setInspectorTab('element')}>Конструкция / элемент</button>
+          </div>
+          <div className="planner-inspector-detail" hidden={inspectorTab !== 'house'}>
+            <div className="plan-right-house">
+              <div className="plan-right-floors" role="group" aria-label="Этаж в правой панели">
+                <button type="button" aria-pressed={activeFloor === 1} onClick={() => setActiveFloor(1)}>1 этаж</button>
+                {floorCount > 1 ? <button type="button" aria-pressed={activeFloor === 2} onClick={() => setActiveFloor(2)}>2 этаж</button> : <button type="button" onClick={() => addSecondFloor()}>+ 2 этаж</button>}
+              </div>
+              <div className="plan-right-fields">
+                <NumberField label="Длина дома" value={plan.house.w} suffix="м" min={3} onChange={(value) => resizeHouse(value, plan.house.h)} />
+                <NumberField label="Ширина дома" value={plan.house.h} suffix="м" min={3} onChange={(value) => resizeHouse(plan.house.w, value)} />
+                {activeFloor === 1 ? <NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={(value) => commitPlan((next) => { next.wallHeight = value; })} /> : <div className="plan-right-full"><UpperFloorControls plan={plan} onChange={patch => commitPlan(next => Object.assign(next, patch))} /></div>}
+                <SelectField label="Наружные стены" value={String(Math.round((plan.wallThickness || 0.174) * 1000))} options={WALL_THICKNESS_OPTIONS} onChange={changeWallThickness} />
+                <SelectField label="Перегородки" value={String(Math.round((plan.partitionThickness || 0.1) * 1000))} options={PARTITION_THICKNESS_OPTIONS} onChange={changePartitionThickness} />
+                <SelectField label="Форма крыши" value={project.settings.roof.shape || 'gable'} options={[{ value: 'gable', label: 'Двускатная' }, { value: 'hip', label: 'Вальмовая' }, { value: 'tiered', label: 'Два уровня' }, { value: 'flat', label: 'Плоская' }]} onChange={(value) => commitRoof('shape', value)} />
+                {project.settings.roof.shape !== 'flat' ? <NumberField label="Высота конька" value={project.settings.roof.ridgeHeight} suffix="м" min={0} onChange={(value) => commitRoof('ridgeHeight', value)} /> : null}
+              </div>
+              <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions === 'butt'} onChange={(value) => commitPlan((next) => { next.partitionJunctions = value ? 'butt' : 'axes'; })} />
+              <p className="inspector-note">Размеры, конструкции и 3D относятся к одному текущему проекту. Подробные настройки выбранного элемента — в соседней вкладке.</p>
+            </div>
+          </div>
+          <div className="planner-inspector-detail" hidden={inspectorTab !== 'element'}>
           {tool === 'attachedContour' && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">
               <h3>Открытый контур пристройки</h3>
@@ -6614,6 +6662,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               issues={issues}
             />
           )}
+          </div>
         </aside>
       </div>
       <div className="stats-row planner-stats">
