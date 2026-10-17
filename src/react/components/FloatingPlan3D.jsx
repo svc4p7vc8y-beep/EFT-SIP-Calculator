@@ -6,7 +6,10 @@ const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
 export default function FloatingPlan3D({ containerRef, size, onSizeChange, children }) {
   const [bounds, setBounds] = useState({ width: 800, height: 600 });
   const [rect, setRect] = useState(null);
+  const [resizing, setResizing] = useState(false);
   const gesture = useRef(null);
+  const windowRef = useRef(null);
+  const completedResize = useRef(false);
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return undefined;
@@ -24,11 +27,27 @@ export default function FloatingPlan3D({ containerRef, size, onSizeChange, child
     update();
     return () => observer.disconnect();
   }, [containerRef]);
+  useEffect(() => {
+    if (resizing || !completedResize.current) return undefined;
+    completedResize.current = false;
+    const frame = requestAnimationFrame(() => {
+      windowRef.current?.querySelector('.production-3d-canvas')?.dispatchEvent(new Event('eft-3d-resize-end'));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [resizing]);
   const start = (event, type) => {
     if (event.button !== 0 || event.target.closest('button, select')) return;
     event.preventDefault();
     gesture.current = { type, x: event.clientX, y: event.clientY, rect };
+    if (type === 'resize') setResizing(true);
     event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const finish = () => {
+    if (gesture.current?.type === 'resize') {
+      completedResize.current = true;
+      setResizing(false);
+    }
+    gesture.current = null;
   };
   const move = (event) => {
     if (!gesture.current) return;
@@ -48,13 +67,13 @@ export default function FloatingPlan3D({ containerRef, size, onSizeChange, child
     onSizeChange(next);
   };
   if (!rect) return null;
-  return <aside className="plan-3d-preview" aria-label="3D модель рядом с планом" style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, '--window-height': `${rect.h}px` }}>
-    <div className="plan-3d-preview-heading" onPointerDown={(event) => start(event, 'move')} onPointerMove={move} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} aria-label="Переместить окно 3D">
+  return <aside ref={windowRef} className={`plan-3d-preview${resizing ? ' is-resizing' : ''}`} aria-label="3D модель рядом с планом" style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, '--window-height': `${rect.h}px` }}>
+    <div className="plan-3d-preview-heading" onPointerDown={(event) => start(event, 'move')} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} aria-label="Переместить окно 3D">
       <strong>3D · текущий проект</strong><div role="group" aria-label="Размер окна 3D">
         {Object.entries({ small: 'Малое', medium: 'Среднее', large: 'Большое' }).map(([key, label]) => <button key={key} type="button" aria-label={`${label} окно 3D`} aria-pressed={size === key} onClick={() => chooseSize(key)}>{label}</button>)}
       </div>
     </div>
     <div className="plan-3d-preview-body">{children}</div>
-    <div className="plan-3d-resize" role="separator" aria-label="Изменить размер окна 3D" onPointerDown={(event) => start(event, 'resize')} onPointerMove={move} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} />
+    <div className="plan-3d-resize" role="separator" aria-label="Изменить размер окна 3D" onPointerDown={(event) => start(event, 'resize')} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish} />
   </aside>;
 }

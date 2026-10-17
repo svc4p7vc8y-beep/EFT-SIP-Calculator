@@ -2204,7 +2204,7 @@ select,
 .plan-fullscreen-bar > button[aria-pressed="true"],
 .plan-fullscreen-floors button[aria-pressed="true"] { border-color: #77a55f; background: #dff0d5; }
 .plan-fullscreen-floors { display: flex; align-items: end; gap: 3px; flex: 0 0 auto; padding-bottom: 1px; }
-.plan-3d-preview { position: absolute; z-index: 7; top: 125px; right: 12px; width: 340px; max-width: calc(100% - 24px); padding: 7px; border: 1px solid #c8d8c2; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(26,49,30,.17); }
+.plan-3d-preview { position: absolute; z-index: 12; top: 125px; right: 12px; width: 340px; max-width: calc(100% - 24px); padding: 7px; border: 1px solid #c8d8c2; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(26,49,30,.17); }
 .plan-3d-preview.size-small { width: 260px; }
 .plan-3d-preview.size-large { width: 440px; }
 .plan-3d-preview-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; color: #315d27; font-size: 11px; }
@@ -2219,6 +2219,7 @@ select,
 .plan-3d-preview-heading { flex: 0 0 auto; min-height: 30px; margin-bottom: 3px; cursor: move; touch-action: none; user-select: none; }
 .plan-3d-preview-heading button { cursor: pointer; }
 .plan-3d-preview-body { min-height: 0; flex: 1; overflow: auto; }
+.plan-3d-preview.is-resizing .plan-3d-preview-body { overflow: hidden; }
 .plan-3d-preview .production-3d-canvas { height: max(150px, calc(var(--window-height) - 165px)); }
 .plan-3d-resize { position: absolute; right: 0; bottom: 0; width: 25px; height: 25px; cursor: nwse-resize; touch-action: none; background: linear-gradient(135deg, transparent 58%, #7fa171 60%, #7fa171 64%, transparent 66%, transparent 74%, #7fa171 76%, #7fa171 80%, transparent 82%); }
 .plan-3d-view-switch, .plan-3d-drawing-nav { display: flex; gap: 4px; margin: 4px 0; }
