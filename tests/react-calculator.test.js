@@ -665,6 +665,7 @@ test('gable roof uses a full-perimeter SIP mauerlat and adds the ridge board to 
   const result = calculateProject(project);
   const houseLength = project.plan.house.w;
   const perimeter = 2 * (project.plan.house.w + project.plan.house.h) - 0.6;
+  const extendedPerimeter = perimeter + 4 * (project.settings.roof.gableOverhang + .075);
   const mauerlat = result.lines.find((line) => line.id === 'roof:mauerlat-timber');
   const mauerlatWork = result.lines.find((line) => line.id === 'roof:mauerlat-work');
   const screws = result.lines.find((line) => line.id === 'roof:mauerlat-screws');
@@ -673,9 +674,9 @@ test('gable roof uses a full-perimeter SIP mauerlat and adds the ridge board to 
   assert.equal(mauerlat.qty, Math.round(result.roof.mauerlatBoardCount * 6 * 0.1 * 0.15 * 1000) / 1000);
   assert.match(mauerlat.name, /шт × 6 м/);
   assert.equal(mauerlatWork.catalogId, 'LAB-033');
-  assert.equal(mauerlatWork.qty, Math.round(perimeter * 100) / 100);
-  assert.equal(result.roof.mauerlatLength, Math.round(perimeter * 1000) / 1000);
-  assert.equal(result.roof.mauerlatBoardCount, Math.ceil(perimeter * result.inputs.formulas.mauerlatReserve / 6));
+  assert.equal(mauerlatWork.qty, Math.round(extendedPerimeter * 100) / 100);
+  assert.equal(result.roof.mauerlatLength, Math.round(extendedPerimeter * 1000) / 1000);
+  assert.equal(result.roof.mauerlatBoardCount, Math.ceil(extendedPerimeter * result.inputs.formulas.mauerlatReserve / 6));
   assert.equal(result.lines.some((line) => line.id === 'roof:mauerlat-anchors'), false);
   assert.equal(screws.catalogId, 'MAT-201');
   assert.equal(screws.unit, 'шт');
@@ -685,7 +686,7 @@ test('gable roof uses a full-perimeter SIP mauerlat and adds the ridge board to 
   assert.equal(rafters.catalogId, 'MAT-023');
   assert.equal(rafters.qty, result.roof.rafterBoardCount * 6 * 0.05 * 0.15);
   assert.equal(result.roof.rafterStructure.step, 0.6);
-  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(project.plan.house.w / 0.65) + 1);
+  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(project.plan.house.w / 0.65) + 3);
   assert.match(rafters.name, /включая коньковый прогон/);
   assert.equal(result.lines.some((line) => line.id === 'roof:ridge-beam'), false);
   assert.equal(result.lines.some((line) => line.id === 'roof:ridge-beam-work'), false);
@@ -703,7 +704,7 @@ test('mauerlat can use only bearing walls, anchors or be disabled', () => {
   const supports = calculateProject(project);
   const expectedLength = project.plan.house.w * 2 - 0.3;
   const expectedAnchors = 2 * (Math.ceil((project.plan.house.w - 0.15) / supports.inputs.formulas.mauerlatAnchorSpacing) + 1);
-  assert.equal(supports.roof.mauerlatLength, expectedLength);
+  assert.equal(supports.roof.mauerlatLength, expectedLength + 4 * (project.settings.roof.gableOverhang + .075));
   assert.equal(supports.roof.mauerlatAnchors, expectedAnchors);
   assert.equal(supports.lines.find((line) => line.id === 'roof:mauerlat-anchors').qty, expectedAnchors);
   assert.equal(supports.lines.some((line) => line.id === 'roof:mauerlat-screws'), false);
@@ -923,7 +924,7 @@ test('manual rafter step changes pair count and six-meter board purchase', () =>
   const result = calculateProject(project);
   assert.equal(result.roof.rafterStructure.system, 'layered');
   assert.equal(result.roof.rafterStructure.step, 0.8);
-  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(project.plan.house.w / 0.85) + 1);
+  assert.equal(result.roof.rafterStructure.pairCount, Math.ceil(project.plan.house.w / 0.85) + 3);
   assert.equal(result.roof.rafterPurchaseLength, result.roof.rafterBoardCount * 6);
 });
 
@@ -935,8 +936,8 @@ test('rafter pairs use the house length, clear spacing and 50 mm board width', (
   const result = calculateProject(project);
   assert.equal(result.roof.rafterStructure.frameLength, 8);
   assert.equal(result.roof.rafterStructure.module, 0.65);
-  assert.equal(result.roof.rafterStructure.pairCount, 14);
-  assert.equal(result.roof.rafterStructure.legCount, 28);
+  assert.equal(result.roof.rafterStructure.pairCount, 16);
+  assert.equal(result.roof.rafterStructure.legCount, 32);
 });
 
 test('manual roof supports trusses and lath quantity follows its selected step', () => {

@@ -52,6 +52,7 @@ export function normalizeTerracePlatform(platform = {}) {
       ...roof,
       mode: choice(roof.mode, ROOF_MODES, TERRACE_PROJECT_DEFAULTS.roof.mode),
       shape: choice(roof.shape, ROOF_SHAPES, TERRACE_PROJECT_DEFAULTS.roof.shape),
+      inheritMainRoof: roof.inheritMainRoof !== false,
       areaMode: choice(roof.areaMode, AREA_MODES, TERRACE_PROJECT_DEFAULTS.roof.areaMode),
       manualArea: positive(roof.manualArea, TERRACE_PROJECT_DEFAULTS.roof.manualArea),
       frontOverhang: positive(roof.frontOverhang, TERRACE_PROJECT_DEFAULTS.roof.frontOverhang),
@@ -63,6 +64,28 @@ export function normalizeTerracePlatform(platform = {}) {
       gableCount: Math.min(2, Math.round(positive(roof.gableCount, TERRACE_PROJECT_DEFAULTS.roof.gableCount))),
       postSection: choice(roof.postSection, POST_SECTIONS, TERRACE_PROJECT_DEFAULTS.roof.postSection),
       wastePercent: positive(roof.wastePercent, TERRACE_PROJECT_DEFAULTS.roof.wastePercent)
+    }
+  };
+}
+
+// Continuation uses the current main roof unless the project explicitly opts out.
+// The saved terrace values remain intact and can be restored with one switch.
+export function resolveTerracePlatform(platform = {}, mainRoof = {}, house = {}) {
+  const normalized = normalizeTerracePlatform(platform);
+  if (normalized.roof.shape !== 'continuation' || normalized.roof.mode === 'none' || !normalized.roof.inheritMainRoof) return normalized;
+  const mainType = mainRoof.type;
+  const side = terraceAttachmentSide(normalized, house);
+  const gableEnd = mainRoof.shape === 'gable' && (mainRoof.ridgeAxis === 'y' ? side === 'top' || side === 'bottom' : side === 'left' || side === 'right');
+  return {
+    ...normalized,
+    roof: {
+      ...normalized.roof,
+      mode: mainType === 'sip' ? 'warm' : mainType === 'cold' || mainType === 'combo' ? 'cold' : normalized.roof.mode,
+      frontOverhang: positive(gableEnd ? mainRoof.gableOverhang : mainRoof.eaveOverhang, normalized.roof.frontOverhang),
+      sideOverhang: positive(gableEnd ? mainRoof.eaveOverhang : mainRoof.gableOverhang, normalized.roof.sideOverhang),
+      rafterStep: positive(mainRoof.rafterStep, normalized.roof.rafterStep || 0.6),
+      ridgeHeight: positive(mainRoof.ridgeHeight, normalized.roof.ridgeHeight),
+      wastePercent: positive(mainRoof.wastePercent, normalized.roof.wastePercent),
     }
   };
 }
@@ -84,7 +107,7 @@ export function terraceAttachmentSide(platform = {}, house = {}) {
 }
 
 export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
-  const normalized = normalizeTerracePlatform(platform);
+  const normalized = resolveTerracePlatform(platform, options.mainRoof, house);
   const { roof } = normalized;
   const side = terraceAttachmentSide(normalized, house);
   const horizontalAttachment = side === 'top' || side === 'bottom';
@@ -118,8 +141,10 @@ export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
   const postSpacing = Math.max(0.5, positive(options.postSpacing, 3));
   const postCount = roof.mode === 'none' || !attachedLength ? 0 : Math.max(2, Math.ceil(attachedLength / postSpacing) + 1);
   const postLength = postCount * Math.max(0, roof.lowHeight);
+  const tieLength = postCount && attachedLength > 0 ? attachedLength : 0;
   return {
     side,
+    mode: roof.mode,
     shape: roof.shape,
     attachedLength: round(attachedLength, 3),
     projection: round(projection, 3),
@@ -138,6 +163,8 @@ export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
     postCount,
     postLength: round(postLength, 2),
     postVolume: round(postLength * postWidthMm / 1000 * postDepthMm / 1000, 3),
+    tieLength: round(tieLength, 3),
+    tieVolume: round(tieLength * postWidthMm / 1000 * postDepthMm / 1000, 3),
     wastePercent: roof.wastePercent
   };
 }

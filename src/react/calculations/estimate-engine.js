@@ -10,6 +10,7 @@ import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { bearingEdges, partitionProfileShares } from './bearing-walls.js';
 import { clearGapPositions } from './clear-gap-framing.js';
 import { roofLathRows } from './roof-lathing.js';
+import { gluedRidgeLayout } from './roof-glued-ridge.js';
 import { exteriorWallConstruction, wallTrimLength } from './wall-construction.js';
 import { partitionReinforcements, reinforcementBoardCount } from './partition-construction.js';
 import { projectOpeningInserts } from './sip-opening-inserts.js';
@@ -199,7 +200,14 @@ function resolveRafterStructure(project, geometry, frameLength) {
   const boardWidth = 0.05;
   const module = step + boardWidth;
   const positions=requestedGap>0&&frameLength>0?clearGapPositions(boardWidth*500,Math.max(boardWidth*500,frameLength*1000-boardWidth*500),boardWidth*1000,requestedGap):null;
-  const pairCount = positions?positions.length:frameLength > 0 ? Math.ceil(frameLength / module) + 1 : 0;
+  const interiorCount = positions ? positions.length : frameLength > 0 ? Math.ceil(frameLength / module) + 1 : 0;
+  const endOverhangMm = geometry.shape === 'gable' && roof.type !== 'sip' && system !== 'truss' && Number(roof.gableOverhang) > 0 ? Number(roof.gableOverhang) * 1000 : 0;
+  const interiorPositions = positions || Array.from({ length: interiorCount }, (_, i) => interiorCount > 1 ? frameLength * 1000 * i / (interiorCount - 1) : frameLength * 500);
+  const detailedPositions = endOverhangMm && project.settings.productionCutting?.roofDesign?.enabled && Number(geometry.roofLength) > 0
+    ? clearGapPositions(boardWidth * 500, geometry.roofLength * 1000 - boardWidth * 500, boardWidth * 1000, step * 1000).map(value => value - endOverhangMm)
+    : null;
+  const allPositions = detailedPositions || (endOverhangMm && interiorCount ? [-endOverhangMm, ...interiorPositions, frameLength * 1000 + endOverhangMm] : positions);
+  const pairCount = allPositions ? allPositions.length : interiorCount;
   const legCount = geometry.shape === "flat" ? pairCount : pairCount * 2;
   return {
     automatic,
@@ -210,7 +218,8 @@ function resolveRafterStructure(project, geometry, frameLength) {
     module,
     frameLength,
     pairCount,
-    positions,
+    endPairCount: endOverhangMm && pairCount >= 2 ? 2 : 0,
+    positions: allPositions,
     legCount,
   };
 }
@@ -1115,13 +1124,14 @@ function roofSection(project, metrics, index, inputs) {
       platform,
       result: calculateTerraceRoof(platform, project.plan.house, {
         mainSlopeCoefficient: geometry.slopeCoefficient,
+        mainRoof: roof,
         wallPanelThickness: project.settings.sip.wallThickness,
         postSpacing: inputs.formulas.terraceRoofPostSpacing,
       }),
     }));
   terraceRoofs.forEach(({ platform, result }) => {
-    if (platform.roof?.mode === "warm") warmSlopeArea += result.netArea;
-    if (platform.roof?.mode === "cold") coldSlopeArea += result.netArea;
+    if (result.mode === "warm") warmSlopeArea += result.netArea;
+    if (result.mode === "cold") coldSlopeArea += result.netArea;
   });
   const supportsMainGables = mainRoofShape === "gable" || mainRoofShape === 'tiered' || hasStructuralFlatGables;
   const mainGableType =
@@ -1311,7 +1321,7 @@ function roofSection(project, metrics, index, inputs) {
   const detailedRiegelCount = detailedRafters ? clearGapPositions(
     25, Math.max(25, (roofAxes.ridgeBaseLength + 2 * gableOverhang) * 1000 - 25), 50,
     Number(project.settings.productionCutting?.rafterClearGapMm) || rafterStructure.step * 1000,
-  ).length : rafterStructure.pairCount;
+  ).map(position => position - gableOverhang * 1000).filter(position => position >= -1 && position <= roofAxes.ridgeBaseLength * 1000 + 1).length : rafterStructure.pairCount - rafterStructure.endPairCount;
   const riegelCount = rectangularRoof && !project.settings.productionCutting?.roofDesign?.manualFaces?.length
     && roof.type === 'cold' && hangingRiegelEnabled(roof, {
     mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea,
@@ -1338,7 +1348,8 @@ function roofSection(project, metrics, index, inputs) {
     ? roof.mauerlatLayout
     : "perimeter";
   const plateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout }, roofAxes.ridgeAxis);
-  const mauerlatRuns = plateGeometry.runs.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000);
+  const supportedPlateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout, gableOverhang: 0 }, roofAxes.ridgeAxis);
+  const mauerlatRuns = supportedPlateGeometry.runs.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000);
   const mauerlatLength = mauerlatRunLength(plateGeometry.runs);
   const mauerlatPurchaseLength =
     mauerlatLength * inputs.formulas.mauerlatReserve;
@@ -1385,13 +1396,14 @@ function roofSection(project, metrics, index, inputs) {
         ? geometry.ridgeLength + geometry.hipLength
         : geometry.roofLength;
   const replaceRidge=project.settings.productionCutting?.roofFrameConfig?.replaceRidge===true&&(project.settings.productionCutting.roofSupports||[]).some(s=>s.autoLayout==='roof-support-frame'&&s.type==='purlin');
+  const gluedRidge = gluedRidgeLayout(project, !replaceRidge && rafterStructure.system === 'layered' && mainColdSlopeArea > 0 && mainRoofShape === 'gable', terraceRoofs);
   const ridgeBeamPurchaseLength =
-    replaceRidge?0:ridgeBeamLength * inputs.formulas.ridgeBeamReserve;
+    replaceRidge?0:(ridgeBeamLength - gluedRidge.mainLength) * inputs.formulas.ridgeBeamReserve;
   // Two specified 50×100 ridge rows for a layered scheme are budgeted separately.
   // Bearing posts and beam sizing still require the structural project.
   const layeredRidgeLength =
     !replaceRidge && rafterStructure.system === "layered" && mainColdSlopeArea > 0 && mainRoofShape !== 'tiered'
-      ? mainRoofShape === "hip" ? geometry.ridgeLength : geometry.roofLength
+      ? mainRoofShape === "hip" ? geometry.ridgeLength : Math.max(0, geometry.roofLength - gluedRidge.mainLength)
       : 0;
   const layeredRidgePurchaseLength =
     layeredRidgeLength * inputs.formulas.ridgeBeamReserve;
@@ -1529,13 +1541,13 @@ function roofSection(project, metrics, index, inputs) {
       : 0;
   const extensionLines = compact(
     terraceRoofs.flatMap(({ platform, result }) => {
-      if (platform.roof?.mode === "none" || !result.netArea) return [];
+      if (result.mode === "none" || !result.netArea) return [];
       const key = `platform-${String(platform.id).replace(/[^a-zа-я0-9-]/gi, "-")}`;
       const title = platform.kind === "porch" ? "крыльца" : "террасы";
       const source = `${key}-roof`;
-      const coldSlope = platform.roof.mode === "cold" ? result.netArea : 0;
+      const coldSlope = result.mode === "cold" ? result.netArea : 0;
       const coldGable = result.gableType === "cold" ? result.gableArea : 0;
-      const warmSlope = platform.roof.mode === "warm" ? result.netArea : 0;
+      const warmSlope = result.mode === "warm" ? result.netArea : 0;
       const warmGable = result.gableType === "sip" ? result.gableArea : 0;
       const constructionArea = result.netArea + result.gableArea;
       const slopeSip = calculateSipRoofCutting(warmSlope, {
@@ -1583,10 +1595,11 @@ function roofSection(project, metrics, index, inputs) {
         result.postSection === "100x100"
           ? "Брус ест.влажн. сосна 100×100 мм"
           : "Брус мауэрлата ест.влажн. сосна 150×100 мм";
+      const gluedTerraceLength = gluedRidge.terraces.find(item => item.id === platform.id)?.length || 0;
       const ridgeBeamPurchaseLength =
-        result.ridgeLength * inputs.formulas.ridgeBeamReserve;
+        Math.max(0, result.ridgeLength - gluedTerraceLength) * inputs.formulas.ridgeBeamReserve;
       const layeredTerraceRidgeLength =
-        rafterStructure.system === "layered" && coldSlope > 0 ? result.ridgeLength : 0;
+        rafterStructure.system === "layered" && coldSlope > 0 ? Math.max(0, result.ridgeLength - gluedTerraceLength) : 0;
       const layeredTerraceRidgePurchaseLength =
         layeredTerraceRidgeLength * inputs.formulas.ridgeBeamReserve;
       const layeredTerraceRidgeBoardCount = layeredTerraceRidgePurchaseLength
@@ -1693,6 +1706,16 @@ function roofSection(project, metrics, index, inputs) {
           unit: "м³",
           digits: 3,
           name: `Коньковый прогон 100×50 мм · верхний и нижний ряд · ${layeredTerraceRidgeBoardCount} шт × 6 м · кровля ${title}`,
+          source,
+        }),
+        makeLine(index, "roof", "Пакет клеёных досок 3×50×150 мм (145×150 мм)", gluedTerraceLength * inputs.formulas.ridgeBeamReserve, {
+          key: `${key}-glued-ridge`, unit: "м.п.", digits: 2,
+          name: `Клеёный коньковый прогон · пакет клеёных досок 3×50×150 мм (145×150 мм) · кровля ${title}`,
+          source,
+        }),
+        makeLine(index, "roof", "Монтаж конькового прогона", gluedTerraceLength, {
+          key: `${key}-glued-ridge-work`, kind: "labor",
+          name: `Монтаж клеёного конькового прогона 3×50×150 мм · кровля ${title}`,
           source,
         }),
         makeLine(index, "roof", "Монтаж конькового прогона", layeredTerraceRidgeLength * 2, {
@@ -2055,6 +2078,13 @@ function roofSection(project, metrics, index, inputs) {
           name: `Опорные столбы кровли ${title} ${result.postSection.replace("x", "×")} мм · ${result.postCount} шт`,
           source,
         }),
+        makeLine(index, "roof", postQuery, result.tieVolume, {
+          key: `${key}-outer-tie-${result.postSection}`,
+          unit: "м³",
+          digits: 3,
+          name: `Горизонтальная обвязка по наружным столбам ${title} ${result.postSection.replace("x", "×")} мм · ${result.tieLength} м`,
+          source,
+        }),
       ];
     }),
   );
@@ -2213,6 +2243,14 @@ function roofSection(project, metrics, index, inputs) {
       unit: "м³",
       digits: 3,
       name: `Коньковый прогон 100×50 мм · верхний и нижний ряд · ${layeredRidgeBoardCount} шт × 6 м`,
+    }),
+    makeLine(index, "roof", "Пакет клеёных досок 3×50×150 мм (145×150 мм)", gluedRidge.mainLength * inputs.formulas.ridgeBeamReserve, {
+      key: "second-light-glued-ridge", unit: "м.п.", digits: 2,
+      name: "Клеёный коньковый прогон · пакет клеёных досок 3×50×150 мм (145×150 мм) над вторым светом",
+    }),
+    makeLine(index, "roof", "Монтаж конькового прогона", gluedRidge.mainLength, {
+      key: "second-light-glued-ridge-work", kind: "labor",
+      name: "Монтаж клеёного конькового прогона над вторым светом",
     }),
     makeLine(index, "roof", "Доска ест.влажн. сосна 25*150мм", riegelVolume, {
       key: "hanging-rigels",

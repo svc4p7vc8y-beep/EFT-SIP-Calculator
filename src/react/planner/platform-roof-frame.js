@@ -1,14 +1,14 @@
-import { calculateTerraceRoof, normalizeTerracePlatform } from '../../calculations/terrace-model.js';
+import { calculateTerraceRoof, resolveTerracePlatform } from '../../calculations/terrace-model.js';
 import { resolveRoofAxes } from '../../calculations/roof-orientation.js';
 
 // Plan-view layout only. Member sizing and purchasing remain in the estimate engine.
 export function platformRoofFrame(platform, house, requestedStep = 0.6, mainRoof = {}) {
-  const normalized = normalizeTerracePlatform(platform);
+  const normalized = resolveTerracePlatform(platform, mainRoof, house);
   const { roof } = normalized;
   if (roof.mode === 'none') return null;
   const result = calculateTerraceRoof(normalized, house);
   const horizontal = ['top', 'bottom'].includes(result.side);
-  const step = Math.max(0.3, Math.min(1.2, Number(requestedStep) || 0.6));
+  const step = Math.max(0.3, Math.min(1.2, Number(roof.inheritMainRoof && roof.shape === 'continuation' && Number(mainRoof.rafterStep) > 0 ? mainRoof.rafterStep : requestedStep) || 0.6));
   const x = Number(platform.x) || 0, y = Number(platform.y) || 0;
   const w = Number(platform.w) || 0, h = Number(platform.h) || 0;
   if (w <= 0 || h <= 0) return null;

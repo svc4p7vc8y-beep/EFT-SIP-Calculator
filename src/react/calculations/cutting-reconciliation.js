@@ -1,5 +1,5 @@
 const profileOf = text => {
-  const match=String(text).match(/(\d+(?:\.\d+)?)\s*[×xх]\s*(\d+(?:\.\d+)?)/i);
+  const match=String(text).match(/\((\d+(?:\.\d+)?)\s*[×xх]\s*(\d+(?:\.\d+)?)\s*мм\)/i) || String(text).match(/(\d+(?:\.\d+)?)\s*[×xх]\s*(\d+(?:\.\d+)?)/i);
   return match ? [Number(match[1]),Number(match[2])].sort((a,b)=>a-b) : null;
 };
 const boardRoles=new Set(['Торцевая / обрамляющая доска','Стойка проёма','Нижняя обвязка перегородки','Верхняя обвязка перегородки','Стойка перегородки','Угловая стойка под обшивку','Опорная доска на ребре','Укосина перегородки','Обвязка фронтона','Стойка фронтона','Доска пакета обвязки','Стропило','Обрешётка','Контробрешётка','Коньковый прогон']);
@@ -8,6 +8,7 @@ const familyOf = (material,profile) => {
   if(material==='Мауэрлат')return profile[0]<100?'Пиломатериалы':'Брус';
   if(material==='Брус обвязки')return 'Брус';
   if(material==='Элемент ребра кровли')return profile[0]>=100?'Брус':'Пиломатериалы';
+  if(/пакет\s+кле[её]ных\s+досок/i.test(material))return 'Клеёный пакет';
   if(['Термобрус','Клеёный пакет','Брус'].includes(material))return material;
   return null;
 };

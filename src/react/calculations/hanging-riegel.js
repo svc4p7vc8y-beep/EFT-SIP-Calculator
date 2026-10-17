@@ -28,8 +28,13 @@ export function hangingRiegelMembers(assembly, roof, settings) {
   const across = 1 - along;
   const middle = assembly.bounds[across === 0 ? 'x' : 'y'] + assembly.bounds[across === 0 ? 'width' : 'height'] / 2;
   const first = new Map(), second = new Map();
+  const minAlong = assembly.bounds[along === 0 ? 'x' : 'y'];
+  const maxAlong = minAlong + assembly.bounds[along === 0 ? 'width' : 'height'];
+  let eligible = 0;
   for (const rafter of assembly.rafters) {
     if (rafter.excluded) continue;
+    if (rafter.a[along] < minAlong - 1 || rafter.a[along] > maxAlong + 1) continue;
+    eligible++;
     const point = atHeight(rafter, height);
     if (!point) continue;
     const side = point[across] < middle ? first : second;
@@ -57,8 +62,8 @@ export function hangingRiegelMembers(assembly, roof, settings) {
   }
   const long = items.filter(item => item.length + 2 * Number(settings.endAllowanceMm || 0) > Number(settings.stockLengthMm));
   if (long.length) issues.push(`Ригели: ${long.length} шт длиннее заготовки ${settings.stockLengthMm} мм (например, ${long[0].id} — ${long[0].length} мм); нужна цельная заготовка или рассчитанный узел соединения.`);
-  if (items.length !== assembly.rafters.length / 2)
-    issues.push(`Ригели: найдено ${items.length} пар для ${assembly.rafters.length} стропил. Проверьте геометрию скатов и расположение стропил.`);
+  if (items.length !== eligible / 2)
+    issues.push(`Ригели: найдено ${items.length} пар для ${eligible} стропил внутри контура стен. Проверьте геометрию скатов и расположение стропил.`);
   if (items.length) issues.push('Ригели: 25×150 мм на заданной высоте показаны геометрически. Узлы, распор, сечение и несущая способность требуют расчёта конструктора.');
   return { items, members, issues };
 }

@@ -32,12 +32,15 @@ for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   assert.ok(Math.abs(model.warmArea-(scenario.warmArea||0))<.001,`${model.warmArea} m² warm`);
   assert.equal(report.assembly.rafters.length,scenario.rafters);
   assert.equal(report.surfaces.filter(surface=>surface.roofFaceId).length,scenario.roofSurfaces||0);
-  const rigelCost=scenario.shape==='gable'&&scenario.type!=='sip'?10111.20:0;
+  const rigelCost=scenario.shape==='gable'&&scenario.type!=='sip'?8316:0;
   const oldLathCount=Math.ceil((calculation.roof.geometry.totalSlopeArea/calculation.roof.lathStep+calculation.roof.mainEaveLength)/6);
   const lathPrice=calculation.lines.find(line=>line.id==='roof:lath')?.price||0;
   const lathDelta=(calculation.roof.mainLathBoardCount-oldLathCount)*6*.025*.1*lathPrice;
   const oldCross=Math.ceil((calculation.roof.geometry.totalSlopeArea/calculation.roof.lathStep+calculation.roof.mainEaveLength)/calculation.roof.rafterStructure.module);
   const fastenerDelta=!calculation.roof.rafterStructure.pairCount?0:(calculation.roof.lathCrossingCount-oldCross)*calculation.inputs.formulas.roofLathNailsPerCrossing*calculation.inputs.formulas.roofLathNailKgEach*(calculation.lines.find(line=>line.id==='roof:general-fasteners')?.price||0);
-  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta)*100)/100);
-  assert.equal(calculation.lines.find(line=>line.id==='roof:hanging-rigels')?.qty||0,rigelCost?.383:0);
+  // v241 prices the four end-bearing extensions and the terrace outer tie.
+  const endPairAndPlateDelta=scenario.shape==='gable'&&scenario.type!=='sip'?6776.4:0;
+  const terraceTieDelta=scenario.terrace?1584:0;
+  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta+endPairAndPlateDelta+terraceTieDelta)*100)/100);
+  assert.equal(calculation.lines.find(line=>line.id==='roof:hanging-rigels')?.qty||0,rigelCost?.315:0);
 });

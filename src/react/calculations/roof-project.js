@@ -2,7 +2,7 @@ import {houseContourPoints} from '../planner/geometry.js';
 import {productionLevels} from './production-levels.js';
 import {lRoofFrame} from '../planner/l-roof-frame.js';
 import {platformRoofFrame} from '../planner/platform-roof-frame.js';
-import {normalizeTerracePlatform} from '../../calculations/terrace-model.js';
+import {resolveTerracePlatform} from '../../calculations/terrace-model.js';
 import clipping from 'polygon-clipping';
 import {hipRoofFromContour} from './hip-roof-geometry.js';
 import { roofBaseElevation } from './roof-wall-plate.js';
@@ -95,7 +95,7 @@ export function roofProject(project,calculation,assembly){
  }
  }
  if(!design.manualFaces?.length)for(const {platform,result} of calculation.roof.terraceRoofs||[]){
-  const p=normalizeTerracePlatform(platform),f=platformRoofFrame(p,project.plan.house,Number(calculation.roof.rafterStructure?.module)||.64,settings);if(!f)continue;
+  const p=resolveTerracePlatform(platform,settings,project.plan.house),f=platformRoofFrame(p,project.plan.house,Number(calculation.roof.rafterStructure?.module)||.64,settings);if(!f)continue;
   const {x1,y1,x2,y2}=f.bounds,group=`terrace:${p.id}`,base=Number(p.roof.highHeight)*1000,low=Number(p.roof.lowHeight)*1000;
   const mainHeight=(x,y)=>{const candidates=faces.filter(s=>s.group==='main'&&inside([x,y],s.vertices.map(p=>p.slice(0,2))));return candidates.length?roofHeight(candidates[0],x,y):null;};
   const z=(x,y)=>{if(p.roof.shape==='continuation'){

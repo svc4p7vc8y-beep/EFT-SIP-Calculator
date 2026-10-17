@@ -68,6 +68,7 @@ import { resolveRoofAxes, roofAxisLabel } from "../../calculations/roof-orientat
 import {
   calculateTerraceRoof,
   normalizeTerracePlatform,
+  resolveTerracePlatform,
 } from "../../calculations/terrace-model.js";
 import {
   bindingLinesFromPileRows,
@@ -685,7 +686,7 @@ function PlatformRoofOverlay({ platform, house, p, mainRoof }) {
   };
   return <g className={frame.continuation ? 'platform-roof-continuation' : 'platform-roof-independent'} pointerEvents="none" aria-label={`Кровля ${platform.kind === 'porch' ? 'крыльца' : 'террасы'}`}>
     <title>Схема стропил, шаг не более {frame.step} м. Сечения и узлы требуют проверки конструктора.</title>
-    <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill={frame.continuation ? '#e7eee5' : '#7da096'} fillOpacity={frame.continuation ? 1 : 0.22} stroke={frame.continuation ? 'none' : '#476f62'} strokeWidth="2" strokeDasharray={frame.continuation ? undefined : '7 4'} />
+    <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill="none" stroke="#8d621f" strokeWidth="2" strokeDasharray="7 4" />
     {mainRoof?.showRafters !== false ? <g stroke={frame.continuation ? '#394a3d' : '#745230'} strokeWidth="2" data-platform-rafters={frame.rafters.length}>
       {frame.rafters.map(line)}
       {frame.ridge ? <g stroke="#476f62" strokeWidth="3">{line(frame.ridge, 'ridge')}</g> : null}
@@ -1157,7 +1158,7 @@ function RectangularRoofPlanOverlay({ plan, roof, p }) {
         />
       ) : null}
       {roof.showMauerlat !== false ? (
-        <polygon
+        <><polygon
           className="roof-mauerlat"
           points={contour
             .map((point) => {
@@ -1165,7 +1166,15 @@ function RectangularRoofPlanOverlay({ plan, roof, p }) {
               return `${q.x},${q.y}`;
             })
             .join(" ")}
-        />
+        />{shape === 'gable' && roof.type !== 'sip' && gableOverhang > 0 ? <g className="roof-mauerlat-extension" aria-label="Вынос мауэрлата под крайние стропильные пары">
+          {(vertical ? [bounds.x + .075, bounds.x2 - .075] : [bounds.y + .075, bounds.y2 - .075]).flatMap((across, index) => {
+            const ends = vertical ? [[y1, bounds.y + .075], [bounds.y2 - .075, y2]] : [[x1, bounds.x + .075], [bounds.x2 - .075, x2]];
+            return ends.map(([start, end], endIndex) => {
+              const a = vertical ? p(across, start) : p(start, across), b = vertical ? p(across, end) : p(end, across);
+              return <line key={`${index}-${endIndex}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+            });
+          })}
+        </g> : null}</>
       ) : null}
       {roof.showRafters !== false ? (
         <g className="roof-structural-layer">
@@ -3324,7 +3333,7 @@ function DoorOrientationControls({ opening, onChange }) {
   );
 }
 
-function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
+function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {} }) {
   const { project } = useProject();
   const get = (key) =>
     (plan[key] || []).find((item) => item.id === selected?.id);
@@ -3609,7 +3618,9 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
     );
   }
   if (platform) {
-    const roof = calculateTerraceRoof(platform, plan.house);
+    const roof = calculateTerraceRoof(platform, plan.house, { mainRoof });
+    const inherited = platform.roof.shape === 'continuation' && platform.roof.mode !== 'none' && platform.roof.inheritMainRoof !== false;
+    const effectiveRoof = resolveTerracePlatform(platform, mainRoof, plan.house).roof;
     const change = (mutate) =>
       update("platforms", (item) => {
         mutate(item);
@@ -3731,7 +3742,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
         />
         <SelectField
           label="Кровля"
-          value={platform.roof.mode}
+          value={effectiveRoof.mode}
+          disabled={inherited}
           onChange={(value) =>
             change((item) => {
               item.roof.mode = value;
@@ -3743,11 +3755,12 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
             { value: "warm", label: "Тёплая СИП" },
           ]}
         />
-        {platform.roof.mode !== "none" ? (
+        {effectiveRoof.mode !== "none" ? (
           <>
             <NumberField
               label="Шаг стропил на схеме"
-              value={platform.roof.rafterStep ?? project.settings.roof.rafterStep ?? 0.6}
+              value={inherited ? effectiveRoof.rafterStep : platform.roof.rafterStep ?? mainRoof.rafterStep ?? 0.6}
+              disabled={inherited}
               suffix="м"
               min={0.3}
               max={1.2}
@@ -3769,12 +3782,13 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
                 { value: "gable", label: "Двускатная" },
               ]}
             />
-            {platform.roof.shape === 'continuation' ? <p className="inspector-note">Включите слой «Крыша» над планом, чтобы увидеть общий силуэт основной кровли и террасы.</p> : null}
+            {platform.roof.shape === 'continuation' ? <><Toggle label="Параметры основной кровли" checked={inherited} onChange={value => change(item => { item.roof.inheritMainRoof = value; })} /><p className="inspector-note">{inherited ? `Тип, свесы и шаг взяты из основной кровли. Свесы: ${effectiveRoof.frontOverhang} × ${effectiveRoof.sideOverhang} м; шаг ${effectiveRoof.rafterStep} м.` : 'Для террасы действуют отдельные параметры. Включите слой «Крыша» для просмотра общего силуэта.'}</p></> : null}
             <div className="form-grid">
               <NumberField
                 label="Высота у стены"
                 value={platform.roof.highHeight}
                 suffix="м"
+                disabled={inherited}
                 onChange={(value) =>
                   change((item) => {
                     item.roof.highHeight = value;
@@ -3785,6 +3799,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected }) {
                 label="Высота края"
                 value={platform.roof.lowHeight}
                 suffix="м"
+                disabled={inherited}
                 onChange={(value) =>
                   change((item) => {
                     item.roof.lowHeight = value;
@@ -4769,6 +4784,7 @@ function MobileSelectionAdjuster({
                       ) : (
                         <Inspector
                           plan={plan}
+                          mainRoof={project.settings.roof}
                           selected={selected}
                           commitPlan={commitPlan}
                           issues={[]}
@@ -6568,6 +6584,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           ) : (
             <Inspector
               plan={plan}
+              mainRoof={project.settings.roof}
               selected={selected}
               setSelected={setSelected}
               commitPlan={commitPlan}

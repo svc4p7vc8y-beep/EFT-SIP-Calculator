@@ -9,6 +9,7 @@ import {roofProject,roofAt} from './roof-project.js';
 import {roofFabrication,planIntersection} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
 import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
+import { gluedRidgeLayout } from './roof-glued-ridge.js';
 import { hangingRiegelEnabled, hangingRiegelMembers } from './hanging-riegel.js';
 import { layeredFrameLayout } from './layered-frame.js';
 import { roofLathRows } from './roof-lathing.js';
@@ -99,7 +100,15 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       Object.assign(roofTimbers.at(-1),{name:'Мауэрлат',flat:true,normal:[0,0,1],worldA:[...a,elevation.topZ+plate.heightMm/2],worldB:[...b,elevation.topZ+plate.heightMm/2],plateTopZ:elevation.topZ+plate.heightMm});
     });
   }
-  if(project.services.roof && roof.layeredRidgeLength>0)for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength),...(roof.mainRoofShape==='gable'&&rectangular?[at(-gable,span/2),at(-gable+mm(roof.layeredRidgeLength),span/2)]:[]));
+  const gluedRidge=gluedRidgeLayout(project,project.services.roof&&roof.mainRoofShape==='gable'&&frame.system==='layered'&&roof.coldSlopeArea>0,calculation.roof.terraceRoofs);
+  if(project.services.roof && roof.layeredRidgeLength>0 && (roof.mainRoofShape!=='gable'||!rectangular))for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength));
+  else if(project.services.roof && roof.layeredRidgeLength>0){
+    const cuts=roof.mainRoofShape==='gable'&&rectangular?gluedRidge.main.map(([a,b])=>[mm(a),mm(b)]):[];
+    const remaining=[];let cursor=-gable;
+    for(const [a,b] of cuts){if(a-cursor>1)remaining.push([cursor,a]);cursor=Math.max(cursor,b);}
+    if(axisLength+gable-cursor>1)remaining.push([cursor,axisLength+gable]);
+    for(let i=1;i<=2;i++)for(const [index,[a,b]] of remaining.entries())addRoofMember(`КР-КН${i}-${index+1}`,'Коньковая доска · ряд','100×50',b-a,...(roof.mainRoofShape==='gable'&&rectangular?[at(a,span/2),at(b,span/2)]:[]));
+  }
   const laths=[],counterLaths=[];
   if(project.services.roof&&roof.includeCovering&&rafters.length){
     for(const name of [...new Set(rafters.map(r=>r.name))]){
@@ -266,6 +275,21 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   assembly.rafterSystem=frame.system;
   assembly.pileSources=(calculation.foundation?.points||[]).map(p=>p.source);
   assembly.platforms=platformAssembly(project,calculation,assembly.roofModel);
+  const packageSegments=[...gluedRidge.main.map(([start,end],index)=>({id:`КР-КЛ-С${index+1}`,group:'main',a:at(mm(start),span/2),b:at(mm(end),span/2)})),
+    ...gluedRidge.terraces.map((item,index)=>({id:`КР-КЛ-Т${index+1}`,group:`terrace:${item.id}`,a:item.a.map(mm),b:item.b.map(mm)}))];
+  if(packageSegments.length)assembly.issues.push('Клеёный коньковый прогон 3×50×150 мм: схема и смета заданы, но несущая способность, клеевой пакет, опирание и крепления требуют расчёта конструктора.');
+  const terracePackageGroups=new Set(packageSegments.filter(item=>item.group.startsWith('terrace:')).map(item=>item.group));
+  const replaced=new Set(assembly.roofTimbers.filter(item=>item.roofMemberKind==='ridge'&&terracePackageGroups.has(assembly.roofModel.faces.find(face=>face.id===item.faceId)?.group)).map(item=>item.id));
+  if(replaced.size){assembly.roofTimbers=assembly.roofTimbers.filter(item=>!replaced.has(item.id));assembly.members=assembly.members.filter(item=>!replaced.has(item.id));}
+  for(const segment of packageSegments){
+    const hitAt=point=>roofAt(assembly.roofModel,...point).find(hit=>hit.face.group===segment.group);
+    const startHit=hitAt(segment.a),endHit=hitAt(segment.b),za=startHit?.z,zb=endHit?.z;
+    if(!Number.isFinite(za)||!Number.isFinite(zb)){assembly.issues.push(`${segment.id}: плоскость для клеёного прогона не найдена; проверьте примыкание и отметки.`);continue;}
+    const length=Math.ceil(Math.hypot(segment.b[0]-segment.a[0],segment.b[1]-segment.a[1]));
+    const item={id:segment.id,name:'Клеёный коньковый прогон 3×50×150',material:'Пакет клеёных досок 3×50×150 мм (145×150 мм)',profile:'145×150',length,a:segment.a,b:segment.b,worldA:[...segment.a,za-75],worldB:[...segment.b,zb-75],normal:[0,0,1],roofMemberKind:'ridge-package',group:segment.group,faceId:startHit.face.id};
+    assembly.roofTimbers.push(item);
+    assembly.members.push({...item,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия второго света или кровли террасы',surface:'Кровля',panels:[],processing:'Пакет из трёх досок; опоры, клей и несущая способность по проекту'});
+  }
   assembly.showPlatforms=settings.showPlatforms!==false;
   return assembly;
 }

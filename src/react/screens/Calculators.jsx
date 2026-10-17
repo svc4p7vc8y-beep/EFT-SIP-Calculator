@@ -1831,7 +1831,7 @@ export default function Calculators({ type, onNavigate }) {
           </div>
           <Panel title="Площадки проекта">
             {project.plan.platforms.map((platform) => {
-              const result = calculateTerraceRoof(platform, project.plan.house);
+              const result = calculation.roof.terraceRoofs.find(item => item.platform.id === platform.id)?.result || calculateTerraceRoof(platform, project.plan.house, { mainRoof: project.settings.roof });
               return (
                 <div className="calculation-row" key={platform.id}>
                   <div>

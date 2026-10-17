@@ -85,5 +85,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
     const b=hostPoints[(i+1)%hostPoints.length],dx=(b.x-a.x)*1000,dy=(b.y-a.y)*1000,length=Math.hypot(dx,dy);
     return length>1?{id:`existing:${host.id||'building'}:wall:${i}`,layer:'existingBuilding',referenceOnly:true,shape:[[[0,0],[length,0],[length,hostHeight||40],[0,hostHeight||40]]],placement:{origin:[a.x*1000,a.y*1000,hostBase],u:[dx/length,dy/length,0],v:[0,0,1],normal:[dy/length,-dx/length,0]},thickness:20}:null;
   }).filter(Boolean):[];
-  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>p.posts)],bearingPoints,platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>[...p.posts,...p.ties])],bearingPoints,platforms,missing,world,roofBase,bases,placements};
 }

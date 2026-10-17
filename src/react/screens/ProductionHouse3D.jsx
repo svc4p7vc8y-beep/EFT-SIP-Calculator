@@ -32,7 +32,7 @@ function beamGeometry(item,width,depth,length){
 }
 export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,pan=false,initialZoom=1,showRoofStructureByDefault=false,showBearingPoints=false}) {
   const host=useRef(null),api=useRef(null),selection=useRef(selected),callback=useRef(onSelect),view=useRef(null);
-  const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(()=>['ceiling',...(showRoofStructureByDefault?roofCoverLayers:[])]);
+  const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(()=>['ceiling','platformRoof',...roofCoverLayers]);
   const [display,setDisplay]=useState('solid');
   const [bearingsVisible,setBearingsVisible]=useState(showBearingPoints);
   const data=useMemo(()=>productionScene(report,project),[report,project]);

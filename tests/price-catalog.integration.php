@@ -43,4 +43,16 @@ $snapshot = eft_price_project($pdo, ['priceMat' => [['id' => $a['id'], 'price' =
 check($snapshot['priceMat'][0]['price'] === 1700, 'Old project receives current price');
 check($snapshot['sharedPriceCatalog']['revision'] === 3, 'Snapshot revision');
 eft_price_seed($pdo); check(eft_price_read($pdo)['revision'] === 3, 'Redeploy preserves edited catalog');
+// Simulate an older live catalog, then deploy the three newly approved packages.
+$legacy = eft_price_read($pdo)['payload'];
+$legacy['priceMat'] = array_values(array_filter($legacy['priceMat'], static fn($row) => !in_array($row['id'], ['MAT-250', 'MAT-251', 'MAT-252'], true)));
+$statement = $pdo->prepare("UPDATE eft_shared_documents SET payload = ? WHERE document_key = 'price-catalog'");
+$statement->execute([json_encode($legacy, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
+eft_price_add_bundled_roof_packages($pdo);
+$bundled = eft_price_read($pdo);
+check($bundled['revision'] === 4, 'New package revision');
+check(count(array_filter($bundled['payload']['priceMat'], static fn($row) => in_array($row['id'], ['MAT-250', 'MAT-251', 'MAT-252'], true))) === 3, 'All roof packages inserted');
+check($bundled['payload']['priceMat'][0]['price'] === 1700, 'Existing edited price preserved');
+eft_price_add_bundled_roof_packages($pdo);
+check(eft_price_read($pdo)['revision'] === 4, 'Package migration is idempotent');
 echo "Price catalog integration passed: access, history, atomic edits, concurrent conflicts, current project prices.\n";

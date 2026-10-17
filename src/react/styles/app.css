@@ -1674,7 +1674,7 @@ select,
   stroke-width: 4;
 }
 .rafter-scheme svg .roof-scheme-flat-infill {
-  fill: color-mix(in srgb, var(--green-soft) 42%, transparent);
+  fill: none;
   stroke: var(--green);
   stroke-width: 1.5;
 }
@@ -3172,7 +3172,7 @@ select,
   pointer-events: none;
 }
 .roof-cover-plane {
-  fill: rgba(128, 160, 105, 0.12);
+  fill: none;
   stroke: none;
 }
 .roof-overhang-outline {
@@ -3188,6 +3188,7 @@ select,
   stroke-width: 7;
   vector-effect: non-scaling-stroke;
 }
+.roof-mauerlat-extension line { stroke: #9a6419; stroke-width: 7; vector-effect: non-scaling-stroke; }
 .roof-rafters line {
   stroke: #394a3d;
   stroke-width: 2.2;
@@ -3803,10 +3804,10 @@ select,
   stroke-dasharray: 7 5;
 }
 .print-plan-svg .print-platform text { font-size: 20px; }
-.print-plan-svg .print-platform .print-platform-roof rect { fill: #7da096; fill-opacity: .2; stroke: #476f62; stroke-width: 2; stroke-dasharray: 7 4; }
+.print-plan-svg .print-platform .print-platform-roof rect { fill: none; stroke: #8d621f; stroke-width: 2; stroke-dasharray: 7 4; }
 .print-plan-svg .print-platform-roof line { stroke: #745230; stroke-width: 2; }
 .print-plan-svg .print-platform-roof .ridge { stroke: #476f62; stroke-width: 3; }
-.print-plan-svg .print-platform-roof.continuation rect { fill: #f0eee7; stroke: none; }
+.print-plan-svg .print-platform-roof.continuation rect { fill: none; stroke: #8d621f; }
 .print-plan-svg .print-platform-roof.continuation line { stroke: #52685b; }
 .print-plan-svg .print-platform-roof.continuation .ridge { stroke: #9a5f16; stroke-width: 8; }
 .print-plan-svg .print-platform-roof.continuation .continuation-outline { fill: none; stroke: #8d621f; stroke-width: 3; stroke-dasharray: 8 5; }
@@ -3842,6 +3843,7 @@ select,
 }
 .print-roof-top-layer { pointer-events: none; }
 .print-roof-overhang { fill: rgba(196, 150, 73, .09); stroke: #8d621f; stroke-width: 3; stroke-dasharray: 8 5; }
+.print-roof-mauerlat-extension line { stroke: #9a6419; stroke-width: 7; }
 .print-roof-ridge { stroke: #9a5f16; stroke-width: 8; }
 .print-roof-diagonals line { stroke: #9a5f16; stroke-width: 6; }
 .print-roof-rafters line { stroke: #52685b; stroke-width: 2; opacity: .78; }

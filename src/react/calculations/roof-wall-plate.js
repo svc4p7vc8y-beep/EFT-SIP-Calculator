@@ -70,7 +70,25 @@ export function mauerlatWallRuns(project, roof, axis = 'x') {
   const runs = layout === 'none' ? [] : layout === 'supports' && roof.shape !== 'hip'
     ? all.filter(([a, b]) => Math.abs(a[axis === 'x' ? 1 : 0] - b[axis === 'x' ? 1 : 0]) < 1)
     : all;
-  return { runs, issue: '' };
+  const along = axis === 'x' ? 0 : 1, across = 1 - along;
+  const endOverhang = roof.shape === 'gable' && roof.type !== 'sip' && !(roof.structureMode === 'manual' && roof.rafterSystem === 'truss') ? Math.max(0, Number(roof.gableOverhang) || 0) * 1000 : 0;
+  const rectangle = contour.length === 4 && contour.every((a, i) => {
+    const b = contour[(i + 1) % contour.length];
+    return a[0] === b[0] || a[1] === b[1];
+  });
+  if (!rectangle || !endOverhang || !runs.length) return { runs, issue: '' };
+  const edgeMin = Math.min(...contour.map(p => p[along]));
+  const edgeMax = Math.max(...contour.map(p => p[along]));
+  const extended = runs.map(([a, b]) => {
+    if (Math.abs(a[across] - b[across]) > 1) return [a, b];
+    const first = [...a], last = [...b];
+    if (Math.abs(first[along] - edgeMin) < profile.widthMm || Math.abs(first[along] - edgeMax) < profile.widthMm)
+      first[along] = first[along] < last[along] ? edgeMin - endOverhang : edgeMax + endOverhang;
+    if (Math.abs(last[along] - edgeMin) < profile.widthMm || Math.abs(last[along] - edgeMax) < profile.widthMm)
+      last[along] = last[along] < first[along] ? edgeMin - endOverhang : edgeMax + endOverhang;
+    return [first, last];
+  });
+  return { runs: extended, issue: 'Торцевые участки мауэрлата работают как консоли под крайними стропильными парами; узел и путь нагрузки требуют проверки конструктора.' };
 }
 
 export function mauerlatRunLength(runs) {

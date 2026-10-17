@@ -131,6 +131,15 @@ function PrintRoofTopLayer({ plan, roof = {}, p }) {
   }
   return <g className={`print-roof-top-layer ${shape}`} aria-label="Крыша из текущего плана">
     <rect className="print-roof-overhang" x={a.x} y={a.y} width={b.x - a.x} height={b.y - a.y} />
+    {shape === 'gable' && roof.type !== 'sip' && Number(roof.gableOverhang) > 0 ? <g className="print-roof-mauerlat-extension" aria-label="Вынос мауэрлата под крайние стропильные пары">
+      {(vertical ? [.075, (Number(plan.house?.w) || 0) - .075] : [.075, (Number(plan.house?.h) || 0) - .075]).flatMap((cross, index) => {
+        const ends = vertical ? [[y1, .075], [(Number(plan.house?.h) || 0) - .075, y2]] : [[x1, .075], [(Number(plan.house?.w) || 0) - .075, x2]];
+        return ends.map(([start, end], edge) => {
+          const u = vertical ? p(cross, start) : p(start, cross), v = vertical ? p(cross, end) : p(end, cross);
+          return <line key={`${index}-${edge}`} x1={u.x} y1={u.y} x2={v.x} y2={v.y} />;
+        });
+      })}
+    </g> : null}
     {shape !== 'flat' ? <line className="print-roof-ridge" x1={ridgeA.x} y1={ridgeA.y} x2={ridgeB.x} y2={ridgeB.y} /> : null}
     {shape === 'hip' ? <g className="print-roof-diagonals">
       <line x1={a.x} y1={a.y} x2={ridgeA.x} y2={ridgeA.y} /><line x1={b.x} y1={a.y} x2={ridgeB.x} y2={ridgeB.y} />

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { Building2, CheckCircle2, ChevronDown, CircleAlert, DoorOpen, Home, HousePlus, Layers3, LayoutGrid, ListChecks, PanelsTopLeft, Truck, Wrench } from "lucide-react";
-import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
+import { calculateTerraceRoof, resolveTerracePlatform } from "../../calculations/terrace-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
@@ -1434,7 +1434,10 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
 
 function PlatformEditor({ platform, index, project, update }) {
   const set = (path, value) => update("platforms", platform.id, path, value);
+  const effective = resolveTerracePlatform(platform, project.settings.roof, project.plan.house).roof;
+  const inherited = platform.roof.shape === 'continuation' && platform.roof.mode !== 'none' && platform.roof.inheritMainRoof !== false;
   const roof = calculateTerraceRoof(platform, project.plan.house, {
+    mainRoof: project.settings.roof,
     wallPanelThickness: Number(project.settings.sip.wallThickness),
   });
   return (
@@ -1517,15 +1520,16 @@ function PlatformEditor({ platform, index, project, update }) {
         />
         <SelectField
           label="Кровля"
-          value={platform.roof.mode}
+          value={effective.mode}
           onChange={(value) => set("roof.mode", value)}
+          disabled={inherited}
           options={[
             { value: "none", label: "Нет" },
             { value: "cold", label: "Холодная" },
             { value: "warm", label: "Тёплая SIP" },
           ]}
         />
-        {platform.roof.mode !== "none" ? (
+        {effective.mode !== "none" ? (
           <>
             <SelectField
               label="Форма кровли"
@@ -1546,6 +1550,7 @@ function PlatformEditor({ platform, index, project, update }) {
                 { value: "manual", label: "Вручную" },
               ]}
             />
+            {platform.roof.shape === 'continuation' ? <Toggle label="Параметры основной кровли" checked={inherited} onChange={(value) => set('roof.inheritMainRoof', value)} hint="Тип, свесы, шаг стропил и высота конька. Выключите для ручной настройки террасы." /> : null}
             {platform.roof.areaMode === "manual" ? (
               <NumberField
                 label="Ручная площадь"
@@ -1559,14 +1564,15 @@ function PlatformEditor({ platform, index, project, update }) {
               ["sideOverhang", "Боковой свес"],
               ["highHeight", "Высокая сторона"],
               ["lowHeight", "Низкая сторона"],
-            ].map(([key, label]) => (
+            ].filter(([key]) => !inherited || !['highHeight', 'lowHeight'].includes(key)).map(([key, label]) => (
               <NumberField
                 key={key}
                 label={label}
-                value={platform.roof[key]}
+                value={effective[key]}
                 suffix="м"
                 step={0.05}
                 onChange={(value) => set(`roof.${key}`, value)}
+                disabled={inherited}
               />
             ))}
             {platform.roof.shape === "gable" ? (
@@ -1612,10 +1618,11 @@ function PlatformEditor({ platform, index, project, update }) {
             />
             <NumberField
               label="Запас"
-              value={platform.roof.wastePercent}
+              value={effective.wastePercent}
               suffix="%"
               step={1}
               onChange={(value) => set("roof.wastePercent", value)}
+              disabled={inherited}
             />
             <div className="readout">
               <span>Кровля</span>

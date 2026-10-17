@@ -19,6 +19,46 @@ function eft_price_seed(PDO $pdo): void {
     $statement->execute([$seed, (int)$owner]);
 }
 
+// A deploy may add bundled nomenclature to an already edited server catalog.
+// Only these new IDs are inserted; existing rows and their prices are untouched.
+function eft_price_add_bundled_roof_packages(PDO $pdo): void {
+    $owner = $pdo->query("SELECT id FROM eft_users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1")->fetchColumn();
+    if (!$owner) return;
+    $seed = json_decode((string)file_get_contents(__DIR__ . '/price-catalog.seed.json'), true, 512, JSON_THROW_ON_ERROR);
+    $ids = ['MAT-250', 'MAT-251', 'MAT-252'];
+    $newRows = array_values(array_filter($seed['priceMat'] ?? [], static fn($row) => in_array($row['id'] ?? '', $ids, true)));
+    if (count($newRows) !== count($ids)) throw new RuntimeException('Roof package seed is incomplete');
+    $pdo->beginTransaction();
+    try {
+        $statement = $pdo->query("SELECT revision, payload FROM eft_shared_documents WHERE document_key = 'price-catalog' FOR UPDATE");
+        $stored = $statement->fetch();
+        if (!$stored) { $pdo->commit(); return; }
+        $payload = json_decode((string)$stored['payload'], true, 512, JSON_THROW_ON_ERROR);
+        $existing = array_column(array_merge($payload['priceMat'] ?? [], $payload['priceLab'] ?? []), null, 'id');
+        $added = [];
+        foreach ($newRows as $row) {
+            if (isset($existing[$row['id']])) {
+                if (($existing[$row['id']]['name'] ?? '') !== $row['name'] || ($existing[$row['id']]['unit'] ?? '') !== $row['unit'])
+                    throw new RuntimeException('Roof package catalog ID already belongs to another position');
+                continue;
+            }
+            $payload['priceMat'][] = $row;
+            $added[] = $row;
+        }
+        if ($added) {
+            $revision = (int)$stored['revision'] + 1;
+            $update = $pdo->prepare("UPDATE eft_shared_documents SET revision = ?, payload = ?, updated_by = ?, updated_at = NOW() WHERE document_key = 'price-catalog'");
+            $update->execute([$revision, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), (int)$owner]);
+            $history = $pdo->prepare('INSERT INTO eft_price_history (revision, catalog_key, catalog_id, before_row, after_row, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())');
+            foreach ($added as $row) $history->execute([$revision, 'priceMat', $row['id'], null, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), (int)$owner]);
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
 function eft_price_read(PDO $pdo): array {
     $statement = $pdo->query("SELECT d.revision, d.payload, d.updated_at, u.display_name AS updated_by FROM eft_shared_documents d JOIN eft_users u ON u.id = d.updated_by WHERE d.document_key = 'price-catalog'");
     $row = $statement->fetch();

@@ -16,7 +16,7 @@ export function calculateDeliveryVolume(project,calculation){
   const title=panel?'SIP-панели':timber?'Пиломатериалы':calculation.sections.find(s=>s.key===line.section)?.title||line.section;
   const group=groups.get(key)||{key,title,rows:[],autoVolume:0,unknown:0};
   const dimensions=name.match(/(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм/i);
-  const section=text.match(/(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм/i);
+  const section=gluedPackage && text.match(/\((\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм\)/i) || text.match(/(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм/i);
   const num=s=>Number(s.replace(',','.'));let volume=null,formula='Нет габаритов или объёма упаковки';
   if(['м³','м3'].includes(line.unit)){volume=line.qty;formula='Объём из закупочной строки сметы';}
   else if(line.catalogId==='MAT-FOUNDATION-BLOCK'){

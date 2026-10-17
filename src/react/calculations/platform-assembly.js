@@ -16,7 +16,7 @@ export function platformAssembly(project, calculation, roofModel) {
       const distance=i*tread,ring=side==='left'?rect(x-distance-tread,y+(h-width)/2,tread,width):side==='right'?rect(x+w+distance,y+(h-width)/2,tread,width):side==='top'?rect(x+(w-width)/2,y-distance-tread,width,tread):rect(x+(w-width)/2,y+h+distance,width,tread);
       return {id:`platform:${p.id}:step:${i+1}`,ring,z:deckZ-(i+1)*riser,thickness:45};
     });
-    const faces=(roofModel?.faces||[]).filter(f=>f.group===`terrace:${p.id}`),posts=[];
+    const faces=(roofModel?.faces||[]).filter(f=>f.group===`terrace:${p.id}`),posts=[],ties=[];
     if(result?.postCount&&faces.length){
       const n=Math.min(500,result.postCount),attached=result.side;
       for(let i=0;i<n;i++){
@@ -25,8 +25,9 @@ export function platformAssembly(project, calculation, roofModel) {
         const z=roofHeight(face,...pos);if(z<=deckZ)continue;
         posts.push({id:`platform:${p.id}:post:${i+1}`,a:[...pos,deckZ],b:[...pos,z],profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true});
       }
+      for(let i=1;i<posts.length;i++)ties.push({id:`platform:${p.id}:tie:${i}`,a:posts[i-1].b,b:posts[i].b,profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true,name:'Горизонтальная обвязка террасы'});
     }
-    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:45,steps,faces,posts,
+    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:45,steps,faces,posts,ties,
       foundationMode:p.foundation.mode,bindingMode:p.binding.mode,referenceOnly:true};
   });
 }

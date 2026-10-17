@@ -17,18 +17,14 @@ test('layered roof prices two 100×50 ridge rows and their installation without 
   const hanging = roofCase('hanging');
   const layered = roofCase('layered');
   const byId = id => layered.lines.find(line => line.id === `roof:${id}`);
-  // v212: T-junction studs add 0.12 m³ ×26400 ₽ independently of roof type.
-  const oldLaths=Math.ceil((hanging.roof.geometry.totalSlopeArea/hanging.roof.lathStep+hanging.roof.mainEaveLength)/6);
-  const lathDelta=(hanging.roof.mainLathBoardCount-oldLaths)*6*.025*.1*hanging.lines.find(line=>line.id==='roof:lath').price;
-  const oldCross=Math.ceil((hanging.roof.geometry.totalSlopeArea/hanging.roof.lathStep+hanging.roof.mainEaveLength)/hanging.roof.rafterStructure.module),fastenerDelta=(hanging.roof.lathCrossingCount-oldCross)*hanging.inputs.formulas.roofLathNailsPerCrossing*hanging.inputs.formulas.roofLathNailKgEach*hanging.lines.find(line=>line.id==='roof:general-fasteners').price;
-  assert.ok(Math.abs(hanging.totals.total-(3762862.2924800003+10612.8+lathDelta+fastenerDelta))<.001);
+  assert.ok(Math.abs(hanging.totals.total-3785345.89248)<.001);
   // v234 adds more posts at the automatic 1 m station interval.
   assert.equal(layered.roof.layeredFrame.purchases.reduce((sum, row) => sum + row.volume, 0), 1.125);
-  assert.ok(Math.abs(layered.totals.total-(3803776.2924800003+lathDelta+fastenerDelta+1188))<.001);
+  assert.ok(Math.abs(layered.totals.total-3816806.29248)<.001);
   assert.ok(layered.totals.total > hanging.totals.total);
-  assert.equal(layered.roof.rafterBoardCount, 41);
+  assert.equal(layered.roof.rafterBoardCount, 46);
   assert.equal(layered.roof.layeredRidgeBoardCount, 4);
-  assert.equal(byId('rafters').qty, 1.845);
+  assert.equal(byId('rafters').qty, 2.07);
   assert.equal(byId('layered-ridge-boards').catalogId, 'MAT-027');
   assert.equal(byId('layered-ridge-boards').qty, 0.12);
   assert.equal(byId('layered-ridge-boards').price, 26400);
@@ -51,19 +47,20 @@ test('hip layered roof remains finite and warm roof has no cold timber ridge row
   assert.ok(!warm.lines.some(line => line.id === 'roof:layered-ridge-boards'));
 });
 
-test('cold gable terrace gets its own two ridge rows only in layered scheme', () => {
+test('cold gable terrace gets a glued three-board ridge package only in layered scheme', () => {
   const project = createDefaultProject();
   project.settings.roof.structureMode = 'manual';
   project.settings.roof.rafterSystem = 'layered';
   project.plan.platforms = [normalizeTerracePlatform({ id: 'test-terrace', kind: 'terrace', x: 0, y: project.plan.house.h, w: 6, h: 2, roof: { mode: 'cold', shape: 'gable', ridgeHeight: 1 } })];
   const layered = calculateProject(project);
-  const prefix = 'roof:platform-test-terrace-layered-ridge-';
-  const boards = layered.lines.find(line => line.id === `${prefix}boards`);
-  const work = layered.lines.find(line => line.id === `${prefix}work`);
+  const prefix = 'roof:platform-test-terrace-glued-ridge';
+  const boards = layered.lines.find(line => line.id === prefix);
+  const work = layered.lines.find(line => line.id === `${prefix}-work`);
   assert.ok(boards?.qty > 0);
   assert.ok(work?.qty > 0);
-  assert.equal(boards.catalogId, 'MAT-027');
+  assert.equal(boards.catalogId, 'MAT-250');
   assert.equal(work.catalogId, 'LAB-111');
+  assert.ok(!layered.lines.some(line => line.id === 'roof:platform-test-terrace-layered-ridge-boards'));
   project.settings.roof.rafterSystem = 'hanging';
   const hanging = calculateProject(project);
   assert.ok(!hanging.lines.some(line => line.id.startsWith(prefix)));
