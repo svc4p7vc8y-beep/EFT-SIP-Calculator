@@ -1,49 +1,14 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowRight, Check, Minus, Plus, Trash2 } from 'lucide-react';
-import { accessories, asset } from './data.js';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, Minus, Plus, Trash2 } from 'lucide-react';
+import { asset } from './data.js';
+import { productGroups, productsByGroup } from './productCatalog.js';
 
-function PanelExploder() {
-  const [expanded, setExpanded] = useState(false);
-  const textureId = useId().replace(/:/g, '');
-  function tilt(event) {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const box = event.currentTarget.getBoundingClientRect();
-    event.currentTarget.style.setProperty('--tilt-x', `${((event.clientY - box.top) / box.height - 0.5) * -3}deg`);
-    event.currentTarget.style.setProperty('--tilt-y', `${((event.clientX - box.left) / box.width - 0.5) * 4}deg`);
-  }
-  function reset(event) { event.currentTarget.style.removeProperty('--tilt-x'); event.currentTarget.style.removeProperty('--tilt-y'); }
-  return <div className={`panel-photo panel-exploder sip-model${expanded ? ' is-expanded' : ''}`} onPointerMove={tilt} onPointerLeave={reset} data-reveal>
-    <svg className="sip-assembly" viewBox="0 0 620 480" role="img" aria-label="СИП-панель: два отдельных листа ОСП и пенопласт с отступом 50 миллиметров от каждого края. Схема, не рабочий чертёж.">
-      <defs>
-        <pattern id={`${textureId}-osb`} width="180" height="180" patternUnits="userSpaceOnUse" patternTransform="matrix(1 -.286 .68 .32 0 0)">
-          <image href={asset('osb-natural.png')} width="180" height="180" preserveAspectRatio="none" />
-        </pattern>
-        <pattern id={`${textureId}-eps`} width="110" height="110" patternUnits="userSpaceOnUse">
-          <image href={asset('eps-natural.png')} width="110" height="110" />
-        </pattern>
-      </defs>
-      <ellipse cx="305" cy="397" rx="218" ry="27" fill="#354435" opacity=".07" />
-      <g className="sip-sheet sip-bottom">
-        <path d="M80 277L250 357L530 277V283L250 363L80 283Z" fill="#967044" />
-        <path d="M80 277L360 197L530 277L250 357Z" fill={`url(#${textureId}-osb)`} stroke="#b48b55" strokeWidth="1" />
-      </g>
-      <g className="sip-core">
-        <path d="M92.4 211.6L248.8 285.2L517.6 208.4V275.4L248.8 352.2L92.4 278.6Z" fill={`url(#${textureId}-eps)`} stroke="#cbd0c5" strokeWidth="1" />
-        <path d="M92.4 211.6L248.8 285.2V352.2L92.4 278.6Z" fill="#7b8877" opacity=".14" />
-        <path d="M92.4 211.6L361.2 134.8L517.6 208.4L248.8 285.2Z" fill={`url(#${textureId}-eps)`} stroke="#d9ddd2" strokeWidth="1" />
-      </g>
-      <g className="sip-sheet sip-top">
-        <path d="M80 205L250 285L530 205V210L250 290L80 210Z" fill="#967044" />
-        <path d="M80 205L360 125L530 205L250 285Z" fill={`url(#${textureId}-osb)`} stroke="#b48b55" strokeWidth="1" />
-      </g>
-    </svg>
-    <div className="sip-layer-legend" aria-label="Слои панели"><span><i className="legend-osb" />ОСП, верхний лист</span><span><i className="legend-eps" />Пенопласт</span><span><i className="legend-osb" />ОСП, нижний лист</span></div>
-    <div className="sip-model-controls"><button type="button" className="sip-toggle" aria-pressed={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Собрать панель' : 'Разобрать панель'}<span aria-hidden="true">{expanded ? '−' : '+'}</span></button><small>Пенопласт утоплен на 50 мм по периметру.<br />Схематическое изображение.</small></div>
-  </div>;
-}
+const money = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
+const standard = { length: 2500, width: 1250 };
 
 export default function Panels({ cart, setCart }) {
-  const [thickness, setThickness] = useState(174);
+  const [groupId, setGroupId] = useState('panels');
+  const [index, setIndex] = useState(0);
   const [length, setLength] = useState('2500');
   const [width, setWidth] = useState('1250');
   const [quantity, setQuantity] = useState('1');
@@ -51,27 +16,59 @@ export default function Panels({ cart, setCart }) {
   const [addedId, setAddedId] = useState('');
   const noticeTimer = useRef(0);
   useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
-  function markAdded(id, message) {
+
+  const group = productGroups.find((item) => item.id === groupId);
+  const products = productsByGroup[groupId];
+  const selected = products[index];
+  const isPanel = groupId === 'panels';
+  const isStandard = !isPanel || (Number(length) === standard.length && Number(width) === standard.width);
+  const quantityStep = ['м.п.', 'кг'].includes(selected.unit) ? 0.1 : 1;
+  const selectedId = isPanel ? `${selected.catalogId}-${length}-${width}` : selected.catalogId;
+  const displayTitle = isPanel && !isStandard
+    ? selected.title.replace('2500×1250', `${length}×${width}`)
+    : selected.title;
+
+  function chooseGroup(id) {
+    setGroupId(id); setIndex(0); setQuantity('1'); setNotice('');
+  }
+  function chooseProduct(nextIndex) {
+    setIndex((nextIndex + products.length) % products.length); setQuantity('1'); setNotice('');
+  }
+  function changeQuantity(delta) {
+    setQuantity(String(Math.max(quantityStep, Math.min(10000, Math.round((Number(quantity) + delta * quantityStep) * 10) / 10))));
+  }
+  function add(event) {
+    event.preventDefault();
+    const count = Number(quantity);
+    if (!Number.isFinite(count) || count <= 0 || count > 10000) return;
+    const dimensions = isPanel ? { length: Number(length), width: Number(width) } : {};
+    const id = isPanel ? `${selected.catalogId}-${dimensions.length}-${dimensions.width}` : selected.catalogId;
+    const item = {
+      id, catalogId: selected.catalogId, type: isPanel ? 'panel' : 'accessory',
+      title: displayTitle, details: isPanel ? `${dimensions.length} × ${dimensions.width} мм` : selected.family,
+      unit: selected.unit, quantity: count, price: isStandard ? selected.price : null, ...dimensions,
+    };
+    setCart((items) => items.some((row) => row.id === id)
+      ? items.map((row) => row.id === id ? { ...row, quantity: Math.round((Number(row.quantity) + count) * 10) / 10 } : row)
+      : [...items, item]);
     window.clearTimeout(noticeTimer.current);
-    setAddedId(id); setNotice(message);
+    setAddedId(id); setNotice(`${displayTitle} добавлен в заявку`);
     noticeTimer.current = window.setTimeout(() => setAddedId(''), 1900);
   }
-  function add(e) {
-    e.preventDefault();
-    const item = { thickness, length: Number(length), width: Number(width), quantity: Number(quantity) };
-    item.id = `${thickness}-${item.length}-${item.width}`;
-    setCart((items) => { const exists = items.some((row) => row.id === item.id); return exists ? items.map((row) => row.id === item.id ? { ...row, quantity: row.quantity + item.quantity } : row) : [...items, item]; });
-    markAdded('panel', 'Панели добавлены в заявку');
-  }
-  function addAccessory(product) {
-    setCart((items) => items.some((row) => row.id === product.id)
-      ? items.map((row) => row.id === product.id ? { ...row, quantity: row.quantity + 1 } : row)
-      : [...items, { ...product, type: 'accessory', quantity: 1 }]);
-    markAdded(product.id, `В заявку добавлено: ${product.title}`);
-  }
-  return <section id="panels" className="panels-section section" data-reveal><div className="section-heading"><div><span className="section-number">04 / СИП-панели и товары</span><h2>Основа вашего дома.</h2></div><p>СИП-панели и всё необходимое для монтажа.<br />Соберите предварительную заявку в одном месте.</p></div><div className="panels-grid"><PanelExploder /><form className="panel-config" onSubmit={add}><h3>СИП-панель</h3><p className="muted">Комплектация и стоимость — после уточнения заказа.</p><fieldset><legend>Толщина панели</legend><div className="segmented">{[124, 174, 224].map((n) => <button key={n} type="button" aria-pressed={thickness === n} onClick={() => setThickness(n)}>{n} мм</button>)}</div></fieldset><div className="form-row"><label className="field">Длина, мм<input type="number" required min="1" max="10000" step="1" value={length} onChange={(e) => setLength(e.target.value)} /></label><label className="field">Ширина, мм<input type="number" required min="1" max="10000" step="1" value={width} onChange={(e) => setWidth(e.target.value)} /></label></div><div className="panel-bottom"><label className="field">Количество, шт<div className="stepper"><button type="button" aria-label="Уменьшить количество" disabled={Number(quantity) <= 1} onClick={() => setQuantity(String(Math.max(1, Number(quantity) - 1)))}><Minus size={16} /></button><input aria-label="Количество панелей" type="number" min="1" max="10000" step="1" required value={quantity} onChange={(e) => setQuantity(e.target.value)} /><button type="button" aria-label="Увеличить количество" disabled={Number(quantity) >= 10000} onClick={() => setQuantity(String(Math.min(10000, Number(quantity) + 1)))}><Plus size={16} /></button></div></label><button className={addedId === 'panel' ? 'btn primary add-button added' : 'btn primary add-button'} type="submit">{addedId === 'panel' ? <>Добавлено<Check size={18} /></> : <>В заявку<Plus size={18} /></>}</button></div><span className="feedback" role="status">{notice && <><Check size={16} />{notice}</>}</span><small className="muted">Нестандартные размеры и возможность изготовления уточняются отдельно.</small></form></div>
-    <div className="accessories-head"><div><span>Комплектующие</span><h3>Всё для монтажа</h3></div><p>Пара стартовых позиций. Позже здесь появится полный каталог.</p></div>
-    <div className="accessories-grid">{accessories.map((product) => <article className="accessory-card" key={product.id}><img loading="lazy" src={asset(product.image)} alt={product.title} /><div><h3>{product.title}</h3><p>{product.description}</p><small>{product.details}</small><button className={addedId === product.id ? 'btn outline add-button added' : 'btn outline add-button'} onClick={() => addAccessory(product)}>{addedId === product.id ? <>Добавлено<Check size={17} /></> : <>В заявку<Plus size={17} /></>}</button></div></article>)}</div>
-    {cart.length > 0 && <div className="cart"><div className="cart-heading"><h3>Ваша заявка</h3><a href="#contact" className="text-link">Подготовить заявку<ArrowRight size={18} /></a></div>{cart.map((item) => <div className="cart-row" key={item.id}><span>{item.type === 'accessory' ? item.title : `СИП-панель ${item.thickness} мм`}<small>{item.type === 'accessory' ? item.details : `${item.length} × ${item.width} мм`}</small></span><strong>{item.quantity} шт.</strong><button className="icon-btn" onClick={() => setCart((items) => items.filter((row) => row.id !== item.id))} aria-label={`Удалить ${item.title || `панель ${item.thickness} мм`}`}><Trash2 size={18} /></button></div>)}</div>}
+
+  return <section id="panels" className="panels-section section" aria-labelledby="materials-title" data-reveal>
+    <div className="section-heading materials-heading"><div><span className="section-number">04 / СИП-панели и товары</span><h2 id="materials-title">Материалы для вашего проекта.</h2></div><p>От панелей до последнего крепежа.<br />Выберите нужное и отправьте одну заявку.</p></div>
+    <div className="material-tabs" role="group" aria-label="Категории материалов">{productGroups.map((item) => <button key={item.id} type="button" aria-pressed={groupId === item.id} onClick={() => chooseGroup(item.id)}>{item.label}<span>{productsByGroup[item.id].length}</span></button>)}</div>
+    <div className="material-stage" aria-live="polite">
+      <div className={`material-image material-image-${groupId}`}><img src={asset(selected.image)} alt={isPanel ? 'Иллюстрация СИП-панели; внешний вид зависит от сердцевины и обшивки' : `Иллюстрация: ${group.label.toLowerCase()}`} loading="lazy" /><span className="material-image-index">{String(index + 1).padStart(2, '0')} / {String(products.length).padStart(2, '0')}</span></div>
+      <div className="material-info"><div className="material-info-top"><span className="material-family">{selected.family}</span><span className="material-code">{selected.catalogId}</span></div><h3>{displayTitle}</h3><p className="material-description">{selected.description}</p><div className="material-price"><small>Ориентир по прайсу</small><strong>{isStandard ? `${money.format(selected.price)} ₽` : 'По запросу'}</strong><span>{isStandard ? `за ${selected.unit}` : 'для нестандартного размера'}</span></div>
+        <form className="material-order" onSubmit={add}>{isPanel && <div className="material-dimensions"><label className="field">Длина, мм<input type="number" min="1" max="10000" step="1" required value={length} onChange={(event) => setLength(event.target.value)} /></label><label className="field">Ширина, мм<input type="number" min="1" max="10000" step="1" required value={width} onChange={(event) => setWidth(event.target.value)} /></label></div>}
+          <div className="material-actions"><label className="field">Количество, {selected.unit}<span className="stepper"><button type="button" aria-label="Уменьшить количество" disabled={Number(quantity) <= quantityStep} onClick={() => changeQuantity(-1)}><Minus size={16} /></button><input type="number" aria-label={`Количество, ${selected.unit}`} min={quantityStep} max="10000" step={quantityStep} required value={quantity} onChange={(event) => setQuantity(event.target.value)} /><button type="button" aria-label="Увеличить количество" disabled={Number(quantity) >= 10000} onClick={() => changeQuantity(1)}><Plus size={16} /></button></span></label><button className={addedId === selectedId ? 'btn primary add-button added' : 'btn primary add-button'} type="submit">{addedId === selectedId ? <>Добавлено<Check size={18} /></> : <>В заявку<Plus size={18} /></>}</button></div></form>
+        <span className="feedback" role="status">{notice && <><Check size={16} />{notice}</>}</span><div className="material-navigation"><button type="button" className="material-arrow" aria-label="Предыдущий товар" onClick={() => chooseProduct(index - 1)}><ArrowLeft size={19} /></button><span>{group.intro}</span><button type="button" className="material-arrow" aria-label="Следующий товар" onClick={() => chooseProduct(index + 1)}><ArrowRight size={19} /></button></div>
+      </div>
+    </div>
+    <div className="material-filmstrip" role="group" aria-label={`Товары категории ${group.label}`}>{products.map((item, itemIndex) => <button key={item.id} type="button" aria-pressed={itemIndex === index} onClick={() => chooseProduct(itemIndex)}><span>{String(itemIndex + 1).padStart(2, '0')}</span><strong>{item.title}</strong><small>{money.format(item.price)} ₽ / {item.unit}</small></button>)}</div>
+    <p className="material-disclaimer">Цены указаны за единицу по встроенному прайсу калькулятора. Наличие, комплектацию и итоговую стоимость подтвердим перед заказом. Фото товаров иллюстративные.</p>
+    {cart.length > 0 && <div className="cart"><div className="cart-heading"><h3>Ваша заявка</h3><a href="#contact" className="text-link">Подготовить заявку<ArrowRight size={18} /></a></div>{cart.map((item) => <div className="cart-row" key={item.id}><span>{item.title || `СИП-панель ${item.thickness} мм`}<small>{item.details || `${item.length} × ${item.width} мм`}{item.price == null ? ' · цена по запросу' : ` · ${money.format(item.price)} ₽ / ${item.unit}`}</small></span><strong>{money.format(item.quantity)} {item.unit || 'шт'}</strong><button type="button" className="icon-btn" onClick={() => setCart((items) => items.filter((row) => row.id !== item.id))} aria-label={`Удалить ${item.title || `панель ${item.thickness} мм`}`}><Trash2 size={18} /></button></div>)}</div>}
   </section>;
 }
