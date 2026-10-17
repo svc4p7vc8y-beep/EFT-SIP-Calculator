@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
-import { CheckCircle2, CircleAlert, Home } from "lucide-react";
+import { Building2, CheckCircle2, ChevronDown, CircleAlert, DoorOpen, Home, HousePlus, Layers3, LayoutGrid, ListChecks, PanelsTopLeft, Truck, Wrench } from "lucide-react";
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
@@ -86,18 +86,32 @@ const serviceGroups = [
   ],
 ];
 
+const sectionAppearance = {
+  project: { icon: Building2, color: 'indigo' },
+  house: { icon: LayoutGrid, color: 'green' },
+  scope: { icon: ListChecks, color: 'slate' },
+  foundation: { icon: Layers3, color: 'amber' },
+  sip: { icon: PanelsTopLeft, color: 'teal' },
+  roof: { icon: Home, color: 'terracotta' },
+  extensions: { icon: HousePlus, color: 'violet' },
+  openings: { icon: DoorOpen, color: 'sky' },
+  engineering: { icon: Wrench, color: 'blue' },
+  delivery: { icon: Truck, color: 'olive' },
+};
+
 function Section({ id, number, title, description, children }) {
+  const { icon: Icon, color } = sectionAppearance[id];
+  const [expanded, setExpanded] = useState(id === 'house');
   return (
-    <section className="parameter-section" id={`parameter-${id}`}>
-      <header>
-        <span>{number}</span>
-        <div>
-          <h2>{title}</h2>
-          <p>{description}</p>
-        </div>
-      </header>
-      <div className="parameter-section-body">{children}</div>
-    </section>
+    <details className={`parameter-section theme-${color}`} id={`parameter-${id}`} open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
+      <summary>
+        <span className="parameter-section-icon"><Icon aria-hidden="true" /></span>
+        <span className="parameter-section-heading"><strong>{title}</strong><small>{description}</small></span>
+        <span className="parameter-section-number">{number}</span>
+        <ChevronDown className="parameter-section-chevron" aria-hidden="true" />
+      </summary>
+      <div className="parameter-section-body">{expanded ? children : null}</div>
+    </details>
   );
 }
 
@@ -123,6 +137,7 @@ function Navigator({ items }) {
           <a
             key={item.id}
             href={`#parameter-${item.id}`}
+            onClick={() => { document.getElementById(`parameter-${item.id}`).open = true; }}
             className={item.ready ? "complete" : "attention"}
           >
             <span>
@@ -149,10 +164,10 @@ function AutoLink({ label, checked, onChange, hint }) {
   );
 }
 
-export default function ParametersScreen() {
+export default function ParametersScreen({ embedded = false, suppliedCalculation = null }) {
   const { project, commit, checkpoint } = useProject();
   const [presetOpen, setPresetOpen] = useState(false);
-  const calculation = useMemo(() => calculateProject(project), [project]);
+  const calculation = useMemo(() => suppliedCalculation || calculateProject(project), [project, suppliedCalculation]);
   const { metrics, inputs } = calculation;
   const links = project.settings.links;
   const floorCount = Math.max(
@@ -212,6 +227,7 @@ export default function ParametersScreen() {
           floorPlan.wallThickness = millimeters / 1000;
         });
         next.settings.sip.wallThickness = String(millimeters);
+        synchronizeWallThickness(next, 'wallThickness');
         return next;
       }
       if (path === "plan.partitionThickness") {
@@ -228,6 +244,7 @@ export default function ParametersScreen() {
           next.settings.sip.partitionType = "frame";
           next.settings.sip.partitionFrameSection = millimeters === 150 ? "50x150" : "50x100";
         }
+        synchronizeWallThickness(next, 'partitionType');
         return next;
       }
       const sipLineByPath = {
@@ -421,13 +438,13 @@ export default function ParametersScreen() {
   ];
 
   return (
-    <div className="screen parameters-master-screen">
-      <ScreenHeader
+    <div className={`screen parameters-master-screen${embedded ? ' parameters-embedded' : ''}`}>
+      {embedded ? <button type="button" className="parameter-preset-button" onClick={() => setPresetOpen(true)}><Home aria-hidden="true" /> Стандарт жилого дома</button> : <ScreenHeader
         title="Параметры проекта"
         description="Главный опросный лист: пройдите его сверху вниз, и данные перейдут в план, калькуляторы, смету и печать"
         actions={<button className="button secondary" onClick={() => setPresetOpen(true)}><Home />Стандарт жилого дома</button>}
-      />
-      <div className="stats-row">
+      />}
+      {!embedded ? <div className="stats-row">
         <Stat
           label="Габариты"
           value={`${formatNumber(project.plan.house.w)} × ${formatNumber(project.plan.house.h)} м`}
@@ -438,7 +455,7 @@ export default function ParametersScreen() {
         />
         <Stat label="Периметр" value={`${formatNumber(metrics.perimeter)} м`} />
         <Stat label="Проёмы всех этажей" value={`${floorOpenings.length} шт`} />
-      </div>
+      </div> : null}
       <div className="parameters-master-layout">
         <div className="parameters-form-flow">
           <Section
@@ -1403,7 +1420,7 @@ export default function ParametersScreen() {
             </div>
           </Section>
         </div>
-        <Navigator items={checklist} />
+        {!embedded ? <Navigator items={checklist} /> : null}
       </div>
       {presetOpen ? <ResidentialPresetDialog
         project={project}

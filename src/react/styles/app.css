@@ -6954,8 +6954,8 @@ select,
 .plan-top-advanced summary { cursor: pointer; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-weight: 700; }
 .plan-top-advanced .plan-house-fields { margin-top: 10px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 .plan-screen-v2 .plan-view-switches { flex: 1 1 auto; justify-content: flex-end; flex-wrap: wrap; }
-.plan-screen-v2 .planner-shell:not(.is-fullscreen) { height: max(620px, calc(100dvh - 245px)); grid-template-columns: 88px minmax(0, 1fr) 370px; }
-.plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 88px minmax(0, 1fr) 370px; }
+.plan-screen-v2 .planner-shell:not(.is-fullscreen) { height: max(620px, calc(100dvh - 245px)); grid-template-columns: 88px minmax(0, 1fr) 420px; }
+.plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 88px minmax(0, 1fr) 420px; }
 .plan-screen-v2 .planner-inspector:has(.room-summary) { display: flex; }
 .plan-screen-v2 .planner-inspector { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0; }
 .plan-right-3d { flex: 0 0 auto; padding: 10px 10px 8px; border-bottom: 1px solid #dce4dc; background: #fff; }
@@ -6973,6 +6973,9 @@ select,
 .plan-right-3d-view.size-small .production-3d-canvas { height: 105px; }
 .plan-right-3d-view.size-large .production-3d-canvas { height: 205px; }
 .plan-right-3d-view .production-3d-toolbar button { min-height: 26px; min-width: 26px; padding: 3px; }
+.plan-right-3d-view .production-3d-toolbar { flex-wrap:nowrap; max-width:100%; overflow-x:auto; scrollbar-width:thin; }
+.plan-right-3d-view .production-3d-toolbar strong { display:none; }
+.plan-right-3d-view .production-3d-toolbar [role="group"] { flex:0 0 auto; flex-wrap:nowrap; }
 .plan-right-3d-view .production-3d small { display: none; }
 .plan-right-3d-view .production-3d small[role="alert"] { display: block; }
 .plan-right-3d-view .plan-3d-drawing .workbench-drawing { width: 100%; height: 180px; }
@@ -6996,11 +6999,67 @@ select,
 .planner-shell.is-fullscreen .plan-right-3d-view .production-3d-canvas { height: 185px; }
 @media (max-width: 1100px) and (min-width: 701px) {
   .app-layout.plan-app-layout { grid-template-columns: 204px minmax(0, 1fr); }
-  .plan-screen-v2 .planner-shell:not(.is-fullscreen), .plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 70px minmax(0, 1fr) 290px; grid-template-rows: 1fr; height: max(620px, calc(100dvh - 245px)); min-height: 0; overflow: hidden; }
+  .plan-screen-v2 .planner-shell:not(.is-fullscreen), .plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 70px minmax(0, 1fr) 330px; grid-template-rows: 1fr; height: max(620px, calc(100dvh - 245px)); min-height: 0; overflow: hidden; }
   .plan-screen-v2 .planner-tools { flex-direction: column; overflow: hidden; border-right: 1px solid #dce4dc; border-bottom: 0; }
   .plan-screen-v2 .planner-tools-scroll { overflow-y: auto; }
   .plan-right-fields .numeric-step-button { display: none; }
 }
+
+/* Parameter sections share one design in the main form and the plan inspector. */
+.parameter-section.theme-indigo { --section-accent:#4e5da5; --section-wash:#f0f2ff; --section-border:#cbd2f2; }
+.parameter-section.theme-green { --section-accent:#31744b; --section-wash:#eaf6ed; --section-border:#b9dbbf; }
+.parameter-section.theme-slate { --section-accent:#526574; --section-wash:#eef3f6; --section-border:#cad7e0; }
+.parameter-section.theme-amber { --section-accent:#95630d; --section-wash:#fff5df; --section-border:#e8cf95; }
+.parameter-section.theme-teal { --section-accent:#167d7a; --section-wash:#e4f6f4; --section-border:#a8dcda; }
+.parameter-section.theme-terracotta { --section-accent:#a75035; --section-wash:#fff0e9; --section-border:#e9bea9; }
+.parameter-section.theme-violet { --section-accent:#7654a5; --section-wash:#f4effb; --section-border:#d8c6e9; }
+.parameter-section.theme-sky { --section-accent:#286f9c; --section-wash:#eaf5fc; --section-border:#b6d8eb; }
+.parameter-section.theme-blue { --section-accent:#355fbb; --section-wash:#eef3ff; --section-border:#bfcfee; }
+.parameter-section.theme-olive { --section-accent:#647d2e; --section-wash:#f2f6e7; --section-border:#ccd9aa; }
+.parameter-section { border-color:var(--section-border,var(--line)); overflow:hidden; }
+.parameter-section > summary { display:flex; align-items:center; gap:10px; min-height:62px; padding:12px 15px; color:var(--section-accent,var(--green-dark)); background:var(--section-wash,var(--green-soft)); cursor:pointer; list-style:none; }
+.parameter-section > summary::-webkit-details-marker { display:none; }
+.parameter-section > summary:focus-visible { outline:2px solid var(--section-accent); outline-offset:-3px; }
+.parameter-section[open] > summary { border-bottom:1px solid var(--section-border,var(--line)); }
+.parameter-section-icon { flex:0 0 34px; display:grid; place-items:center; width:34px; height:34px; border-radius:9px; background:var(--section-accent); color:#fff; }
+.parameter-section-icon svg { width:18px; height:18px; stroke-width:2; }
+.parameter-section-heading { flex:1 1 auto; min-width:0; display:grid; gap:2px; }
+.parameter-section-heading strong { font-size:13px; line-height:1.25; }
+.parameter-section-heading small { color:#506058; font-size:10px; line-height:1.35; }
+.parameter-section-number { font-size:10px; font-weight:800; opacity:.7; }
+.parameter-section-chevron { width:16px; height:16px; flex:0 0 auto; transition:transform .16s ease; }
+.parameter-section[open] .parameter-section-chevron { transform:rotate(180deg); }
+.parameters-embedded { min-width:0; padding:0; background:transparent; }
+.parameters-embedded .parameters-master-layout { display:block; }
+.parameters-embedded .parameter-section { margin-bottom:8px; border-radius:9px; box-shadow:none; }
+.parameters-embedded .parameter-section > summary { min-height:50px; padding:8px 10px; gap:8px; }
+.parameters-embedded .parameter-section-icon { flex-basis:30px; width:30px; height:30px; border-radius:7px; }
+.parameters-embedded .parameter-section-icon svg { width:16px; height:16px; }
+.parameters-embedded .parameter-section-heading strong { font-size:11px; }
+.parameters-embedded .parameter-section-heading small { font-size:9px; }
+.parameters-embedded .parameter-section-body { padding:11px; }
+.parameters-embedded .form-grid, .parameters-embedded .form-grid.three, .parameters-embedded .form-grid.four { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.parameters-embedded .field, .parameters-embedded .field input, .parameters-embedded .field select { min-width:0; }
+.parameters-embedded .service-groups { grid-template-columns:1fr; }
+.parameters-embedded .parameter-entity-list > article { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.parameters-embedded .parameter-platform-list > article > header { flex-wrap:wrap; }
+.parameters-embedded .parameter-platform-list > article > header .toggle-row { min-width:0; }
+.parameters-embedded .parameter-readouts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.parameters-embedded .exterior-editor .form-grid, .parameters-embedded .exterior-editor .form-grid.three, .parameters-embedded .exterior-editor .form-grid.four { grid-template-columns:minmax(0,1fr); }
+.parameter-preset-button { display:flex; align-items:center; gap:7px; width:100%; margin:0 0 9px; padding:9px 11px; border:1px solid #cbd2f2; border-radius:8px; background:#f0f2ff; color:#4e5da5; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
+.parameter-preset-button svg { width:16px; height:16px; }
+.plan-right-house { display:block; }
+.plan-right-floors { margin-bottom:9px; }
+.plan-top-advanced { display:block; margin:0 0 9px; color:#286f9c; }
+.plan-top-advanced summary { display:flex; align-items:center; gap:8px; min-height:46px; padding:8px 10px; border-color:#b6d8eb; background:#eaf5fc; color:#286f9c; font-size:11px; }
+.plan-top-advanced summary svg { width:16px; height:16px; flex:0 0 auto; }
+.plan-top-advanced summary svg:last-child { margin-left:auto; transition:transform .16s ease; }
+.plan-top-advanced[open] summary svg:last-child { transform:rotate(180deg); }
+.plan-top-advanced .plan-house-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; padding:10px; margin-top:0; border:1px solid #b6d8eb; border-top:0; border-radius:0 0 8px 8px; }
+.plan-top-advanced .plan-house-fields .field { min-width:0; }
+.plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed), .plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed):has(.planner-inspector .room-summary) { grid-template-columns:112px minmax(0,1fr) 420px; }
+@media (max-width:1100px) and (min-width:761px) { .plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed), .plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed):has(.planner-inspector .room-summary) { grid-template-columns:82px minmax(0,1fr) 380px; } }
+@media (max-width:760px) { .plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed), .plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed):has(.planner-inspector .room-summary) { grid-template-columns:70px minmax(0,1fr); } }
 @media (max-width: 700px) {
   .app-layout.plan-app-layout { grid-template-columns: minmax(0, 1fr); }
   .plan-screen-v2 .planner-shell:not(.is-fullscreen), .plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary) { grid-template-columns: 1fr; grid-template-rows: 64px 570px auto; height: auto; min-height: 0; overflow: visible; }

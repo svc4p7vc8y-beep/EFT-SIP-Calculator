@@ -13,7 +13,6 @@ import PlanLabelLeader from '../components/PlanLabelLeader.jsx';
 import { floorOpenings as getFloorOpenings, replaceFloorOpening, floorOpeningSummary } from '../planner/floor-openings.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { guideFromOuterWall, moveTemporaryGuide } from '../planner/temporary-guides.js';
-import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
 import { isInteriorDoor } from '../calculations/opening-types.js';
@@ -100,6 +99,7 @@ import {
 import { useProject } from "../state/ProjectContext.jsx";
 import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
 const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
+const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
 import {
   applyPlanTransfer,
@@ -148,14 +148,6 @@ import {
 } from "../planner/geometry.js";
 
 const VIEW = { width: 1100, height: 760 };
-const WALL_THICKNESS_OPTIONS = [124, 174, 224].map((millimeters) => ({
-  value: String(millimeters),
-  label: `${millimeters} мм`,
-}));
-const PARTITION_THICKNESS_OPTIONS = [100, 124, 150, 174, 224].map((millimeters) => ({
-  value: String(millimeters),
-  label: `${millimeters} мм`,
-}));
 const DRAW_TOOLS = new Set([
   "room",
   "extension",
@@ -5022,7 +5014,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   );
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
-  const [plan3DSize,setPlan3DSize]=useState('medium');
+  const [plan3DSize,setPlan3DSize]=useState('small');
   const [showPlan3D,setShowPlan3D]=useState(true);
   const [plan3DPlacement,setPlan3DPlacement]=useState('dock');
   const [inspectorTab,setInspectorTab]=useState('house');
@@ -5101,40 +5093,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         return next;
       }),
     [commit],
-  );
-  const changeWallThickness = useCallback(
-    (millimeters) =>
-      commit((next) => {
-        const thickness = Number(millimeters) || 174;
-        next.plan.wallThickness = thickness / 1000;
-        (next.upperFloors || []).forEach((floorPlan) => {
-          floorPlan.wallThickness = thickness / 1000;
-        });
-        next.settings.sip.wallThickness = String(thickness);
-        synchronizeWallThickness(next,'wallThickness');
-        return next;
-      }),
-    [commit],
-  );
-  const changePartitionThickness = useCallback(
-    (millimeters) =>
-      commit((next) => {
-        const thickness = Number(millimeters) || 100;
-        const target =
-          activeFloor === 1 ? next.plan : next.upperFloors?.[activeFloor - 2];
-        if (target) target.partitionThickness = thickness / 1000;
-        if ([124, 174, 224].includes(thickness)) {
-          next.settings.sip.partitionThickness = String(thickness);
-          next.settings.sip.partitionType = "sip";
-        }
-        if ([100, 150].includes(thickness)) {
-          next.settings.sip.partitionType = "frame";
-          next.settings.sip.partitionFrameSection = thickness === 150 ? "50x150" : "50x100";
-        }
-        synchronizeWallThickness(next,'partitionType');
-        return next;
-      }),
-    [activeFloor, commit],
   );
   const resizeHouse = useCallback(
     (width, height) =>
@@ -6230,120 +6188,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </button>
           )}
         </div>
-        <details className="plan-top-advanced">
-          <summary>Дополнительные настройки плана</summary>
-        <div className="plan-house-fields">
-          <div style={{gridColumn:'1 / -1'}}>
-            <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
-            <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions==='butt'} onChange={value=>commitPlan(next=>{next.partitionJunctions=value?'butt':'axes';})}/>
-            <p className="inspector-note">В Т-узле непрерывная стена проходит, примыкающая заканчивается у её грани. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются. Для старых проектов схема включается явно.</p>
-            {plan.wallLayoutIssue?<p className="assembly-warning">{plan.wallLayoutIssue}</p>:null}
-            {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{
-              if(!window.confirm('Преобразовать границы комнат в отдельные стены? Размеры дома сохранятся; комнаты будут определяться между стенами. Привязки раскроя нужно перепроверить. Исходная планировка сохранится в резерве, действие можно отменить.'))return;
-              try{commitPlan(next=>convertToWallLayout(next,()=>uid('wall')));setSelected(null);setTool('wall');}catch(error){window.alert(error.message);}
-            }}>Перейти к построению стенами</button>:<p className="inspector-note">Инструмент «Перегородка»: рисуйте стены, замкнутые комнаты определяются автоматически. Нажмите стену для настройки. Изменения можно отменять.</p>}
-          </div>
-          <NumberField
-            label="Длина"
-            value={plan.house.w}
-            suffix="м"
-            min={3}
-            onChange={(value) => resizeHouse(value, plan.house.h)}
-          />
-          <NumberField
-            label="Ширина"
-            value={plan.house.h}
-            suffix="м"
-            min={3}
-            onChange={(value) => resizeHouse(plan.house.w, value)}
-          />
-          {activeFloor === 1 ? <NumberField
-            label="Высота стен"
-            value={plan.wallHeight}
-            suffix="м"
-            min={2}
-            onChange={(value) =>
-              commitPlan((next) => {
-                next.wallHeight = value;
-              })
-            }
-          /> : <div style={{ gridColumn: '1 / -1' }}><UpperFloorControls plan={plan} onChange={patch => commitPlan(next => Object.assign(next, patch))} /></div>}
-          <SelectField
-            label="Наружная стена"
-            value={String(Math.round((plan.wallThickness || 0.174) * 1000))}
-            options={WALL_THICKNESS_OPTIONS}
-            onChange={changeWallThickness}
-          />
-          <SelectField
-            label="Перегородка"
-            value={String(Math.round((plan.partitionThickness || 0.1) * 1000))}
-            options={PARTITION_THICKNESS_OPTIONS}
-            onChange={changePartitionThickness}
-          />
-          <p className="inspector-note" style={{gridColumn:'1 / -1'}}>Толщины без чистовой отделки. Для каркаса — ширина стойки, для SIP — готовая панель. Новый выбор применяется ко всем этажам и смете; координаты комнат сохраняются.</p>
-          {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):project.settings.sip.partitionFrameSection==='50x150'?150:100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции в разделе SIP. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
-          {activeFloor === 2 ? (
-            <SelectField
-              label="Пол 2 этажа"
-              value={project.settings.sip.secondFloorPanelWidth || "1.25"}
-              options={[
-                { value: "1.25", label: "Стандарт · 1250 мм" },
-                { value: "0.625", label: "Усиленный · 625 мм" },
-              ]}
-              onChange={(value) =>
-                commit((next) => {
-                  next.settings.sip.secondFloorPanelWidth = value;
-                  return next;
-                })
-              }
-            />
-          ) : null}
-          {floorCount > 1 ? (
-            <>
-              <NumberField
-                label="Проём лестницы — X"
-                value={floorOpening?.x || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, x: value })
-                }
-              />
-              <NumberField
-                label="Проём лестницы — Y"
-                value={floorOpening?.y || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, y: value })
-                }
-              />
-              <NumberField
-                label="Проём лестницы — ширина"
-                value={floorOpening?.width || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, width: value })
-                }
-              />
-              <NumberField
-                label="Проём лестницы — длина"
-                value={floorOpening?.length || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, length: value })
-                }
-              />
-            </>
-          ) : null}
-        </div>
-        </details>
+
         <div className="plan-view-switches">
           <Toggle
             label="Сваи"
@@ -6535,11 +6380,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 <button type="button" aria-pressed={activeFloor===1} onClick={()=>setActiveFloor(1)}>1 этаж</button>
                 {floorCount>1?<button type="button" aria-pressed={activeFloor===2} onClick={()=>setActiveFloor(2)}>2 этаж</button>:<button type="button" onClick={()=>addSecondFloor()}>+ этаж</button>}
               </div>
-              <NumberField label="Длина" value={plan.house.w} suffix="м" min={3} onChange={value=>resizeHouse(value,plan.house.h)}/>
-              <NumberField label="Ширина" value={plan.house.h} suffix="м" min={3} onChange={value=>resizeHouse(plan.house.w,value)}/>
-              <NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={value=>commitPlan(next=>{next.wallHeight=value;})}/>
-              <SelectField label="Наружные стены" value={String(Math.round((plan.wallThickness||0.174)*1000))} options={WALL_THICKNESS_OPTIONS} onChange={changeWallThickness}/>
-              <SelectField label="Перегородки" value={String(Math.round((plan.partitionThickness||0.1)*1000))} options={PARTITION_THICKNESS_OPTIONS} onChange={changePartitionThickness}/>
               <button type="button" className={tool==='houseContour'?'active':''} aria-pressed={tool==='houseContour'} onClick={()=>selectTool('houseContour')}>Контур</button>
               <button type="button" className={tool==='wall'?'active':''} aria-pressed={tool==='wall'} onClick={()=>selectTool('wall')}>Перегородка</button>
             </div>
@@ -6609,17 +6449,89 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 <button type="button" aria-pressed={activeFloor === 1} onClick={() => setActiveFloor(1)}>1 этаж</button>
                 {floorCount > 1 ? <button type="button" aria-pressed={activeFloor === 2} onClick={() => setActiveFloor(2)}>2 этаж</button> : <button type="button" onClick={() => addSecondFloor()}>+ 2 этаж</button>}
               </div>
-              <div className="plan-right-fields">
-                <NumberField label="Длина дома" value={plan.house.w} suffix="м" min={3} onChange={(value) => resizeHouse(value, plan.house.h)} />
-                <NumberField label="Ширина дома" value={plan.house.h} suffix="м" min={3} onChange={(value) => resizeHouse(plan.house.w, value)} />
-                {activeFloor === 1 ? <NumberField label="Высота стен" value={plan.wallHeight} suffix="м" min={2} onChange={(value) => commitPlan((next) => { next.wallHeight = value; })} /> : <div className="plan-right-full"><UpperFloorControls plan={plan} onChange={patch => commitPlan(next => Object.assign(next, patch))} /></div>}
-                <SelectField label="Наружные стены" value={String(Math.round((plan.wallThickness || 0.174) * 1000))} options={WALL_THICKNESS_OPTIONS} onChange={changeWallThickness} />
-                <SelectField label="Перегородки" value={String(Math.round((plan.partitionThickness || 0.1) * 1000))} options={PARTITION_THICKNESS_OPTIONS} onChange={changePartitionThickness} />
-                <SelectField label="Форма крыши" value={project.settings.roof.shape || 'gable'} options={[{ value: 'gable', label: 'Двускатная' }, { value: 'hip', label: 'Вальмовая' }, { value: 'tiered', label: 'Два уровня' }, { value: 'flat', label: 'Плоская' }]} onChange={(value) => commitRoof('shape', value)} />
-                {project.settings.roof.shape !== 'flat' ? <NumberField label="Высота конька" value={project.settings.roof.ridgeHeight} suffix="м" min={0} onChange={(value) => commitRoof('ridgeHeight', value)} /> : null}
-              </div>
-              <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions === 'butt'} onChange={(value) => commitPlan((next) => { next.partitionJunctions = value ? 'butt' : 'axes'; })} />
-              <p className="inspector-note">Размеры, конструкции и 3D относятся к одному текущему проекту. Подробные настройки выбранного элемента — в соседней вкладке.</p>
+        <details className="plan-top-advanced">
+          <summary><Grid3X3 aria-hidden="true" /> План и раскладка <ChevronDown aria-hidden="true" /></summary>
+        <div className="plan-house-fields">
+          <div style={{gridColumn:'1 / -1'}}>
+            <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
+            <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions==='butt'} onChange={value=>commitPlan(next=>{next.partitionJunctions=value?'butt':'axes';})}/>
+            <p className="inspector-note">В Т-узле непрерывная стена проходит, примыкающая заканчивается у её грани. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются. Для старых проектов схема включается явно.</p>
+            {plan.wallLayoutIssue?<p className="assembly-warning">{plan.wallLayoutIssue}</p>:null}
+            {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{
+              if(!window.confirm('Преобразовать границы комнат в отдельные стены? Размеры дома сохранятся; комнаты будут определяться между стенами. Привязки раскроя нужно перепроверить. Исходная планировка сохранится в резерве, действие можно отменить.'))return;
+              try{commitPlan(next=>convertToWallLayout(next,()=>uid('wall')));setSelected(null);setTool('wall');}catch(error){window.alert(error.message);}
+            }}>Перейти к построению стенами</button>:<p className="inspector-note">Инструмент «Перегородка»: рисуйте стены, замкнутые комнаты определяются автоматически. Нажмите стену для настройки. Изменения можно отменять.</p>}
+          </div>
+          {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):project.settings.sip.partitionFrameSection==='50x150'?150:100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции в разделе SIP. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
+          {activeFloor === 2 ? (
+            <>
+            <NumberField label="Длина 2 этажа" value={plan.house.w} suffix="м" min={3} onChange={(value) => resizeHouse(value, plan.house.h)} />
+            <NumberField label="Ширина 2 этажа" value={plan.house.h} suffix="м" min={3} onChange={(value) => resizeHouse(plan.house.w, value)} />
+            <SelectField
+              label="Пол 2 этажа"
+              value={project.settings.sip.secondFloorPanelWidth || "1.25"}
+              options={[
+                { value: "1.25", label: "Стандарт · 1250 мм" },
+                { value: "0.625", label: "Усиленный · 625 мм" },
+              ]}
+              onChange={(value) =>
+                commit((next) => {
+                  next.settings.sip.secondFloorPanelWidth = value;
+                  return next;
+                })
+              }
+            />
+            </>
+          ) : null}
+          {floorCount > 1 ? (
+            <>
+              <NumberField
+                label="Проём лестницы — X"
+                value={floorOpening?.x || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
+                onChange={(value) =>
+                  commitFloorOpening({ ...floorOpening, x: value })
+                }
+              />
+              <NumberField
+                label="Проём лестницы — Y"
+                value={floorOpening?.y || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
+                onChange={(value) =>
+                  commitFloorOpening({ ...floorOpening, y: value })
+                }
+              />
+              <NumberField
+                label="Проём лестницы — ширина"
+                value={floorOpening?.width || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
+                onChange={(value) =>
+                  commitFloorOpening({ ...floorOpening, width: value })
+                }
+              />
+              <NumberField
+                label="Проём лестницы — длина"
+                value={floorOpening?.length || 0}
+                suffix="м"
+                min={0}
+                step={0.1}
+                onChange={(value) =>
+                  commitFloorOpening({ ...floorOpening, length: value })
+                }
+              />
+            </>
+          ) : null}
+        </div>
+        </details>
+              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю параметры дома…</p>}>
+                <ParametersPanel embedded suppliedCalculation={projectCalculation} />
+              </Suspense>
             </div>
           </div>
           <div className="planner-inspector-detail" hidden={inspectorTab !== 'element'}>
