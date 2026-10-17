@@ -2,7 +2,7 @@ import { roomPoints } from '../planner/geometry.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { resolveRoofAxes } from '../../calculations/roof-orientation.js';
 
-const merge = (segments) => {
+export const mergeRoofIntervals = (segments) => {
   const sorted = segments.filter(([a, b]) => b - a > 1e-6).sort((a, b) => a[0] - b[0]);
   return sorted.reduce((result, [a, b]) => {
     const last = result.at(-1);
@@ -12,7 +12,7 @@ const merge = (segments) => {
   }, []);
 };
 
-function crossingIntervals(points, axis, coordinate) {
+export function roofCrossingIntervals(points, axis, coordinate) {
   const hits = [];
   for (let i = 0; i < points.length; i++) {
     const a = points[i], b = points[(i + 1) % points.length];
@@ -34,9 +34,9 @@ export function gluedRidgeLayout(project, mainRidgeAvailable, terraceRoofs = [])
   const plan = project.upperFloors?.at(-1) || project.plan;
   const { ridgeAxis: axis, ridgeBaseLength, span } = resolveRoofAxes(plan, roof);
   const rooms = [project.plan, ...(project.upperFloors || [])].flatMap(floor => floor.rooms || []);
-  const main = mainRidgeAvailable && roof.shape === 'gable' ? merge(rooms
+  const main = mainRidgeAvailable && roof.shape === 'gable' ? mergeRoofIntervals(rooms
     .filter(room => room.include !== false && room.ceilingMode === 'open-rafter')
-    .flatMap(room => crossingIntervals(roomPoints(room), axis, span / 2))
+    .flatMap(room => roofCrossingIntervals(roomPoints(room), axis, span / 2))
     .map(([a, b]) => [Math.max(0, a), Math.min(ridgeBaseLength, b)])) : [];
   const terraces = mainRidgeAvailable ? terraceRoofs.flatMap(({ platform, result }) => {
     if (result.mode !== 'cold') return [];

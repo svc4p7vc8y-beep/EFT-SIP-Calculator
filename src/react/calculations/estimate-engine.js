@@ -2138,12 +2138,14 @@ function roofSection(project, metrics, index, inputs) {
       1);
   const snowGuards = calculateSnowGuards(roof, geometry.roofLength, [...project.priceMat, ...project.priceLab]);
   const layeredFrame = layeredFrameLayout(project, { metrics, roof: {
-    mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea, mauerlatLength,
+    mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea, mauerlatLength, terraceRoofs,
   } }, roofAxes.ridgeAxis === 'x'
     ? { x: 0, y: 0, width: houseLength * 1000, height: span * 1000 }
     : { x: 0, y: 0, width: span * 1000, height: houseLength * 1000 },
   roofAxes.ridgeAxis, Number(project.settings.productionCutting?.stockLengthMm) || 6000);
   const layeredFramePurchasing = layeredFramePurchases(layeredFrame);
+  const layeredBridgeLength = scope => (layeredFrame.bridgeItems || []).filter(item => item.scope === scope)
+    .reduce((sum, item) => sum + item.length / 1000, 0);
   const lines = [...applyMainRoofComplexity(compact([
     makeLine(
       index,
@@ -2265,6 +2267,16 @@ function roofSection(project, metrics, index, inputs) {
       unit: 'м³', digits: 3,
       name: `${group.role === 'purlin' ? 'Прогоны' : group.role === 'sleeper' ? 'Лежни' : 'Стойки'} наслонной системы ${group.profile} мм · ${group.items.length} деталей · ${group.count} заготовок × ${formatNumberForName(layeredFrame.stockLengthMm / 1000)} м с запасом 10%`,
     })),
+    ...[['second-light', 'вторым светом'], ['terrace', 'террасой']].flatMap(([scope, label]) => [
+      makeLine(index, 'roof', 'Пакет клеёных досок 3×50×150 мм (145×150 мм)', layeredBridgeLength(scope) * inputs.formulas.ridgeBeamReserve, {
+        key: `layered-bridge-${scope}`, unit: 'м.п.', digits: 2,
+        name: `Пакет клеёных досок 3×50×150 мм (145×150 мм) · балки по осям прогонов и лежней над ${label}`,
+      }),
+      makeLine(index, 'roof', 'Монтаж конькового прогона', layeredBridgeLength(scope), {
+        key: `layered-bridge-${scope}-work`, kind: 'labor',
+        name: `Монтаж пакетных балок над ${label}`,
+      }),
+    ]),
     makeLine(index, "roof", "Монтаж конькового прогона", layeredRidgeLength * 2, {
       key: "layered-ridge-work",
       kind: "labor",
@@ -2677,7 +2689,7 @@ function roofSection(project, metrics, index, inputs) {
     mainGableType,
     mainGableArea: round(mainGableArea),
     rafterStructure,
-    layeredFrame: { fractions: layeredFrame.fractions, items: layeredFrame.items.length,
+    layeredFrame: { fractions: layeredFrame.fractions, items: layeredFrame.items.length, bridgeItems: layeredFrame.bridgeItems || [],
       purchases: layeredFramePurchasing.map(({ role, profile, count, volume }) => ({ role, profile, count, volume })),
       issues: layeredFrame.issues, structuralStatus: 'unverified' },
     hangingRiegel: { count: riegelCount, heightPercent: riegelHeightRatio * 100,

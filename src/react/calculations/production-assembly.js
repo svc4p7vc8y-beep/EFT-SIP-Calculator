@@ -270,6 +270,14 @@ export function calculateAssemblyPlan(project,calculation,settings) {
         source: 'Автоматическая проектная схема наслонных опор', surface: 'Кровля',
         panels: [], role: item.role, processing: 'Узлы и несущая способность по проекту' });
     }
+    for (const item of layout.bridgeItems || []) {
+      assembly.supports.push({ ...item, type: 'beam', mark: item.id, normal: [0, 0, 1], referenceOnly: false,
+        loadPath: { complete: false, text: 'Опирание пакетной балки и путь нагрузки до фундамента не подтверждены' } });
+      assembly.members.push({ id: item.id, material: 'Пакет клеёных досок 3×50×150 мм (145×150 мм)', profile: item.profile,
+        length: item.length, cutLength: item.length + 2 * Number(settings.endAllowanceMm || 0),
+        source: 'Оси наслонных прогонов основной крыши', surface: item.scope === 'terrace' ? 'Терраса · кровля' : 'Кровля · второй свет',
+        panels: [], role: 'beam', processing: 'Пакет из трёх досок; пролёт, опирание, клей и несущая способность по проекту' });
+    }
     assembly.issues.push(...layout.issues);
     if (roof.layeredFrame && layout.items.length !== roof.layeredFrame.items)
       assembly.issues.push(`Наслонные опоры: чертёж содержит ${layout.items.length} деталей, смета учитывает ${roof.layeredFrame?.items || 0}. Сверьте параметры.`);
