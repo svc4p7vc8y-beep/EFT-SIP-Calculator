@@ -737,7 +737,7 @@ export function calculateProductionCutting(project, calculation) {
   }
   if(settings.roofSupportSipAlignment)for(const surface of surfaces.filter(s=>s.exterior&&s.planStart)){
     const [a,b]=[surface.planStart,surface.planEnd],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),positions=[];
-    for(const support of settings.roofSupports.filter(s=>!s.referenceOnly&&['purlin','beam','post'].includes(s.type)))for(const p of [[support.x1,support.y1],[support.x2,support.y2]]){
+    for(const support of assembly.supports.filter(s=>!s.referenceOnly&&['purlin','beam','post'].includes(s.type)))for(const p of [[support.x1,support.y1],[support.x2,support.y2]]){
       if(!p.every(n=>n!==''&&n!=null&&Number.isFinite(Number(n))))continue;
       const x=Number(p[0])-a[0],y=Number(p[1])-a[1],along=(x*dx+y*dy)/(L||1),distance=Math.abs(dx*y-dy*x)/(L||1);
       if(along>1&&along<L-1&&distance<=surface.thickness+1)positions.push(Math.round(along));

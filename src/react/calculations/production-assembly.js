@@ -10,6 +10,7 @@ import {roofFabrication,planIntersection} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
 import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
 import { gluedRidgeLayout } from './roof-glued-ridge.js';
+import { roofSupportMatchesSystem } from '../state/auto-roof-supports.js';
 import { hangingRiegelEnabled, hangingRiegelMembers } from './hanging-riegel.js';
 import { layeredFrameLayout } from './layered-frame.js';
 import { roofLathRows } from './roof-lathing.js';
@@ -126,6 +127,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   }
   const supports=[],ids=new Set();
   for(const [i,item] of settings.roofSupports.entries()){
+    if(!roofSupportMatchesSystem(item,frame.system))continue;
     const mark=`ОП-${i+1}`;
     if(ids.has(item.id)){issues.push(`${mark}: повторяется идентификатор опоры.`);continue;}ids.add(item.id);
     if(!['x1','y1','z1','x2','y2','z2'].every(key=>finite(item[key])&&Math.abs(Number(item[key]))<=100000)){

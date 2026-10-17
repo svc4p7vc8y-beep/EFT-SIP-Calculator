@@ -1,8 +1,10 @@
+import { roofSupportMatchesSystem } from '../state/auto-roof-supports.js';
+
 // Opt-in project elements only; existing generated roof material is never replaced.
-export function productionEstimateLines(project) {
+export function productionEstimateLines(project,system=project.settings?.roof?.structureMode==='manual'?project.settings.roof.rafterSystem:null) {
  const supports=project.settings?.productionCutting?.roofSupports||[],seen=new Set(),lines=[];
  for(const item of supports){
-  if(!item.estimateEnabled||item.referenceOnly||item.type==='foundation'||seen.has(item.id))continue;
+  if(!roofSupportMatchesSystem(item,system)||!item.estimateEnabled||item.referenceOnly||item.type==='foundation'||seen.has(item.id))continue;
   seen.add(item.id);
   const coords=['x1','y1','z1','x2','y2','z2'].map(k=>item[k]===''?NaN:Number(item[k]));
   const section=String(item.profile).split(/[×xх]/).map(Number);

@@ -1,4 +1,8 @@
 export const AUTO_ROOF_LAYOUT='roof-purlins';
+// Automatic proposals belong to the roof system that generated them. Locked
+// manual edits remain visible until the designer changes them explicitly.
+export const roofSupportMatchesSystem=(item,system)=>item.autoLayout!==AUTO_ROOF_LAYOUT||item.autoLocked===true||!system
+  ||(system==='truss'?item.trussTemplate===true:item.trussTemplate!==true);
 export const ROOF_SUPPORT_VARIANTS=[['single','Один центральный прогон'],['double','Два прогона'],['triple','Три прогона']];
 export function normalizeAutoRoofSupports(value={}) {
   const v=value&&typeof value==='object'?value:{};

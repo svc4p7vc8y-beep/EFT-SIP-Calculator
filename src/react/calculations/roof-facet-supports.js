@@ -39,13 +39,17 @@ export function facetSupportProposal(project,report,config,{groups='all'}={}){
   for(const face of model.faces){
     if(groups==='main'&&face.group!=='main'||groups==='platforms'&&face.group==='main')continue;
     if(face.structureHorizontal)warnings.push(`${face.id}: прогон предложен на горизонтальной несущей плоскости под разуклонкой; его опирание требуется проверить.`);
-    const ys=face.polygon.map(p=>p[1]),min=Math.min(...ys),max=Math.max(...ys);
+    // A purlin runs across the fall of a facet. Local U is along the fall
+    // for some terrace faces and along the ridge for others.
+    const fallAxis=Math.abs(face.u[2])>Math.abs(face.v[2])?'u':'v';
+    const outline=fallAxis==='u'?face.polygon.map(([u,v])=>[v,u]):face.polygon;
+    const crossValues=outline.map(p=>p[1]),min=Math.min(...crossValues),max=Math.max(...crossValues);
     if(max-min<200){warnings.push(`${face.id}: ширина ската недостаточна для автопрогона.`);continue;}
     const platform=platforms.get(face.group),horizontal=face.group==='main'&&project.settings.roof.shape==='flat'&&project.settings.roof.flatSlopeMode!=='structural',baseZ=config.baseZ!==''?Number(config.baseZ):platform?Number(platform.deckHeightMm)||0:horizontal?floorBase:model.roofBase;
     for(const [index,fraction] of fractions.entries()){
       const v=min+(max-min)*fraction;
-      for(const [part,[u1,u2]] of intervalsAt(face.polygon,v).entries()){
-        const a=roofWorld(face,[u1,v]),b=roofWorld(face,[u2,v]),id=`auto-roof-${face.id}-${index+1}-${part+1}`;
+      for(const [part,[u1,u2]] of intervalsAt(outline,v).entries()){
+        const a=roofWorld(face,fallAxis==='u'?[v,u1]:[u1,v]),b=roofWorld(face,fallAxis==='u'?[v,u2]:[u2,v]),id=`auto-roof-${face.id}-${index+1}-${part+1}`;
         if(face.structureHorizontal){a[2]=model.roofBase;b[2]=model.roofBase;}
         const bearings=report.assembly.floors.at(-1)?.bearing||[];
         const verified=face.group==='main'&&config.distribution==='bearing'?[...new Set(bearings.map(e=>crossing(a,b,e.a,e.b)).filter(t=>t!=null).map(t=>Math.round(t*1000)/1000))].sort((x,y)=>x-y):[];

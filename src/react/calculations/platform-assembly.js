@@ -25,7 +25,11 @@ export function platformAssembly(project, calculation, roofModel) {
         const z=roofHeight(face,...pos);if(z<=deckZ)continue;
         posts.push({id:`platform:${p.id}:post:${i+1}`,a:[...pos,deckZ],b:[...pos,z],profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true});
       }
-      for(let i=1;i<posts.length;i++)ties.push({id:`platform:${p.id}:tie:${i}`,a:posts[i-1].b,b:posts[i].b,profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true,name:'Горизонтальная обвязка террасы'});
+      // The terrace wall plate follows the lowest eave bearing of these posts.
+      // A gable roof has taller ridge posts, but the tie must stay level.
+      const plateTopZ=Math.min(...posts.map(post=>post.b[2]));
+      const plateZ=plateTopZ-Number(result.postSection.split('x')[1])/2;
+      for(let i=1;i<posts.length;i++)ties.push({id:`platform:${p.id}:tie:${i}`,a:[...posts[i-1].b.slice(0,2),plateZ],b:[...posts[i].b.slice(0,2),plateZ],profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true,name:'Стяжка по уровню мауэрлата террасы',plateTopZ});
     }
     return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:45,steps,faces,posts,ties,
       foundationMode:p.foundation.mode,bindingMode:p.binding.mode,referenceOnly:true};

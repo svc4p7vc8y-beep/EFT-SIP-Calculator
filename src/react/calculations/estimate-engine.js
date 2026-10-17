@@ -224,7 +224,7 @@ function resolveRafterStructure(project, geometry, frameLength) {
   };
 }
 
-function applyProjectEstimateEdits(project, sections) {
+function applyProjectEstimateEdits(project, sections, roofSystem) {
   const overrides = new Map(
     (project.estimateOverrides || []).map((item) => [item.lineId, item]),
   );
@@ -241,8 +241,9 @@ function applyProjectEstimateEdits(project, sections) {
     });
   });
   const allSections = [...sections, ...(project.customEstimateGroups || []).map((group) => ({ key: group.id, title: group.name.trim() || 'Новая группа', lines: [], custom: true }))];
+  const projectSupportLines = productionEstimateLines(project, roofSystem);
   return allSections.map((section) => {
-    const sourceLines=['roof','sip'].includes(section.key)?[...section.lines,...productionEstimateLines(project).filter(line=>line.section===section.key)]:section.lines;
+    const sourceLines=['roof','sip'].includes(section.key)?[...section.lines,...projectSupportLines.filter(line=>line.section===section.key)]:section.lines;
     const generated = sourceLines.flatMap((line) => {
       const override = overrides.get(line.id);
       if (override?.excluded) return [];
@@ -3224,7 +3225,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
       lines: finishes.externalLines,
     },
     { key: "delivery", title: "Доставка и логистика", lines: delivery.lines },
-  ]).filter(
+  ], roof.rafterStructure?.system).filter(
     (section) =>
       section.lines.length ||
       section.custom ||
