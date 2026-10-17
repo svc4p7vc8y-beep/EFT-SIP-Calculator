@@ -201,7 +201,7 @@ button:disabled {
 
 .app-layout {
   display: grid;
-  grid-template-columns: 254px minmax(0, 1fr) 280px;
+  grid-template-columns: 254px minmax(0, 1fr) 340px;
   min-height: calc(100vh - 76px);
 }
 .sidebar {
@@ -510,16 +510,16 @@ button:disabled {
 }
 .summary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
 }
 .summary-grid.three {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .summary-value {
   min-width: 0;
-  min-height: 47px;
-  padding: 8px 10px;
+  min-height: 43px;
+  padding: 7px 8px;
   border-radius: 7px;
   background: var(--surface);
 }
@@ -535,11 +535,9 @@ button:disabled {
 }
 .summary-value strong {
   display: block;
-  overflow: hidden;
-  font-size: 13px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .summary-value.attention {
   color: var(--danger);
@@ -570,7 +568,11 @@ button:disabled {
 .summary-material-line span { color: var(--muted); }
 .summary-material-line strong { font-size: 10px; line-height: 1.35; }
 .summary-material-line.accent { padding: 8px; border: 0; border-radius: 7px; background: var(--green-soft); }
-.summary-estimate-materials { margin-top: 11px; }
+.summary-estimate-materials, .summary-breakdown { margin-top: 11px; border: 1px solid var(--line); border-radius: 8px; padding: 7px; }
+.summary-estimate-materials summary, .summary-breakdown summary { display: flex; align-items: center; justify-content: space-between; gap: 6px; cursor: pointer; color: var(--green-dark); font-size: 10px; font-weight: 750; }
+.summary-estimate-materials summary strong { white-space: nowrap; }
+.summary-estimate-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; font-weight: 500; }
+.summary-estimate-row strong { max-width: 140px; text-align: right; white-space: normal; }
 .summary-estimate-materials h3 { margin: 0 0 5px; color: var(--muted); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
 .summary-estimate-materials > div { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px; padding: 6px 1px; border-top: 1px dashed var(--line); font-size: 9px; }
 .summary-estimate-materials span { line-height: 1.3; }
@@ -2162,6 +2164,8 @@ select,
   min-height: 0;
   overflow-y: auto;
 }
+.planner-shell.is-fullscreen:has(.planner-inspector .room-summary) { grid-template-columns: 112px minmax(0, 1fr) 380px; }
+.planner-shell.is-fullscreen .planner-inspector:has(.room-summary) { display: block; }
 .planner-shell.is-fullscreen .planner-hint {
   max-width: min(720px, calc(100% - 24px));
 }
@@ -2211,6 +2215,20 @@ select,
 .plan-3d-preview .production-3d-toolbar strong { width: auto; margin-right: auto; }
 .plan-3d-preview .production-3d-toolbar button { min-height: 26px; min-width: 26px; padding: 3px; }
 .plan-3d-preview .production-3d-canvas { height: 210px; }
+.plan-3d-preview { right: auto; display: flex; flex-direction: column; min-width: 240px; min-height: 240px; overflow: hidden; }
+.plan-3d-preview-heading { flex: 0 0 auto; min-height: 30px; margin-bottom: 3px; cursor: move; touch-action: none; user-select: none; }
+.plan-3d-preview-heading button { cursor: pointer; }
+.plan-3d-preview-body { min-height: 0; flex: 1; overflow: auto; }
+.plan-3d-preview .production-3d-canvas { height: max(150px, calc(var(--window-height) - 165px)); }
+.plan-3d-resize { position: absolute; right: 0; bottom: 0; width: 25px; height: 25px; cursor: nwse-resize; touch-action: none; background: linear-gradient(135deg, transparent 58%, #7fa171 60%, #7fa171 64%, transparent 66%, transparent 74%, #7fa171 76%, #7fa171 80%, transparent 82%); }
+.plan-3d-view-switch, .plan-3d-drawing-nav { display: flex; gap: 4px; margin: 4px 0; }
+.plan-3d-view-switch button, .plan-3d-drawing-nav button, .plan-3d-drawing-nav select { min-width: 0; padding: 5px 7px; border: 1px solid #c8d8c2; border-radius: 6px; background: #fff; color: #315d27; font-size: 10px; }
+.plan-3d-view-switch button[aria-pressed="true"] { background: #dff0d5; border-color: #77a55f; }
+.plan-3d-drawing-nav select { flex: 1; }
+.plan-3d-drawing .workbench-drawing { width: 100%; height: max(170px, calc(var(--window-height) - 125px)); background: #fff; }
+.planner-shell.is-fullscreen.inspector-collapsed { grid-template-columns: 112px minmax(0, 1fr) 0; }
+.planner-shell.is-fullscreen.inspector-collapsed:has(.planner-inspector .room-summary) { grid-template-columns: 112px minmax(0, 1fr) 0; }
+.planner-shell.is-fullscreen.inspector-collapsed .planner-inspector { display: none; }
 .plan-3d-preview.size-small .production-3d-canvas { height: 150px; }
 .plan-3d-preview.size-large .production-3d-canvas { height: 280px; }
 .plan-3d-preview .production-3d small { display: none; }
@@ -4466,7 +4484,7 @@ select,
 
 @media (max-width: 1450px) {
   .app-layout {
-    grid-template-columns: 254px minmax(0, 1fr) 270px;
+    grid-template-columns: 254px minmax(0, 1fr) 320px;
   }
   .workspace {
     padding: 18px;
@@ -5159,7 +5177,24 @@ select,
     padding: 2.5px 4px;
   }
 }
-.residential-preset-modal { width: min(640px, 100%); }
+.residential-preset-modal { width: min(720px, 100%); max-height: min(90vh, 900px); display: flex; flex-direction: column; }
+.residential-profile-toolbar { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.residential-profile-toolbar > label { flex: 1 1 220px; }
+.residential-profile-toolbar label, .residential-profile-fields label { display: grid; gap: 4px; font-size: 11px; font-weight: 650; }
+.residential-profile-toolbar select, .residential-profile-fields input:not([type='checkbox']) { min-width: 0; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
+.residential-profile-toolbar .button { min-height: 36px; }
+.residential-profile-fields { display: grid; gap: 12px; min-height: 0; overflow: auto; padding: 2px; }
+.residential-profile-fields fieldset { min-width: 0; margin: 0; padding: 11px; border: 1px solid var(--line); border-radius: 10px; }
+.residential-profile-fields legend { padding: 0 5px; font-size: 12px; font-weight: 750; }
+.residential-profile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.residential-profile-fields fieldset:has(small) .residential-profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.residential-profile-fields small, .residential-profile-hint { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.residential-profile-services { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.residential-profile-services label { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.residential-profile-services input { accent-color: var(--green); }
+.residential-profile-geometry { display: flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 11px; font-weight: 650; }
+.residential-profile-hint { margin: 9px 0; }
+@media (max-width: 600px) { .residential-profile-grid, .residential-profile-services { grid-template-columns: repeat(2, minmax(0, 1fr)); } .residential-preset-modal footer { flex-wrap: wrap; } }
 .preset-choice-card {
   display: grid;
   grid-template-columns: 46px minmax(0, 1fr);
@@ -5594,6 +5629,9 @@ select,
     grid-template-columns: 82px minmax(0, 1fr) minmax(280px, 34vw);
     grid-template-rows: 1fr;
   }
+  .planner-shell.is-fullscreen.inspector-collapsed { grid-template-columns: 82px minmax(0, 1fr) 0; }
+  .planner-shell.is-fullscreen:has(.planner-inspector .room-summary):not(.inspector-collapsed) { grid-template-columns: 82px minmax(0, 1fr) minmax(280px, 34vw); grid-template-rows: 1fr; }
+  .planner-shell.is-fullscreen.inspector-collapsed:has(.planner-inspector .room-summary) { grid-template-columns: 82px minmax(0, 1fr) 0; grid-template-rows: 1fr; }
   .planner-shell.is-fullscreen .planner-tools {
     min-height: 0;
     padding: 8px 6px;
@@ -5620,6 +5658,10 @@ select,
   .planner-shell.is-fullscreen .planner-inspector {
     display: none;
   }
+  .planner-shell.is-fullscreen:not(.inspector-collapsed) .planner-inspector { display: block; position: absolute; top: 0; right: 0; bottom: 0; width: min(330px, calc(100vw - 75px)); z-index: 9; background: var(--panel); box-shadow: -8px 0 22px rgba(0,0,0,.15); overflow-y: auto; }
+  .planner-shell.is-fullscreen.inspector-collapsed { grid-template-columns: 70px minmax(0, 1fr); }
+  .planner-shell.is-fullscreen:has(.planner-inspector .room-summary) { grid-template-columns: 70px minmax(0, 1fr); grid-template-rows: 1fr; }
+  .planner-shell.is-fullscreen.inspector-collapsed:has(.planner-inspector .room-summary) { grid-template-columns: 70px minmax(0, 1fr); grid-template-rows: 1fr; }
   .planner-shell.is-fullscreen .plan-layer-tabs {
     grid-template-columns: repeat(4, 58px);
   }

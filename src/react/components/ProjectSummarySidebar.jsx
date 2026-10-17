@@ -69,19 +69,18 @@ function openingLabel(opening) {
 }
 
 function SectionMaterials({ calculation, sectionKey }) {
-  const lines = calculation.sections?.find((section) => section.key === sectionKey)?.lines
-    ?.filter((line) => line.kind !== "labor") || [];
-  if (!lines.length) return <p className="summary-detail">Материалы раздела пока не рассчитаны.</p>;
+  const lines = calculation.sections?.find((section) => section.key === sectionKey)?.lines || [];
+  const money = (value) => `${formatNumber(value, 0)} ₽`;
   return (
-    <div className="summary-estimate-materials">
-      <h3>Материалы в смете</h3>
-      {lines.map((line) => (
-        <div key={line.id}>
-          <span>{line.name}</span>
-          <strong>{formatNumber(line.qty, Number(line.qty) % 1 ? 2 : 0)} {line.unit}</strong>
+    <details className="summary-estimate-materials">
+      <summary>Позиции сметы · {lines.length}<strong>{money(lines.reduce((total, line) => total + Number(line.qty || 0) * Number(line.price || 0), 0))}</strong></summary>
+      {lines.length ? lines.map((line) => (
+        <div key={line.id} className="summary-estimate-row">
+          <span>{line.name}<small>{line.catalogId || 'Своя позиция'} · {line.kind === 'labor' ? 'работа' : 'материал'}</small></span>
+          <strong>{formatNumber(line.qty, Number(line.qty) % 1 ? 2 : 0)} {line.unit}<small>{line.pricePending || !(Number(line.price) > 0) ? 'Цена не назначена' : `${money(line.price)} / ${line.unit} · ${money(Number(line.qty) * Number(line.price))}`}</small></strong>
         </div>
-      ))}
-    </div>
+      )) : <p className="summary-detail">Позиций в этом разделе пока нет.</p>}
+    </details>
   );
 }
 
@@ -90,12 +89,14 @@ export default function ProjectSummarySidebar({
   calculation,
   onNavigate,
 }) {
-  const [openSection, setOpenSection] = useState("home");
+  const [openSections, setOpenSections] = useState(() => new Set(['home']));
+  const toggleSection = (key) => setOpenSections((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const { plan } = project;
   const contourMissing = plan.house?.contourDefined === false;
   const { metrics, foundation, roof } = calculation;
+  const activeStandard = project.settings.residentialStandards?.profiles?.find((item) => item.id === project.settings.residentialStandards?.activeId);
   const issues = [plan,...(project.upperFloors||[])].flatMap((p,i)=>planIssues(p).map(issue=>({...issue,message:`${i+1} этаж: ${issue.message}`})));
-  const openings = plan.openings || [];
+  const openings = [plan, ...(project.upperFloors || [])].flatMap((floorPlan, index) => (floorPlan.openings || []).map((item) => ({ ...item, floor: index + 1 })));
   const windows = openings.filter((item) => item.type === "window").length;
   const doors = openings.filter(
     (item) => item.type === "door" && item.doorType !== "garage",
@@ -171,10 +172,11 @@ export default function ProjectSummarySidebar({
         icon={Home}
         target="plan"
         onNavigate={onNavigate}
-        open={openSection === "home"}
-        onToggle={() => setOpenSection((value) => value === "home" ? "" : "home")}
+        open={openSections.has('home')}
+        onToggle={() => toggleSection('home')}
       >
         <div className="summary-grid">
+          <SummaryValue label="Стандарт" value={activeStandard?.name || 'Не выбран'} />
           <SummaryValue
             label="Габариты"
             value={`${formatNumber(plan.house.w)} × ${formatNumber(plan.house.h)} м`}
@@ -217,8 +219,8 @@ export default function ProjectSummarySidebar({
         icon={Layers3}
         target="sip"
         onNavigate={onNavigate}
-        open={openSection === "sip"}
-        onToggle={() => setOpenSection((value) => value === "sip" ? "" : "sip")}
+        open={openSections.has('sip')}
+        onToggle={() => toggleSection('sip')}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -279,8 +281,8 @@ export default function ProjectSummarySidebar({
         <p className="summary-detail">
           {CONNECTOR_TYPES[project.settings.sip.connectorType] || "Термобрус"}
         </p>
-        <div className="summary-breakdown" aria-label="Полный раскрой SIP">
-          <h3>Раскрой SIP-панелей</h3>
+        <details className="summary-breakdown" aria-label="Полный раскрой SIP">
+          <summary>Раскрой и соединения SIP</summary><h3>Раскрой SIP-панелей</h3>
           {(calculation.sip?.cutting || []).map((row) => (
             <div className="summary-material-card" key={row.key}>
               <header><strong>{row.label}</strong><b>{row.panels} пан.</b></header>
@@ -306,7 +308,8 @@ export default function ProjectSummarySidebar({
               {sipConsumables?.totals?.foamUnits || 0} бал. · крепёж {structuralFastener}
             </strong>
           </div>
-        </div>
+        </details>
+        <SectionMaterials calculation={calculation} sectionKey="sip" />
       </SummarySection>
 
       <SummarySection
@@ -314,8 +317,8 @@ export default function ProjectSummarySidebar({
         icon={HardHat}
         target="piles"
         onNavigate={onNavigate}
-        open={openSection === "piles"}
-        onToggle={() => setOpenSection((value) => value === "piles" ? "" : "piles")}
+        open={openSections.has('piles')}
+        onToggle={() => toggleSection('piles')}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -351,8 +354,8 @@ export default function ProjectSummarySidebar({
         icon={Ruler}
         target="roof"
         onNavigate={onNavigate}
-        open={openSection === "roof"}
-        onToggle={() => setOpenSection((value) => value === "roof" ? "" : "roof")}
+        open={openSections.has('roof')}
+        onToggle={() => toggleSection('roof')}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -451,8 +454,8 @@ export default function ProjectSummarySidebar({
         icon={Trees}
         target="terrace"
         onNavigate={onNavigate}
-        open={openSection === "terrace"}
-        onToggle={() => setOpenSection((value) => value === "terrace" ? "" : "terrace")}
+        open={openSections.has('terrace')}
+        onToggle={() => toggleSection('terrace')}
       >
         <div className="summary-grid">
           <SummaryValue
@@ -483,20 +486,21 @@ export default function ProjectSummarySidebar({
         icon={PanelTop}
         target="openings"
         onNavigate={onNavigate}
-        open={openSection === "openings"}
-        onToggle={() => setOpenSection((value) => value === "openings" ? "" : "openings")}
+        open={openSections.has('openings')}
+        onToggle={() => toggleSection('openings')}
       >
         <div className="summary-grid three">
           <SummaryValue label="Окна" value={`${windows}`} />
           <SummaryValue label="Двери" value={`${doors}`} />
           <SummaryValue label="Ворота" value={`${garage}`} />
         </div>
+        {activeStandard ? <p className="summary-detail">По стандарту: окна {windows}/{activeStandard.openings.windows}, двери {doors}/{activeStandard.openings.doors}. Размещение проёмов проверяйте на плане.</p> : null}
         <div className="summary-openings">
           {openings.length ? (
             openings.map((opening, index) => (
               <div key={opening.id}>
                 <span>
-                  {index + 1}. {openingLabel(opening)}
+                  {index + 1}. {openingLabel(opening)} · {opening.floor} эт.
                 </span>
                 <strong>
                   {Math.round(opening.width * 1000)} ×{" "}
@@ -516,8 +520,8 @@ export default function ProjectSummarySidebar({
         icon={DoorOpen}
         target="parameters"
         onNavigate={onNavigate}
-        open={openSection === "parameters"}
-        onToggle={() => setOpenSection((value) => value === "parameters" ? "" : "parameters")}
+        open={openSections.has('parameters')}
+        onToggle={() => toggleSection('parameters')}
       >
         <p className="summary-detail">
           В расчёте:{" "}
@@ -538,6 +542,7 @@ export default function ProjectSummarySidebar({
           Доставка: {formatNumber(project.settings.delivery.distance)} км ·{" "}
           {project.settings.delivery.trips} рейс.
         </p>
+        {['engineering', 'internal', 'external', 'delivery'].map((key) => <SectionMaterials key={key} calculation={calculation} sectionKey={key} />)}
       </SummarySection>
     </aside>
   );

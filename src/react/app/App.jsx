@@ -46,7 +46,7 @@ import {
   REACT_PROJECT_VERSION,
   summarizePriceCatalogChanges,
 } from "../state/project-model.js";
-import { applyResidentialPreset } from "../state/residential-preset.js";
+import { applyResidentialStandard } from "../state/residential-preset.js";
 import { validateImportedProject } from "../state/project-import.js";
 import { reserveLocalProjectNumber } from "../storage/project-number.js";
 import { formatMoney } from "../utils/format.js";
@@ -315,10 +315,9 @@ export function App() {
     setNewProjectOpen(true);
   };
 
-  const createNewProject = async (useResidentialPreset) => {
-    const next = useResidentialPreset
-      ? applyResidentialPreset(createProjectWithCurrentPrices(project))
-      : createProjectWithCurrentPrices(project);
+  const createNewProject = async (profile, standards) => {
+    const next = createProjectWithCurrentPrices(project);
+    if (profile) applyResidentialStandard(next, profile, standards, { applyGeometry: true });
     try {
       checkpoint();
       if (team.user) {
@@ -338,7 +337,7 @@ export function App() {
     }
     setActive("plan");
     setNotice(
-      useResidentialPreset
+      profile
         ? "Создан новый проект по стандарту жилого дома" + (team.user ? " и сохранён в общей истории" : "")
         : "Создан новый проект без шаблона",
     );
@@ -416,7 +415,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 236</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 237</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -691,9 +690,10 @@ export function App() {
       {newProjectOpen ? (
         <ResidentialPresetDialog
           mode="new"
+          project={project}
           onClose={() => setNewProjectOpen(false)}
-          onManual={() => createNewProject(false)}
-          onApply={() => createNewProject(true)}
+          onManual={() => createNewProject(null)}
+          onApply={(profile, standards) => createNewProject(profile, standards)}
         />
       ) : null}
       {briefPreview ? (

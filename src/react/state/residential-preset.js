@@ -103,3 +103,32 @@ export function applyResidentialPreset(project) {
 
   return project;
 }
+import { ensureProjectFloorCount } from './project-model.js';
+import { resizeProjectHouse } from '../planner/geometry.js';
+import { releasePlanLinkedQuantityOverrides } from './estimate-edits.js';
+import { normalizeResidentialStandards, RESIDENTIAL_SERVICE_KEYS } from './residential-standards.js';
+
+
+export function applyResidentialStandard(project, profile, library, { applyGeometry = false } = {}) {
+  const standards = normalizeResidentialStandards(library || project.settings.residentialStandards, project);
+  const selected = standards.profiles.find((item) => item.id === profile?.id);
+  if (!selected) return project;
+  const { dimensions, construction, services } = selected;
+  if (applyGeometry) {
+    if (project.plan.house.w !== dimensions.length || project.plan.house.h !== dimensions.width)
+      resizeProjectHouse(project, dimensions.length, dimensions.width);
+    project.plan.wallHeight = dimensions.wallHeight;
+    ensureProjectFloorCount(project, dimensions.floors);
+  }
+  for (const key of RESIDENTIAL_SERVICE_KEYS) project.services[key] = services[key];
+  for (const key of ['sip', 'roof', 'piles']) project.settings[key] = structuredClone(construction[key]);
+  const thickness = Number(project.settings.sip.wallThickness);
+  if (Number.isFinite(thickness) && thickness > 0) {
+    project.plan.wallThickness = thickness / 1000;
+    (project.upperFloors || []).forEach((plan) => { plan.wallThickness = thickness / 1000; });
+  }
+  project.meta.buildingType = 'Жилой дом';
+  project.settings.residentialStandards = { ...standards, activeId: selected.id };
+  if (applyGeometry) releasePlanLinkedQuantityOverrides(project);
+  return project;
+}

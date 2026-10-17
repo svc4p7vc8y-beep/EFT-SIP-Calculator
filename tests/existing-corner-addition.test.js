@@ -89,7 +89,7 @@ test('old copied upper contour migrates its host joints, while an independently 
   const project=createDefaultProject(),{plan}=attached();project.plan=plan;project.meta.floors=2;
   project.upperFloors=[createUpperFloorPlan(plan)];
   const correctTotal=calculateProject(project).totals.total;
-  project.appVersion=REACT_PROJECT_VERSION-1;
+  project.appVersion=229; // The host-joint repair applies to files saved before format 230.
   project.upperFloors[0].attachment=null;
   project.upperFloors[0].existingBuilding=null;
   const oldTotal=calculateProject(project).totals.total;

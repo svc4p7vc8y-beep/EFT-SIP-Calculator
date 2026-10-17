@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useI
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
+import FloatingPlan3D from '../components/FloatingPlan3D.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
 import { roomBearingEdges } from '../calculations/bearing-walls.js';
 import { convertToWallLayout, rebuildWallRooms, addRoomWalls, wallDepth } from '../planner/wall-layout.js';
@@ -5022,7 +5023,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
   const [plan3DSize,setPlan3DSize]=useState('medium');
-  const [showPlan3D,setShowPlan3D]=useState(true);
+  const [showPlan3D,setShowPlan3D]=useState(false);
+  const [showFullscreenInspector,setShowFullscreenInspector]=useState(true);
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
   const [foundationDraft, setFoundationDraft] = useState(() => ({
     ...DEFAULT_FOUNDATION_DRAFT,
@@ -6377,7 +6379,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </button>
         </div>
       </div>
-      <div className={`planner-shell${isPlanFullscreen ? " is-fullscreen" : ""}`}>
+      <div className={`planner-shell${isPlanFullscreen ? " is-fullscreen" : ""}${isPlanFullscreen && !showFullscreenInspector ? " inspector-collapsed" : ""}`}>
         <aside className="planner-tools">
           {TOOLS.filter(([id]) => id === "select").map(([id, label, Icon]) => (
             <div className="planner-tools-fixed" key={id}>
@@ -6506,11 +6508,14 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <ZoomIn />
             </button>
             <span className="canvas-control-divider" aria-hidden="true" />
+            <button title={showPlan3D ? 'Скрыть 3D-вид' : 'Показать 3D-вид'} aria-label={showPlan3D ? 'Скрыть 3D-вид' : 'Показать 3D-вид'} aria-pressed={showPlan3D} onClick={() => setShowPlan3D((value) => !value)}><Box /></button>
+            {isPlanFullscreen ? <button title={showFullscreenInspector ? 'Скрыть панель параметров' : 'Показать панель параметров'} aria-label={showFullscreenInspector ? 'Скрыть панель параметров' : 'Показать панель параметров'} aria-pressed={showFullscreenInspector} onClick={() => setShowFullscreenInspector((value) => !value)}><ListTree /></button> : null}
+            <span className="canvas-control-divider" aria-hidden="true" />
             <button
               title={isPlanFullscreen ? "Свернуть поле плана" : "Развернуть поле плана на весь экран"}
               aria-label={isPlanFullscreen ? "Свернуть поле плана" : "Развернуть поле плана на весь экран"}
               aria-pressed={isPlanFullscreen}
-              onClick={() => setIsPlanFullscreen((value) => !value)}
+              onClick={() => { if (!isPlanFullscreen && window.innerWidth <= 760) setShowFullscreenInspector(false); setIsPlanFullscreen((value) => !value); }}
             >
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
@@ -6528,15 +6533,11 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <SelectField label="Перегородки" value={String(Math.round((plan.partitionThickness||0.1)*1000))} options={PARTITION_THICKNESS_OPTIONS} onChange={changePartitionThickness}/>
               <button type="button" className={tool==='houseContour'?'active':''} aria-pressed={tool==='houseContour'} onClick={()=>selectTool('houseContour')}>Контур</button>
               <button type="button" className={tool==='wall'?'active':''} aria-pressed={tool==='wall'} onClick={()=>selectTool('wall')}>Перегородка</button>
-              <button type="button" aria-pressed={showPlan3D} onClick={()=>setShowPlan3D(value=>!value)}>3D</button>
             </div>
-            {showPlan3D?<aside className={`plan-3d-preview size-${plan3DSize}`} aria-label="3D модель рядом с планом">
-              <div className="plan-3d-preview-heading"><strong>3D · текущий проект</strong><div role="group" aria-label="Размер окна 3D">
-                {[['small','Малое'],['medium','Среднее'],['large','Большое']].map(([size,label])=><button key={size} type="button" aria-label={`${label} окно 3D`} aria-pressed={plan3DSize===size} onClick={()=>setPlan3DSize(size)}>{label}</button>)}
-              </div></div>
-              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
-            </aside>:null}
           </>:null}
+          {showPlan3D ? <FloatingPlan3D containerRef={plannerCanvasRef} size={plan3DSize} onSizeChange={setPlan3DSize}>
+            <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
+          </FloatingPlan3D> : null}
           {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
             sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}

@@ -19,7 +19,7 @@ import {
 import { formatNumber } from "../utils/format.js";
 import { resizeProjectHouse } from "../planner/geometry.js";
 import { ensureProjectFloorCount } from "../state/project-model.js";
-import { applyResidentialPreset } from '../state/residential-preset.js';
+import { applyResidentialStandard } from '../state/residential-preset.js';
 import {
   releasePlanLinkedQuantityOverrides,
   scopeEstimateOverrideToCurrentCatalog,
@@ -1405,7 +1405,12 @@ export default function ParametersScreen() {
         </div>
         <Navigator items={checklist} />
       </div>
-      {presetOpen ? <ResidentialPresetDialog onClose={() => setPresetOpen(false)} onApply={() => { checkpoint(); commit(applyResidentialPreset); setPresetOpen(false); }} /> : null}
+      {presetOpen ? <ResidentialPresetDialog
+        project={project}
+        onClose={() => setPresetOpen(false)}
+        onSave={(standards) => { checkpoint(); commit((next) => { next.settings.residentialStandards = standards; return next; }); }}
+        onApply={(profile, standards, options) => { checkpoint(); commit((next) => applyResidentialStandard(next, profile, standards, options)); setPresetOpen(false); }}
+      /> : null}
     </div>
   );
 }

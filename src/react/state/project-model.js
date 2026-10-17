@@ -24,8 +24,9 @@ import { normalizeProductionCutting } from './production-cutting.js';
 import { normalizeFloorOpenings } from '../planner/floor-openings.js';
 import { normalizeDocumentation } from './project-documentation.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
+import { normalizeResidentialStandards } from './residential-standards.js';
 
-export const REACT_PROJECT_VERSION = 230;
+export const REACT_PROJECT_VERSION = 231;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -500,7 +501,7 @@ export function createCompactPlan() {
 export function createDefaultProject() {
   const plan = createDefaultPlan();
   const prices = createDefaultPriceLists();
-  return {
+  const project = {
     format: "eft-project",
     schemaVersion: 4,
     appVersion: REACT_PROJECT_VERSION,
@@ -704,6 +705,8 @@ export function createDefaultProject() {
     customEstimateLines: [],
     customEstimateGroups: [],
   };
+  project.settings.residentialStandards = normalizeResidentialStandards(null, project);
+  return project;
 }
 
 export function createProjectWithCurrentPrices(currentProject) {
@@ -712,6 +715,8 @@ export function createProjectWithCurrentPrices(currentProject) {
     next.priceMat = clone(currentProject.priceMat);
   if (Array.isArray(currentProject?.priceLab))
     next.priceLab = clone(currentProject.priceLab);
+  if (currentProject?.settings?.residentialStandards)
+    next.settings.residentialStandards = normalizeResidentialStandards(currentProject.settings.residentialStandards, next);
   return next;
 }
 
@@ -981,7 +986,7 @@ export function migrateProject(raw) {
         item.price = legacyStructuralPrice;
     });
   }
-  return {
+  const migrated = {
     ...base,
     ...raw,
     format: "eft-project",
@@ -1087,6 +1092,8 @@ export function migrateProject(raw) {
       ? raw.customEstimateGroups.filter((group) => group && typeof group.id === 'string' && typeof group.name === 'string')
       : [],
   };
+  migrated.settings.residentialStandards = normalizeResidentialStandards(raw.settings?.residentialStandards, migrated);
+  return migrated;
 }
 
 export function loadInitialProject() {

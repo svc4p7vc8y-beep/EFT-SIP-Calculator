@@ -1,14 +1,76 @@
-import { CheckCircle2, Home, X } from 'lucide-react';
-import { RESIDENTIAL_PRESET } from '../state/residential-preset.js';
+import { useState } from 'react';
+import { Copy, Plus, Trash2, X } from 'lucide-react';
+import { captureResidentialStandard, normalizeResidentialStandards, RESIDENTIAL_SERVICE_KEYS } from '../state/residential-standards.js';
 
-export default function ResidentialPresetDialog({ mode = 'existing', onApply, onManual, onClose }) {
+const SERVICE_LABELS = {
+  foundation: 'Фундамент', sipFloor: 'Пол SIP', sipSecondFloor: 'Межэтажное перекрытие',
+  sipWalls: 'Наружные стены', sipCeiling: 'Потолок SIP', partitions: 'Перегородки',
+  roof: 'Кровля', terrace: 'Террасы и крыльца', openings: 'Проёмы', delivery: 'Доставка',
+  engineeringElectric: 'Электрика', engineeringPlumbing: 'Водоснабжение',
+  engineeringSewerage: 'Канализация', engineeringVentilation: 'Вентиляция',
+  engineeringHeating: 'Отопление', internalFinish: 'Внутренняя отделка',
+  externalFinish: 'Наружная отделка',
+};
+
+export default function ResidentialPresetDialog({ mode = 'existing', project, onApply, onSave, onManual, onClose }) {
   const creating = mode === 'new';
+  const [library, setLibrary] = useState(() => normalizeResidentialStandards(project?.settings?.residentialStandards, project));
+  const [selectedId, setSelectedId] = useState(library.activeId);
+  const [saved, setSaved] = useState(false);
+  const [applyGeometry, setApplyGeometry] = useState(creating);
+  const selected = library.profiles.find((item) => item.id === selectedId) || library.profiles[0];
+  const change = (patch) => {
+    setLibrary((current) => ({ ...current, profiles: current.profiles.map((item) => item.id === selectedId ? { ...item, ...patch } : item) }));
+    setSaved(false);
+  };
+  const updateNumber = (section, field, value) => {
+    const number = Number(value);
+    change({ [section]: { ...selected[section], [field]: Number.isFinite(number) ? number : 0 } });
+  };
+  const addProfile = (fromCurrent = false) => {
+    const source = fromCurrent ? captureResidentialStandard(project, 'Новый стандарт') : structuredClone(selected);
+    source.id = globalThis.crypto?.randomUUID?.() || `standard-${Date.now()}`;
+    source.name = fromCurrent ? 'Новый стандарт' : `${selected.name} — копия`;
+    setLibrary((current) => ({ ...current, profiles: [...current.profiles, source] }));
+    setSelectedId(source.id);
+    setSaved(false);
+  };
+  const removeProfile = () => {
+    if (library.profiles.length < 2) return;
+    const profiles = library.profiles.filter((item) => item.id !== selectedId);
+    setLibrary({ profiles, activeId: profiles[0].id });
+    setSelectedId(profiles[0].id);
+    setSaved(false);
+  };
+  const prepared = () => normalizeResidentialStandards({ ...library, activeId: selectedId }, project);
+  const save = () => { onSave?.(prepared()); setSaved(true); };
+  const apply = () => {
+    const standards = prepared();
+    onApply(standards.profiles.find((item) => item.id === selectedId), standards, { applyGeometry });
+  };
+
   return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
     <section className="modal residential-preset-modal" role="dialog" aria-modal="true" aria-labelledby="residential-preset-title" onMouseDown={(event) => event.stopPropagation()}>
-      <header><div><h2 id="residential-preset-title">{creating ? 'Создание нового проекта' : 'Стандарт жилого дома'}</h2><p>{creating ? 'Выберите стартовый набор параметров.' : 'Проверьте параметры перед применением к текущему проекту.'}</p></div><button className="icon-button" onClick={onClose} aria-label="Закрыть"><X /></button></header>
-      <div className="preset-choice-card recommended"><div className="preset-choice-icon"><Home /></div><div><span>Рекомендуемый шаблон</span><h3>{RESIDENTIAL_PRESET.title}</h3><ul>{RESIDENTIAL_PRESET.summary.map((item) => <li key={item}><CheckCircle2 />{item}</li>)}</ul></div></div>
-      <div className="preset-preserved"><strong>{creating ? 'Текущий проект будет сохранён' : 'Данные не удаляются'}</strong><span>{creating ? 'Перед созданием будет сделана контрольная копия текущего проекта, а действующий прайс-лист перейдёт в новый проект.' : 'План, этажи, проёмы, сваи, заказчик, прайс, настройки отделки, инженерии и доставки, заявки и ручные изменения сметы сохранятся. Стандарт изменит их включение в состав расчёта.'}</span></div>
-      <footer>{creating ? <button className="button secondary" onClick={onManual}>Без шаблона</button> : <button className="button secondary" onClick={onClose}>Отмена</button>}<button className="button primary" onClick={onApply}>{creating ? 'Создать жилой дом' : 'Применить стандарт'}</button></footer>
+      <header><div><h2 id="residential-preset-title">{creating ? 'Создание нового проекта' : 'Стандарты жилого дома'}</h2><p>Сохраняйте несколько конфигураций, выбирайте и переименовывайте их.</p></div><button className="icon-button" onClick={onClose} aria-label="Закрыть"><X /></button></header>
+      <div className="residential-profile-toolbar">
+        <label>Конфигурация<select aria-label="Конфигурация жилого дома" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{library.profiles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <button className="button secondary" onClick={() => addProfile(true)} disabled={library.profiles.length >= 30} title="Сохранить параметры текущего проекта как новый стандарт"><Plus size={15} /> Из проекта</button>
+        <button className="icon-button" onClick={() => addProfile(false)} disabled={library.profiles.length >= 30} aria-label="Создать копию стандарта" title="Создать копию"><Copy size={16} /></button>
+        <button className="icon-button" onClick={removeProfile} disabled={library.profiles.length < 2} aria-label="Удалить стандарт" title="Удалить стандарт"><Trash2 size={16} /></button>
+      </div>
+      <div className="residential-profile-fields">
+        <label className="residential-profile-name">Название<input aria-label="Название стандарта" value={selected.name} maxLength={80} onChange={(event) => change({ name: event.target.value })} /></label>
+        <fieldset><legend>Габариты и этажность</legend><div className="residential-profile-grid">
+          {[["length", "Длина, м", 3, 100, 0.1], ["width", "Ширина, м", 3, 100, 0.1], ["wallHeight", "Высота стен, м", 1.8, 8, 0.05], ["floors", "Этажей", 1, 2, 1]].map(([key, label, min, max, step]) => <label key={key}>{label}<input type="number" min={min} max={max} step={step} value={selected.dimensions[key]} onChange={(event) => updateNumber('dimensions', key, event.target.value)} /></label>)}
+        </div></fieldset>
+        <fieldset><legend>Контроль проёмов</legend><div className="residential-profile-grid">
+          {[["windows", "Окон"], ["doors", "Дверей"]].map(([key, label]) => <label key={key}>{label}<input type="number" min="0" max="200" step="1" value={selected.openings[key]} onChange={(event) => updateNumber('openings', key, event.target.value)} /></label>)}
+        </div><small>Количество для проверки. Применение стандарта не переносит и не создаёт проёмы.</small></fieldset>
+        <fieldset><legend>Состав конструкций и работ</legend><div className="residential-profile-services">{RESIDENTIAL_SERVICE_KEYS.map((key) => <label key={key}><input type="checkbox" checked={selected.services[key]} onChange={(event) => change({ services: { ...selected.services, [key]: event.target.checked } })} />{SERVICE_LABELS[key]}</label>)}</div></fieldset>
+      </div>
+      {!creating ? <label className="residential-profile-geometry"><input type="checkbox" checked={applyGeometry} onChange={(event) => setApplyGeometry(event.target.checked)} /> Применить габариты, высоту и этажность к плану</label> : null}
+      <p className="residential-profile-hint">Профиль также хранит параметры SIP, кровли и фундамента, взятые из проекта при создании. При изменении габаритов план и проёмы масштабируются вместе с домом.</p>
+      <footer>{creating ? <button className="button secondary" onClick={onManual}>Без стандарта</button> : <><button className="button secondary" onClick={save}>{saved ? 'Сохранено' : 'Сохранить стандарты'}</button><button className="button secondary" onClick={onClose}>Закрыть</button></>}<button className="button primary" onClick={apply}>{creating ? 'Создать по стандарту' : 'Применить выбранный'}</button></footer>
     </section>
   </div>;
 }
