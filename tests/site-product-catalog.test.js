@@ -18,6 +18,13 @@ test('public material showcase uses existing priced catalog rows and units', () 
   }
   assert.equal(productsByGroup.panels.length, 9);
   assert.equal(new Set(productsByGroup.panels.map((item) => item.catalogId)).size, 9);
+  assert.deepEqual(productsByGroup.panels.map((item) => item.image), [
+    ...Array(3).fill('panel.webp'),
+    ...Array(3).fill('panel-minwool.webp'),
+    ...Array(3).fill('panel-csp-pps.webp'),
+  ]);
+  assert.deepEqual(productsByGroup.timber.slice(3).map((item) => item.catalogId),
+    ['MAT-186', 'MAT-187', 'MAT-188']);
   assert.deepEqual(productsByGroup.fasteners.slice(0, 5).map((item) => item.catalogId),
     ['MAT-200', 'MAT-201', 'MAT-202', 'MAT-203', 'MAT-081']);
 });

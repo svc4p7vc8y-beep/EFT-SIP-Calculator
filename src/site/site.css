@@ -183,13 +183,24 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .material-tabs button[aria-pressed=true]{border-bottom-color:var(--green);color:var(--green)}
 .material-tabs button:hover{color:var(--green)}
 .material-tabs button span{font-size:10px;color:#8b998e;font-weight:500}
+.panel-selector{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;margin:-2px 0 19px;padding:13px 17px;border:1px solid var(--line);border-radius:6px;background:#f8faf7}
+.panel-selector-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px 13px}
+.panel-selector-row>span{color:#647568;font-size:11px;font-weight:600;white-space:nowrap}
+.panel-choice-group{display:flex;flex-wrap:wrap;gap:5px}
+.panel-choice-group button{min-height:36px;padding:7px 12px;border:1px solid #d8e2d9;border-radius:4px;background:#fff;color:#48604e;font-size:11px;font-weight:600;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.panel-choice-group button:hover{border-color:#8ba991;transform:translateY(-1px)}
+.panel-choice-group button[aria-pressed=true]{border-color:var(--green);background:var(--green);color:#fff}
+.panel-choice-group button:focus-visible,.material-filmstrip button:focus-visible,.material-arrow:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .material-stage{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(360px,.88fr);min-height:565px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
 .material-image{position:relative;display:grid;place-items:center;min-width:0;background:#f5f5f1;overflow:hidden}
 .material-image img{width:100%;height:100%;max-height:630px;object-fit:cover;transition:transform .55s cubic-bezier(.22,.8,.2,1)}
 .material-image:hover img{transform:scale(1.035)}
+.material-image img{animation:material-swap .4s cubic-bezier(.22,.8,.2,1) both}
+@keyframes material-swap{from{opacity:.45;transform:translateX(12px) scale(1.02)}to{opacity:1;transform:translateX(0) scale(1)}}
 .material-image-timber{background:#f7f6f2}
 .material-image-foam,.material-image-fasteners{background:#fbfbf8}
 .material-image-index{position:absolute;left:27px;bottom:25px;padding:9px 13px;background:#ffffffed;color:#365044;font-size:11px;letter-spacing:1.4px;border-radius:3px}
+.material-image-spec{position:absolute;right:24px;top:24px;padding:9px 12px;background:#ffffffed;color:#365044;font-size:11px;font-weight:700;border-radius:3px}
 .material-info{display:flex;flex-direction:column;padding:clamp(30px,3.2vw,58px);min-width:0}
 .material-info-top{display:flex;justify-content:space-between;gap:10px;color:#688070;font-size:11px;letter-spacing:.3px}
 .material-family{color:var(--green);font-weight:700}
@@ -217,15 +228,16 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .material-filmstrip button:first-child{border-left:1px solid var(--line)}
 .material-filmstrip button[aria-pressed=true]{background:#f2f6f1;box-shadow:inset 0 3px var(--green)}
 .material-filmstrip button:hover{background:#f5f7f4}
+.material-filmstrip button>img{width:100%;height:72px;object-fit:cover;object-position:center;border-radius:3px;background:#f6f6f3}
 .material-filmstrip button>span{font-size:10px;letter-spacing:1px;color:#809084}
 .material-filmstrip button strong{font-size:13px;font-weight:600;line-height:1.35;color:#344337}
 .material-filmstrip button small{margin-top:auto;font-size:11px;color:#6a7a6e}
 .material-disclaimer{margin-top:13px;max-width:980px;font-size:11px;line-height:1.7;color:#7d8a80}
 .panels-section .cart{max-width:none;margin-top:36px}
 @media(max-width:900px){.material-stage{grid-template-columns:1fr 1fr;min-height:0}.material-info{padding:28px}.material-info h3{font-size:29px;margin-top:20px}.material-image img{min-height:470px}.material-actions{flex-wrap:wrap}.material-actions .btn{flex-basis:100%}}
-@media(max-width:700px){.material-tabs button{padding-inline:16px}.material-stage{grid-template-columns:1fr}.material-image{height:315px}.material-image img{min-height:0;max-height:none}.material-image-index{left:18px;bottom:17px}.material-info{padding:28px 22px}.material-info h3{font-size:31px;margin-top:18px}.material-price{margin-top:20px}.material-order{margin-top:20px}.material-actions{flex-wrap:nowrap}.material-actions>.field{flex-basis:145px}.material-actions .btn{flex:1}.material-navigation{margin-top:10px}.material-filmstrip button{flex-basis:220px}.panels-section .cart{margin-top:25px}}
+@media(max-width:700px){.material-tabs button{padding-inline:16px}.panel-selector{padding:13px;gap:12px}.panel-selector-row{width:100%;justify-content:space-between}.panel-choice-group{justify-content:flex-end}.material-stage{grid-template-columns:1fr}.material-image{height:315px}.material-image img{min-height:0;max-height:none}.material-image-index{left:18px;bottom:17px}.material-image-spec{top:16px;right:16px}.material-info{padding:28px 22px}.material-info h3{font-size:31px;margin-top:18px}.material-price{margin-top:20px}.material-order{margin-top:20px}.material-actions{flex-wrap:nowrap}.material-actions>.field{flex-basis:145px}.material-actions .btn{flex:1}.material-navigation{margin-top:10px}.material-filmstrip button{flex-basis:220px}.panels-section .cart{margin-top:25px}}
 @media(max-width:430px){.material-image{height:245px}.material-info{padding:24px 18px}.material-info h3{font-size:27px}.material-actions{gap:8px}.material-actions>.field{flex-basis:135px}.material-actions .stepper{width:135px}.material-actions .btn{padding-inline:8px;min-width:0}.material-filmstrip button{flex-basis:190px}.material-navigation{gap:9px}.material-arrow{flex-basis:38px;width:38px;height:38px}.material-navigation>span{font-size:10px}}
-@media(prefers-reduced-motion:reduce){.material-image img{transition:none}.material-image:hover img{transform:none}.material-filmstrip{scroll-behavior:auto}}
+@media(prefers-reduced-motion:reduce){.material-image img{transition:none;animation:none}.material-image:hover img{transform:none}.panel-choice-group button{transition:none}.material-filmstrip{scroll-behavior:auto}}
 .dialog-view{position:absolute;inset:0;transition:opacity .55s ease,transform .65s cubic-bezier(.22,.8,.2,1);overflow:hidden}
 .project-dialog{animation:project-emerge .65s cubic-bezier(.22,.8,.2,1)}
 @keyframes project-emerge{from{opacity:0;transform:translateY(24px) scale(.94);clip-path:inset(12% 16% round 18px)}to{opacity:1;transform:none;clip-path:inset(0 round 9px)}}

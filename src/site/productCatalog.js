@@ -24,7 +24,7 @@ function product(catalogId, group, image, description, family = '', displayName)
 
 export const productGroups = [
   { id: 'panels', label: 'СИП-панели', intro: 'Три сердцевины и три толщины в базовом формате 2500 × 1250 мм.' },
-  { id: 'timber', label: 'Пиломатериалы', intro: 'Строганая доска для торцов и соединительный термобрус.' },
+  { id: 'timber', label: 'Пиломатериалы', intro: 'Строганая доска для торцов и пакет клеёных досок для соединений.' },
   { id: 'foam', label: 'Пена и составы', intro: 'Составы для соединений панелей и монтажа проёмов.' },
   { id: 'fasteners', label: 'Саморезы и крепёж', intro: 'Конструкционные саморезы, анкеры, уголки и спиральный крепёж.' },
 ];
@@ -32,12 +32,12 @@ export const productGroups = [
 export const productsByGroup = {
   panels: [
     ...['MAT-010', 'MAT-011', 'MAT-012'].map((id) => product(id, 'panels', 'panel.webp', 'Обшивка ОСП и сердцевина PPS. Для стен, перекрытий и кровли по проекту.', 'ОСП / PPS')),
-    ...['MAT-193', 'MAT-194', 'MAT-195'].map((id) => product(id, 'panels', 'panel.webp', 'Вариант с минераловатной сердцевиной. Состав и применение уточняются в проекте.', 'Минвата')),
-    ...['MAT-196', 'MAT-197', 'MAT-198'].map((id) => product(id, 'panels', 'panel.webp', 'Вариант с обшивкой ЦСП и сердцевиной PPS. Подбор по проекту.', 'ЦСП / PPS')),
+    ...['MAT-193', 'MAT-194', 'MAT-195'].map((id) => product(id, 'panels', 'panel-minwool.webp', 'Обшивка ОСП и минераловатная сердцевина. Состав и применение уточняются в проекте.', 'ОСП / Минвата')),
+    ...['MAT-196', 'MAT-197', 'MAT-198'].map((id) => product(id, 'panels', 'panel-csp-pps.webp', 'Обшивка ЦСП и сердцевина PPS. Подбор по проекту.', 'ЦСП / PPS', materials.get(id).name.replace('CSP', 'ЦСП'))),
   ],
   timber: [
     ...['MAT-008', 'MAT-006', 'MAT-007'].map((id) => product(id, 'timber', 'planed-timber.png', 'Сухая строганая торцевая доска под выбранную толщину СИП-панели.', 'Строганая доска')),
-    ...['MAT-015', 'MAT-013', 'MAT-014'].map((id) => product(id, 'timber', 'planed-timber.png', 'Соединительный термобрус для узлов СИП-конструкции.', 'Термобрус')),
+    ...['MAT-186', 'MAT-187', 'MAT-188'].map((id) => product(id, 'timber', 'glued-board-pack.webp', 'Клеёный пакет досок для соединения СИП-панелей. Сечение подбирают по толщине панели.', 'Пакет клеёных досок')),
   ],
   foam: [
     product('MAT-009', 'foam', 'foam.webp', 'Пеноклей для соединений СИП-панелей, баллон 650 мл.', 'Для СИП'),
