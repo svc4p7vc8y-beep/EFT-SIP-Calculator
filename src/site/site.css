@@ -321,6 +321,11 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 @media(max-width:700px){.collection-open{width:100%;justify-content:center;font-size:14px}.catalog-toolbar{display:block}.reference-plan-heading{align-items:flex-start;flex-direction:column;gap:7px}.reference-plan-heading small{white-space:normal}.reference-room-list li{font-size:9px}.section-number{font-size:10px}.house-meta{font-size:11px}.site-footer p,.site-footer nav,.footer-note{font-size:13px}}
 
 /* Escrow is a compact inline disclosure directly below the opening image. */
+.max-chat-entry{position:fixed;right:clamp(16px,3vw,40px);bottom:clamp(18px,3vw,36px);z-index:40;display:flex;align-items:center;gap:11px;padding:13px 17px;border:1px solid #1a6558;border-radius:50px;background:#244b3b;color:#fff;box-shadow:0 10px 30px #173b2e30;text-decoration:none;transition:transform .2s,background .2s}
+.max-chat-entry:hover,.max-chat-entry:focus-visible{background:#173c2c;color:#fff;transform:translateY(-3px)}
+.max-chat-entry span{display:grid;gap:1px}.max-chat-entry strong{font-size:13px;line-height:1.2}.max-chat-entry small{font-size:11px;color:#d9e9de}
+@media(max-width:600px){.max-chat-entry{right:12px;bottom:12px;padding:12px 14px}.max-chat-entry strong{font-size:12px}.max-chat-entry small{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.max-chat-entry{transition:none}}
 .escrow-section{padding-top:38px;padding-bottom:48px}
 .escrow-card{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.65fr);gap:30px;align-items:center;width:min(100%,1040px);min-height:0;margin-inline:auto;padding:28px clamp(28px,4vw,52px);border-radius:8px;background:#2b4552;color:#fff;overflow:hidden}
 .escrow-card .section-number{color:#c6d4d9}

@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Check,
   Menu,
+  MessageCircle,
   X,
 } from "lucide-react";
 import { asset, contacts, houses, projectCategories } from "./data.js";
@@ -319,6 +320,15 @@ export default function Site() {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [cart, setCart] = useState([]);
   const [selection, setSelection] = useState("");
+  const [maxChatUrl, setMaxChatUrl] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("https://crm.eftsip.ru/api/api.php?action=connectors.max.public", { signal: controller.signal, credentials: "omit" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((result) => { if (result?.enabled && /^https:\/\/max\.ru\/[A-Za-z0-9_.%-]+\?start=eftsip-website$/.test(result.url || "")) setMaxChatUrl(result.url); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
   function discuss(project) {
     setSelection(project);
     setActiveProject(null);
@@ -545,6 +555,7 @@ export default function Site() {
         />
         <Locations />
       </main>
+      {maxChatUrl && <a className="max-chat-entry" href={maxChatUrl} target="_blank" rel="noopener noreferrer" aria-label="Написать ЭФТ в MAX"><MessageCircle size={23} aria-hidden="true"/><span><strong>Напишите в MAX</strong><small>Ответим в чате</small></span></a>}
       <footer className="site-footer">
         <div>
           <a className="wordmark" href="#" aria-label="ЭФТ — наверх">
