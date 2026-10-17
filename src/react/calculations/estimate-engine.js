@@ -1607,8 +1607,9 @@ function roofSection(project, metrics, index, inputs) {
         ? Math.ceil(gableBoardRequiredLength / 6)
         : 0;
       const gableBoardVolume = gableBoardCount * 6 * 0.05 * 0.15;
-      const lathRequiredLength = result.netArea
-        ? result.netArea / lathStep + result.eaveLength
+      const lathRequiredLength = result.netArea && result.slopeLength
+        ? result.netArea / result.slopeLength
+          * roofLathRows(result.slopeLength * 1000, lathStep * 1000).length
         : 0;
       const lathBoardCount = lathRequiredLength
         ? Math.ceil(lathRequiredLength / 6)

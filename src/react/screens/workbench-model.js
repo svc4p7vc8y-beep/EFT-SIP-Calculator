@@ -12,6 +12,11 @@ export function locateWorkbenchItem(report,id) {
 }
 export function scopedWorkbenchItems(report,{scope='surface',surface,drawing,category,floor=1}) {
   if(scope==='project')return {parts:report.parts,members:report.members.filter(m=>!m.excluded)};
+  if(scope==='category'){
+    const ids=new Set(report.surfaces.filter(s=>drawingCategory(s)===category).map(s=>s.id));
+    const role=category==='roof'?'Кровля':category==='binding'?'Обвязка':null;
+    return {parts:report.parts.filter(p=>ids.has(p.surfaceId)),members:report.members.filter(m=>!m.excluded&&(ids.has(m.surfaceId)||role&&m.surface===role))};
+  }
   if(scope==='floor'){
     const ids=new Set(report.surfaces.filter(s=>s.floor===floor).map(s=>s.id));
     return {parts:report.parts.filter(p=>ids.has(p.surfaceId)),members:report.members.filter(m=>!m.excluded&&ids.has(m.surfaceId))};
@@ -29,3 +34,14 @@ export function scopedWorkbenchStock(report,items,{scope,category}) {
   return {...report,panelStock:{...report.panelStock,sheets,remnants:report.panelStock.remnants.filter(r=>sheetIds.has(r.sheet))},timberStock:{...report.timberStock,bars:report.timberStock.bars.filter(s=>s.parts.some(p=>ids.has(p.id)))},roofCover:category==='roof'&&scope!=='floor'?report.roofCover:{slopes:[]}};
 }
 export function scopedPurchases(report,items,context){return purchaseRows(scopedWorkbenchStock(report,items,context));}
+
+export function timberMaterialSummary(members){
+  const groups=new Map();
+  for(const member of members.filter(m=>!m.excluded)){
+    const dimensions=String(member.profile||'').split(/[×xх]/).map(Number);
+    if(dimensions.length!==2||dimensions.some(n=>!Number.isFinite(n)||n<=0)||!(member.length>0))continue;
+    const key=`${member.material}:${member.profile}`,row=groups.get(key)||{id:key,name:member.material,profile:member.profile,qty:0,lengthM:0,volumeM3:0};
+    row.qty++;row.lengthM+=member.length/1000;row.volumeM3+=member.length*dimensions[0]*dimensions[1]/1e9;groups.set(key,row);
+  }
+  return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name,'ru')||a.profile.localeCompare(b.profile));
+}

@@ -8,16 +8,16 @@ export function roofLineIntervals(polygon,x){
  hits.sort((a,b)=>a-b);return Array.from({length:Math.floor(hits.length/2)},(_,i)=>[hits[2*i],hits[2*i+1]]);
 }
 // Exact fabrication from the common planes. No capacity or new estimate norms.
-export function roofFabrication(model,project,calculation,settings){
+export function roofFabrication(model,project,calculation,settings,{includeWallPlate=true}={}){
  const rafters=[],members=[],laths=[],counterLaths=[],roofTimbers=[],issues=[],section=String(calculation.roof.rafterStructure?.section||'').replace('x','×');
  const append=(item,material,list)=>{if(item.worldA&&item.worldB)Object.assign(item,roofMemberGeometry(item.worldA,item.worldB,item.profile));list.push(item);members.push({...item,surfaceId:item.faceId,nodeRef:model.faces.find(f=>f.id===item.faceId)?.nodeRef||'',material,source:'Единая геометрия кровли',surface:'Кровля',panels:[],cutLength:item.length+2*Number(settings.endAllowanceMm||0),processing:'Геометрические торцы; опорные врезки, пролёты и крепёж по рабочему узлу'});};
  // The wall plate has its own geometry even when the rafter scheme is a truss
  // or its member section is still missing.
  const plate=mauerlatProfile(project.settings.roof),layout=mauerlatWallRuns(project,{...project.settings.roof,shape:calculation.roof.mainRoofShape},calculation.roof.ridgeAxis);
  const ceiling=ceilingTopElevation(project,calculation,(project.upperFloors?.length||0)+1);
- if(layout.issue)issues.push(layout.issue);
- if(calculation.roof.mauerlatLength>0&&!ceiling.hasCeiling)issues.push('Мауэрлат: потолок отсутствует в расчёте; опора показана на верхе стены. Проверьте рабочий узел.');
- for(const [i,[a,b]]of (calculation.roof.mauerlatLength>0?layout.runs:[]).entries()){
+ if(includeWallPlate&&layout.issue)issues.push(layout.issue);
+ if(includeWallPlate&&calculation.roof.mauerlatLength>0&&!ceiling.hasCeiling)issues.push('Мауэрлат: потолок отсутствует в расчёте; опора показана на верхе стены. Проверьте рабочий узел.');
+ for(const [i,[a,b]]of (includeWallPlate&&calculation.roof.mauerlatLength>0?layout.runs:[]).entries()){
   const z=ceiling.topZ+plate.heightMm/2;
   append({id:`КР-М${i+1}`,name:'Мауэрлат',a,b,worldA:[...a,z],worldB:[...b,z],length:Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])),profile:plate.profile,flat:true,normal:[0,0,1],plateTopZ:ceiling.topZ+plate.heightMm},'Мауэрлат',roofTimbers);
  }
@@ -32,7 +32,7 @@ export function roofFabrication(model,project,calculation,settings){
   for(const x of positions)for(const [a,b]of roofLineIntervals(f.polygon,x)){
    if(b-a<width)continue;const A=roofWorld(f,[x,a]),B=roofWorld(f,[x,b]),id=`${f.id}-СТ${rafters.length+1}`,item={id,name:f.name,faceId:f.id,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(Math.hypot(...A.map((n,i)=>B[i]-n))),profile:section,normal:f.normal,...roofRafterDetail(model,A,B,section)};append(item,'Стропило',rafters);
   }
-  if(calculation.roof.includeCovering){
+  if(calculation.roof.includeCovering||f.group?.startsWith('terrace:')){
    const ys=f.polygon.map(p=>p[1]),v0=Math.min(...ys),v1=Math.max(...ys),step=Number(calculation.roof.lathStep||.35)*1000;
    const transposed=f.polygon.map(([x,y])=>[y,x]);
    for(const row of roofLathRows(v1-v0,step)){const y=v0+row;for(const [a,b]of roofLineIntervals(transposed,y)){
@@ -52,7 +52,7 @@ export function roofFabrication(model,project,calculation,settings){
   append({id:`КР-${edge.id}`,faceId:edge.faces[0],name:edge.kind==='ridge'?'Конёк':edge.kind==='valley'?'Ендова':'Накосное стропило',roofMemberKind:edge.kind,profileSource:savedProfile?'project-override':'rafter-section-proposal',a:edge.a.slice(0,2),b:edge.b.slice(0,2),worldA:edge.a,worldB:edge.b,length:Math.ceil(edge.length),profile},'Элемент ребра кровли',roofTimbers);
  }
  const mauerlats=roofTimbers.filter(item=>item.name==='Мауэрлат'),unresolvedBearings=[];
- for(const item of [...rafters,...roofTimbers.filter(member=>member.roofMemberKind==='hip')]){
+ for(const item of includeWallPlate?[...rafters,...roofTimbers.filter(member=>member.roofMemberKind==='hip')]:[]){
   const candidates=mauerlats.flatMap(mauerlat=>{
    const hit=planIntersection(item.worldA,item.worldB,mauerlat.worldA,mauerlat.worldB);
    if(!hit)return [];
@@ -66,6 +66,7 @@ export function roofFabrication(model,project,calculation,settings){
   }else{item.bearingStatus='unresolved';const member=members.find(member=>member.id===item.id);if(member)member.bearingStatus='unresolved';unresolvedBearings.push(item.id);}
  }
  if(unresolvedBearings.length)issues.push(`Опирание на мауэрлат не подтверждено для ${unresolvedBearings.length} элементов (${unresolvedBearings.slice(0,5).join(', ')}${unresolvedBearings.length>5?', …':''}): нет пересечения, есть зазор или врезка превышает 50 мм.`);
+ if(!includeWallPlate&&rafters.length)issues.push('Кровля террасы/крыльца: опирание стропил на стену и наружный прогон показано геометрически; сечения опор и узлы требуется подтвердить проектом.');
  return {rafters,members,laths,counterLaths,roofTimbers,issues};
 }
 export function planIntersection(a,b,c,d){

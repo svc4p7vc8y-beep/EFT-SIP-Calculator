@@ -627,8 +627,8 @@ export function calculateProductionCutting(project, calculation) {
     const rectangular = Math.abs(polygonAreaMm(shape) - bounds.width * bounds.height) < 1;
     const addRoof = (id, name, shape, thickness = sip.ceilingThickness, horizontal = true) => addSurface({ id, name, floor: plans.length, horizontal, staggered: false, thickness: Number(thickness), family: horizontal ? sip.ceilingPanelFamily : sip.wallPanelFamily, geometry: clipping.union(shape), layoutWidth: mm(roof.sipFrameStep || f.panelWidth || 1.25) });
     const addGable=(id,name,geometry,type)=>{const surface=addRoof(id,`${name} · ${type==='sip'?'СИП':'каркас'}`,geometry,sip.wallThickness,false);surface.frameOnly=type==='cold';return surface;};
-    if(assembly.usesRoofPlanes){
-      for(const face of assembly.roofModel.faces.filter(f=>f.warm)){
+    if(assembly.usesRoofPlanes||assembly.usesPlatformRoofPlanes){
+      for(const face of assembly.roofModel.faces.filter(f=>f.warm&&(assembly.usesRoofPlanes||f.group?.startsWith('terrace:')))){
         const placement=face.structureHorizontal?roofFacet(face.id,face.name,face.vertices.map(p=>[p[0],p[1],assembly.roofModel.roofBase])):face;
         const ring=[...placement.polygon,placement.polygon[0]];
         const s=addRoof(face.id,`Кровля · ${face.name}`,[ring],face.thickness);
@@ -864,7 +864,7 @@ export function calculateProductionCutting(project, calculation) {
   const sipJunctionConflicts=sipMemberIntersections(members);
   for(const s of surfaces){const conflicts=sipJunctionConflicts.filter(c=>c.surfaceId===s.id);if(conflicts.length)issue('SIP_JUNCTION',`${s.name}: ${conflicts.some(c=>c.geometryError)?'неподтверждённые проверки геометрии / пересечения':'пересечения деревянных деталей'} ×${conflicts.length} (${conflicts.slice(0,5).map(c=>c.memberIds.join(' / ')).join('; ')}). Откройте развёртку и согласуйте стык/врубку по рабочему узлу; пересечение не считается готовым соединением.`,s.id);}
   const notices = [...profileMismatches].map(value => `Сечение раскроя / сметы: ${value} мм. Смета не изменена; подтвердите проектный профиль.`);
-  if(assembly.usesRoofPlanes&&!settings.roofDesign.enabled&&Math.abs(assembly.roofModel.warmArea-Number(roof.warmSlopeArea||0))>.01)issue('ROOF_LAYOUT_ESTIMATE',`SIP-кровля: площадь по геометрии раскроя ${round(assembly.roofModel.warmArea)} м², сметная площадь ${roof.warmSlopeArea} м². Свесы продолжают уклон стен; действующая смета не изменена, закупку нужно согласовать.`, 'Кровля');
+  if(assembly.usesRoofPlanes&&!settings.roofDesign.enabled&&Math.abs(assembly.roofModel.faces.filter(face=>face.group==='main'&&face.warm).reduce((sum,face)=>sum+face.area,0)-Number(roof.mainWarmSlopeArea||0))>.01)issue('ROOF_LAYOUT_ESTIMATE',`SIP-кровля: площадь основной кровли по геометрии раскроя ${round(assembly.roofModel.faces.filter(face=>face.group==='main'&&face.warm).reduce((sum,face)=>sum+face.area,0))} м², сметная площадь ${roof.mainWarmSlopeArea} м². Свесы продолжают уклон стен; действующая смета не изменена, закупку нужно согласовать.`, 'Кровля');
   const ids = new Set(); let manualCount = 0;
   for (const item of settings.manualParts) {
     if (ids.has(item.id)) { issue('MANUAL_ID', `Повторная марка ручной детали: ${item.id}`); continue; } ids.add(item.id);

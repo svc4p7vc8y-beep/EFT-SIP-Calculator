@@ -203,7 +203,9 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
   const automaticColdHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
   const automaticSipHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='sip'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
+  const warmPlatform=assembly.roofModel.faces.some(face=>face.group?.startsWith('terrace:')&&face.warm);
   assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticColdHip;
+  assembly.usesPlatformRoofPlanes=warmPlatform;
   if((plainSipGable||automaticSipHip)&&!settings.roofDesign.enabled){
     assembly.roofDrawing.model=assembly.roofModel;
     const outline=assembly.roofModel.projection[0]?.[0];if(outline)assembly.roofOutline=outline.slice(0,-1);
@@ -220,6 +222,20 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       if(cut&&m){m.cutLength=cut.blankLength+2*Number(settings.endAllowanceMm||0);m.endCutOutline=cut.outline;m.processing='Верхний торец вертикальный; нижний перпендикулярен стропилу. Опорные врубки и крепёж по рабочему узлу.';}
     }
     assembly.roofDrawing.estimateDifference=roof.mainRoofShape==='gable'&&assembly.rafters.length?assembly.rafters[0].length-assembly.roofDrawing.estimateLength:0;
+  }
+  if(!settings.roofDesign?.enabled&&!automaticColdHip){
+    const faces=assembly.roofModel.faces.filter(face=>face.group?.startsWith('terrace:')&&!face.warm);
+    if(faces.length){
+      const ids=new Set(faces.map(face=>face.id));
+      const platformModel={...assembly.roofModel,faces,edges:assembly.roofModel.edges.filter(edge=>edge.faces.every(id=>ids.has(id)))};
+      const platform=roofFabrication(platformModel,project,calculation,settings,{includeWallPlate:false});
+      assembly.members.push(...platform.members);
+      assembly.rafters.push(...platform.rafters);
+      assembly.laths.push(...platform.laths);
+      assembly.counterLaths.push(...platform.counterLaths);
+      assembly.roofTimbers.push(...platform.roofTimbers);
+      assembly.issues.push(...platform.issues);
+    }
   }
   if (rectangular && project.settings.roof.type === 'cold'
     && !settings.roofDesign?.manualFaces?.length

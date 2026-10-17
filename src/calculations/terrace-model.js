@@ -125,6 +125,7 @@ export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
     projection: round(projection, 3),
     roofWidth: round(roofWidth, 3),
     roofRun: round(roofRun, 3),
+    slopeLength: round(roof.shape === 'gable' ? gableSlopeEdge : shedSlopeEdge, 3),
     netArea: round(netArea, 2),
     purchaseArea: round(netArea * (1 + roof.wastePercent / 100), 2),
     ridgeLength: roof.mode !== 'none' && roof.shape === 'gable' ? round(roofRun, 3) : 0,

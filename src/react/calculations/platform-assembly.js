@@ -35,5 +35,5 @@ export function assemblyPlatformView(assembly, include=true) {
   if(include)return assembly;
   const keep=assembly.piles.map((p,i)=>({p,source:assembly.pileSources?.[i]})).filter(p=>p.source!=='platform');
   const platformFaces=new Set((assembly.platforms||[]).flatMap(p=>p.faces.map(f=>f.id)));
-  return {...assembly,platforms:[],binding:assembly.binding.filter(m=>m.group!=='platform'),piles:keep.map(p=>p.p),pileSources:keep.map(p=>p.source),rafters:assembly.rafters.filter(m=>!platformFaces.has(m.faceId)),roofTimbers:assembly.roofTimbers.filter(m=>!platformFaces.has(m.faceId)),roofModel:assembly.roofModel?{...assembly.roofModel,faces:assembly.roofModel.faces.filter(f=>!platformFaces.has(f.id))}:assembly.roofModel};
+  return {...assembly,platforms:[],binding:assembly.binding.filter(m=>m.group!=='platform'),piles:keep.map(p=>p.p),pileSources:keep.map(p=>p.source),rafters:assembly.rafters.filter(m=>!platformFaces.has(m.faceId)),roofTimbers:assembly.roofTimbers.filter(m=>!platformFaces.has(m.faceId)),laths:assembly.laths.filter(m=>!platformFaces.has(m.faceId)),counterLaths:assembly.counterLaths.filter(m=>!platformFaces.has(m.faceId)),roofModel:assembly.roofModel?{...assembly.roofModel,faces:assembly.roofModel.faces.filter(f=>!platformFaces.has(f.id))}:assembly.roofModel};
 }
