@@ -27,6 +27,7 @@ export default function ProductionSettings({project,report,pending,settings,upda
       <NumberInput label="Чистый просвет стропил, мм · пусто: параметры кровли" value={settings.rafterClearGapMm} min={100} max={1200} onChange={rafterClearGapMm=>update({rafterClearGapMm})}/>
       <label><input type="checkbox" checked={settings.rafterEndCuts} onChange={e=>update({rafterEndCuts:e.target.checked})}/>Торцы стропил: верх вертикальный, низ перпендикулярный. Врубки — по проекту.</label>
       <label><input type="checkbox" checked={settings.partitionSipAlignment} onChange={e=>update({partitionSipAlignment:e.target.checked})}/>Стыки SIP по примыканиям перегородок · минимальная панель 250 мм</label>
+      <label><input type="checkbox" checked={settings.floorPartitionAlignment} onChange={e=>update({floorPartitionAlignment:e.target.checked})}/>Стыки панелей пола вдоль перегородок · соединитель по выбранному профилю, опирание проверить</label>
       <NumberInput label="Низ окон от пола по умолчанию" value={settings.windowSillMm} min={0} max={30000} onChange={value => update({ windowSillMm: value })} />
       <NumberInput label="Ширина пропила" value={settings.kerfMm} max={20} placeholder="Укажите пропил станка" onChange={value => update({ kerfMm: value })} />
       <NumberInput label="Припуск на каждый торец бруса" value={settings.endAllowanceMm} max={100} placeholder="0 — без припуска" onChange={value => update({ endAllowanceMm: value })} />

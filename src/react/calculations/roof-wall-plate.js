@@ -59,7 +59,7 @@ export function insetRoofContour(points, insetMm) {
   return result;
 }
 
-export function mauerlatWallRuns(project, roof, axis = 'x') {
+export function mauerlatWallRuns(project, roof, axis = 'x', terraceRoofs = []) {
   const plan = project.upperFloors?.at(-1) || project.plan;
   const contour = houseContourPoints(plan).map((point) => [point.x * 1000, point.y * 1000]);
   const profile = mauerlatProfile(roof);
@@ -76,19 +76,38 @@ export function mauerlatWallRuns(project, roof, axis = 'x') {
     const b = contour[(i + 1) % contour.length];
     return a[0] === b[0] || a[1] === b[1];
   });
-  if (!rectangle || !endOverhang || !runs.length) return { runs, issue: '' };
+  const hasContinuation = terraceRoofs.some(({ result }) => result.mode === 'cold' && result.shape === 'continuation'
+    && (axis === 'x' ? ['left', 'right'].includes(result.side) : ['top', 'bottom'].includes(result.side)));
+  if (!rectangle || !runs.length || (!endOverhang && !hasContinuation)) return { runs, issue: '' };
   const edgeMin = Math.min(...contour.map(p => p[along]));
   const edgeMax = Math.max(...contour.map(p => p[along]));
   const extended = runs.map(([a, b]) => {
     if (Math.abs(a[across] - b[across]) > 1) return [a, b];
     const first = [...a], last = [...b];
-    if (Math.abs(first[along] - edgeMin) < profile.widthMm || Math.abs(first[along] - edgeMax) < profile.widthMm)
-      first[along] = first[along] < last[along] ? edgeMin - endOverhang : edgeMax + endOverhang;
-    if (Math.abs(last[along] - edgeMin) < profile.widthMm || Math.abs(last[along] - edgeMax) < profile.widthMm)
-      last[along] = last[along] < first[along] ? edgeMin - endOverhang : edgeMax + endOverhang;
+    const continuation = terraceRoofs.filter(({ platform, result }) => {
+      if (result.mode !== 'cold' || result.shape !== 'continuation' ||
+        !(axis === 'x' ? ['left', 'right'].includes(result.side) : ['top', 'bottom'].includes(result.side))) return false;
+      const crossStart = Number(axis === 'x' ? platform.y : platform.x) * 1000;
+      const crossEnd = crossStart + Number(axis === 'x' ? platform.h : platform.w) * 1000;
+      return first[across] >= crossStart - 1 && first[across] <= crossEnd + 1;
+    });
+    const extension = side => {
+      const candidates = continuation.filter(({ result }) => result.side === side).map(({ platform }) =>
+        (Number(axis === 'x' ? platform.x : platform.y) +
+          (side === 'right' ? Number(platform.w) : side === 'bottom' ? Number(platform.h) : 0)) * 1000);
+      return side === 'left' || side === 'top'
+        ? Math.min(endOverhang ? edgeMin - endOverhang : edgeMin + profile.widthMm / 2, ...candidates)
+        : Math.max(endOverhang ? edgeMax + endOverhang : edgeMax - profile.widthMm / 2, ...candidates);
+    };
+    const low = extension(axis === 'x' ? 'left' : 'top');
+    const high = extension(axis === 'x' ? 'right' : 'bottom');
+    for (const point of [first, last]) {
+      if (Math.abs(point[along] - edgeMin) < profile.widthMm) point[along] = low;
+      else if (Math.abs(point[along] - edgeMax) < profile.widthMm) point[along] = high;
+    }
     return [first, last];
   });
-  return { runs: extended, issue: 'Торцевые участки мауэрлата работают как консоли под крайними стропильными парами; узел и путь нагрузки требуют проверки конструктора.' };
+  return { runs: extended, issue: 'Торцевые консоли мауэрлата и продолжение до наружных стоек террасы требуют проверки опирания, узлов и пути нагрузки конструктором.' };
 }
 
 export function mauerlatRunLength(runs) {

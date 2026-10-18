@@ -30,7 +30,7 @@ const CONNECTOR_TYPES = {
 
 function SummaryValue({ label, value, tone }) {
   return (
-    <div className={`summary-value ${tone || ""}`}>
+    <div className={`summary-value ${tone || ""}`} aria-label={`${label}: ${value}`}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -39,7 +39,7 @@ function SummaryValue({ label, value, tone }) {
 
 function SummarySection({ title, icon: Icon, target, onNavigate, open, onToggle, children }) {
   return (
-    <section className={`summary-section ${open ? "open" : ""}`}>
+    <section className={`summary-section summary-section-${target} ${open ? "open" : ""}`}>
       <button
         className="summary-section-title"
         onClick={onToggle}
@@ -132,10 +132,7 @@ export default function ProjectSummarySidebar({
       aria-label="Сводная ведомость проекта"
     >
       <header className="project-summary-header">
-        <div>
-          <span>Контрольная ведомость</span>
-          <h2>Сводка проекта</h2>
-        </div>
+        <h2>Контрольная ведомость</h2>
         <small>№ {project.meta?.projectNum || "—"}</small>
       </header>
       <div className={`summary-health ${issues.length || contourMissing ? "warning" : "ok"}`}>

@@ -1348,7 +1348,7 @@ function roofSection(project, metrics, index, inputs) {
   )
     ? roof.mauerlatLayout
     : "perimeter";
-  const plateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout }, roofAxes.ridgeAxis);
+  const plateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout }, roofAxes.ridgeAxis, terraceRoofs);
   const supportedPlateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout, gableOverhang: 0 }, roofAxes.ridgeAxis);
   const mauerlatRuns = supportedPlateGeometry.runs.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000);
   const mauerlatLength = mauerlatRunLength(plateGeometry.runs);
@@ -1397,7 +1397,17 @@ function roofSection(project, metrics, index, inputs) {
         ? geometry.ridgeLength + geometry.hipLength
         : geometry.roofLength;
   const replaceRidge=project.settings.productionCutting?.roofFrameConfig?.replaceRidge===true&&(project.settings.productionCutting.roofSupports||[]).some(s=>s.autoLayout==='roof-support-frame'&&s.type==='purlin');
-  const gluedRidge = gluedRidgeLayout(project, !replaceRidge && rafterStructure.system === 'layered' && mainColdSlopeArea > 0 && mainRoofShape === 'gable', terraceRoofs);
+  const layeredFrame = layeredFrameLayout(project, { metrics, roof: {
+    mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea, mauerlatLength, terraceRoofs,
+  } }, roofAxes.ridgeAxis === 'x'
+    ? { x: 0, y: 0, width: houseLength * 1000, height: span * 1000 }
+    : { x: 0, y: 0, width: span * 1000, height: houseLength * 1000 },
+  roofAxes.ridgeAxis, Number(project.settings.productionCutting?.stockLengthMm) || 6000);
+  const gluedRidge = gluedRidgeLayout(project, !replaceRidge && ['layered', 'hanging'].includes(rafterStructure.system)
+    && mainColdSlopeArea > 0 && mainRoofShape === 'gable', terraceRoofs, {
+    omitMain: layeredFrame.items.length > 0,
+    omitTerraceIds: new Set((layeredFrame.bridgeItems || []).filter(item => item.scope === 'terrace').map(item => item.platformId)),
+  });
   const ridgeBeamPurchaseLength =
     replaceRidge?0:(ridgeBeamLength - gluedRidge.mainLength) * inputs.formulas.ridgeBeamReserve;
   // Two specified 50×100 ridge rows for a layered scheme are budgeted separately.
@@ -2137,12 +2147,6 @@ function roofSection(project, metrics, index, inputs) {
     ) +
       1);
   const snowGuards = calculateSnowGuards(roof, geometry.roofLength, [...project.priceMat, ...project.priceLab]);
-  const layeredFrame = layeredFrameLayout(project, { metrics, roof: {
-    mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea, mauerlatLength, terraceRoofs,
-  } }, roofAxes.ridgeAxis === 'x'
-    ? { x: 0, y: 0, width: houseLength * 1000, height: span * 1000 }
-    : { x: 0, y: 0, width: span * 1000, height: houseLength * 1000 },
-  roofAxes.ridgeAxis, Number(project.settings.productionCutting?.stockLengthMm) || 6000);
   const layeredFramePurchasing = layeredFramePurchases(layeredFrame);
   const layeredBridgeLength = scope => (layeredFrame.bridgeItems || []).filter(item => item.scope === scope)
     .reduce((sum, item) => sum + item.length / 1000, 0);

@@ -70,17 +70,18 @@ test('layered terrace ridge uses one priced three-board package and a visible be
   assert.ok(reconcileCutting(report(project), calculation).some(row => row.key === 'Клеёный пакет:145×150' && row.matched));
 });
 
-test('a second-light ridge section replaces only its segment of two-board rows', () => {
+test('layered second light uses main purlin axes without an extra ridge package', () => {
   const project = createDefaultProject();
   Object.assign(project.settings.roof, { structureMode: 'manual', rafterSystem: 'layered' });
   project.plan.rooms = [{ id: 'light', x: 2, y: 4, w: 3, h: 5, ceilingMode: 'open-rafter' }];
   const calculation = calculateProject(project), assembly = report(project).assembly;
-  assert.equal(calculation.lines.find(line => line.id === 'roof:second-light-glued-ridge')?.catalogId, 'MAT-250');
-  assert.ok(assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package' && item.group === 'main'));
+  assert.ok(!calculation.lines.some(line => line.id === 'roof:second-light-glued-ridge'));
+  assert.ok(calculation.roof.layeredFrame.bridgeItems.some(item => item.scope === 'second-light'));
+  assert.ok(!assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package' && item.group === 'main'));
   assert.ok(assembly.roofTimbers.filter(item => item.material === 'Коньковая доска · ряд').length >= 2);
 });
 
-test('continuation ridge package begins beyond the main gable overhang', () => {
+test('layered continuation follows the purlins and omits a duplicate ridge package', () => {
   const project = createDefaultProject();
   Object.assign(project.settings.roof, { structureMode: 'manual', rafterSystem: 'layered' });
   const house = project.plan.house;
@@ -89,6 +90,19 @@ test('continuation ridge package begins beyond the main gable overhang', () => {
   const layout = gluedRidgeLayout(project, true, calculation.roof.terraceRoofs);
   assert.equal(layout.terraces.length, 1);
   assert.ok(Math.min(layout.terraces[0].a[0], layout.terraces[0].b[0]) >= house.w + project.settings.roof.gableOverhang - 1e-6);
-  assert.ok(calculation.lines.some(line => line.id === 'roof:platform-end-glued-ridge'));
-  assert.ok(report(project).assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package' && item.group === 'terrace:end'));
+  assert.ok(calculation.roof.layeredFrame.bridgeItems.some(item => item.scope === 'terrace' && item.platformId === 'end'));
+  assert.ok(!calculation.lines.some(line => line.id === 'roof:platform-end-glued-ridge'));
+  assert.ok(!report(project).assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package' && item.group === 'terrace:end'));
+});
+
+test('hanging roof keeps a single ridge package over an open room and terrace', () => {
+  const project = createDefaultProject();
+  Object.assign(project.settings.roof, { structureMode: 'manual', rafterSystem: 'hanging' });
+  project.plan.rooms = [{ id: 'light', x: 2, y: 4, w: 3, h: 5, ceilingMode: 'open-rafter' }];
+  project.plan.platforms = [{ id: 'end', x: project.plan.house.w, y: 2, w: 3, h: 8, kind: 'terrace', roof: { mode: 'cold', shape: 'continuation' } }];
+  const calculation = calculateProject(project), assembly = report(project).assembly;
+  assert.equal(calculation.roof.layeredFrame.bridgeItems?.length || 0, 0);
+  assert.equal(calculation.lines.find(line => line.id === 'roof:second-light-glued-ridge')?.catalogId, 'MAT-250');
+  assert.equal(calculation.lines.find(line => line.id === 'roof:platform-end-glued-ridge')?.catalogId, 'MAT-250');
+  assert.equal(assembly.roofTimbers.filter(item => item.roofMemberKind === 'ridge-package').length, 2);
 });

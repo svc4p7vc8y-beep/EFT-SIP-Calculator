@@ -29,17 +29,17 @@ export function roofCrossingIntervals(points, axis, coordinate) {
 }
 
 // Geometric lengths only. The selected 3-board package remains a project catalog item.
-export function gluedRidgeLayout(project, mainRidgeAvailable, terraceRoofs = []) {
+export function gluedRidgeLayout(project, mainRidgeAvailable, terraceRoofs = [], options = {}) {
   const roof = project.settings.roof;
   const plan = project.upperFloors?.at(-1) || project.plan;
   const { ridgeAxis: axis, ridgeBaseLength, span } = resolveRoofAxes(plan, roof);
   const rooms = [project.plan, ...(project.upperFloors || [])].flatMap(floor => floor.rooms || []);
-  const main = mainRidgeAvailable && roof.shape === 'gable' ? mergeRoofIntervals(rooms
+  const main = mainRidgeAvailable && !options.omitMain && roof.shape === 'gable' ? mergeRoofIntervals(rooms
     .filter(room => room.include !== false && room.ceilingMode === 'open-rafter')
     .flatMap(room => roofCrossingIntervals(roomPoints(room), axis, span / 2))
     .map(([a, b]) => [Math.max(0, a), Math.min(ridgeBaseLength, b)])) : [];
   const terraces = mainRidgeAvailable ? terraceRoofs.flatMap(({ platform, result }) => {
-    if (result.mode !== 'cold') return [];
+    if (result.mode !== 'cold' || options.omitTerraceIds?.has(platform.id)) return [];
     const frame = platformRoofFrame(platform, project.plan.house, roof.rafterStep, roof);
     if (!frame?.ridge) return [];
     const [start, finish] = frame.ridge;

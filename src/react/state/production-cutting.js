@@ -27,6 +27,7 @@ export function normalizeProductionCutting(value = {}) {
     rafterClearGapMm: number('rafterClearGapMm',''),
     rafterEndCuts: value.rafterEndCuts===true,
     partitionSipAlignment: value.partitionSipAlignment!==false,
+    floorPartitionAlignment: value.floorPartitionAlignment===true,
     partitionNotchFace: value.partitionNotchFace==='back'?'back':'front',
     roofSupportSipAlignment: value.roofSupportSipAlignment===true,
     detailedFrameEstimate: value.detailedFrameEstimate !== false,

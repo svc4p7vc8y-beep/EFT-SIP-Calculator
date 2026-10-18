@@ -7,6 +7,8 @@
 .app:not([data-theme="dark"]) input::placeholder,
 .app:not([data-theme="dark"]) textarea::placeholder { color:#000 !important; opacity:1; }
 .app:not([data-theme="dark"]) svg.lucide { stroke:#000 !important; opacity:1 !important; }
+.app:not([data-theme="dark"]) .plan-screen-v2 :is(.parameter-section-icon svg.lucide,.plan-top-advanced summary svg.lucide:first-child),
+.app:not([data-theme="dark"]) .project-summary-sidebar .summary-section-title svg.lucide:first-child { color:#fff !important; stroke:#fff !important; }
 .app:not([data-theme="dark"]) svg text,
 .app:not([data-theme="dark"]) svg tspan { fill:#000 !important; fill-opacity:1 !important; }
 .app:not([data-theme="dark"]) button:disabled { opacity:1; background:#e5e5e5; border-style:dashed; }

@@ -6952,6 +6952,47 @@ select,
 .app-layout.plan-app-layout { grid-template-columns: 254px minmax(0, 1fr); }
 .plan-screen-v2 .plan-status-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 12px; padding: 7px 9px; }
 .plan-screen-v2 .plan-floor-switcher { flex: 0 0 auto; }
+
+/* The compact audit rail uses its values as the visible card headings. */
+.project-summary-header h2 { font-size: 20px; line-height: 1.15; }
+.project-summary-sidebar .summary-value > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.project-summary-sidebar .summary-value {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+}
+.project-summary-sidebar .summary-value strong { font-size: 16px; line-height: 1.2; }
+.project-summary-sidebar .summary-section-title {
+  grid-template-columns: 30px minmax(0, 1fr) 16px;
+  min-height: 54px;
+}
+.project-summary-sidebar .summary-section-title strong { font-size: 15px; }
+.project-summary-sidebar .summary-section-title svg:first-child {
+  width: 27px;
+  height: 27px;
+  padding: 5px;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--section-accent, #4e7846);
+  stroke-width: 2.2;
+}
+.summary-section-plan { --section-accent: #4b7854; }
+.summary-section-sip { --section-accent: #3c7b7e; }
+.summary-section-piles { --section-accent: #956d44; }
+.summary-section-roof { --section-accent: #5774a0; }
+.summary-section-terrace { --section-accent: #7c7950; }
+.summary-section-openings { --section-accent: #9a665c; }
+.summary-section-engineering { --section-accent: #6c6594; }
+.summary-section-estimate { --section-accent: #4e765f; }
+.plan-screen-v2 .plan-header-floor-switcher { flex: 0 0 auto; align-self: flex-start; }
 .plan-top-advanced { order: 3; flex: 0 0 auto; color: var(--green-dark); font-size: 10px; }
 .plan-top-advanced[open] { flex-basis: 100%; }
 .plan-top-advanced summary { cursor: pointer; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-weight: 700; }
@@ -7070,3 +7111,14 @@ select,
   .plan-screen-v2 .plan-view-switches { justify-content: flex-start; }
   .plan-top-advanced { order: 4; }
 }
+
+/* The plan inspector keeps only large section names beside white pictograms. */
+.plan-screen-v2 .parameters-embedded .parameter-section-heading small,
+.plan-screen-v2 .parameters-embedded .parameter-section-number,
+.plan-screen-v2 .plan-right-3d-heading small { display: none; }
+.plan-screen-v2 .parameters-embedded .parameter-section-heading strong { font-size: 16px; }
+.plan-screen-v2 .plan-right-3d-heading strong { font-size: 16px; }
+.plan-screen-v2 .parameters-embedded .parameter-section-icon,
+.plan-screen-v2 .parameters-embedded .parameter-section-icon svg { color: #fff !important; stroke: #fff !important; }
+.plan-screen-v2 .plan-top-advanced summary { font-size: 16px; }
+.plan-screen-v2 .plan-top-advanced summary svg:first-child { width: 29px; height: 29px; padding: 5px; border-radius: 7px; color: #fff !important; stroke: #fff !important; background: #286f9c; }

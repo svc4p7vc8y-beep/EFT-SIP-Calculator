@@ -238,10 +238,11 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
     }
     return result;
   }
-  if(surface.bearingCuts?.length && !surface.bearingTiled){
+  if((surface.bearingCuts?.length || surface.floorPartitionCuts?.length) && !surface.bearingTiled){
     const bounds=polygonBounds(surface.geometry.flat());
     const xs=[bounds.x,bounds.x+bounds.width],ys=[bounds.y,bounds.y+bounds.height];
-    for(const e of fullSpanBearingCuts(surface)){if(Math.abs(e.a.x-e.b.x)<.001)xs.push(mm(e.a.x));else if(Math.abs(e.a.y-e.b.y)<.001)ys.push(mm(e.a.y));}
+    const cuts=fullSpanBearingCuts({...surface,bearingCuts:[...(surface.bearingCuts||[]),...(surface.floorPartitionCuts||[])]});
+    for(const e of cuts){if(Math.abs(e.a.x-e.b.x)<.001)xs.push(mm(e.a.x));else if(Math.abs(e.a.y-e.b.y)<.001)ys.push(mm(e.a.y));}
     const clean=(values,min,max)=>[...new Set(values.filter(v=>v>=min&&v<=max))].sort((a,b)=>a-b);
     const xx=clean(xs,bounds.x,bounds.x+bounds.width),yy=clean(ys,bounds.y,bounds.y+bounds.height),parts=[];
     for(let i=0;i<xx.length-1;i++)for(let j=0;j<yy.length-1;j++){
@@ -596,6 +597,19 @@ export function calculateProductionCutting(project, calculation) {
       const blocked = holes.some(h => clipping.difference(h, shape).reduce((sum, poly) => sum + polygonAreaMm(poly), 0) > 1) || stairs.some(h=>!['x','y','width','length'].every(k=>Number.isFinite(Number(h[k])))||!(Number(h.width)>0&&Number(h.length)>0));
       if (blocked) issue('STAIR_BOUNDS', `${floor} этаж: лестничный проём имеет неполный размер или выходит за контур. Перекрытие заблокировано.`, `Э${floor}-ПОЛ`);
       const deck=addSurface({ id: `Э${floor}-ПОЛ`, name: `${floor} этаж · ${floorIndex ? 'Межэтажное перекрытие' : 'Пол'}`, floor, horizontal: true, thickness: Number(floorIndex ? sip.secondFloorThickness : sip.floorThickness), family: floorIndex ? sip.secondFloorPanelFamily : sip.floorPanelFamily, layoutWidth: mm(floorIndex ? sip.secondFloorPanelWidth : sip.floorPanelWidth), geometry: subtract(shape, holes), blocked,stairOpenings:validStairs });
+      if(settings.floorPartitionAlignment){
+        const longAxis=deck.layout.direction==='y'?'x':'y';
+        const cuts=partitionSegments(plan).map(([a,b])=>({a,b})).filter(edge=>
+          longAxis==='y'?Math.abs(edge.a.x-edge.b.x)<.001:Math.abs(edge.a.y-edge.b.y)<.001);
+        const manualGrid=['originX','originY','step'].some(key=>presentNumber(deck.layout[key]));
+        if(manualGrid && cuts.length) issue('FLOOR_PARTITION_ALIGNMENT',`${deck.name}: ручная сетка сохранена; проверьте совпадение продольных швов с перегородками.`,deck.id);
+        else {
+          deck.floorPartitionCuts=fullSpanBearingCuts({...deck,bearingCuts:cuts,supportOuterThickness:mm(plan.wallThickness)});
+          deck.supportOuterThickness=mm(plan.wallThickness);
+          if(cuts.length>deck.floorPartitionCuts.length) issue('FLOOR_PARTITION_ALIGNMENT',`${deck.name}: короткие перегородки не продолжаются автоматически через весь пролёт; для них назначьте соединительную лагу и опоры по рабочему узлу.`,deck.id);
+          if(deck.floorPartitionCuts.length) issue('FLOOR_PARTITION_CHECK',`${deck.name}: продольные швы совмещены с перегородками. Сечение соединительной лаги, стыки и опирание проверьте по проекту; сметная сетка не заменена.`,deck.id);
+        }
+      }
       if(floorIndex>0&&settings.ceilingBearingAlignment){deck.bearingCuts=bearingEdges(plans[floorIndex-1]);deck.supportFloor=floor-1;deck.supportOuterThickness=mm(plans[floorIndex-1].wallThickness);}
     }
     if (floorIndex === plans.length - 1 && services.sipCeiling && hasHorizontalCeiling(plan)) {
@@ -827,9 +841,15 @@ export function calculateProductionCutting(project, calculation) {
       if (!(length > 0 && length <= 100000)) { issue('MEMBER_OVERRIDE', `${id}: неверная длина`, key); return; }
       if ((override.exclude || override.profile || presentNumber(override.length)) && !override.nodeRef?.trim()) issue('MEMBER_NODE', `${id}: для изменения или исключения укажите рабочий узел`, key);
       const replacedByJamb = jambs.some(jamb => Math.abs(rawSegment.a[0]-jamb.x)<.01 && Math.abs(rawSegment.b[0]-jamb.x)<.01);
+      const floorPartitionSeam=!!rawSegment.seam && (surface.floorPartitionCuts||[]).some(edge=>{
+        const a=[mm(edge.a.x),mm(edge.a.y)],b=[mm(edge.b.x),mm(edge.b.y)];
+        return Math.abs(a[0]-b[0])<1
+          ? Math.abs(rawSegment.a[0]-a[0])<1&&Math.abs(rawSegment.b[0]-a[0])<1
+          : Math.abs(rawSegment.a[1]-a[1])<1&&Math.abs(rawSegment.b[1]-a[1])<1;
+      });
       // SIP profiles are core depth × face width, unlike partition studs.
       // Carry both dimensions explicitly to the shared 2D/3D drawing adapters.
-      members.push({ ...segment, id, key, faceWidth:Number(selectedProfile.split(/[×xх]/)[1]),normalDepthMm:Number(selectedProfile.split(/[×xх]/)[0]), excluded: override.exclude === true || replacedByJamb, replacedByJamb, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: replacedByJamb ? 'Заменено полной стойкой проёма' : segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
+      members.push({ ...segment, id, key, faceWidth:Number(selectedProfile.split(/[×xх]/)[1]),normalDepthMm:Number(selectedProfile.split(/[×xх]/)[0]), excluded: override.exclude === true || replacedByJamb, replacedByJamb, floorPartitionSeam, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: replacedByJamb ? 'Заменено полной стойкой проёма' : floorPartitionSeam ? 'Продольный шов SIP-пола под перегородкой · соединительная лага по проекту' : segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
     });
     for (const [jambIndex,jamb] of jambs.entries()) {
       const id=`${surface.id}-С${jambIndex+1}-${jamb.side}-${round(jamb.x)}`;

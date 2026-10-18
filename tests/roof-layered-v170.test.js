@@ -47,7 +47,7 @@ test('hip layered roof remains finite and warm roof has no cold timber ridge row
   assert.ok(!warm.lines.some(line => line.id === 'roof:layered-ridge-boards'));
 });
 
-test('cold gable terrace gets a glued three-board ridge package only in layered scheme', () => {
+test('cold gable terrace uses a glued ridge package in layered and hanging schemes', () => {
   const project = createDefaultProject();
   project.settings.roof.structureMode = 'manual';
   project.settings.roof.rafterSystem = 'layered';
@@ -63,7 +63,8 @@ test('cold gable terrace gets a glued three-board ridge package only in layered 
   assert.ok(!layered.lines.some(line => line.id === 'roof:platform-test-terrace-layered-ridge-boards'));
   project.settings.roof.rafterSystem = 'hanging';
   const hanging = calculateProject(project);
-  assert.ok(!hanging.lines.some(line => line.id.startsWith(prefix)));
+  assert.equal(hanging.lines.find(line => line.id === prefix)?.catalogId, 'MAT-250');
+  assert.equal(hanging.lines.find(line => line.id === `${prefix}-work`)?.catalogId, 'LAB-111');
 });
 
 test('PDF title uses project parameters and strips filename-unsafe characters', () => {

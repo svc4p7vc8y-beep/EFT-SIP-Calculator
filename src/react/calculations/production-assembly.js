@@ -91,7 +91,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const roofTimbers=[];
   const addRoofMember=(id,material,profile,length,a,b)=>{members.push({id,material,profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия кровли',surface:'Кровля',panels:[],processing:'Соединение длинных элементов и опорные узлы по проекту'});if(a&&b)roofTimbers.push({id,material,profile,length,a,b});};
   if(project.services.roof && roof.mauerlatLength>0){
-    const plate=mauerlatProfile(project.settings.roof),layout=mauerlatWallRuns(project,{...project.settings.roof,shape:roof.mainRoofShape},axis);
+    const plate=mauerlatProfile(project.settings.roof),layout=mauerlatWallRuns(project,{...project.settings.roof,shape:roof.mainRoofShape},axis,roof.terraceRoofs);
     const elevation=ceilingTopElevation(project,calculation,floors.length);
     if(layout.issue)issues.push(layout.issue);
     if(!elevation.hasCeiling)issues.push('Мауэрлат: верх потолка отсутствует в расчёте; показана опора на верх стены. Проверьте рабочий узел.');
@@ -101,7 +101,11 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       Object.assign(roofTimbers.at(-1),{name:'Мауэрлат',flat:true,normal:[0,0,1],worldA:[...a,elevation.topZ+plate.heightMm/2],worldB:[...b,elevation.topZ+plate.heightMm/2],plateTopZ:elevation.topZ+plate.heightMm});
     });
   }
-  const gluedRidge=gluedRidgeLayout(project,project.services.roof&&roof.mainRoofShape==='gable'&&frame.system==='layered'&&roof.coldSlopeArea>0,calculation.roof.terraceRoofs);
+  const gluedRidge=gluedRidgeLayout(project,project.services.roof&&roof.mainRoofShape==='gable'
+    && ['layered','hanging'].includes(frame.system)&&roof.coldSlopeArea>0,calculation.roof.terraceRoofs,{
+    omitMain: roof.layeredFrame?.items > 0,
+    omitTerraceIds: new Set((roof.layeredFrame?.bridgeItems||[]).filter(item=>item.scope==='terrace').map(item=>item.platformId)),
+  });
   if(project.services.roof && roof.layeredRidgeLength>0 && (roof.mainRoofShape!=='gable'||!rectangular))for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength));
   else if(project.services.roof && roof.layeredRidgeLength>0){
     const cuts=roof.mainRoofShape==='gable'&&rectangular?gluedRidge.main.map(([a,b])=>[mm(a),mm(b)]):[];

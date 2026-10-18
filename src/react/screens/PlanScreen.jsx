@@ -6053,6 +6053,16 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         title="План дома"
         actions={
           <>
+            <div className="plan-floor-switcher plan-header-floor-switcher" aria-label="Выбор этажа">
+              <button type="button" className={activeFloor === 1 ? "active" : ""} onClick={() => setActiveFloor(1)}>1 этаж</button>
+              {floorCount > 1 ? <>
+                <button type="button" className={activeFloor === 2 ? "active" : ""} onClick={() => setActiveFloor(2)}>2 этаж</button>
+                {activeFloor === 2 ? <>
+                  <button type="button" onClick={clearSecondFloor}>Очистить 2 этаж</button>
+                  <button type="button" className="remove-floor" onClick={removeSecondFloor}><Trash2 /> Удалить 2 этаж</button>
+                </> : null}
+              </> : <button type="button" className="add-floor" onClick={() => addSecondFloor()}><Plus /> Второй этаж</button>}
+            </div>
             <button className="button primary new-plan-button" onClick={newPlan}>
               <Plus />
               Новый план
@@ -6170,41 +6180,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         </div>
       ) : null}
       <div className="plan-status-bar">
-        <div className="plan-floor-switcher" aria-label="Выбор этажа">
-          <button
-            type="button"
-            className={activeFloor === 1 ? "active" : ""}
-            onClick={() => setActiveFloor(1)}
-          >
-            1 этаж
-          </button>
-          {floorCount > 1 ? (
-            <>
-              <button
-                type="button"
-                className={activeFloor === 2 ? "active" : ""}
-                onClick={() => setActiveFloor(2)}
-              >
-                2 этаж
-              </button>
-              {activeFloor === 2 ? (
-                <>
-                  <button type="button" onClick={clearSecondFloor}>
-                    Очистить 2 этаж
-                  </button>
-                  <button type="button" className="remove-floor" onClick={removeSecondFloor}>
-                    <Trash2 /> Удалить 2 этаж
-                  </button>
-                </>
-              ) : null}
-            </>
-          ) : (
-            <button type="button" className="add-floor" onClick={() => addSecondFloor()}>
-              <Plus /> Второй этаж
-            </button>
-          )}
-        </div>
-
         <div className="plan-view-switches">
           <Toggle
             label="Сваи"
@@ -6461,10 +6436,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           <div className="planner-inspector-detail" hidden={inspectorTab !== 'house'}>
             <div className="plan-right-house">
-              <div className="plan-right-floors" role="group" aria-label="Этаж в правой панели">
-                <button type="button" aria-pressed={activeFloor === 1} onClick={() => setActiveFloor(1)}>1 этаж</button>
-                {floorCount > 1 ? <button type="button" aria-pressed={activeFloor === 2} onClick={() => setActiveFloor(2)}>2 этаж</button> : <button type="button" onClick={() => addSecondFloor()}>+ 2 этаж</button>}
-              </div>
         <details className="plan-top-advanced">
           <summary><Grid3X3 aria-hidden="true" /> План и раскладка <ChevronDown aria-hidden="true" /></summary>
         <div className="plan-house-fields">
