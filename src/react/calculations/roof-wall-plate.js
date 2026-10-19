@@ -1,5 +1,6 @@
 import { houseContourPoints } from '../planner/geometry.js';
 import { productionLevels } from './production-levels.js';
+import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 
 export const MAUERLAT_PROFILES = {
   '100x150': { profile: '100×150', heightMm: 100, widthMm: 150, catalogName: 'Брус ест.влажн. сосна 100×150 мм' },
@@ -92,9 +93,12 @@ export function mauerlatWallRuns(project, roof, axis = 'x', terraceRoofs = []) {
       return first[across] >= crossStart - 1 && first[across] <= crossEnd + 1;
     });
     const extension = side => {
-      const candidates = continuation.filter(({ result }) => result.side === side).map(({ platform }) =>
-        (Number(axis === 'x' ? platform.x : platform.y) +
-          (side === 'right' ? Number(platform.w) : side === 'bottom' ? Number(platform.h) : 0)) * 1000);
+      const candidates = continuation.filter(({ result }) => result.side === side).map(({ platform }) => {
+        const frame=platformRoofFrame(platform,project.plan.house,roof.rafterStep,roof);
+        return frame ? (axis === 'x'
+          ? side === 'left' ? frame.bounds.x1 : frame.bounds.x2
+          : side === 'top' ? frame.bounds.y1 : frame.bounds.y2) * 1000 : NaN;
+      }).filter(Number.isFinite);
       return side === 'left' || side === 'top'
         ? Math.min(endOverhang ? edgeMin - endOverhang : edgeMin + profile.widthMm / 2, ...candidates)
         : Math.max(endOverhang ? edgeMax + endOverhang : edgeMax - profile.widthMm / 2, ...candidates);
@@ -107,7 +111,7 @@ export function mauerlatWallRuns(project, roof, axis = 'x', terraceRoofs = []) {
     }
     return [first, last];
   });
-  return { runs: extended, issue: 'Торцевые консоли мауэрлата и продолжение до наружных стоек террасы требуют проверки опирания, узлов и пути нагрузки конструктором.' };
+  return { runs: extended, issue: 'Торцевые консоли мауэрлата до крайних стропил выходят за стойки террасы; опирание, узлы и путь нагрузки требуют проверки конструктора.' };
 }
 
 export function mauerlatRunLength(runs) {

@@ -46,6 +46,8 @@ export function normalizeTerracePlatform(platform = {}) {
   const roof = platform.roof || {};
   return {
     ...platform,
+    joistSpacingMm: Number.isFinite(Number(platform.joistSpacingMm)) && Number(platform.joistSpacingMm) >= 200 && Number(platform.joistSpacingMm) <= 1200
+      ? Number(platform.joistSpacingMm) : 500,
     foundation: { ...platform.foundation, mode: foundationMode },
     binding: { ...platform.binding, mode: bindingMode },
     roof: {

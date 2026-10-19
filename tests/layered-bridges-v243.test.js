@@ -37,8 +37,10 @@ test('two main purlins continue as two upper terrace beams without sleepers or p
   assert.equal(productionScene(report, project).beams.filter(item => item.scope === 'terrace').length, 2);
   const terracePlates = report.assembly.roofTimbers.filter(item => item.material === 'Мауэрлат' && item.a[1] === item.b[1]);
   assert.equal(terracePlates.length, 2);
-  assert.ok(terracePlates.every(item => Math.max(item.a[0], item.b[0]) === 13000));
-  assert.equal(calculation.roof.mauerlatLength, 42.3);
+  assert.ok(terracePlates.every(item => Math.max(item.a[0], item.b[0]) === 13300));
+  assert.ok(report.assembly.supports.filter(item => item.role === 'purlin' && !item.scope)
+    .some(item => item.b[0] === 10300));
+  assert.equal(calculation.roof.mauerlatLength, 42.9);
   assert.equal(calculation.roof.mauerlatBoardCount, 8);
   const noTerrace = structuredClone(project);
   noTerrace.plan.platforms = [];
@@ -87,7 +89,7 @@ test('continuation follows Y ridge axis and unrelated terraces or trusses receiv
   const plates = calculateProductionCutting(project, calculateProject(project)).assembly.roofTimbers
     .filter(item => item.material === 'Мауэрлат' && item.a[0] === item.b[0]);
   assert.equal(plates.length, 2);
-  assert.ok(plates.every(item => Math.max(item.a[1], item.b[1]) === 13000));
+  assert.ok(plates.every(item => Math.max(item.a[1], item.b[1]) === 13300));
   project.plan.platforms[0].roof.shape = 'shed';
   assert.equal(calculateProject(project).roof.layeredFrame.bridgeItems.filter(item => item.scope === 'terrace').length, 0);
   project.plan.platforms[0].roof.shape = 'continuation';

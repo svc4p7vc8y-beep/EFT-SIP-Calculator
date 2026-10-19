@@ -1,5 +1,6 @@
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { roofAt, roofHeight } from './roof-project.js';
+import { platformDeckFrame, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
 
 const rect=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]];
 
@@ -31,7 +32,9 @@ export function platformAssembly(project, calculation, roofModel) {
       const plateZ=plateTopZ-Number(result.postSection.split('x')[1])/2;
       for(let i=1;i<posts.length;i++)ties.push({id:`platform:${p.id}:tie:${i}`,a:[...posts[i-1].b.slice(0,2),plateZ],b:[...posts[i].b.slice(0,2),plateZ],profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true,name:'Стяжка по уровню мауэрлата террасы',plateTopZ});
     }
-    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:45,steps,faces,posts,ties,
+    const deckFrame=platformDeckFrame(p);
+    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:PLATFORM_DECK_THICKNESS_MM,steps,faces,posts,ties,
+      frameMembers:deckFrame.members,stringers:deckFrame.stringers,joistSpacingMm:deckFrame.joistSpacingMm,frameIssues:deckFrame.issues,
       foundationMode:p.foundation.mode,bindingMode:p.binding.mode,referenceOnly:true};
   });
 }
@@ -40,5 +43,5 @@ export function assemblyPlatformView(assembly, include=true) {
   if(include)return assembly;
   const keep=assembly.piles.map((p,i)=>({p,source:assembly.pileSources?.[i]})).filter(p=>p.source!=='platform');
   const platformFaces=new Set((assembly.platforms||[]).flatMap(p=>p.faces.map(f=>f.id)));
-  return {...assembly,platforms:[],binding:assembly.binding.filter(m=>m.group!=='platform'),piles:keep.map(p=>p.p),pileSources:keep.map(p=>p.source),rafters:assembly.rafters.filter(m=>!platformFaces.has(m.faceId)),roofTimbers:assembly.roofTimbers.filter(m=>!platformFaces.has(m.faceId)),laths:assembly.laths.filter(m=>!platformFaces.has(m.faceId)),counterLaths:assembly.counterLaths.filter(m=>!platformFaces.has(m.faceId)),roofModel:assembly.roofModel?{...assembly.roofModel,faces:assembly.roofModel.faces.filter(f=>!platformFaces.has(f.id))}:assembly.roofModel};
+  return {...assembly,platforms:[],binding:assembly.binding.filter(m=>m.group!=='platform'),piles:keep.map(p=>p.p),pileSources:keep.map(p=>p.source),members:assembly.members.filter(m=>!String(m.surfaceId).startsWith('platform:')),rafters:assembly.rafters.filter(m=>!platformFaces.has(m.faceId)),roofTimbers:assembly.roofTimbers.filter(m=>!platformFaces.has(m.faceId)),laths:assembly.laths.filter(m=>!platformFaces.has(m.faceId)),counterLaths:assembly.counterLaths.filter(m=>!platformFaces.has(m.faceId)),roofModel:assembly.roofModel?{...assembly.roofModel,faces:assembly.roofModel.faces.filter(f=>!platformFaces.has(f.id))}:assembly.roofModel};
 }

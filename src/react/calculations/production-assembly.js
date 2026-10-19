@@ -285,6 +285,15 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   assembly.rafterSystem=frame.system;
   assembly.pileSources=(calculation.foundation?.points||[]).map(p=>p.source);
   assembly.platforms=platformAssembly(project,calculation,assembly.roofModel);
+  for(const platform of assembly.platforms){
+    for(const item of [...platform.frameMembers,...platform.stringers])assembly.members.push({
+      ...item,material:'Доска ест. влажн. сосна 50х150мм',surface:platform.name,
+      surfaceId:`platform:${platform.id}`,panels:[],role:item.kind==='joist'?'joist':'frame',
+      cutLength:item.length+2*Number(settings.endAllowanceMm||0),
+      source:item.name,processing:'Стыки досок, опирание и крепёж по рабочему узлу',
+    });
+    assembly.issues.push(...platform.frameIssues.map(issue=>`${platform.name}: ${issue}`));
+  }
   const packageSegments=[...gluedRidge.main.map(([start,end],index)=>({id:`КР-КЛ-С${index+1}`,group:'main',a:at(mm(start),span/2),b:at(mm(end),span/2)})),
     ...gluedRidge.terraces.map((item,index)=>({id:`КР-КЛ-Т${index+1}`,group:`terrace:${item.id}`,a:item.a.map(mm),b:item.b.map(mm)}))];
   if(packageSegments.length)assembly.issues.push('Клеёный коньковый прогон 3×50×150 мм: схема и смета заданы, но несущая способность, клеевой пакет, опирание и крепления требуют расчёта конструктора.');

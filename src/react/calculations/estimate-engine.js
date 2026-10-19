@@ -40,6 +40,7 @@ import { calculateTieredRoofGeometry, normalizeTieredRoof, resolveTieredGables }
 import { mauerlatProfile, mauerlatWallRuns, mauerlatRunLength } from './roof-wall-plate.js';
 import { hangingRiegelEnabled, hangingRiegelRatio, RIEGEL_PROFILE } from './hanging-riegel.js';
 import { layeredFrameLayout, layeredFramePurchases } from './layered-frame.js';
+import { platformDeckFrame, PLATFORM_FRAME_BOARD_WIDTH_MM, PLATFORM_FRAME_BOARD_DEPTH_MM, PLATFORM_FRAME_RESERVE, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -2784,6 +2785,14 @@ function terraceSection(project, index, inputs) {
   const staircases = platforms.filter(
     (platform) => Number(platform.steps) > 0,
   ).length;
+  const layouts=platforms.map(platformDeckFrame);
+  const geometricVolume=layouts.reduce((sum,layout)=>sum+layout.frameLengthMm,0)
+    * PLATFORM_FRAME_BOARD_WIDTH_MM * PLATFORM_FRAME_BOARD_DEPTH_MM / 1e9 * PLATFORM_FRAME_RESERVE;
+  const stringerVolume=layouts.reduce((sum,layout)=>sum+layout.stringerLengthMm,0)
+    * PLATFORM_FRAME_BOARD_WIDTH_MM * PLATFORM_FRAME_BOARD_DEPTH_MM / 1e9 * PLATFORM_FRAME_RESERVE;
+  const savedFrameNorm=Number(inputs.formulas.terraceFrameBoardM3PerM2);
+  const frameVolume=Math.abs(savedFrameNorm-.024)>.000001
+    ? perimeter*.05*.15+area*savedFrameNorm : geometricVolume;
   return {
     area: round(area),
     lines: compact([
@@ -2801,15 +2810,19 @@ function terraceSection(project, index, inputs) {
         index,
         "terrace",
         "Доска ест. влажн. сосна 50х150мм",
-        perimeter * 0.05 * 0.15 +
-          area * inputs.formulas.terraceFrameBoardM3PerM2,
-        { key: "frame-board", unit: "м³", digits: 3 },
+        frameVolume,
+        { key: "frame-board", unit: "м³", digits: 3,
+          name: Math.abs(savedFrameNorm-.024)>.000001
+            ? `Каркас террасы по сохранённой норме ${savedFrameNorm} м³/м²`
+            : `Рама и лаги 50×150 мм · шаг не более ${Math.max(...layouts.map(layout=>layout.joistSpacingMm),0)} мм · запас 10%` },
       ),
+      makeLine(index, "terrace", "Доска ест. влажн. сосна 50х150мм", stringerVolume,
+        { key: "stair-stringers", unit: "м³", digits: 3, name: `Тетивы ступеней 50×150 мм · 2 шт. на лестницу · запас 10%` }),
       makeLine(
         index,
         "terrace",
         "Доска террасная 45×145 мм",
-        area * 0.045 * inputs.formulas.terraceDeckReserve,
+        area * PLATFORM_DECK_THICKNESS_MM / 1000 * inputs.formulas.terraceDeckReserve,
         { key: "deck", unit: "м³", digits: 3 },
       ),
       makeLine(

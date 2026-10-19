@@ -106,7 +106,8 @@ export function layeredFrameLayout(project, calculation, bounds, axis, stockLeng
         const a = breaks[j], b = breaks[j + 1];
         if (openings.some(([lo, hi]) => (a + b) / 2 >= lo && (a + b) / 2 <= hi)) continue;
         const suffix = breaks.length > 2 ? `.${j + 1}` : '';
-        add('purlin', `${i + 1}${suffix}`, [...xy(a, across), purlinZ], [...xy(b, across), purlinZ], '50×150', 50, `Прогон ${group} · участок ${i + 1}${suffix}`);
+        const purlinStart=a<1?-gableOverhang:a, purlinEnd=b>length-1?length+gableOverhang:b;
+        add('purlin', `${i + 1}${suffix}`, [...xy(purlinStart, across), purlinZ], [...xy(purlinEnd, across), purlinZ], '50×150', 50, `Прогон ${group} · участок ${i + 1}${suffix}`);
         add('sleeper', `${i + 1}${suffix}`, [...xy(a, across), sleeperZ], [...xy(b, across), sleeperZ], plate.profile, plate.heightMm, `Лежень ${group} · участок ${i + 1}${suffix}`);
       }
     }

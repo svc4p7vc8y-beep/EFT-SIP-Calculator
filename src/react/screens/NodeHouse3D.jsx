@@ -173,6 +173,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
       addSurface(p.contour,p.deckZ,p.thickness,timber);for(const s of p.steps)addSurface(s.ring,s.z,s.thickness,timberLight);
       for(const f of p.faces){const vertices=f.vertices.flatMap(([x,y,z])=>[x/1000-cx,z/1000,y/1000-cy]),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geo.setIndex(THREE.ShapeUtils.triangulateShape(f.polygon.map(([x,y])=>new THREE.Vector2(x,y)),[]).flat());geo.computeVertexNormals();groups.platforms.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:'#91adbf',side:THREE.DoubleSide})));}
       for(const s of p.posts)addBeam(groups.platforms,[s.a[0]/1000-cx,s.a[2]/1000,s.a[1]/1000-cy],[s.b[0]/1000-cx,s.b[2]/1000,s.b[1]/1000-cy],Number(s.profile.split('×')[0])/1000,timber);
+      for(const s of [...p.frameMembers,...p.stringers])addBeam(groups.platforms,[s.a[0]/1000-cx,s.a[2]/1000,s.a[1]/1000-cy],[s.b[0]/1000-cx,s.b[2]/1000,s.b[1]/1000-cy],Number(s.profile.split('×')[0])/1000,timberLight);
     }
     const uniquePiles = new Set();
     pilePositions.forEach(([x, y]) => {

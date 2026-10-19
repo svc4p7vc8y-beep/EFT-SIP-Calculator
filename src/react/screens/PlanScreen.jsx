@@ -3696,6 +3696,19 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
               })
             }
           />
+          <NumberField
+            label="Шаг лаг настила"
+            value={platform.joistSpacingMm ?? 500}
+            suffix="мм"
+            min={200}
+            max={1200}
+            step={50}
+            onChange={(value) =>
+              change((item) => {
+                item.joistSpacingMm = Math.max(200, Math.min(1200, Math.round(value)));
+              })
+            }
+          />
         </div>
         <SelectField
           label="Сторона лестницы"
