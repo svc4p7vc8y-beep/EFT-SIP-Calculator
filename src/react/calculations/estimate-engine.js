@@ -41,6 +41,7 @@ import { mauerlatProfile, mauerlatWallRuns, mauerlatRunLength } from './roof-wal
 import { hangingRiegelEnabled, hangingRiegelRatio, RIEGEL_PROFILE } from './hanging-riegel.js';
 import { layeredFrameLayout, layeredFramePurchases } from './layered-frame.js';
 import { platformDeckFrame, PLATFORM_FRAME_BOARD_WIDTH_MM, PLATFORM_FRAME_BOARD_DEPTH_MM, PLATFORM_FRAME_RESERVE, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
+import { withSipGableRafters } from './gable-rafter-stations.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -204,10 +205,13 @@ function resolveRafterStructure(project, geometry, frameLength) {
   const interiorCount = positions ? positions.length : frameLength > 0 ? Math.ceil(frameLength / module) + 1 : 0;
   const endOverhangMm = geometry.shape === 'gable' && roof.type !== 'sip' && system !== 'truss' && Number(roof.gableOverhang) > 0 ? Number(roof.gableOverhang) * 1000 : 0;
   const interiorPositions = positions || Array.from({ length: interiorCount }, (_, i) => interiorCount > 1 ? frameLength * 1000 * i / (interiorCount - 1) : frameLength * 500);
-  const detailedPositions = endOverhangMm && project.settings.productionCutting?.roofDesign?.enabled && Number(geometry.roofLength) > 0
-    ? clearGapPositions(boardWidth * 500, geometry.roofLength * 1000 - boardWidth * 500, boardWidth * 1000, step * 1000).map(value => value - endOverhangMm)
+  const detailedPositions = endOverhangMm && project.settings.productionCutting?.roofDesign?.enabled && frameLength > 0
+    ? clearGapPositions(boardWidth * 500, (frameLength * 1000 + 2 * endOverhangMm) - boardWidth * 500, boardWidth * 1000, step * 1000).map(value => value - endOverhangMm)
     : null;
-  const allPositions = detailedPositions || (endOverhangMm && interiorCount ? [-endOverhangMm, ...interiorPositions, frameLength * 1000 + endOverhangMm] : positions);
+  const basePositions = detailedPositions || (endOverhangMm && interiorCount ? [-endOverhangMm, ...interiorPositions, frameLength * 1000 + endOverhangMm] : interiorPositions);
+  const allPositions = geometry.shape === 'gable'
+    ? withSipGableRafters(project, basePositions, frameLength * 1000, boardWidth * 1000)
+    : basePositions;
   const pairCount = allPositions ? allPositions.length : interiorCount;
   const legCount = geometry.shape === "flat" ? pairCount : pairCount * 2;
   return {
@@ -1469,12 +1473,16 @@ function roofSection(project, metrics, index, inputs) {
     : 0;
   const mainGableBoardVolume = mainGableBoardCount * 6 * 0.05 * 0.15;
   const lathStep = Math.min(1.2, Math.max(0.1, Number(roof.lathStep) || 0.35));
+  const lathRafterRun = rectangularRoof && mainColdSlopeArea > 0 && rafterStructure.system !== 'truss'
+    && ['gable', 'tiered'].includes(mainRoofShape) && rafterStructure.positions.length > 1
+    ? (rafterStructure.positions.at(-1) - rafterStructure.positions[0]) / 1000 : null;
   const mainLathRequiredLength = includeCovering && mainArea
     ? mainRoofShape === 'tiered' && Number(geometry.upperSlopeLength) > 0 && Number(geometry.lowerSlopeLength) > 0
-      ? ['upper', 'lower'].reduce((sum, level) => sum + Number(geometry[`${level}Area`]) / Number(geometry[`${level}SlopeLength`])
+      ? ['upper', 'lower'].reduce((sum, level) => sum + (lathRafterRun ?? Number(geometry[`${level}Area`]) / Number(geometry[`${level}SlopeLength`]))
         * roofLathRows(Number(geometry[`${level}SlopeLength`]) * 1000, lathStep * 1000).length, 0)
       : Number(geometry.slopeLength) > 0
-      ? mainArea / Number(geometry.slopeLength) * roofLathRows(Number(geometry.slopeLength) * 1000, lathStep * 1000).length
+      ? (lathRafterRun != null ? 2 * lathRafterRun : mainArea / Number(geometry.slopeLength))
+        * roofLathRows(Number(geometry.slopeLength) * 1000, lathStep * 1000).length
       : mainArea / lathStep + mainEaveLength
     : 0;
   const mainLathBoardCount = mainLathRequiredLength
@@ -1632,6 +1640,8 @@ function roofSection(project, metrics, index, inputs) {
       const gableBoardVolume = gableBoardCount * 6 * 0.05 * 0.15;
       const lathRequiredLength = result.netArea && result.slopeLength
         ? result.netArea / result.slopeLength
+          * (Math.max(0, (result.shape === 'gable' ? result.roofRun : result.roofWidth) - .05)
+            / Math.max(.05, result.shape === 'gable' ? result.roofRun : result.roofWidth))
           * roofLathRows(result.slopeLength * 1000, lathStep * 1000).length
         : 0;
       const lathBoardCount = lathRequiredLength

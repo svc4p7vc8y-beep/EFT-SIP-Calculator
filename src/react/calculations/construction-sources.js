@@ -1,4 +1,4 @@
-import {houseContourPoints,boundsOf,roomPoints} from '../planner/geometry.js';
+import {houseContourPoints,boundsOf,roomPoints,partitionRuns} from '../planner/geometry.js';
 import {normalizeConstructionSources,ROLE_LABELS} from '../state/construction-sources.js';
 
 const near=(a,b)=>Math.abs(a-b)<1e-8;
@@ -88,10 +88,18 @@ export function sourceBindingKey(edge,floor=1) {
   return JSON.stringify([floor,[edge.a,edge.b].map(p=>[p.x,p.y]).sort((a,b)=>a[0]-b[0]||a[1]-b[1])]);
 }
 export function constructionSource(plan,edge,saved,floor=1) {
-  const result=automaticConstructionSource(plan,edge,saved,floor);
+  // A face junction trims the fabricated wall, while its saved source remains
+  // the original axis. Match only a complete derived run; split runs still need review.
+  const fabricated=plan.partitionJunctions==='butt'&&!edge.outer?partitionRuns(plan):[];
+  const axisIndex=fabricated.findIndex(([a,b])=>sameSegment(edge.a,edge.b,a,b));
+  const axes=axisIndex>=0?partitionRuns(plan,true)[axisIndex]:null;
+  const result=automaticConstructionSource(plan,axes?{...edge,a:axes[0],b:axes[1]}:edge,saved,floor);
   if(edge.outer||![1,2].includes(floor))return result;
-  const sourceBinding=normalizeConstructionSources(saved).selections?.[sourceBindingKey(edge,floor)];
-  const base={...result,sourceBindingKey:sourceBindingKey(edge,floor)};
+  const physicalKey=sourceBindingKey(edge,floor);
+  const axisKey=axes?sourceBindingKey({...edge,a:axes[0],b:axes[1]},floor):physicalKey;
+  const selections=normalizeConstructionSources(saved).selections;
+  const sourceBinding=selections?.[physicalKey]||selections?.[axisKey];
+  const base={...result,sourceBindingKey:sourceBinding&&sourceBinding===selections?.[axisKey]?axisKey:physicalKey};
   if(!sourceBinding)return base;
   const matches=(result.sourceContributors||[]).filter(r=>r.kind===sourceBinding.kind&&r.id===sourceBinding.id&&r.role===sourceBinding.role);
   const collection=sourceBinding.kind==='plan-wall'?(plan.walls||[]).filter(w=>w.include!==false):(plan.rooms||[]).filter(r=>r.include!==false&&!r.extension);

@@ -382,10 +382,25 @@ export function partitionRuns(plan, rawAxes = false) {
     for(const [start,end] of merged)result.push([{x:ux*start-uy*offset,y:uy*start+ux*offset},{x:ux*end-uy*offset,y:uy*end+ux*offset}]);
   }
   if(rawAxes || plan.partitionJunctions!=='butt')return result;
+  const contourSign=Math.sign(contour.reduce((sum,p,i)=>{
+    const q=contour[(i+1)%contour.length];return sum+p.x*q.y-q.x*p.y;
+  },0))||1;
   return result.map(([a,b],index)=>{
     const L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L;
     const trim=(p,end)=>{
       let inset=0;
+      // Axes may finish on the exterior face or anywhere inside its thickness.
+      // Bring the physical partition to the inner face without moving saved axes.
+      contour.forEach((c,i)=>{
+        const d=contour[(i+1)%contour.length],dx=d.x-c.x,dy=d.y-c.y,l=Math.hypot(dx,dy);
+        if(!l)return;
+        const nx=-dy/l*contourSign,ny=dx/l*contourSign;
+        const along=((p.x-c.x)*dx+(p.y-c.y)*dy)/l;
+        const depth=(p.x-c.x)*nx+(p.y-c.y)*ny;
+        const approach=(ux*end)*nx+(uy*end)*ny;
+        if(along<-.001||along>l+.001||depth<-.001||depth>wall+.001||approach<.5)return;
+        inset=Math.max(inset,(wall-depth)/approach);
+      });
       result.forEach(([c,d],other)=>{
         if(other===index)return;
         const dx=d.x-c.x,dy=d.y-c.y,l=Math.hypot(dx,dy),t=((p.x-c.x)*dx+(p.y-c.y)*dy)/(l*l||1);

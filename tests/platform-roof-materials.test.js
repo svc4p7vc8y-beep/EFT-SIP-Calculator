@@ -26,7 +26,8 @@ for(const kind of ['terrace','porch'])for(const shape of ['shed','gable'])test(`
   const rafters=report.assembly.rafters.filter(item=>platformFaces.has(item.faceId));
   const laths=report.assembly.laths.filter(item=>platformFaces.has(item.faceId));
   const rows=roofLathRows(result.slopeLength*1000,calculation.roof.lathStep*1000);
-  const expectedLength=result.netArea/result.slopeLength*rows.length;
+  const supportSpan=result.shape==='gable'?result.roofRun:result.roofWidth;
+  const expectedLength=result.netArea/result.slopeLength*(supportSpan-.05)/supportSpan*rows.length;
   const line=calculation.roof.extensionLines.find(item=>item.id==='roof:platform-addition-lath');
   assert.ok(rafters.length>0);
   assert.ok(laths.length>0);

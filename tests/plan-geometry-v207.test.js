@@ -15,7 +15,7 @@ const length=runs=>runs.reduce((s,[a,b])=>s+Math.hypot(b.x-a.x,b.y-a.y),0);
 const report=p=>calculateProductionCutting(p,calculateProject(p));
 const room=(id,x,y,w,h)=>({id,name:id,x,y,w,h});
 test('near-exterior classification and gaps use the same partition intervals everywhere',()=>{
- const p=fixture();p.plan.rooms=[room('a',.212,.5,1,2)];assert.equal(calculatePlanMetrics(p.plan).partitionLength,6);assert.equal(length(partitionSegments(p.plan)),6);
+ const p=fixture();p.plan.partitionJunctions='axes';p.plan.rooms=[room('a',.212,.5,1,2)];assert.equal(calculatePlanMetrics(p.plan).partitionLength,6);assert.equal(length(partitionSegments(p.plan)),6);
  p.plan.rooms=[];p.plan.walls=[wall('a',.174,2,3,2),wall('b',3.02,2,5.826,2)];assert.ok(Math.abs(length(partitionRuns(p.plan))-5.632)<1e-8);assert.equal(calculatePlanMetrics(p.plan).partitionLength,5.63);
 });
 test('reordering nearly shared room edges cannot move the resulting partition',()=>{
@@ -42,7 +42,7 @@ test('local 50x200 frame is consistent with clear area, production and priced ti
  p.plan.walls[0].bearing=false;p.plan.walls[0].frameProfile='50x150';assert.equal(report(p).surfaces.find(s=>s.partitionFrame).frameProfile,'50×150');assert.ok(calculateProject(p).lines.some(l=>l.source==='partition-detail'&&/150/.test(l.name)));
 });
 test('explicit butt scheme trims T fabrication length but never changes saved axes',()=>{
- const p=fixture();p.plan.walls=[wall('h',.174,2,5.826,2),wall('v',3,.174,3,2)];const old=structuredClone(p.plan.walls);assert.equal(Math.round(length(partitionRuns(p.plan))*1000),7478);
+ const p=fixture();p.plan.partitionJunctions='axes';p.plan.walls=[wall('h',.174,2,5.826,2),wall('v',3,.174,3,2)];const old=structuredClone(p.plan.walls);assert.equal(Math.round(length(partitionRuns(p.plan))*1000),7478);
  p.plan.partitionJunctions='butt';assert.equal(Math.round(length(partitionRuns(p.plan))*1000),7428);const surface=report(p).surfaces.find(s=>s.partitionFrame&&s.planStart[0]===3000);assert.equal(surface.width,1776);assert.equal(surface.planEnd[1],1950);assert.deepEqual(p.plan.walls,old);assert.equal(calculatePlanMetrics(p.plan).partitionLength,7.43);
 });
 test('wall-first conversion is explicit, creates shared walls and retains room names and backup',()=>{

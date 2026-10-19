@@ -6455,7 +6455,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           <div style={{gridColumn:'1 / -1'}}>
             <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
             <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions==='butt'} onChange={value=>commitPlan(next=>{next.partitionJunctions=value?'butt':'axes';})}/>
-            <p className="inspector-note">В Т-узле непрерывная стена проходит, примыкающая заканчивается у её грани. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются. Для старых проектов схема включается явно.</p>
+            <p className="inspector-note">Примыкающая перегородка заканчивается у грани непрерывной перегородки или внутренней грани наружной SIP-стены. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются.</p>
             {plan.wallLayoutIssue?<p className="assembly-warning">{plan.wallLayoutIssue}</p>:null}
             {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{
               if(!window.confirm('Преобразовать границы комнат в отдельные стены? Размеры дома сохранятся; комнаты будут определяться между стенами. Привязки раскроя нужно перепроверить. Исходная планировка сохранится в резерве, действие можно отменить.'))return;

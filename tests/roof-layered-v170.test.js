@@ -17,10 +17,10 @@ test('layered roof prices two 100×50 ridge rows and their installation without 
   const hanging = roofCase('hanging');
   const layered = roofCase('layered');
   const byId = id => layered.lines.find(line => line.id === `roof:${id}`);
-  assert.ok(Math.abs(hanging.totals.total-3781280.29248)<.001);
+  assert.ok(Math.abs(hanging.totals.total-3774073.89248)<.001);
   // v234 adds more posts at the automatic 1 m station interval.
   assert.equal(layered.roof.layeredFrame.purchases.reduce((sum, row) => sum + row.volume, 0), 1.125);
-  assert.ok(Math.abs(layered.totals.total-3812740.69248)<.001);
+  assert.ok(Math.abs(layered.totals.total-3805534.29248)<.001);
   assert.ok(layered.totals.total > hanging.totals.total);
   assert.equal(layered.roof.rafterBoardCount, 46);
   assert.equal(layered.roof.layeredRidgeBoardCount, 4);

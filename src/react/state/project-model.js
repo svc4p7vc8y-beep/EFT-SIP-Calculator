@@ -101,6 +101,7 @@ export function createDefaultPlan() {
     wallHeight: 2.5,
     wallThickness: 0.174,
     partitionThickness: 0.1,
+    partitionJunctions: 'butt',
     zoom: 100,
     showPiles: true,
     showBinding: true,
@@ -299,6 +300,7 @@ export function createEmptyPlan() {
     wallHeight: 2.5,
     wallThickness: 0.174,
     partitionThickness: 0.1,
+    partitionJunctions: 'butt',
     zoom: 100,
     showPiles: true,
     showBinding: true,
@@ -377,6 +379,7 @@ export function createUpperFloorPlan(basePlan = createEmptyPlan()) {
     wallHeight: source.wallHeight,
     wallThickness: source.wallThickness,
     partitionThickness: source.partitionThickness,
+    partitionJunctions: source.partitionJunctions,
     zoom: source.zoom,
     showPiles: false,
     showBinding: false,
@@ -751,6 +754,7 @@ export function normalizePlan(plan) {
   return {
     ...fallback,
     ...plan,
+    partitionJunctions: plan.partitionJunctions === 'axes' ? 'axes' : 'butt',
     house,
     existingBuilding: Array.isArray(plan.existingBuilding?.points) && plan.existingBuilding.points.length >= 3
       ? { id: 'existing-1', referenceOnly: true, wallHeightMm: null, baseZMm: null, ...plan.existingBuilding }

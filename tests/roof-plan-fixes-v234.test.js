@@ -27,6 +27,7 @@ test('butt partition changes the physical panel start in top plan and 3D without
     {id:'h',x1:.174,y1:2,x2:5.826,y2:2}, {id:'v',x1:3,y1:.174,x2:3,y2:2},
   ]});
   const saved = structuredClone(project.plan.walls);
+  project.plan.partitionJunctions = 'axes';
   const axes = report(project), initial = axes.surfaces.find(s => s.id.includes('-ПГ') && s.planStart[0] === 3000);
   project.plan.partitionJunctions = 'butt';
   const butt = report(project), trimmed = butt.surfaces.find(s => s.id.includes('-ПГ') && s.planStart[0] === 3000);

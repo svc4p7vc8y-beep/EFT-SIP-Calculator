@@ -115,7 +115,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for(const name of [...new Set(rafters.map(r=>r.name))]){
       const run=rafters.filter(r=>r.name===name),sample=run[0];
       const alongIndex=axis==='x'?0:1,acrossIndex=1-alongIndex;
-      const anchors=[-gable,...run.map(r=>r.a[alongIndex]-(axis==='x'?bounds.x:bounds.y)),axisLength+gable].sort((a,b)=>a-b);
+      const anchors=[...new Set(run.map(r=>r.a[alongIndex]-(axis==='x'?bounds.x:bounds.y)))].sort((a,b)=>a-b);
       const spans=[];let start=anchors[0];
       while(start<anchors.at(-1)-.1){const choices=anchors.filter(x=>x>start+.1&&x-start<=settings.stockLengthMm-2*Number(settings.endAllowanceMm||0));const end=choices.at(-1);if(end==null){issues.push(`${name}: нет стропильной опоры для стыка обрешётки в пределах заготовки ${settings.stockLengthMm} мм.`);break;}spans.push([start,end]);start=end;}
       for(const slopeY of roofLathRows(sample.length,mm(roof.lathStep||.35)))for(const [from,to]of spans){const t=slopeY/sample.length,across=sample.a[acrossIndex]+(sample.b[acrossIndex]-sample.a[acrossIndex])*t-(axis==='x'?bounds.y:bounds.x),a=at(from,across),b=at(to,across),id=`КР-ОБ${laths.length+1}`,length=Math.round(to-from);

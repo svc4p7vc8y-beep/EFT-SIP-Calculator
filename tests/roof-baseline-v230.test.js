@@ -7,14 +7,14 @@ import {calculateProductionCutting} from '../src/react/calculations/production-c
 // v230 costs remain the reference before the v232 rigel, v234 main roof lath rows,
 // and the terrace roof row alignment. The terrace case includes its changed lath and fastener quantities.
 const cases=[
-  {name:'cold gable',shape:'gable',faces:2,area:70.205,rafters:30,oldCost:1773629.50,cost:1773329.50},
+  {name:'cold gable',shape:'gable',faces:2,area:70.205,rafters:30,oldCost:1773629.50,cost:1773329.50,currentCost:1788484.30},
   {name:'warm SIP gable',shape:'gable',type:'sip',faces:2,area:70.205,warmArea:70.205,rafters:0,roofSurfaces:2,oldCost:2132073.90,cost:2131773.90},
   {name:'cold hip',shape:'hip',faces:4,area:73.470,rafters:46,oldCost:1986081.00,cost:1986528.60},
   {name:'cold tiered',shape:'tiered',faces:2,area:68.534,rafters:30,oldCost:1781627.55,cost:1770272.75},
   {name:'structural flat',shape:'flat',flatSlopeMode:'structural',faces:1,area:60.275,rafters:15,oldCost:1622214.65,cost:1652391.45},
   {name:'tapered flat',shape:'flat',flatSlopeMode:'tapered',faces:1,area:60.275,rafters:0,oldCost:1605359.15,cost:1635535.95},
   {name:'L-shaped hip',shape:'hip',lShaped:true,faces:8,area:75.340,rafters:63,oldCost:2326238.48,cost:2326765.28},
-  {name:'gable with terrace roof',shape:'gable',terrace:true,faces:4,area:70.205,rafters:40,oldCost:1978169.15,cost:1978728.35},
+  {name:'gable with terrace roof',shape:'gable',terrace:true,faces:4,area:70.205,rafters:40,oldCost:1978169.15,cost:1978728.35,currentCost:1993483.95},
 ];
 
 for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
@@ -43,6 +43,6 @@ for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   const terraceTieDelta=scenario.terrace?1584:0;
   const terraceFrameDelta=scenario.terrace
     ? (calculation.lines.find(line=>line.id==='terrace:frame-board')?.qty-.282)*26400 : 0;
-  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta+endPairAndPlateDelta+terraceTieDelta+terraceFrameDelta)*100)/100);
+  assert.equal(Math.round(calculation.totals.total*100)/100,scenario.currentCost??Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta+endPairAndPlateDelta+terraceTieDelta+terraceFrameDelta)*100)/100);
   assert.equal(calculation.lines.find(line=>line.id==='roof:hanging-rigels')?.qty||0,rigelCost?.315:0);
 });

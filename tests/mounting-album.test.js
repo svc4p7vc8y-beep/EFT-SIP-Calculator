@@ -4,7 +4,7 @@ import { createDefaultProject,migrateProject } from '../src/react/state/project-
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting } from '../src/react/calculations/production-cutting.js';
 import { roomBearingEdges, bearingWallKey, splitAtBearingEdges, partitionProfileShares,splitConnectorsAtBearing } from '../src/react/calculations/bearing-walls.js';
-const base=()=>{const p=createDefaultProject();p.plan={...p.plan,house:{w:5,h:4},wallHeight:2.5,rooms:[],walls:[],openings:[],wallGaps:[],platforms:[],bindingLines:[],pileRows:[],piles:[]};Object.assign(p.settings.productionCutting,{kerfMm:3,endAllowanceMm:0});return p;};
+const base=()=>{const p=createDefaultProject();p.plan={...p.plan,partitionJunctions:'axes',house:{w:5,h:4},wallHeight:2.5,rooms:[],walls:[],openings:[],wallGaps:[],platforms:[],bindingLines:[],pileRows:[],piles:[]};Object.assign(p.settings.productionCutting,{kerfMm:3,endAllowanceMm:0});return p;};
 const run=p=>calculateProductionCutting(p,calculateProject(p));
 test('bearing side selection persists and does not silently follow moved geometry',()=>{
   const p=base(),room={id:'r',x:0,y:0,w:2.5,h:4};p.plan.rooms=[room];const edge=roomBearingEdges(room)[1];room.bearingWalls={[edge.key]:{enabled:true,profile:'50x150'}};

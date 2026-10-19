@@ -1,4 +1,6 @@
-import {roofWorld,roofEdgeSignature} from './roof-project.js';
+import {roofWorld,roofLocal,roofHeight,roofEdgeSignature} from './roof-project.js';
+import {houseContourPoints} from '../planner/geometry.js';
+import {withSipGableRafters} from './gable-rafter-stations.js';
 import {clearGapPositions} from './clear-gap-framing.js';
 import {roofMemberGeometry,roofRafterDetail} from './roof-rafter-detail.js';
 import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
@@ -27,16 +29,29 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
  for(const f of model.faces.filter(f=>!f.warm)){
   if(f.structureHorizontal){issues.push(`${f.name}: разуклонка не наклоняет стропила; несущую схему задайте вручную.`);continue;}
   const xs=f.polygon.map(p=>p[0]),lo=Math.min(...xs),hi=Math.max(...xs);if(hi-lo<width)continue;
-  const positions=clearGapPositions(lo+width/2,hi-width/2,width,gap);
+  let positions=clearGapPositions(lo+width/2,hi-width/2,width,gap);
+  if(f.group==='main'&&calculation.roof.mainRoofShape==='gable'&&!settings.roofDesign?.manualFaces?.length){
+   const axis=calculation.roof.ridgeAxis==='y'?1:0,contour=houseContourPoints(project.upperFloors?.at(-1)||project.plan);
+   const min=Math.min(...contour.map(p=>(axis?p.y:p.x)*1000)),max=Math.max(...contour.map(p=>(axis?p.y:p.x)*1000));
+   const worldStations=positions.map(x=>roofWorld(f,[x,0])[axis]-min);
+   positions=withSipGableRafters(project,worldStations,max-min,width).map(station=>{
+    const point=[...f.origin];point[axis]=min+station;point[2]=roofHeight(f,point[0],point[1]);
+    return roofLocal(f,point)[0];
+   }).sort((a,b)=>a-b);
+  }
+  const faceRafters=[];
   if(positions.length>500||members.length>10000){issues.push(`${f.name}: превышен лимит деталей кровли, проверьте шаг.`);continue;}
-  for(const x of positions)for(const [a,b]of roofLineIntervals(f.polygon,x)){
+  for(const x of positions)for(const [a,b]of roofLineIntervals(f.polygon,Math.max(lo+.001,Math.min(hi-.001,x)))){
    if(b-a<width)continue;const A=roofWorld(f,[x,a]),B=roofWorld(f,[x,b]),id=`${f.id}-СТ${rafters.length+1}`,item={id,name:f.name,faceId:f.id,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(Math.hypot(...A.map((n,i)=>B[i]-n))),profile:section,normal:f.normal,...roofRafterDetail(model,A,B,section)};append(item,'Стропило',rafters);
+   faceRafters.push({x,a,b});
   }
   if(calculation.roof.includeCovering||f.group?.startsWith('terrace:')){
    const ys=f.polygon.map(p=>p[1]),v0=Math.min(...ys),v1=Math.max(...ys),step=Number(calculation.roof.lathStep||.35)*1000;
    const transposed=f.polygon.map(([x,y])=>[y,x]);
    for(const row of roofLathRows(v1-v0,step)){const y=v0+row;for(const [a,b]of roofLineIntervals(transposed,y)){
-    let from=a;while(from<b-.01){const max=Number(settings.stockLengthMm)-2*Number(settings.endAllowanceMm||0),anchors=positions.filter(x=>x>from+.01&&x<=from+max),to=b-from<=max?b:anchors.at(-1);if(to==null){issues.push(`${f.name}: нет стропила для стыка обрешётки.`);break;}
+    const supports=faceRafters.filter(r=>y>=r.a-.01&&y<=r.b+.01&&r.x>=a-.01&&r.x<=b+.01).map(r=>r.x).sort((a,b)=>a-b);
+    if(supports.length<2)continue;
+    let from=supports[0],end=supports.at(-1);while(from<end-.01){const max=Number(settings.stockLengthMm)-2*Number(settings.endAllowanceMm||0),anchors=supports.filter(x=>x>from+.01&&x<=from+max),to=end-from<=max?end:anchors.at(-1);if(to==null){issues.push(`${f.name}: нет стропила для стыка обрешётки.`);break;}
      const A=roofWorld(f,[from,y]),B=roofWorld(f,[to,y]),id=`${f.id}-ОБ${laths.length+1}`;append({id,name:f.name,faceId:f.id,normal:f.normal,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(to-from),profile:'25×100',flat:true},'Обрешётка',laths);from=to;
     }
    }}
