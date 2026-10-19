@@ -16,15 +16,15 @@ const setup = () => {
   return project;
 };
 
-test('two main purlins continue as four horizontal upper and lower terrace beams', () => {
+test('two main purlins continue as two upper terrace beams without sleepers or posts', () => {
   const project = setup();
   project.plan.platforms = [{ id: 'end', x: 10, y: 0, w: 3, h: 8, kind: 'terrace', roof: { mode: 'cold', shape: 'continuation' } }];
   const calculation = calculateProject(project);
   const report = calculateProductionCutting(project, calculation);
   const bridges = calculation.roof.layeredFrame.bridgeItems.filter(item => item.scope === 'terrace');
   assert.deepEqual(calculation.roof.layeredFrame.fractions, [1 / 3, 2 / 3]);
-  assert.equal(bridges.length, 4);
-  assert.deepEqual(bridges.map(item => item.role).sort(), ['purlin', 'purlin', 'sleeper', 'sleeper']);
+  assert.equal(bridges.length, 2);
+  assert.deepEqual(bridges.map(item => item.role), ['purlin', 'purlin']);
   assert.deepEqual([...new Set(bridges.map(item => Math.round(item.a[1])))], [2667, 5333]);
   assert.ok(bridges.every(item => item.a[0] === 10300 && item.b[0] === 13300 && item.a[2] === item.b[2]));
   for (const bridge of bridges) {
@@ -33,8 +33,8 @@ test('two main purlins continue as four horizontal upper and lower terrace beams
     assert.equal(bridge.a[1], main.a[1]);
     assert.equal(bridge.a[2], main.a[2]);
   }
-  assert.equal(report.assembly.supports.filter(item => item.scope === 'terrace').length, 4);
-  assert.equal(productionScene(report, project).beams.filter(item => item.scope === 'terrace').length, 4);
+  assert.equal(report.assembly.supports.filter(item => item.scope === 'terrace').length, 2);
+  assert.equal(productionScene(report, project).beams.filter(item => item.scope === 'terrace').length, 2);
   const terracePlates = report.assembly.roofTimbers.filter(item => item.material === 'Мауэрлат' && item.a[1] === item.b[1]);
   assert.equal(terracePlates.length, 2);
   assert.ok(terracePlates.every(item => Math.max(item.a[0], item.b[0]) === 13000));
@@ -46,11 +46,11 @@ test('two main purlins continue as four horizontal upper and lower terrace beams
   assert.ok(!report.assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package'));
   const line = calculation.lines.find(item => item.id === 'roof:layered-bridge-terrace');
   assert.equal(line.catalogId, 'MAT-250');
-  assert.equal(line.qty, 12.6);
+  assert.equal(line.qty, 6.3);
   assert.equal(line.price, 1261.5);
   const work = calculation.lines.find(item => item.id === 'roof:layered-bridge-terrace-work');
   assert.equal(work.catalogId, 'LAB-111');
-  assert.equal(work.qty, 12);
+  assert.equal(work.qty, 6);
   assert.equal(work.price, 750);
   const cargo = calculateDeliveryVolume(project, calculation).categories.find(item => item.key === 'timber').rows.find(item => item.id === line.id);
   assert.ok(Math.abs(cargo.volume - line.qty * .145 * .15) < 1e-6);
@@ -60,19 +60,20 @@ test('two main purlins continue as four horizontal upper and lower terrace beams
   assert.ok(report.assembly.issues.some(issue => issue.includes('не подтверждены расчётом')));
 });
 
-test('second light replaces unsupported purlin and sleeper spans with four package beams', () => {
+test('second light continues only upper purlins without lower beams or posts', () => {
   const project = setup();
   project.plan.rooms = [{ id: 'light', x: 2, y: 1, w: 3, h: 6, ceilingMode: 'open-rafter' }];
   const calculation = calculateProject(project);
   const report = calculateProductionCutting(project, calculation);
   const bridges = calculation.roof.layeredFrame.bridgeItems.filter(item => item.scope === 'second-light');
-  assert.equal(bridges.length, 4);
+  assert.equal(bridges.length, 2);
+  assert.ok(bridges.every(item => item.role === 'purlin'));
   assert.ok(bridges.every(item => item.a[0] === 2000 && item.b[0] === 5000));
   assert.ok(!report.assembly.supports.some(item => item.autoLayout === 'layered-frame' && item.role === 'post' && item.a[0] > 2000 && item.a[0] < 5000));
   assert.ok(!report.assembly.supports.some(item => item.autoLayout === 'layered-frame' && ['purlin', 'sleeper'].includes(item.role)
     && item.scope !== 'second-light' && item.a[0] < 5000 && item.b[0] > 2000));
-  assert.equal(calculation.lines.find(item => item.id === 'roof:layered-bridge-second-light')?.qty, 12.6);
-  assert.equal(report.assembly.supports.filter(item => item.scope === 'second-light').length, 4);
+  assert.equal(calculation.lines.find(item => item.id === 'roof:layered-bridge-second-light')?.qty, 6.3);
+  assert.equal(report.assembly.supports.filter(item => item.scope === 'second-light').length, 2);
 });
 
 test('continuation follows Y ridge axis and unrelated terraces or trusses receive no derived beams', () => {
@@ -81,7 +82,7 @@ test('continuation follows Y ridge axis and unrelated terraces or trusses receiv
   project.settings.roof.ridgeAxis = 'y';
   project.plan.platforms = [{ id: 'end', x: 0, y: 10, w: 8, h: 3, kind: 'terrace', roof: { mode: 'cold', shape: 'continuation' } }];
   let bridges = calculateProject(project).roof.layeredFrame.bridgeItems.filter(item => item.scope === 'terrace');
-  assert.equal(bridges.length, 4);
+  assert.equal(bridges.length, 2);
   assert.ok(bridges.every(item => item.a[1] === 10300 && item.b[1] === 13300 && item.a[0] === item.b[0]));
   const plates = calculateProductionCutting(project, calculateProject(project)).assembly.roofTimbers
     .filter(item => item.material === 'Мауэрлат' && item.a[0] === item.b[0]);

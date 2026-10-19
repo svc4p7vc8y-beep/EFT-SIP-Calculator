@@ -4,8 +4,6 @@ import { createDefaultProject, migrateProject } from '../src/react/state/project
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting } from '../src/react/calculations/production-cutting.js';
 import { productionScene } from '../src/react/calculations/production-scene.js';
-import { calculateDeliveryVolume } from '../src/react/calculations/delivery-volume.js';
-import { reconcileCutting } from '../src/react/calculations/cutting-reconciliation.js';
 import { gluedRidgeLayout } from '../src/react/calculations/roof-glued-ridge.js';
 import { calculateTerraceRoof, resolveTerracePlatform } from '../src/calculations/terrace-model.js';
 
@@ -57,17 +55,14 @@ test('terrace outer tie uses post section and adds one material line', () => {
   assert.ok(productionScene(report(project), project).beams.some(item => item.id === 'platform:t:tie:1'));
 });
 
-test('layered terrace ridge uses one priced three-board package and a visible beam', () => {
+test('unrelated terrace gable has no unsupported package ridge', () => {
   const project = createDefaultProject();
   Object.assign(project.settings.roof, { structureMode: 'manual', rafterSystem: 'layered' });
   project.plan.platforms = [{ id: 't', x: 1, y: project.plan.house.h, w: 4, h: 2, kind: 'terrace', roof: { mode: 'cold', shape: 'gable' } }];
   const calculation = calculateProject(project), assembly = report(project).assembly;
-  assert.equal(calculation.lines.find(line => line.id === 'roof:platform-t-glued-ridge')?.catalogId, 'MAT-250');
+  assert.ok(!calculation.lines.some(line => line.id === 'roof:platform-t-glued-ridge'));
   assert.ok(!calculation.lines.some(line => line.id === 'roof:platform-t-layered-ridge-boards'));
-  assert.ok(assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package' && item.group === 'terrace:t'));
-  const cargo = calculateDeliveryVolume(project, calculation).categories.find(category => category.key === 'timber').rows.find(line => line.id === 'roof:platform-t-glued-ridge');
-  assert.ok(Math.abs(cargo.volume - cargo.qty * .145 * .15) < 1e-6);
-  assert.ok(reconcileCutting(report(project), calculation).some(row => row.key === 'Клеёный пакет:145×150' && row.matched));
+  assert.ok(!assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package' && item.group === 'terrace:t'));
 });
 
 test('layered second light uses main purlin axes without an extra ridge package', () => {
@@ -95,14 +90,13 @@ test('layered continuation follows the purlins and omits a duplicate ridge packa
   assert.ok(!report(project).assembly.roofTimbers.some(item => item.roofMemberKind === 'ridge-package' && item.group === 'terrace:end'));
 });
 
-test('hanging roof keeps a single ridge package over an open room and terrace', () => {
+test('hanging roof without support frame has no package ridge', () => {
   const project = createDefaultProject();
   Object.assign(project.settings.roof, { structureMode: 'manual', rafterSystem: 'hanging' });
   project.plan.rooms = [{ id: 'light', x: 2, y: 4, w: 3, h: 5, ceilingMode: 'open-rafter' }];
   project.plan.platforms = [{ id: 'end', x: project.plan.house.w, y: 2, w: 3, h: 8, kind: 'terrace', roof: { mode: 'cold', shape: 'continuation' } }];
   const calculation = calculateProject(project), assembly = report(project).assembly;
   assert.equal(calculation.roof.layeredFrame.bridgeItems?.length || 0, 0);
-  assert.equal(calculation.lines.find(line => line.id === 'roof:second-light-glued-ridge')?.catalogId, 'MAT-250');
-  assert.equal(calculation.lines.find(line => line.id === 'roof:platform-end-glued-ridge')?.catalogId, 'MAT-250');
-  assert.equal(assembly.roofTimbers.filter(item => item.roofMemberKind === 'ridge-package').length, 2);
+  assert.ok(!calculation.lines.some(line => ['roof:second-light-glued-ridge', 'roof:platform-end-glued-ridge'].includes(line.id)));
+  assert.equal(assembly.roofTimbers.filter(item => item.roofMemberKind === 'ridge-package').length, 0);
 });

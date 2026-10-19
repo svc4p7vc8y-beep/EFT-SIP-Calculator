@@ -1403,11 +1403,9 @@ function roofSection(project, metrics, index, inputs) {
     ? { x: 0, y: 0, width: houseLength * 1000, height: span * 1000 }
     : { x: 0, y: 0, width: span * 1000, height: houseLength * 1000 },
   roofAxes.ridgeAxis, Number(project.settings.productionCutting?.stockLengthMm) || 6000);
-  const gluedRidge = gluedRidgeLayout(project, !replaceRidge && ['layered', 'hanging'].includes(rafterStructure.system)
-    && mainColdSlopeArea > 0 && mainRoofShape === 'gable', terraceRoofs, {
-    omitMain: layeredFrame.items.length > 0,
-    omitTerraceIds: new Set((layeredFrame.bridgeItems || []).filter(item => item.scope === 'terrace').map(item => item.platformId)),
-  });
+  // Package ridge is not inferred from hanging rafters. A framed layered axis
+  // is already represented by its purlin or continuation beam.
+  const gluedRidge = gluedRidgeLayout(project, false, terraceRoofs);
   const ridgeBeamPurchaseLength =
     replaceRidge?0:(ridgeBeamLength - gluedRidge.mainLength) * inputs.formulas.ridgeBeamReserve;
   // Two specified 50×100 ridge rows for a layered scheme are budgeted separately.
@@ -1609,8 +1607,8 @@ function roofSection(project, metrics, index, inputs) {
       const gluedTerraceLength = gluedRidge.terraces.find(item => item.id === platform.id)?.length || 0;
       const ridgeBeamPurchaseLength =
         Math.max(0, result.ridgeLength - gluedTerraceLength) * inputs.formulas.ridgeBeamReserve;
-      const layeredTerraceRidgeLength =
-        rafterStructure.system === "layered" && coldSlope > 0 ? Math.max(0, result.ridgeLength - gluedTerraceLength) : 0;
+      // A terrace without a continuation of a bearing frame has no ridge purlin.
+      const layeredTerraceRidgeLength = 0;
       const layeredTerraceRidgePurchaseLength =
         layeredTerraceRidgeLength * inputs.formulas.ridgeBeamReserve;
       const layeredTerraceRidgeBoardCount = layeredTerraceRidgePurchaseLength
@@ -2274,7 +2272,7 @@ function roofSection(project, metrics, index, inputs) {
     ...[['second-light', 'вторым светом'], ['terrace', 'террасой']].flatMap(([scope, label]) => [
       makeLine(index, 'roof', 'Пакет клеёных досок 3×50×150 мм (145×150 мм)', layeredBridgeLength(scope) * inputs.formulas.ridgeBeamReserve, {
         key: `layered-bridge-${scope}`, unit: 'м.п.', digits: 2,
-        name: `Пакет клеёных досок 3×50×150 мм (145×150 мм) · балки по осям прогонов и лежней над ${label}`,
+        name: `Пакет клеёных досок 3×50×150 мм (145×150 мм) · балки по осям верхних прогонов над ${label}`,
       }),
       makeLine(index, 'roof', 'Монтаж конькового прогона', layeredBridgeLength(scope), {
         key: `layered-bridge-${scope}-work`, kind: 'labor',

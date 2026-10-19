@@ -65,12 +65,12 @@ export function layeredFrameLayout(project, calculation, bounds, axis, stockLeng
   const terraces = (roof.terraceRoofs || []).filter(({ result }) => result.mode === 'cold' && result.shape === 'continuation'
     && (axis === 'x' ? ['left', 'right'].includes(result.side) : ['top', 'bottom'].includes(result.side)));
   const gableOverhang = Math.max(0, Number(settings.gableOverhang) || 0) * 1000;
-  const bridge = (group, role, scope, platformId, start, end, across, z) => {
+  const bridge = (group, scope, platformId, start, end, across, z) => {
     if (end - start < 1) return;
-    const ordinal = bridgeItems.filter(item => item.group === group && item.role === role && item.scope === scope).length + 1;
+    const ordinal = bridgeItems.filter(item => item.group === group && item.scope === scope).length + 1;
     const a = [...xy(start, across), z], b = [...xy(end, across), z];
-    bridgeItems.push({ id: `КР-НФ${group}-ПБ-${scope === 'terrace' ? `Т${platformId}` : 'С'}-${role}-${ordinal}`,
-      role, group, scope, platformId, name: `${scope === 'terrace' ? 'Терраса' : 'Второй свет'} · пакетная ${role === 'purlin' ? 'верхняя балка' : 'нижняя балка'} ${group}`,
+    bridgeItems.push({ id: `КР-НФ${group}-ПБ-${scope === 'terrace' ? `Т${platformId}` : 'С'}-purlin-${ordinal}`,
+      role: 'purlin', group, scope, platformId, name: `${scope === 'terrace' ? 'Терраса' : 'Второй свет'} · пакетная балка под стропилами ${group}`,
       profile: '145×150', flat: true, a, b, length: Math.ceil(end - start),
       structuralStatus: 'unverified', autoLayout: LAYERED_FRAME_SOURCE });
   };
@@ -113,8 +113,7 @@ export function layeredFrameLayout(project, calculation, bounds, axis, stockLeng
     for (const [i, along] of stations.entries()) if (!openings.some(([a, b]) => along > a + 1 && along < b - 1))
       add('post', i + 1, [...xy(along, across), postBottom], [...xy(along, across), postTop], '50×150', 150, `Стойка ${group}.${i + 1}`);
     for (const [start, end] of openings) {
-      bridge(group, 'purlin', 'second-light', '', start, end, across, purlinZ);
-      bridge(group, 'sleeper', 'second-light', '', start, end, across, sleeperZ);
+      bridge(group, 'second-light', '', start, end, across, purlinZ);
     }
     for (const { platform, result } of terraces) {
       const frame = platformRoofFrame(platform, project.plan.house, settings.rafterStep, settings);
@@ -126,12 +125,11 @@ export function layeredFrameLayout(project, calculation, bounds, axis, stockLeng
       const outer = ((axis === 'x' ? result.side === 'left' ? frame.bounds.x1 : frame.bounds.x2
         : result.side === 'top' ? frame.bounds.y1 : frame.bounds.y2) * 1000) - (axis === 'x' ? bounds.x : bounds.y);
       const start = Math.min(edge, outer), end = Math.max(edge, outer);
-      bridge(group, 'purlin', 'terrace', platform.id, start, end, across, purlinZ);
-      bridge(group, 'sleeper', 'terrace', platform.id, start, end, across, sleeperZ);
+      bridge(group, 'terrace', platform.id, start, end, across, purlinZ);
     }
   }
   if (items.length) issues.push('Наслонные опорные рамы: положение прогонов принято по ширине здания; несущие стены, опирание лежней, стойки, узлы и сечения не проверены расчётом.');
-  if (bridgeItems.length) issues.push('Пакетные балки над террасой и вторым светом повторяют оси верхних прогонов и лежней основной кровли. Их пролёты, опирание на стены/стойки, клеевое соединение и несущая способность не подтверждены расчётом.');
+  if (bridgeItems.length) issues.push('Пакетные балки над террасой и вторым светом продолжают только верхние прогоны основной кровли. Лежней и стоек под ними нет; пролёты, опирание на стены/стойки, клеевое соединение и несущая способность не подтверждены расчётом.');
   return { items, bridgeItems, issues, fractions, reserve, stockLengthMm: stock, endAllowanceMm: allowance };
 }
 

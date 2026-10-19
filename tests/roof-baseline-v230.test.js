@@ -41,8 +41,6 @@ for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   // v241 prices the four end-bearing extensions and the terrace outer tie.
   const endPairAndPlateDelta=scenario.shape==='gable'&&scenario.type!=='sip'?6776.4:0;
   const terraceTieDelta=scenario.terrace?1584:0;
-  // v244: a hanging terrace receives the three-board ridge package requested for this system.
-  const hangingTerraceRidgeDelta=scenario.terrace?3589.83:0;
-  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta+endPairAndPlateDelta+terraceTieDelta+hangingTerraceRidgeDelta)*100)/100);
+  assert.equal(Math.round(calculation.totals.total*100)/100,Math.round((scenario.cost+rigelCost+lathDelta+fastenerDelta+endPairAndPlateDelta+terraceTieDelta)*100)/100);
   assert.equal(calculation.lines.find(line=>line.id==='roof:hanging-rigels')?.qty||0,rigelCost?.315:0);
 });

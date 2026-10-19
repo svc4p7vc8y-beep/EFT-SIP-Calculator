@@ -47,7 +47,7 @@ test('hip layered roof remains finite and warm roof has no cold timber ridge row
   assert.ok(!warm.lines.some(line => line.id === 'roof:layered-ridge-boards'));
 });
 
-test('cold gable terrace uses a glued ridge package in layered and hanging schemes', () => {
+test('cold gable terrace without an aligned support frame has no package ridge', () => {
   const project = createDefaultProject();
   project.settings.roof.structureMode = 'manual';
   project.settings.roof.rafterSystem = 'layered';
@@ -56,15 +56,12 @@ test('cold gable terrace uses a glued ridge package in layered and hanging schem
   const prefix = 'roof:platform-test-terrace-glued-ridge';
   const boards = layered.lines.find(line => line.id === prefix);
   const work = layered.lines.find(line => line.id === `${prefix}-work`);
-  assert.ok(boards?.qty > 0);
-  assert.ok(work?.qty > 0);
-  assert.equal(boards.catalogId, 'MAT-250');
-  assert.equal(work.catalogId, 'LAB-111');
+  assert.equal(boards, undefined);
+  assert.equal(work, undefined);
   assert.ok(!layered.lines.some(line => line.id === 'roof:platform-test-terrace-layered-ridge-boards'));
   project.settings.roof.rafterSystem = 'hanging';
   const hanging = calculateProject(project);
-  assert.equal(hanging.lines.find(line => line.id === prefix)?.catalogId, 'MAT-250');
-  assert.equal(hanging.lines.find(line => line.id === `${prefix}-work`)?.catalogId, 'LAB-111');
+  assert.ok(!hanging.lines.some(line => line.id === prefix || line.id === `${prefix}-work`));
 });
 
 test('PDF title uses project parameters and strips filename-unsafe characters', () => {

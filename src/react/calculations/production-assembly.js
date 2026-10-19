@@ -29,9 +29,9 @@ export function gableFrameMembers(surface,settings) {
   const ring=surface.geometry[0]?.[0]||[],members=[];
   const add=(a,b,name)=>{const length=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1]));if(length<1)return;
     members.push({id:`${surface.id}-К${members.length+1}`,a,b,material:name,profile:settings.gableFrameProfile,
-      length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Каркас фронтона',surface:surface.name,surfaceId:surface.id,panels:[],role:'frame',processing:'Углы торцов и узлы по проекту'});};
+      length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:name==='Стойка фронтона под прогоном'?'Совмещено с прогоном; опирание и несущая способность по проекту':'Каркас фронтона',surface:surface.name,surfaceId:surface.id,panels:[],role:'frame',processing:'Углы торцов и узлы по проекту'});};
   for(let i=0;i<ring.length-1;i++)add(ring[i],ring[i+1],'Обвязка фронтона');
-  const anchors=[...new Set(ring.map(p=>p[0]))].sort((a,b)=>a-b),positions=new Set(anchors);
+  const anchors=[...new Set(ring.map(p=>p[0]))].sort((a,b)=>a-b),positions=new Set([...anchors,...(surface.gableSupportColumns||[])]);
   for(let i=0;i<anchors.length-1;i++){const count=Math.ceil((anchors[i+1]-anchors[i])/settings.frameStepMm);for(let j=1;j<count;j++)positions.add(anchors[i]+(anchors[i+1]-anchors[i])*j/count);}
   for(const x of [...positions].sort((a,b)=>a-b)){
     if(ring.some((a,i)=>i<ring.length-1&&Math.abs(a[0]-x)<.01&&Math.abs(ring[i+1][0]-x)<.01))continue;
@@ -39,7 +39,7 @@ export function gableFrameMembers(surface,settings) {
     for(let i=0;i<ring.length-1;i++){const a=ring[i],b=ring[i+1];if(Math.abs(a[0]-b[0])>.001 && x>=Math.min(a[0],b[0])-.001&&x<=Math.max(a[0],b[0])+.001)levels.push({y:a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0]),slope:(b[1]-a[1])/(b[0]-a[0])});}
     if(levels.length){levels.sort((a,b)=>a.y-b.y);const boardThickness=Number(settings.gableFrameProfile.split('×')[0]),top=levels.at(-1);
       const a=[x,levels[0].y+boardThickness],b=[x,top.y-boardThickness*Math.hypot(1,top.slope)];
-      if(b[1]>a[1])add(a,b,'Стойка фронтона');}
+      if(b[1]>a[1])add(a,b,(surface.gableSupportColumns||[]).some(position=>Math.abs(position-x)<1)?'Стойка фронтона под прогоном':'Стойка фронтона');}
   }
   return members;
 }
@@ -101,11 +101,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       Object.assign(roofTimbers.at(-1),{name:'Мауэрлат',flat:true,normal:[0,0,1],worldA:[...a,elevation.topZ+plate.heightMm/2],worldB:[...b,elevation.topZ+plate.heightMm/2],plateTopZ:elevation.topZ+plate.heightMm});
     });
   }
-  const gluedRidge=gluedRidgeLayout(project,project.services.roof&&roof.mainRoofShape==='gable'
-    && ['layered','hanging'].includes(frame.system)&&roof.coldSlopeArea>0,calculation.roof.terraceRoofs,{
-    omitMain: roof.layeredFrame?.items > 0,
-    omitTerraceIds: new Set((roof.layeredFrame?.bridgeItems||[]).filter(item=>item.scope==='terrace').map(item=>item.platformId)),
-  });
+  const gluedRidge=gluedRidgeLayout(project,false,calculation.roof.terraceRoofs);
   if(project.services.roof && roof.layeredRidgeLength>0 && (roof.mainRoofShape!=='gable'||!rectangular))for(let i=1;i<=2;i++)addRoofMember(`КР-КН${i}`,'Коньковая доска · ряд','100×50',mm(roof.layeredRidgeLength));
   else if(project.services.roof && roof.layeredRidgeLength>0){
     const cuts=roof.mainRoofShape==='gable'&&rectangular?gluedRidge.main.map(([a,b])=>[mm(a),mm(b)]):[];

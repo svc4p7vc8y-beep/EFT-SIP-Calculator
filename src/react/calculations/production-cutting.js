@@ -26,6 +26,7 @@ import {completeSipOpeningBoards} from './sip-opening-frame.js';
 import {sipOpeningInserts} from './sip-opening-inserts.js';
 import { stockJointPieces } from './member-stock-joints.js';
 import { roofFrameSource,FRAME_LAYOUT } from './roof-support-frame.js';
+import { LAYERED_FRAME_SOURCE } from './layered-frame.js';
 import { createMarkAllocator, sourceIdentity } from '../state/production-identities.js';
 import { constructionSource } from './construction-sources.js';
 import { productionLevels } from './production-levels.js';
@@ -37,6 +38,34 @@ const round = value => Math.round(value * 1000) / 1000;
 const rect = (x, y, w, h) => [[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]];
 const polygon = points => [points.map(p => [mm(p.x), mm(p.y)])];
 const presentNumber = value => value !== '' && value != null && Number.isFinite(Number(value));
+const cross2 = (a, b) => a[0] * b[1] - a[1] * b[0];
+function roofSupportWallPositions(surface, supports) {
+  const a = surface.planStart, b = surface.planEnd;
+  const wall = [b[0] - a[0], b[1] - a[1]], length = Math.hypot(...wall);
+  if (length < 1) return [];
+  const positions = [];
+  for (const support of supports) {
+    const start = support.a || [support.x1, support.y1];
+    const end = support.b || [support.x2, support.y2];
+    if (![...start.slice(0, 2), ...end.slice(0, 2)].every(presentNumber)) continue;
+    const line = [Number(end[0]) - Number(start[0]), Number(end[1]) - Number(start[1])];
+    const relative = [Number(start[0]) - a[0], Number(start[1]) - a[1]];
+    const denominator = cross2(wall, line);
+    if (Math.abs(denominator) > 1) {
+      const along = cross2(relative, line) / denominator;
+      const onSupport = cross2(relative, wall) / denominator;
+      if (along > 1 / length && along < 1 - 1 / length && onSupport >= -.001 && onSupport <= 1.001)
+        positions.push(Math.round(along * length));
+    }
+    for (const point of [start, end]) {
+      const offset = [Number(point[0]) - a[0], Number(point[1]) - a[1]];
+      const along = (offset[0] * wall[0] + offset[1] * wall[1]) / length;
+      if (along > 1 && along < length - 1 && Math.abs(cross2(wall, offset)) / length <= surface.thickness + 15)
+        positions.push(Math.round(along));
+    }
+  }
+  return [...new Set(positions)].sort((x, y) => x - y);
+}
 export const MIN_PANEL_WIDTH_MM = 250;
 const narrowPanelError = label => Object.assign(new Error(`${label}: деталь уже ${MIN_PANEL_WIDTH_MM} мм; измените шаг, сетку или положение проёма.`), { code:'MIN_PANEL_WIDTH' });
 function balancedCells(start, end, maximum, minimum = MIN_PANEL_WIDTH_MM) {
@@ -749,20 +778,28 @@ export function calculateProductionCutting(project, calculation) {
     surface.partitionSeams=[...new Set(positions)].sort((a,b)=>a-b);
     if(surface.partitionSeams.length&&(['originX','originY','step'].some(k=>presentNumber(surface.layout[k]))||settings.wallPanelMode!=='full'))issue('PARTITION_SIP_ALIGNMENT',`${surface.name}: ручная сетка сохранена; примыкания перегородок требуют проверки соединителей.`,surface.id);
   }
-  if(settings.roofSupportSipAlignment)for(const surface of surfaces.filter(s=>s.exterior&&s.planStart)){
-    const [a,b]=[surface.planStart,surface.planEnd],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),positions=[];
-    for(const support of assembly.supports.filter(s=>!s.referenceOnly&&['purlin','beam','post'].includes(s.type)))for(const p of [[support.x1,support.y1],[support.x2,support.y2]]){
-      if(!p.every(n=>n!==''&&n!=null&&Number.isFinite(Number(n))))continue;
-      const x=Number(p[0])-a[0],y=Number(p[1])-a[1],along=(x*dx+y*dy)/(L||1),distance=Math.abs(dx*y-dy*x)/(L||1);
-      if(along>1&&along<L-1&&distance<=surface.thickness+1)positions.push(Math.round(along));
-    }
-    surface.requiredRoofSupportSeams=[...new Set(positions)].sort((a,b)=>a-b);
+  const wallBearingSupports=assembly.supports.filter(s=>!s.referenceOnly &&
+    (s.autoLayout===LAYERED_FRAME_SOURCE && s.role==='purlin' ||
+      settings.roofSupportSipAlignment && ['purlin','beam','post'].includes(s.type)));
+  if(wallBearingSupports.length)for(const surface of surfaces.filter(s=>s.exterior&&s.planStart)){
+    surface.requiredRoofSupportSeams=roofSupportWallPositions(surface,wallBearingSupports);
     const manualGrid=['originX','originY','step'].some(k=>presentNumber(surface.layout[k]))||surface.layout.direction&&surface.layout.direction!=='auto'||settings.wallPanelMode!=='full';
-    surface.roofSupportSeams=manualGrid?[]:surface.requiredRoofSupportSeams;
+    surface.roofSupportSeams=manualGrid?[]:surface.requiredRoofSupportSeams.filter(x=>
+      !(surface.openings||[]).some(o=>x>o.x+.01&&x<o.x+o.width-.01));
     if(surface.requiredRoofSupportSeams.some(x=>(surface.openings||[]).some(o=>x>o.x+.01&&x<o.x+o.width-.01)))issue('ROOF_WALL_ALIGNMENT',`${surface.name}: опора кровли попадает в проём. Нужен рабочий узел передачи нагрузки; проём не перемещён.`,surface.id);
     if(surface.requiredRoofSupportSeams.length&&manualGrid)issue('ROOF_WALL_ALIGNMENT',`${surface.name}: ручная сетка сохранена; совместите соединители под опорами кровли.`,surface.id);
+    if(surface.roofSupportSeams.length)issue('ROOF_WALL_SUPPORT_CHECK',`${surface.name}: шов SIP и соединительный брус совмещены с прогоном. Сечение, стык по высоте и путь нагрузки до фундамента требуют проверки конструктора.`,surface.id);
   }
   for (const surface of surfaces) {
+    if(surface.id.startsWith('ФР-')){
+      const saved=settings.gableLinks?.[surface.layoutKey];
+      const wall=saved?.wallKey?surfaces.find(s=>s.layoutKey===saved.wallKey):surfaces.find(s=>s.id===surface.parentWallId);
+      const box=polygonBounds(surface.geometry.flat());
+      const offset=Number(saved?.offset)||0;
+      surface.gableSupportColumns=(wall?.roofSupportSeams||[]).map(x=>saved?.reverse
+        ? box.x+box.width-(x-offset-box.x) : x-offset);
+      surface.roofSupportSeams=surface.gableSupportColumns;
+    }
     if(surface.id.startsWith('ФР-')&&!surface.frameOnly){
       const saved=settings.gableLinks?.[surface.layoutKey],wall=saved?surfaces.find(s=>s.layoutKey===saved.wallKey):surfaces.find(s=>s.id===surface.parentWallId);
       const wallParts=wall?parts.filter(p=>p.surfaceId===wall.id):[],box=polygonBounds(surface.geometry.flat());
@@ -847,9 +884,11 @@ export function calculateProductionCutting(project, calculation) {
           ? Math.abs(rawSegment.a[0]-a[0])<1&&Math.abs(rawSegment.b[0]-a[0])<1
           : Math.abs(rawSegment.a[1]-a[1])<1&&Math.abs(rawSegment.b[1]-a[1])<1;
       });
+      const roofBearingSeam=!!rawSegment.seam && (surface.roofSupportSeams||[]).some(x=>
+        Math.abs(rawSegment.a[0]-x)<1 && Math.abs(rawSegment.b[0]-x)<1);
       // SIP profiles are core depth × face width, unlike partition studs.
       // Carry both dimensions explicitly to the shared 2D/3D drawing adapters.
-      members.push({ ...segment, id, key, faceWidth:Number(selectedProfile.split(/[×xх]/)[1]),normalDepthMm:Number(selectedProfile.split(/[×xх]/)[0]), excluded: override.exclude === true || replacedByJamb, replacedByJamb, floorPartitionSeam, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: replacedByJamb ? 'Заменено полной стойкой проёма' : floorPartitionSeam ? 'Продольный шов SIP-пола под перегородкой · соединительная лага по проекту' : segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
+      members.push({ ...segment, id, key, faceWidth:Number(selectedProfile.split(/[×xх]/)[1]),normalDepthMm:Number(selectedProfile.split(/[×xх]/)[0]), excluded: override.exclude === true || replacedByJamb, replacedByJamb, floorPartitionSeam, roofBearingSeam, nodeRef: override.nodeRef || '', processing: override.processing || '', geometricLength: segment.length, length, surface: surface.name, surfaceId: surface.id, material: segment.seam ? ({ thermal: 'Термобрус', 'board-pack': 'Клеёный пакет', solid: 'Брус' }[sip.connectorType] || 'Соединительная шпонка') : 'Торцевая / обрамляющая доска', profile: selectedProfile, estimateProfile, cutLength: length + 2 * Number(settings.endAllowanceMm || 0), source: replacedByJamb ? 'Заменено полной стойкой проёма' : roofBearingSeam ? 'Соединительный брус SIP-стены под прогоном · несущая способность по проекту' : floorPartitionSeam ? 'Продольный шов SIP-пола под перегородкой · соединительная лага по проекту' : segment.seam ? 'Шов панелей' : 'Открытая кромка / проём' });
     });
     for (const [jambIndex,jamb] of jambs.entries()) {
       const id=`${surface.id}-С${jambIndex+1}-${jamb.side}-${round(jamb.x)}`;
