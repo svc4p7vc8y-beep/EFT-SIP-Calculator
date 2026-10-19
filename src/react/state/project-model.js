@@ -25,6 +25,7 @@ import { normalizeFloorOpenings } from '../planner/floor-openings.js';
 import { normalizeDocumentation } from './project-documentation.js';
 import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered-roof.js';
 import { normalizeResidentialStandards } from './residential-standards.js';
+import { normalizeEstimateFiles } from './estimate-files.js';
 
 export const REACT_PROJECT_VERSION = 231;
 // Keep the established storage namespace so upgrading the application does not
@@ -522,6 +523,7 @@ export function createDefaultProject() {
     plan,
     upperFloors: [],
     estimateImages: [],
+    estimateFiles: [],
     construction: {
       floorPanels: [],
       wallPanels: [],
@@ -1001,6 +1003,7 @@ export function migrateProject(raw) {
     plan,
     upperFloors,
     estimateImages: normalizeEstimateImages(raw.estimateImages),
+    estimateFiles: normalizeEstimateFiles(raw.estimateFiles),
     construction: Object.fromEntries(
       Object.keys(base.construction).map((key) => [
         key,

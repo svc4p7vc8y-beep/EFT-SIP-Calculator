@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { AlertTriangle, FileSpreadsheet, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus, Box, FolderOpen, FileText } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
@@ -13,7 +13,12 @@ import { ProposalOverview } from '../components/ProposalOverview.jsx';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { addEstimateGroup, addEstimateLine, changeEstimateLine, removeEmptyEstimateGroup, removeEstimateLine, renameEstimateGroup, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
 import { MAX_ESTIMATE_IMAGES, MAX_ESTIMATE_IMAGE_DATA, prepareEstimateImage } from '../state/estimate-images.js';
+import { MAX_ESTIMATE_FILES, estimateFileUrl, normalizeEstimateFiles } from '../state/estimate-files.js';
 import { useCurrentPriceAction } from '../cloud/useCurrentPriceAction.js';
+import { resolveEftApiUrl } from '../../shared/team-api.js';
+
+const EstimateFilePicker = lazy(() => import('../components/EstimateFilePicker.jsx'));
+const Estimate3DViewDialog = lazy(() => import('../components/Estimate3DViewDialog.jsx'));
 
 function EstimateSectionEditor({ section, project, commit }) {
   const hiddenCount = (project.estimateOverrides || []).filter((item) => item.section === section.key && item.excluded).length;
@@ -48,10 +53,11 @@ export default function EstimateScreen() {
   const fileInput = useRef(null);
   const [imageError, setImageError] = useState('');
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const estimateImages = project.estimateImages || [];
-  const addImages = async (event) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
+  const estimateFiles = project.estimateFiles || [];
+  const appendImages = async (files, caption = '') => {
     if (!files.length) return;
     setImageError('');
     setUploadingImages(true);
@@ -61,6 +67,7 @@ export default function EstimateScreen() {
       let total = estimateImages.reduce((sum, image) => sum + image.data.length, 0);
       for (const file of files) {
         const image = await prepareEstimateImage(file);
+        if (caption) image.caption = caption.slice(0, 160);
         total += image.data.length;
         if (total > MAX_ESTIMATE_IMAGE_DATA) throw new Error('Общий размер изображений для сметы превышает 2,8 МБ. Удалите часть изображений или выберите другие.');
         added.push(image);
@@ -68,10 +75,29 @@ export default function EstimateScreen() {
       commit((next) => { next.estimateImages = [...(next.estimateImages || []), ...added]; return next; });
     } catch (error) {
       setImageError(error.message);
+      throw error;
     } finally {
       setUploadingImages(false);
     }
   };
+  const addImages = (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    appendImages(files).catch(() => {});
+  };
+  const addInternalFile = async (file) => {
+    if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mime_type)) {
+      const url = estimateFileUrl({ source: file.source, sourceId: file.id, name: file.original_name }, resolveEftApiUrl());
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error(`Не удалось открыть ${file.original_name} (${response.status}).`);
+      await appendImages([new File([await response.blob()], file.original_name, { type: file.mime_type })]);
+      return;
+    }
+    if (estimateFiles.length >= MAX_ESTIMATE_FILES) throw new Error(`В смете может быть не более ${MAX_ESTIMATE_FILES} ссылок на документы.`);
+    if (estimateFiles.some(item => item.source === file.source && item.sourceId === file.id)) return;
+    commit(next => { next.estimateFiles = normalizeEstimateFiles([...(next.estimateFiles || []), { id: crypto.randomUUID(), source: file.source, sourceId: file.id, name: file.original_name, mime: file.mime_type }]); return next; });
+  };
+  const removeFile = id => commit(next => { next.estimateFiles = (next.estimateFiles || []).filter(file => file.id !== id); return next; });
   const updateImage = (id, changes) => commit((next) => { next.estimateImages = (next.estimateImages || []).map(image => image.id === id ? { ...image, ...changes } : image); return next; });
   const removeImage = (id) => commit((next) => { next.estimateImages = (next.estimateImages || []).filter(image => image.id !== id); return next; });
   const moveImage = (index, direction) => commit((next) => { const images = [...(next.estimateImages || [])]; const target = index + direction; if (target < 0 || target >= images.length) return next; [images[index], images[target]] = [images[target], images[index]]; next.estimateImages = images; return next; });
@@ -149,10 +175,11 @@ export default function EstimateScreen() {
       <ProposalOverview scope={commercialScope} options={printOptions} />
       <PrintProjectDiagrams project={project} calculation={calculation} />
       <section className={`estimate-images${estimateImages.length ? '' : ' no-print'}`} aria-label="Изображения проекта в смете">
-        <header className="no-print"><div><h2>Свои изображения в смете</h2><p>Планы, эскизы и фотографии сохраняются вместе с проектом и печатаются в PDF.</p></div><button type="button" className="button secondary" disabled={uploadingImages || estimateImages.length >= MAX_ESTIMATE_IMAGES} onClick={() => fileInput.current?.click()}><ImagePlus />{uploadingImages ? 'Обработка…' : 'Добавить изображения'}</button><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addImages} /></header>
+        <header className="no-print"><div><h2>Изображения и 3D-виды в смете</h2><p>Изображения сохраняются с проектом и печатаются в PDF.</p></div><div className="estimate-image-source-actions"><button type="button" className="button secondary" disabled={uploadingImages || estimateImages.length >= MAX_ESTIMATE_IMAGES} onClick={() => fileInput.current?.click()}><ImagePlus />С компьютера</button><button type="button" className="button secondary" disabled={uploadingImages} onClick={() => setFilePickerOpen(true)}><FolderOpen />Из внутренних файлов</button><button type="button" className="button secondary" disabled={uploadingImages || estimateImages.length >= MAX_ESTIMATE_IMAGES} onClick={() => setViewDialogOpen(true)}><Box />Создать 3D-вид</button><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addImages} /></div></header>
         {imageError ? <p className="estimate-image-error no-print" role="alert">{imageError}</p> : null}
         {estimateImages.length ? <div className="estimate-images-grid">{estimateImages.map((image, index) => <figure key={image.id}><img src={image.data} alt={image.caption || `Изображение проекта ${index + 1}`} /><figcaption><span className="print-only">{image.caption || `Изображение ${index + 1}`}</span><input className="no-print" aria-label={`Подпись изображения ${index + 1}`} value={image.caption} maxLength={160} placeholder="Подпись к изображению" onChange={(event) => updateImage(image.id, { caption: event.target.value })} /></figcaption><div className="estimate-image-actions no-print"><button type="button" aria-label={`Переместить изображение ${index + 1} влево`} disabled={index === 0} onClick={() => moveImage(index, -1)}><ArrowLeft /></button><button type="button" aria-label={`Переместить изображение ${index + 1} вправо`} disabled={index === estimateImages.length - 1} onClick={() => moveImage(index, 1)}><ArrowRight /></button><button type="button" aria-label={`Удалить изображение ${index + 1}`} onClick={() => removeImage(image.id)}><Trash2 /></button></div></figure>)}</div> : <p className="estimate-images-empty no-print">Пока без дополнительных изображений.</p>}
       </section>
+      {estimateFiles.length ? <section className="estimate-file-references" aria-label="Внутренние документы проекта"><h2>Внутренние документы · доступ сотрудникам</h2><p>Документы хранятся на сервере. Для открытия ссылки нужен вход во внутренние файлы.</p><ul>{estimateFiles.map(file => <li key={file.id}><FileText size={16} /><a href={estimateFileUrl(file, resolveEftApiUrl())} target="_blank" rel="noreferrer">{file.name}</a><button type="button" className="icon-button no-print" aria-label={`Удалить файл ${file.name}`} onClick={() => removeFile(file.id)}><Trash2 size={16} /></button></li>)}</ul></section> : null}
       <section className="commercial-scope" aria-labelledby="commercial-scope-title">
         <header><div><span>Комплектация проекта</span><h2 id="commercial-scope-title">Что посчитано и входит в предложение</h2></div><p>Перечень сформирован из активных разделов текущей сметы</p></header>
         <div className="commercial-scope-grid">{commercialScope.map((item, index) => <article key={item.key} data-scope={item.key} className={`commercial-scope-item${item.blocks?.length ? ' has-scope-blocks' : ''}`}><div className="commercial-scope-heading"><h3>{printOptions.superCompact ? `${String(index + 1).padStart(2, '0')} · ` : ''}{item.title}</h3><strong>{item.total}</strong></div><p>{item.summary}</p><small>{item.details}</small>{item.blocks?.length ? <dl className="proposal-assemblies">{item.blocks.map((block, blockIndex) => <div key={`${block.title}-${blockIndex}`}><dt>{block.title}</dt><dd>{block.paragraphs ? block.paragraphs.map((text, i) => <p key={i}>{text}</p>) : block.text}</dd></div>)}</dl> : null}{printOptions.superCompact ? <p className="scope-expanded">{item.expanded}</p> : null}<div className="commercial-scope-tags">{item.coverage.map((label) => <span key={label}>{label}</span>)}</div></article>)}</div>
@@ -164,5 +191,7 @@ export default function EstimateScreen() {
       </> : null}
       <footer className="estimate-footer"><p>Расчёт сформирован в калькуляторе ЭФТ. Итоговая стоимость уточняется после проверки проекта специалистом.</p><strong>Итого: {formatMoney(clientEstimate.totals.total)}</strong></footer>
     </section>
+    {filePickerOpen ? <Suspense fallback={<p role="status">Загружаю файлы…</p>}><EstimateFilePicker onClose={() => setFilePickerOpen(false)} onSelect={addInternalFile} selectedFiles={estimateFiles} /></Suspense> : null}
+    {viewDialogOpen ? <Suspense fallback={<p role="status">Загружаю 3D…</p>}><Estimate3DViewDialog project={project} calculation={calculation} onClose={() => setViewDialogOpen(false)} onCreate={(file, caption) => appendImages([file], caption)} /></Suspense> : null}
   </div>;
 }

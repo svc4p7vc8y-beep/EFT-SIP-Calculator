@@ -30,7 +30,7 @@ function beamGeometry(item,width,depth,length){
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
  geometry.setIndex([0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,3,0,4,3,4,7]);geometry.computeVertexNormals();return geometry;
 }
-export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,pan=false,initialZoom=1,showRoofStructureByDefault=false,showBearingPoints=false}) {
+export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,captureRef,pan=false,initialZoom=1,showRoofStructureByDefault=false,showBearingPoints=false}) {
   const host=useRef(null),api=useRef(null),selection=useRef(selected),callback=useRef(onSelect),view=useRef(null);
   const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(()=>['ceiling','platformRoof',...roofCoverLayers]);
   const [display,setDisplay]=useState('solid');
@@ -71,9 +71,14 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
     let canvasWidth=0,canvasHeight=0;
     const resize=()=>{if(el.closest('.plan-3d-preview.is-resizing'))return;const nextWidth=el.clientWidth,nextHeight=el.clientHeight;if(nextWidth<1||nextHeight<1||(nextWidth===canvasWidth&&nextHeight===canvasHeight))return;canvasWidth=nextWidth;canvasHeight=nextHeight;renderer.setSize(nextWidth,nextHeight,false);camera.aspect=nextWidth/nextHeight;camera.updateProjectionMatrix();if(!view.current)reset();};
     const observer=new ResizeObserver(resize);observer.observe(el);el.addEventListener('eft-3d-resize-end',resize);resize();
-    api.current={meshes,reset,controls,camera};if(controlsRef)controlsRef.current={reset,zoom:factor=>{camera.position.sub(controls.target).multiplyScalar(factor).add(controls.target);controls.update();}};let frame;const animate=()=>{frame=requestAnimationFrame(animate);if(el.clientWidth<1||el.clientHeight<1)return;controls.update();view.current={position:camera.position.clone(),target:controls.target.clone()};for(const mesh of meshes)mesh.material.color.set(selection.current.includes(mesh.userData.id)?'#17734b':mesh.userData.color);renderer.render(scene,camera);};animate();
-    return()=>{cancelAnimationFrame(frame);observer.disconnect();el.removeEventListener('eft-3d-resize-end',resize);controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',pick);scene.traverse(n=>{n.geometry?.dispose();if(n.material)(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();api.current=null;};
-  },[data,foundation,controlsRef,initialZoom]);
+    api.current={meshes,reset,controls,camera};if(controlsRef)controlsRef.current={reset,zoom:factor=>{camera.position.sub(controls.target).multiplyScalar(factor).add(controls.target);controls.update();}};
+    if(captureRef)captureRef.current={
+      setView:angle=>{const positions={iso:[1,.85,1],front:[0,.55,1],back:[0,.55,-1],left:[-1,.55,0],right:[1,.55,0],top:[0,1,.001]};const direction=positions[angle]||positions.iso;const distance=span*initialZoom/Math.max(.05,Math.min(1,camera.aspect));camera.position.copy(center).add(new THREE.Vector3(...direction).normalize().multiplyScalar(distance*1.7));controls.target.copy(center);controls.update();},
+      capture:()=>{controls.update();renderer.render(scene,camera);return renderer.domElement.toDataURL('image/png');},
+    };
+    let frame;const animate=()=>{frame=requestAnimationFrame(animate);if(el.clientWidth<1||el.clientHeight<1)return;controls.update();view.current={position:camera.position.clone(),target:controls.target.clone()};for(const mesh of meshes)mesh.material.color.set(selection.current.includes(mesh.userData.id)?'#17734b':mesh.userData.color);renderer.render(scene,camera);};animate();
+    return()=>{cancelAnimationFrame(frame);observer.disconnect();el.removeEventListener('eft-3d-resize-end',resize);controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',pick);scene.traverse(n=>{n.geometry?.dispose();if(n.material)(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose());});renderer.dispose();renderer.domElement.remove();api.current=null;if(captureRef)captureRef.current=null;};
+  },[data,foundation,controlsRef,captureRef,initialZoom]);
   useEffect(()=>{for(const m of api.current?.meshes||[]){m.visible=!hidden.includes(m.userData.layer)&&!(display==='frame'&&m.userData.panel)&&(!m.userData.bearing||bearingsVisible);if(m.userData.panel){m.material.transparent=m.userData.referencePlane||display==='transparent';m.material.opacity=m.userData.referencePlane?0:display==='transparent'?.28:1;m.material.depthWrite=!m.userData.referencePlane&&display!=='transparent';m.material.needsUpdate=true;}}},[hidden,display,data,bearingsVisible]);
   useEffect(()=>{if(api.current){api.current.controls.mouseButtons.LEFT=THREE.MOUSE.ROTATE;api.current.controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;api.current.controls.mouseButtons.RIGHT=THREE.MOUSE.PAN;}},[data]);
   return <section className={`production-3d ${large?'is-large':''}`} aria-label="Интерактивный 3D домокомплекта">

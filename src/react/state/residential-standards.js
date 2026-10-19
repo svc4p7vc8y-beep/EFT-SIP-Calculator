@@ -7,6 +7,12 @@ export const RESIDENTIAL_SERVICE_KEYS = [
   'engineeringVentilation', 'engineeringHeating', 'internalFinish', 'externalFinish',
 ];
 
+// Project-specific prices, manual cutting edits, print layout and link overrides
+// are deliberately outside a reusable house configuration.
+export const RESIDENTIAL_SETTING_KEYS = [
+  'piles', 'sip', 'roof', 'nodeFasteners', 'engineering', 'internal', 'external', 'delivery',
+];
+
 const positive = (value, fallback, min, max) => {
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max ? number : fallback;
@@ -29,6 +35,7 @@ export function captureResidentialStandard(project, name = 'Жилой дом') 
     },
     services: Object.fromEntries(RESIDENTIAL_SERVICE_KEYS.map((key) => [key, project.services[key] === true])),
     construction: Object.fromEntries(['sip', 'roof', 'piles'].map((key) => [key, clone(project.settings[key] || {})])),
+    settings: Object.fromEntries(RESIDENTIAL_SETTING_KEYS.map((key) => [key, clone(project.settings[key] || {})])),
   };
 }
 
@@ -55,6 +62,11 @@ export function normalizeResidentialStandards(raw, project) {
       },
       services: Object.fromEntries(RESIDENTIAL_SERVICE_KEYS.map((key) => [key, item?.services?.[key] === true])),
       construction: Object.fromEntries(['sip', 'roof', 'piles'].map((key) => [key, item?.construction?.[key] && typeof item.construction[key] === 'object' && !Array.isArray(item.construction[key]) ? clone(item.construction[key]) : clone(fallback.construction[key])])),
+      ...(item?.settings && typeof item.settings === 'object' && !Array.isArray(item.settings)
+        ? { settings: Object.fromEntries(RESIDENTIAL_SETTING_KEYS.flatMap((key) =>
+          item.settings[key] && typeof item.settings[key] === 'object' && !Array.isArray(item.settings[key])
+            ? [[key, clone(item.settings[key])]] : [])) }
+        : {}),
     };
   });
   return { profiles, activeId: profiles.some((item) => item.id === raw?.activeId) ? raw.activeId : profiles[0].id };

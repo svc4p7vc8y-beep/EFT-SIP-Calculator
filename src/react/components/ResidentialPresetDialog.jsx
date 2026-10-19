@@ -35,6 +35,10 @@ export default function ResidentialPresetDialog({ mode = 'existing', project, on
     setSelectedId(source.id);
     setSaved(false);
   };
+  const refreshProfile = () => {
+    const snapshot = captureResidentialStandard(project, selected.name);
+    change({ ...snapshot, id: selected.id, name: selected.name });
+  };
   const removeProfile = () => {
     if (library.profiles.length < 2) return;
     const profiles = library.profiles.filter((item) => item.id !== selectedId);
@@ -51,15 +55,17 @@ export default function ResidentialPresetDialog({ mode = 'existing', project, on
 
   return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
     <section className="modal residential-preset-modal" role="dialog" aria-modal="true" aria-labelledby="residential-preset-title" onMouseDown={(event) => event.stopPropagation()}>
-      <header><div><h2 id="residential-preset-title">{creating ? 'Создание нового проекта' : 'Стандарты жилого дома'}</h2><p>Сохраняйте несколько конфигураций, выбирайте и переименовывайте их.</p></div><button className="icon-button" onClick={onClose} aria-label="Закрыть"><X /></button></header>
+      <header><div><h2 id="residential-preset-title">{creating ? 'Создание нового проекта' : 'Сохранённые параметры жилого дома'}</h2><p>Каждый стандарт хранит настройки дома из проекта. Профили можно создавать, обновлять и переименовывать.</p></div><button className="icon-button" onClick={onClose} aria-label="Закрыть"><X /></button></header>
       <div className="residential-profile-toolbar">
         <label>Конфигурация<select aria-label="Конфигурация жилого дома" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{library.profiles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <button className="button secondary" onClick={() => addProfile(true)} disabled={library.profiles.length >= 30} title="Сохранить параметры текущего проекта как новый стандарт"><Plus size={15} /> Из проекта</button>
+        <button className="button secondary" onClick={() => addProfile(true)} disabled={library.profiles.length >= 30} title="Создать стандарт из параметров текущего проекта"><Plus size={15} /> Новый из проекта</button>
+        <button className="button secondary" onClick={refreshProfile} title="Обновить выбранный стандарт параметрами текущего проекта">Обновить из проекта</button>
         <button className="icon-button" onClick={() => addProfile(false)} disabled={library.profiles.length >= 30} aria-label="Создать копию стандарта" title="Создать копию"><Copy size={16} /></button>
         <button className="icon-button" onClick={removeProfile} disabled={library.profiles.length < 2} aria-label="Удалить стандарт" title="Удалить стандарт"><Trash2 size={16} /></button>
       </div>
       <div className="residential-profile-fields">
         <label className="residential-profile-name">Название<input aria-label="Название стандарта" value={selected.name} maxLength={80} onChange={(event) => change({ name: event.target.value })} /></label>
+        <div className="residential-profile-snapshot"><strong>Сохранённые настройки параметров</strong><span>{selected.settings ? 'Фундамент · SIP · кровля · крепёж · инженерия · отделка · доставка' : 'Фундамент · SIP · кровля (старый формат стандарта)'}</span><small>Чтобы обновить значения выбранного стандарта, нажмите «Обновить из проекта» и сохраните его.</small></div>
         <fieldset><legend>Габариты и этажность</legend><div className="residential-profile-grid">
           {[["length", "Длина, м", 3, 100, 0.1], ["width", "Ширина, м", 3, 100, 0.1], ["wallHeight", "Высота стен, м", 1.8, 8, 0.05], ["floors", "Этажей", 1, 2, 1]].map(([key, label, min, max, step]) => <label key={key}>{label}<input type="number" min={min} max={max} step={step} value={selected.dimensions[key]} onChange={(event) => updateNumber('dimensions', key, event.target.value)} /></label>)}
         </div></fieldset>
@@ -69,7 +75,7 @@ export default function ResidentialPresetDialog({ mode = 'existing', project, on
         <fieldset><legend>Состав конструкций и работ</legend><div className="residential-profile-services">{RESIDENTIAL_SERVICE_KEYS.map((key) => <label key={key}><input type="checkbox" checked={selected.services[key]} onChange={(event) => change({ services: { ...selected.services, [key]: event.target.checked } })} />{SERVICE_LABELS[key]}</label>)}</div></fieldset>
       </div>
       {!creating ? <label className="residential-profile-geometry"><input type="checkbox" checked={applyGeometry} onChange={(event) => setApplyGeometry(event.target.checked)} /> Применить габариты, высоту и этажность к плану</label> : null}
-      <p className="residential-profile-hint">Профиль также хранит параметры SIP, кровли и фундамента, взятые из проекта при создании. При изменении габаритов план и проёмы масштабируются вместе с домом.</p>
+      <p className="residential-profile-hint">Сохраняются параметры фундамента, SIP, кровли, крепежа, инженерии, отделки и доставки, а также состав разделов. Цены, ручной раскрой и настройки печати остаются в проекте. Габариты и этажность меняются только при включённом флажке выше.</p>
       <footer>{creating ? <button className="button secondary" onClick={onManual}>Без стандарта</button> : <><button className="button secondary" onClick={save}>{saved ? 'Сохранено' : 'Сохранить стандарты'}</button><button className="button secondary" onClick={onClose}>Закрыть</button></>}<button className="button primary" onClick={apply}>{creating ? 'Создать по стандарту' : 'Применить выбранный'}</button></footer>
     </section>
   </div>;

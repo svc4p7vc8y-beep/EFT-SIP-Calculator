@@ -3758,6 +3758,9 @@ select,
 .print-diagrams .floor-sheet svg { max-height: 550px; }
 .estimate-images { margin: 16px 0 20px; }
 .estimate-images > header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.estimate-image-source-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.estimate-image-source-actions .button { min-height: 36px; }
+.estimate-image-source-actions .button svg { width: 16px; height: 16px; }
 .estimate-images h2 { margin: 0; font-size: 16px; }
 .estimate-images header p, .estimate-images-empty { margin: 3px 0; color: var(--muted); font-size: 12px; }
 .estimate-image-error { color: #9b342b; font-size: 12px; }
@@ -3770,6 +3773,29 @@ select,
 .estimate-image-actions button { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); cursor: pointer; }
 .estimate-image-actions button svg { width: 15px; height: 15px; }
 .estimate-image-actions button:disabled { opacity: .4; cursor: default; }
+.estimate-file-references { margin: 16px 0 20px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; break-inside: avoid; }
+.estimate-file-references h2 { margin: 0 0 4px; font-size: 16px; }
+.estimate-file-references p { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
+.estimate-file-references ul { list-style: none; margin: 0; padding: 0; }
+.estimate-file-references li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 0; }
+.estimate-file-references li a { overflow-wrap: anywhere; }
+.estimate-file-references li .icon-button { margin-left: auto; }
+.modal.estimate-file-picker, .modal.estimate-3d-dialog { width: min(900px, 100%); max-height: 94dvh; }
+.estimate-file-picker > input[type='search'] { width: 100%; min-width: 0; margin: 10px 0; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+.estimate-file-picker-list { display: grid; gap: 5px; max-height: 50dvh; overflow-y: auto; }
+.estimate-file-picker-list > button { display: flex; align-items: center; gap: 9px; min-width: 0; text-align: left; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.estimate-file-picker-list > button:hover { background: var(--surface); }
+.estimate-file-picker-list > button:disabled { opacity: .55; cursor: default; }
+.estimate-file-picker-list > button svg { width: 17px; height: 17px; flex: none; }
+.estimate-file-picker-list > button span { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.estimate-file-picker-list > button small { color: var(--muted); }
+.estimate-file-picker-list > button strong { margin-left: auto; white-space: nowrap; font-size: 11px; }
+.estimate-3d-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 9px; margin-bottom: 10px; }
+.estimate-3d-controls label { display: grid; gap: 4px; min-width: 0; font-size: 11px; font-weight: 700; }
+.estimate-3d-controls input, .estimate-3d-controls select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+.estimate-3d-dialog .production-3d.is-large .production-3d-canvas { height: min(42dvh, 420px); }
+.estimate-3d-dialog .production-3d > small { display: none; }
+@media (max-width: 700px) { .estimate-3d-controls { grid-template-columns: 1fr; } .estimate-3d-dialog .production-3d.is-large .production-3d-canvas { height: 32dvh; } .estimate-image-source-actions { width: 100%; } .estimate-image-source-actions .button { flex: 1 1 135px; } }
 .team-user-edit-dialog { display: grid; gap:12px; width: min(480px, calc(100vw - 24px)); max-height: 90vh; overflow-y: auto; }
 .team-user-edit-dialog label:not(.team-user-active) { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
 .team-user-edit-dialog label > input:not([type="checkbox"]), .team-user-edit-dialog select { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); color: var(--text); }
@@ -5187,6 +5213,8 @@ select,
 .residential-profile-toolbar select, .residential-profile-fields input:not([type='checkbox']) { min-width: 0; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
 .residential-profile-toolbar .button { min-height: 36px; }
 .residential-profile-fields { display: grid; gap: 12px; min-height: 0; overflow: auto; padding: 2px; }
+.residential-profile-snapshot { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); font-size: 11px; }
+.residential-profile-snapshot span { font-weight: 600; }
 .residential-profile-fields fieldset { min-width: 0; margin: 0; padding: 11px; border: 1px solid var(--line); border-radius: 10px; }
 .residential-profile-fields legend { padding: 0 5px; font-size: 12px; font-weight: 750; }
 .residential-profile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }

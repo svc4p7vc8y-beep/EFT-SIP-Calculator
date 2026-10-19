@@ -51,3 +51,29 @@ test('migration creates a named standard from an older project without changing 
   assert.equal(restored.plan.house.w, 11);
   assert.equal(restored.settings.residentialStandards.profiles[0].dimensions.length, 11);
 });
+
+test('residential standard restores saved house settings without prices or project-specific cutting', () => {
+  const project = createDefaultProject();
+  project.settings.engineering.electric = { custom: 14 };
+  project.settings.delivery.distance = 73;
+  project.settings.external.facadeArea = 180;
+  const profile = captureResidentialStandard(project, 'Дом с отделкой');
+  const standards = normalizeResidentialStandards({ profiles: [profile], activeId: profile.id }, project);
+  const print = structuredClone(project.settings.print);
+  const priceMat = structuredClone(project.priceMat);
+  const cutting = structuredClone(project.settings.productionCutting);
+  project.settings.engineering.electric = { custom: 2 };
+  project.settings.delivery.distance = 10;
+  project.settings.delivery.perKm = 91;
+  project.settings.roof.snowGuards.materialPrice = 543;
+  project.settings.external.facadeArea = 90;
+  applyResidentialStandard(project, profile, standards);
+  assert.deepEqual(project.settings.engineering.electric, { custom: 14 });
+  assert.equal(project.settings.delivery.distance, 73);
+  assert.equal(project.settings.delivery.perKm, 91);
+  assert.equal(project.settings.roof.snowGuards.materialPrice, 543);
+  assert.equal(project.settings.external.facadeArea, 180);
+  assert.deepEqual(project.settings.print, print);
+  assert.deepEqual(project.settings.productionCutting, cutting);
+  assert.deepEqual(project.priceMat, priceMat);
+});

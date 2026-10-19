@@ -106,8 +106,17 @@ export function applyResidentialPreset(project) {
 import { ensureProjectFloorCount } from './project-model.js';
 import { resizeProjectHouse } from '../planner/geometry.js';
 import { releasePlanLinkedQuantityOverrides } from './estimate-edits.js';
-import { normalizeResidentialStandards, RESIDENTIAL_SERVICE_KEYS } from './residential-standards.js';
+import { normalizeResidentialStandards, RESIDENTIAL_SERVICE_KEYS, RESIDENTIAL_SETTING_KEYS } from './residential-standards.js';
 
+const monetarySetting = /price|cost|tariff|rate|baseTrip|perKm|unloadingPerM3/i;
+function retainProjectPrices(saved, current) {
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved) || !current || typeof current !== 'object' || Array.isArray(current)) return saved;
+  for (const [key, value] of Object.entries(current)) {
+    if (monetarySetting.test(key)) saved[key] = structuredClone(value);
+    else if (key in saved) retainProjectPrices(saved[key], value);
+  }
+  return saved;
+}
 
 export function applyResidentialStandard(project, profile, library, { applyGeometry = false } = {}) {
   const standards = normalizeResidentialStandards(library || project.settings.residentialStandards, project);
@@ -121,7 +130,10 @@ export function applyResidentialStandard(project, profile, library, { applyGeome
     ensureProjectFloorCount(project, dimensions.floors);
   }
   for (const key of RESIDENTIAL_SERVICE_KEYS) project.services[key] = services[key];
-  for (const key of ['sip', 'roof', 'piles']) project.settings[key] = structuredClone(construction[key]);
+  for (const key of RESIDENTIAL_SETTING_KEYS) {
+    const value = selected.settings?.[key] || construction[key];
+    if (value) project.settings[key] = retainProjectPrices(structuredClone(value), project.settings[key]);
+  }
   const thickness = Number(project.settings.sip.wallThickness);
   if (Number.isFinite(thickness) && thickness > 0) {
     project.plan.wallThickness = thickness / 1000;
