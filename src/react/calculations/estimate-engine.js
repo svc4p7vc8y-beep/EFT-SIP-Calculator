@@ -42,6 +42,8 @@ import { hangingRiegelEnabled, hangingRiegelRatio, RIEGEL_PROFILE } from './hang
 import { layeredFrameLayout, layeredFramePurchases } from './layered-frame.js';
 import { platformDeckFrame, PLATFORM_FRAME_BOARD_WIDTH_MM, PLATFORM_FRAME_BOARD_DEPTH_MM, PLATFORM_FRAME_RESERVE, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
 import { withSipGableRafters } from './gable-rafter-stations.js';
+import { contourRoofOutline, contourRoofStrip, contourProjectedArea, facetedRoofArea } from './contour-roof-geometry.js';
+import { lRoofFrame } from '../planner/l-roof-frame.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -1085,7 +1087,7 @@ function roofSection(project, metrics, index, inputs) {
   const hasStructuralFlatGables = flatSlopeMode === "structural" && flatSlopePercent > 0;
   const eaveOverhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
-  const geometry = mainRoofShape === 'tiered' ? calculateTieredRoofGeometry({
+  let geometry = mainRoofShape === 'tiered' ? calculateTieredRoofGeometry({
     span, ridgeLength: inputs.roof.ridgeLength, eaveOverhang, gableOverhang,
     tiered: roof.tiered,
   }) : roofGeometry({
@@ -1099,6 +1101,50 @@ function roofSection(project, metrics, index, inputs) {
     slopePercent: flatSlopePercent,
     includeSlopeGables: hasStructuralFlatGables,
   });
+  if (['flat', 'tiered', 'gable', 'hip'].includes(mainRoofShape)) {
+    const topPlan = metrics.floorPlans?.at(-1)?.plan || project.plan;
+    const contour = houseContourPoints(topPlan).map(point => [Number(point.x) * 1000, Number(point.y) * 1000]);
+    const xs = contour.map(point => point[0]), ys = contour.map(point => point[1]);
+    const isRectangle = contour.length === 4 && contour.every((point, index) => {
+      const next = contour[(index + 1) % 4];
+      return point[0] === next[0] || point[1] === next[1];
+    });
+    if (!isRectangle && ['gable', 'hip'].includes(mainRoofShape) && !eaveOverhang && !gableOverhang && project.settings.productionCutting?.roofDesign?.hipGeometry?.mode !== 'contour') {
+      const frame = lRoofFrame(contour.map(([x, y]) => ({ x: x / 1000, y: y / 1000 })), mainRoofShape);
+      if (frame) {
+        const area = round(facetedRoofArea(frame, Number(roof.ridgeHeight) || 0), 2);
+        const projected = contourProjectedArea([contour]);
+        geometry = { ...geometry, slopeArea: round(area / 2, 2), totalSlopeArea: area,
+          slopeCoefficient: round(area / (projected || 1), 3) };
+      }
+    }
+    if (!isRectangle && ['flat', 'tiered'].includes(mainRoofShape)) {
+      try {
+        const outline = contourRoofOutline(contour, roofAxes.ridgeAxis, eaveOverhang * 1000, gableOverhang * 1000);
+        const projected = contourProjectedArea([outline]);
+        if (mainRoofShape === 'flat') {
+          const area = round(projected * Math.hypot(1, flatSlopePercent / 100), 2);
+          geometry = { ...geometry, slopeArea: area, totalSlopeArea: area };
+        } else {
+          const crossValues = roofAxes.ridgeAxis === 'x' ? ys : xs;
+          const crossMin = Math.min(...crossValues), crossMax = Math.max(...crossValues);
+          const upperSideSecond = roof.tiered?.upperSide === 'second';
+          const joint = upperSideSecond ? crossMax - geometry.upperSpan * 1000 : crossMin + geometry.upperSpan * 1000;
+          const stripAxis = roofAxes.ridgeAxis === 'x' ? 'y' : 'x';
+          const upper = contourRoofStrip(outline, stripAxis,
+            upperSideSecond ? joint - geometry.jointOverhang * 1000 : crossMin - eaveOverhang * 1000,
+            upperSideSecond ? crossMax + eaveOverhang * 1000 : joint + geometry.jointOverhang * 1000);
+          const lower = contourRoofStrip(outline, stripAxis,
+            upperSideSecond ? crossMin - eaveOverhang * 1000 : joint,
+            upperSideSecond ? joint : crossMax + eaveOverhang * 1000);
+          const upperArea = round(contourProjectedArea(upper) * Math.hypot(1, geometry.upperRise / (geometry.upperSpan || 1)), 2);
+          const lowerArea = round(contourProjectedArea(lower) * Math.hypot(1, geometry.lowerRise / (geometry.lowerSpan || 1)), 2);
+          geometry = { ...geometry, upperArea, lowerArea, slopeArea: round((upperArea + lowerArea) / 2, 2),
+            totalSlopeArea: round(upperArea + lowerArea, 2), slopeCoefficient: round((upperArea + lowerArea) / (projected || 1), 3) };
+        }
+      } catch { /* roofProject reports invalid contours; keep the last estimable quantities visible. */ }
+    }
+  }
   const mainArea = geometry.totalSlopeArea;
   const mainWarmPercent =
     roof.type === "sip" ? 100 : roof.type === "combo" ? roof.warmPercent : 0;

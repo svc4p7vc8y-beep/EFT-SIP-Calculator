@@ -214,14 +214,16 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
   const automaticColdHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
   const automaticSipHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='sip'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
+  const automaticColdContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
+  const automaticSipContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&project.settings.roof.type==='sip'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
   const warmPlatform=assembly.roofModel.faces.some(face=>face.group?.startsWith('terrace:')&&face.warm);
-  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticColdHip;
+  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticColdHip||automaticColdContour||automaticSipContour;
   assembly.usesPlatformRoofPlanes=warmPlatform;
-  if((plainSipGable||automaticSipHip)&&!settings.roofDesign.enabled){
+  if((plainSipGable||automaticSipHip||automaticSipContour)&&!settings.roofDesign.enabled){
     assembly.roofDrawing.model=assembly.roofModel;
     const outline=assembly.roofModel.projection[0]?.[0];if(outline)assembly.roofOutline=outline.slice(0,-1);
   }
-  if(settings.roofDesign?.enabled||automaticColdHip){
+  if(settings.roofDesign?.enabled||automaticColdHip||automaticColdContour){
     const fresh=roofFabrication(assembly.roofModel,project,calculation,settings);
     assembly.members=members.filter(m=>m.surface!=='Кровля').concat(fresh.members);
     Object.assign(assembly,{rafters:fresh.rafters,laths:fresh.laths,counterLaths:fresh.counterLaths,roofTimbers:fresh.roofTimbers});

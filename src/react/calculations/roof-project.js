@@ -6,6 +6,7 @@ import {resolveTerracePlatform} from '../../calculations/terrace-model.js';
 import clipping from 'polygon-clipping';
 import {hipRoofFromContour} from './hip-roof-geometry.js';
 import { roofBaseElevation } from './roof-wall-plate.js';
+import { contourRoofOutline, contourRoofStrip } from './contour-roof-geometry.js';
 
 export const roofDot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
 const sub=(a,b)=>a.map((x,i)=>x-b[i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>a.map(x=>x/Math.hypot(...a));
@@ -56,19 +57,28 @@ export function roofProject(project,calculation,assembly){
   const slope=h/(span/2||1),z=-e*slope;
   add('КР-С1','Первый скат',[at(-t,-e,z),at(L+t,-e,z),at(L+t,span/2,h),at(-t,span/2,h)]);
   add('КР-С2','Второй скат',[at(L+t,span+e,z),at(-t,span+e,z),at(-t,span/2,h),at(L+t,span/2,h)]);
- }else if(rectangle&&shape==='flat'){
-  const a=at(-t,-e,0),c=at(L+t,span+e,0),structural=calculation.roof.flatSlopeMode==='structural',tapered=calculation.roof.flatSlopeMode==='tapered',slope=Number(settings.flatSlopePercent||0)/100;
+ }else if(shape==='flat'){
+  const structural=calculation.roof.flatSlopeMode==='structural',tapered=calculation.roof.flatSlopeMode==='tapered',slope=Number(settings.flatSlopePercent||0)/100;
   const negative=['back','right'].includes(calculation.roof.flatSlopeDirection),z=y=>structural||tapered?(negative?span-y:y)*slope:0;
-  add('КР-С1','Односкатная поверхность',[at(-t,-e,z(-e)),at(L+t,-e,z(-e)),at(L+t,span+e,z(span+e)),at(-t,span+e,z(span+e))],{structureHorizontal:tapered});
+  try{
+   const outline=rectangle?[at(-t,-e,0),at(L+t,-e,0),at(L+t,span+e,0),at(-t,span+e,0)].map(p=>p.slice(0,2)):
+     contourRoofOutline(contour,assembly.axis,e,t);
+   add('КР-С1','Односкатная поверхность',outline.map(([x,y])=>[x,y,roofBase+z(axis===0?y-b.y:x-b.x)]),{structureHorizontal:tapered});
+  }catch(error){issue('ROOF_CONTOUR',error.message,'main');}
   if(tapered)issue('ROOF_TAPER','Разуклонка: несущая поверхность горизонтальна; задайте материал, толщины и водоприёмники.');
   if(!structural&&!tapered)issue('ROOF_DRAIN','Старый режим без уклона: водоотвод не подтверждён.');
- }else if(rectangle&&shape==='tiered'){
+ }else if(shape==='tiered'){
   const q=settings.tiered||{},U=Number(g.upperSpan)*1000,lo=Number(g.lowerSpan)*1000,J=Number(g.jointOverhang||0)*1000;
   const lowerJoint=q.lowerSlopeDirection==='towardJunction'?0:Number(g.lowerRise)*1000,upperJoint=lowerJoint+Number(g.stepHeight)*1000;
+  try{
+  const outline=rectangle?null:contourRoofOutline(contour,assembly.axis,e,t);
   for(const [id,name,start,end,rise,run,joint,negative] of [['КР-В','Верхний уровень',-e,U+J,g.upperRise,U,upperJoint,q.upperSlopeDirection!=='awayJunction'],['КР-Н','Нижний уровень',U,span+e,g.lowerRise,lo,lowerJoint,q.lowerSlopeDirection!=='towardJunction']]){
    const z=x=>joint+(x-U)*(negative?-1:1)*Number(rise)*1000/(run||1),pos=x=>q.upperSide==='second'?span-x:x;
-   add(id,name,[at(-t,pos(start),z(start)),at(L+t,pos(start),z(start)),at(L+t,pos(end),z(end)),at(-t,pos(end),z(end))],{warm:settings.type==='sip'||settings.type==='combo'&&((q.warmLevel||'upper')==='both'||(id==='КР-В'?'upper':'lower')===(q.warmLevel||'upper')),junction:true});
+   const polygons=outline?contourRoofStrip(outline,axis===0?'y':'x',(axis===0?b.y:b.x)+Math.min(pos(start),pos(end)),(axis===0?b.y:b.x)+Math.max(pos(start),pos(end))):null;
+   const rings=polygons||[[at(-t,pos(start),0),at(L+t,pos(start),0),at(L+t,pos(end),0),at(-t,pos(end),0)].map(p=>p.slice(0,2))];
+   rings.forEach((ring,index)=>add(rings.length===1?id:`${id}-${index+1}`,name,ring.map(([x,y])=>{const across=(axis===0?y-b.y:x-b.x),original=q.upperSide==='second'?span-across:across;return [x,y,roofBase+z(original)];}),{warm:settings.type==='sip'||settings.type==='combo'&&((q.warmLevel||'upper')==='both'||(id==='КР-В'?'upper':'lower')===(q.warmLevel||'upper')),junction:true}));
   }
+  }catch(error){issue('ROOF_CONTOUR',error.message,'main');}
   issue('ROOF_JUNCTION','Перепад уровней: узел водозащиты и передачи нагрузки требует подтверждения.');
  }else if(shape==='hip'&&design.hipGeometry?.mode==='contour'){
   try{
