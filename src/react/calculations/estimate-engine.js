@@ -38,6 +38,7 @@ import { calculateSnowGuards } from './snow-guards.js';
 import { productionEstimateLines } from './production-estimate.js';
 import { calculateTieredRoofGeometry, normalizeTieredRoof, resolveTieredGables } from './tiered-roof.js';
 import { mauerlatProfile, mauerlatWallRuns, mauerlatRunLength } from './roof-wall-plate.js';
+import { isAxisAlignedRectangleContour } from './roof-contour.js';
 import { hangingRiegelEnabled, hangingRiegelRatio, RIEGEL_PROFILE } from './hanging-riegel.js';
 import { layeredFrameLayout, layeredFramePurchases } from './layered-frame.js';
 import { platformDeckFrame, PLATFORM_FRAME_BOARD_WIDTH_MM, PLATFORM_FRAME_BOARD_DEPTH_MM, PLATFORM_FRAME_RESERVE, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
@@ -1105,10 +1106,7 @@ function roofSection(project, metrics, index, inputs) {
     const topPlan = metrics.floorPlans?.at(-1)?.plan || project.plan;
     const contour = houseContourPoints(topPlan).map(point => [Number(point.x) * 1000, Number(point.y) * 1000]);
     const xs = contour.map(point => point[0]), ys = contour.map(point => point[1]);
-    const isRectangle = contour.length === 4 && contour.every((point, index) => {
-      const next = contour[(index + 1) % 4];
-      return point[0] === next[0] || point[1] === next[1];
-    });
+    const isRectangle = isAxisAlignedRectangleContour(contour);
     if (!isRectangle && ['gable', 'hip'].includes(mainRoofShape) && !eaveOverhang && !gableOverhang && project.settings.productionCutting?.roofDesign?.hipGeometry?.mode !== 'contour') {
       const frame = lRoofFrame(contour.map(([x, y]) => ({ x: x / 1000, y: y / 1000 })), mainRoofShape);
       if (frame) {
@@ -3248,10 +3246,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   const topFloor = metrics.floorPlans.at(-1);
   if (topFloor.plan.floorType === 'attic' && !hasHorizontalCeiling(topFloor.plan)) {
     const contour = houseContourPoints(topFloor.plan);
-    const rectangular = contour.length === 4 && contour.every((a, i) => {
-      const b = contour[(i + 1) % contour.length];
-      return Math.abs(a.x - b.x) < .0001 || Math.abs(a.y - b.y) < .0001;
-    });
+    const rectangular = isAxisAlignedRectangleContour(contour);
     const simple = ['gable', 'flat'].includes(roof.mainRoofShape) && rectangular;
     metrics.atticRoofFinishArea = simple && project.services.roof
       ? round(topFloor.metrics.floorArea * roof.geometry.slopeCoefficient, 3) : null;

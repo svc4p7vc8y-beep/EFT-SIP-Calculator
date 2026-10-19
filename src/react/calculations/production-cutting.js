@@ -817,7 +817,12 @@ export function calculateProductionCutting(project, calculation) {
       if (error.code !== 'MIN_PANEL_WIDTH') throw error;
       surface.blocked = true;
       surface.panelLayoutIncomplete = true;
-      issue(error.code, error.message, surface.id);
+      const seamConflict=(surface.roofSupportSeams||[]).flatMap(seam=>(surface.openings||[]).flatMap(opening=>{
+        const edges=[opening.x,opening.x+opening.width],distance=Math.min(...edges.map(edge=>Math.abs(seam-edge)));
+        return distance>0&&distance<MIN_PANEL_WIDTH_MM?[{seam,opening,distance}]:[];
+      })).sort((a,b)=>a.distance-b.distance)[0];
+      const detail=seamConflict?` Шов под прогоном на ${seamConflict.seam} мм расположен в ${Math.round(seamConflict.distance)} мм от края проёма ${seamConflict.opening.name}; требуется изменить положение шва, проёма или согласовать отдельный узел.`:'';
+      issue(error.code,`${error.message}${detail}`,surface.id);
     }
   }
   const manualIds = new Set();

@@ -1,6 +1,7 @@
 import { houseContourPoints } from '../planner/geometry.js';
 import { productionLevels } from './production-levels.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
+import { isAxisAlignedRectangleContour } from './roof-contour.js';
 
 export const MAUERLAT_PROFILES = {
   '100x150': { profile: '100×150', heightMm: 100, widthMm: 150, catalogName: 'Брус ест.влажн. сосна 100×150 мм' },
@@ -73,10 +74,7 @@ export function mauerlatWallRuns(project, roof, axis = 'x', terraceRoofs = []) {
     : all;
   const along = axis === 'x' ? 0 : 1, across = 1 - along;
   const endOverhang = roof.shape === 'gable' && roof.type !== 'sip' && !(roof.structureMode === 'manual' && roof.rafterSystem === 'truss') ? Math.max(0, Number(roof.gableOverhang) || 0) * 1000 : 0;
-  const rectangle = contour.length === 4 && contour.every((a, i) => {
-    const b = contour[(i + 1) % contour.length];
-    return a[0] === b[0] || a[1] === b[1];
-  });
+  const rectangle = isAxisAlignedRectangleContour(contour);
   const hasContinuation = terraceRoofs.some(({ result }) => result.mode === 'cold' && result.shape === 'continuation'
     && (axis === 'x' ? ['left', 'right'].includes(result.side) : ['top', 'bottom'].includes(result.side)));
   if (!rectangle || !runs.length || (!endOverhang && !hasContinuation)) return { runs, issue: '' };

@@ -5,6 +5,7 @@ import {facetSupportProposal,roofSupportOpeningAt} from './roof-facet-supports.j
 import {houseContourPoints} from '../planner/geometry.js';
 import {roofTrussTemplate} from './roof-truss-template.js';
 import {roofGeometrySignature} from './roof-detailing.js';
+import {isAxisAlignedRectangleContour} from './roof-contour.js';
 
 import { AUTO_ROOF_LAYOUT,normalizeAutoRoofSupports } from '../state/auto-roof-supports.js';
 export { AUTO_ROOF_LAYOUT,ROOF_SUPPORT_VARIANTS,normalizeAutoRoofSupports } from '../state/auto-roof-supports.js';
@@ -27,7 +28,7 @@ export function generateRoofSupportLayout(project,report,value) {
   const fail=message=>({items:[],errors:[message],warnings,counts:{purlins:0,posts:0}});
   if(!project.services.roof)return fail('Кровля отключена в параметрах проекта.');
   const floor=a.floors.at(-1),ring=floor?.contour||[];
-  const rectangular=ring.length===4&&new Set(ring.map(p=>p.join(','))).size===4&&ring.every((p,i)=>{const q=ring[(i+1)%4];return p.every(Number.isFinite)&&(p[0]===q[0]||p[1]===q[1]);});
+  const rectangular=isAxisAlignedRectangleContour(ring);
   if(!rectangular){const savedContour=houseContourPoints(project.upperFloors?.at(-1)||project.plan).map(p=>[Math.round(p.x*1000),Math.round(p.y*1000)]);if(ring.length!==savedContour.length||ring.some(p=>!savedContour.some(q=>Math.hypot(p[0]-q[0],p[1]-q[1])<1)))return fail('Контур расчёта и план проекта не совпадают. Пересчитайте кровлю перед авторасстановкой.');}
   if(a.rafterSystem==='truss'||project.settings.roof.structureMode==='manual'&&project.settings.roof.rafterSystem==='truss')return roofTrussTemplate(project,report,config);
   if(a.roofShape==='flat'&&project.settings.roof.flatSlopeMode!=='structural')return facetSupportProposal(project,report,config,{groups:config.includePlatforms?'all':'main'});

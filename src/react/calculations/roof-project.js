@@ -7,6 +7,7 @@ import clipping from 'polygon-clipping';
 import {hipRoofFromContour} from './hip-roof-geometry.js';
 import { roofBaseElevation } from './roof-wall-plate.js';
 import { contourRoofOutline, contourRoofStrip } from './contour-roof-geometry.js';
+import { isAxisAlignedRectangleContour } from './roof-contour.js';
 
 export const roofDot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
 const sub=(a,b)=>a.map((x,i)=>x-b[i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>a.map(x=>x/Math.hypot(...a));
@@ -48,9 +49,11 @@ export function roofProject(project,calculation,assembly){
  const shape=calculation.roof.mainRoofShape;
  const roofBase=roofBaseElevation(project,calculation,assembly.floors.length,span,shape);
  const at=(a,c,z)=>axis===0?[b.x+a,b.y+c,roofBase+z]:[b.x+c,b.y+a,roofBase+z];
- const warm=settings.type==='sip',e=Number(g.eaveOverhang||0)*1000,t=Number(g.gableOverhang||0)*1000,h=Number(settings.ridgeHeight||0)*1000;
+ // A combined roof with 100% warm main slopes has the same SIP geometry as
+ // the SIP mode. Partial percentages still need explicit face boundaries.
+ const warm=settings.type==='sip'||settings.type==='combo'&&Number(settings.warmPercent)>=100,e=Number(g.eaveOverhang||0)*1000,t=Number(g.gableOverhang||0)*1000,h=Number(settings.ridgeHeight||0)*1000;
  const add=(id,name,points,extra={})=>{try{if(!id||faces.some(f=>f.id===id))throw new Error(`${name}: пустая или повторная марка ската ${id}.`);const override=design.faceOverrides?.[id]||{};faces.push(roofFacet(id,name,points,{group:'main',warm,thickness:Number(project.settings.sip.ceilingThickness),...extra,...override}));}catch(error){issue('ROOF_FACE',error.message,id);}};
- const contour=assembly.floors.at(-1).contour,rectangle=contour.length===4&&contour.every((p,i)=>p[0]===contour[(i+1)%4][0]||p[1]===contour[(i+1)%4][1]);
+ const contour=assembly.floors.at(-1).contour,rectangle=isAxisAlignedRectangleContour(contour);
  if(project.services.roof){
  if(design.manualFaces?.length){for(const f of design.manualFaces)add(f.id,f.name,f.vertices,{group:f.group||'main',warm:f.warm===true,thickness:Number(f.thickness)||Number(project.settings.sip.ceilingThickness),manual:true,nodeRef:f.nodeRef||''});}
  else if(rectangle&&shape==='gable'){
@@ -139,7 +142,7 @@ export function roofProject(project,calculation,assembly){
  const warmArea=main.filter(f=>f.warm).reduce((s,f)=>s+(f.structureHorizontal?f.projectedArea:f.area),0),estimateWarm=Number(calculation.roof.mainWarmSlopeArea??calculation.roof.warmSlopeArea)||0;
  if(Math.abs(warmArea-estimateWarm)>.05)issue('ROOF_WARM_AREA',`Тёплая кровля: геометрия ${warmArea.toFixed(2)} м²; смета ${estimateWarm.toFixed(2)} м². Проверьте границу и состав.`, 'main');
  if(Math.abs(mainArea-estimateMain)>.05)issue('ROOF_AREA',`Площадь главной крыши: геометрия ${mainArea.toFixed(2)} м²; сметная геометрия ${estimateMain.toFixed(2)} м². Смета не заменена.`, 'main');
- if(settings.type==='combo'&&shape!=='tiered'&&!faces.some(f=>design.faceOverrides?.[f.id]?.warm!=null)&&!design.manualFaces?.length)issue('ROOF_WARM_BOUNDARY','Для комбинированной крыши назначьте тёплые скаты либо задайте точные границы отдельными скатами XYZ.');
+ if(settings.type==='combo'&&Number(settings.warmPercent)>0&&Number(settings.warmPercent)<100&&shape!=='tiered'&&!faces.some(f=>design.faceOverrides?.[f.id]?.warm!=null)&&!design.manualFaces?.length)issue('ROOF_WARM_BOUNDARY','Для комбинированной крыши назначьте тёплые скаты либо задайте точные границы отдельными скатами XYZ.');
  if(design.manualFaces?.length||Math.abs(roofBase-defaultBase)>1)issue('ROOF_WALL_ALIGNMENT','Проектные скаты/отметка основания не изменяют автоматически наружные стены и фронтоны. Согласуйте контуры стен, опор и узлы примыкания по текущей ревизии.');
  return {version:1,units:'мм',datum:'Z = верх пола первого этажа',roofBase,faces,edges,issues,area,projection,warmArea,mainArea,estimateArea:expected,groupAreas};
 }

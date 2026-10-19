@@ -2,6 +2,7 @@ import { mauerlatProfile, ceilingTopElevation, roofBaseElevation } from './roof-
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { mergeRoofIntervals, roofCrossingIntervals } from './roof-glued-ridge.js';
+import { isAxisAlignedRectangleContour } from './roof-contour.js';
 
 export const LAYERED_FRAME_SOURCE = 'layered-frame';
 
@@ -24,10 +25,7 @@ export function layeredFrameEnabled(project, roof) {
   const baseContour = houseContourPoints(project.plan);
   const sameFootprint = contour.length === baseContour.length && contour.every((point, i) =>
     point.x === baseContour[i].x && point.y === baseContour[i].y);
-  const rectangular = contour.length === 4 && contour.every((point, i) => {
-    const next = contour[(i + 1) % contour.length];
-    return point.x === next.x || point.y === next.y;
-  });
+  const rectangular = isAxisAlignedRectangleContour(contour);
   return project.services.roof && settings.type === 'cold' && settings.layeredFrameEnabled !== false
     && rectangular && sameFootprint && roof.mainRoofShape === 'gable' && roof.rafterStructure?.system === 'layered'
     && roof.coldSlopeArea > 0 && roof.mauerlatLength > 0

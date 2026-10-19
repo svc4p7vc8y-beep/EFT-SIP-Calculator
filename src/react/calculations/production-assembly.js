@@ -5,6 +5,7 @@ import {roofGeometrySignature} from './roof-detailing.js';
 import { sourceIdentity } from '../state/production-identities.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { roofAxonometricLines } from './roof-drawings.js';
+import { isAxisAlignedRectangleContour } from './roof-contour.js';
 import {roofProject,roofAt} from './roof-project.js';
 import {roofFabrication,planIntersection} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
@@ -68,7 +69,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for(let layer=1;layer<=layers;layer++)members.push({id:`ОБ-${index+1}-${layer}`,material:layers===1?'Брус обвязки':'Доска пакета обвязки',profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),surface:'Обвязка',source:'Линии обвязки плана',panels:[],processing:'Стыки на опорах и соединения по проекту'});
   }}
   const simple=['gable','flat','tiered'].includes(roof.mainRoofShape);
-  const rectangular=contour.length===4 && contour.every((a,i)=>{const b=contour[(i+1)%contour.length];return a[0]===b[0]||a[1]===b[1];});
+  const rectangular=isAxisAlignedRectangleContour(contour);
   const frame=roof.rafterStructure||{};
   const count=Number(frame.pairCount)||0;
   if(project.services.roof && roof.coldSlopeArea>0 && simple && rectangular && frame.system!=='truss' && count<=500){
@@ -212,11 +213,12 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   }
   const roofSourceKey=roofGeometrySignature(assembly.roofModel);
   for(const item of settings.roofSupports)if(item.roofSourceKey&&item.roofSourceKey!==roofSourceKey)issues.push(`${item.name||item.id}: кровля изменилась после авторасстановки. Проверьте координаты, опирание и повторите расстановку; ручная правка сохранена.`);
-  const plainSipGable=project.services.roof&&project.settings.roof.type==='sip'&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
+  const fullyWarmMain=project.settings.roof.type==='sip'||project.settings.roof.type==='combo'&&Number(project.settings.roof.warmPercent)>=100;
+  const plainSipGable=project.services.roof&&fullyWarmMain&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
   const automaticColdHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
-  const automaticSipHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='sip'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
+  const automaticSipHip=project.services.roof&&roof.mainRoofShape==='hip'&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
   const automaticColdContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
-  const automaticSipContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&project.settings.roof.type==='sip'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
+  const automaticSipContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
   const warmPlatform=assembly.roofModel.faces.some(face=>face.group?.startsWith('terrace:')&&face.warm);
   assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticColdHip||automaticColdContour||automaticSipContour;
   assembly.usesPlatformRoofPlanes=warmPlatform;

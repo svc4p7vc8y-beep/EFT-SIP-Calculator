@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { productionScene } from '../calculations/production-scene.js';
+import { blockedSurfaceReasons, blockedSurfaceSummary, missingMainRoofReason } from '../calculations/production-diagnostics.js';
 import { beamFrame } from '../calculations/beam-frame.js';
 import {assemblyPlatformView} from '../calculations/platform-assembly.js';
 import {planPointToThree,planDirectionToThree} from '../calculations/plan-3d-orientation.js';
@@ -36,6 +37,8 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
   const [display,setDisplay]=useState('solid');
   const [bearingsVisible,setBearingsVisible]=useState(showBearingPoints);
   const data=useMemo(()=>productionScene(report,project),[report,project]);
+  const blockedPreviews=useMemo(()=>[...new Set(data.previews.map(item=>item.surfaceId))].map(id=>({id,reasons:blockedSurfaceReasons(report,id),summary:blockedSurfaceSummary(report,id)})),[data,report]);
+  const roofWarning=useMemo(()=>missingMainRoofReason(report,project,data),[report,project,data]);
   const hasColdRoofSurface=data.panels.some(item=>item.layer==='roofSurface');
   const foundation=useMemo(()=>assemblyPlatformView(report.assembly,report.settings.showPlatforms!==false),[report]);
   selection.current=selected;callback.current=onSelect;
@@ -86,10 +89,11 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
       {[['solid','Панели и каркас',Box],['frame','Только каркас',Frame],['transparent','Прозрачные панели',Scan]].map(([id,label,Icon])=><button key={id} title={label} aria-label={label} aria-pressed={display===id} onClick={()=>setDisplay(id)}><Icon size={18}/></button>)}
     </div>{hasColdRoofSurface?<button type="button" className="production-3d-roof-structure" aria-label="Показать стропила без покрытия и обрешётки" title="Показать стропила без покрытия и обрешётки" aria-pressed={hidden.includes('roofSurface')} onClick={()=>setHidden(old=>old.includes('roofSurface')?old.filter(layer=>!roofCoverLayers.includes(layer)):[...new Set([...old,...roofCoverLayers])])}>Стропила</button>:null}{data.bearingPoints.length?<button type="button" className="production-3d-roof-structure" aria-label="Показать точки пересечения стропил с мауэрлатом" title="Геометрические точки пересечения; узел опирания требует проверки" aria-pressed={bearingsVisible} onClick={()=>setBearingsVisible(value=>!value)}>Опирание</button>:null}<button aria-label="Сбросить 3D вид" title="Сбросить 3D вид" onClick={()=>api.current?.reset()}><RotateCcw size={18}/></button><button aria-expanded={showLayers} onClick={()=>setShowLayers(!showLayers)}><Layers size={18}/>Слои 3D</button>{onExpand?<button onClick={onExpand}>Крупнее</button>:null}</div>
     {showLayers?<div className="production-3d-layers" role="group" aria-label="Слои модели">{Object.entries(layers).map(([key,name])=><button key={key} aria-pressed={!hidden.includes(key)} onClick={()=>setHidden(old=>old.includes(key)?old.filter(k=>k!==key):[...old,key])}>{name}</button>)}</div>:null}
+    {blockedPreviews.length?<details className="production-3d-issue-banner"><summary role="alert">{blockedPreviews.map(item=>item.summary).join('; ')}</summary><div>{blockedPreviews.map(item=><p key={item.id}>{item.reasons[0]||'Проверьте ошибки раскроя в ведомости.'}</p>)}<p>Красные контуры не входят в производственную ведомость.</p></div></details>:null}
     <div ref={host} className="production-3d-canvas" role="img" aria-label="Объёмный дом: левая кнопка вращает, средняя и правая перемещают, колесо приближает"/>{error?<p role="alert">{error}</p>:null}
     <small>Левая кнопка — вращение · нажатое колесо или правая кнопка — перемещение · колесо — масштаб. Пальцем — вращение, двумя — масштаб и перемещение. Опоры без полного размера — маркеры осей.</small>{data.missing.length?<small>Нет пространственной привязки: {data.missing.join(', ')}. Нужен рабочий узел.</small>:null}
     {data.panels.some(p=>p.notchContours?.length)?<small>Контуры врезок с неуказанной глубиной показаны линиями на доске. Вырез в 3D строится по заданной проектной глубине.</small>:null}
-    {data.previews.length?<small role="alert">Красным показаны конструкции с ошибкой раскроя. Это контуры для проверки, не изготовленные панели; они не входят в производственную ведомость.</small>:null}
+    {roofWarning?<small role="alert">Основная крыша: {roofWarning}</small>:null}
     {report.issues.filter(i=>['PARTITION_ROOF_INTERSECTION','SUPPORT_ROOF_INTERSECTION','GABLE_OPENING'].includes(i.code)).map(i=><small role="alert" key={`${i.code}:${i.target}`}>{i.message}</small>)}
     {data.platforms.length?<small>Терраса и крыльцо: настил 45×145, ступени и стойки — схема по плану. Отметка настила по умолчанию — уровень пола дома; лаги, косоуры, опирание и узлы требуют проекта. Схематические элементы не создают повторный заказ.</small>:null}
     {project.plan?.existingBuilding?<small>Серым показан справочный контур существующего здания. При неизвестной высоте стены показаны низким контуром. В материалы и смету существующее здание не входит.</small>:null}
