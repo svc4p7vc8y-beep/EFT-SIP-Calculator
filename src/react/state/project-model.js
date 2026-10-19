@@ -609,6 +609,7 @@ export function createDefaultProject() {
         flatSlopeMode: "none",
         flatSlopeDirection: "back",
         flatSlopePercent: 3,
+        flatFrameDepthMm: 300,
         type: "cold",
         sipFrameMode: "standard",
         includeCovering: true,

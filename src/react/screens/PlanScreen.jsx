@@ -58,6 +58,7 @@ import {
   Minimize2,
   Eye,
   EyeOff,
+  Eraser,
 } from "lucide-react";
 import {
   calculatePlanMetrics,
@@ -3105,6 +3106,15 @@ function RoofLayerInspector({ roof, commitRoof }) {
       />
       {roof.shape === 'tiered' ? <p className="inspector-note">Ширина, уклоны двух уровней и пять зон фронтонов редактируются в разделе «Кровля → Основная кровля». Несущие опоры перепада — по проекту.</p> : null}
       <div className="form-grid">
+        {roof.shape === 'flat' && roof.type === 'cold' ? <NumberField
+          label="Глубина каркаса"
+          value={roof.flatFrameDepthMm ?? 300}
+          suffix="мм"
+          min={200}
+          max={1200}
+          step={10}
+          onChange={(value) => commitRoof('flatFrameDepthMm', value)}
+        /> : null}
         {roof.shape === "flat" && (roof.flatSlopeMode || "none") !== "none" ? (
           <NumberField
             label="Уклон"
@@ -6066,16 +6076,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         title="План дома"
         actions={
           <>
-            <div className="plan-floor-switcher plan-header-floor-switcher" aria-label="Выбор этажа">
-              <button type="button" className={activeFloor === 1 ? "active" : ""} onClick={() => setActiveFloor(1)}>1 этаж</button>
-              {floorCount > 1 ? <>
-                <button type="button" className={activeFloor === 2 ? "active" : ""} onClick={() => setActiveFloor(2)}>2 этаж</button>
-                {activeFloor === 2 ? <>
-                  <button type="button" onClick={clearSecondFloor}>Очистить 2 этаж</button>
-                  <button type="button" className="remove-floor" onClick={removeSecondFloor}><Trash2 /> Удалить 2 этаж</button>
-                </> : null}
-              </> : <button type="button" className="add-floor" onClick={() => addSecondFloor()}><Plus /> Второй этаж</button>}
-            </div>
             <button className="button primary new-plan-button" onClick={newPlan}>
               <Plus />
               Новый план
@@ -6301,6 +6301,15 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         </aside>
         <div className="planner-canvas" ref={plannerCanvasRef}>
           <div className="plan-layer-tabs" aria-label="Слои проекта">
+            <div className="plan-floor-switcher plan-canvas-floor-switcher" role="group" aria-label="Выбор этажа">
+              <button type="button" className={activeFloor === 1 ? "active" : ""} aria-pressed={activeFloor === 1} onClick={() => setActiveFloor(1)}>1 этаж</button>
+              {floorCount > 1 ? <button type="button" className={activeFloor === 2 ? "active" : ""} aria-pressed={activeFloor === 2} onClick={() => setActiveFloor(2)}>2 этаж</button>
+                : <button type="button" className="add-floor" onClick={addSecondFloor}><Plus /> 2 этаж</button>}
+              {floorCount > 1 && activeFloor === 2 ? <>
+                <button type="button" title="Очистить 2 этаж" aria-label="Очистить 2 этаж" onClick={clearSecondFloor}><Eraser /></button>
+                <button type="button" className="remove-floor" title="Удалить 2 этаж" aria-label="Удалить 2 этаж" onClick={removeSecondFloor}><Trash2 /></button>
+              </> : null}
+            </div>
             {[
               ["piles", "Сваи", CircleDot],
               ["binding", "Обвязка", Layers3],
@@ -6380,10 +6389,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           {isPlanFullscreen ? <>
             <div className="plan-fullscreen-bar" role="group" aria-label="Параметры полноэкранного плана">
-              <div className="plan-fullscreen-floors" role="group" aria-label="Этаж плана">
-                <button type="button" aria-pressed={activeFloor===1} onClick={()=>setActiveFloor(1)}>1 этаж</button>
-                {floorCount>1?<button type="button" aria-pressed={activeFloor===2} onClick={()=>setActiveFloor(2)}>2 этаж</button>:<button type="button" onClick={()=>addSecondFloor()}>+ этаж</button>}
-              </div>
               <button type="button" className={tool==='houseContour'?'active':''} aria-pressed={tool==='houseContour'} onClick={()=>selectTool('houseContour')}>Контур</button>
               <button type="button" className={tool==='wall'?'active':''} aria-pressed={tool==='wall'} onClick={()=>selectTool('wall')}>Перегородка</button>
             </div>

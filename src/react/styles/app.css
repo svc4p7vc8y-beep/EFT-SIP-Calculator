@@ -7021,6 +7021,16 @@ select,
 .summary-section-engineering { --section-accent: #6c6594; }
 .summary-section-estimate { --section-accent: #4e765f; }
 .plan-screen-v2 .plan-header-floor-switcher { flex: 0 0 auto; align-self: flex-start; }
+.plan-screen-v2 .plan-layer-tabs { display: flex; max-width: calc(100% - 24px); overflow-x: auto; scrollbar-width: thin; }
+.plan-screen-v2 .plan-layer-tab { flex: 0 0 78px; }
+.plan-screen-v2 .plan-canvas-floor-switcher { flex: 0 0 auto; grid-column: auto; align-self: flex-start; width: max-content; flex-wrap: nowrap; min-height: 44px; }
+.plan-screen-v2 .plan-layer-tabs .plan-canvas-floor-switcher button { display: inline-flex; flex: 0 0 auto; flex-direction: row; min-height: 36px; padding: 5px 7px; font-size: 10px; white-space: nowrap; }
+.plan-screen-v2 .plan-canvas-floor-switcher button.active { color: #fff; background: #5d8f32; }
+.plan-screen-v2 .planner-shell:not(.is-fullscreen) .canvas-history-controls { top: 66px; }
+.plan-screen-v2 .planner-shell.is-fullscreen .plan-layer-tabs { max-width: calc(100% - 390px); }
+@media (max-width: 760px) { .plan-screen-v2 .planner-shell.is-fullscreen .plan-layer-tabs { max-width: calc(100% - 20px); } }
+@media (max-width: 1200px) { .plan-screen-v2 .plan-layer-tab { flex-basis: 52px; } }
+@media (max-width: 820px) { .plan-screen-v2 .plan-layer-tabs { gap: 3px; } .plan-screen-v2 .plan-layer-tab { flex-basis: 45px; } }
 .plan-top-advanced { order: 3; flex: 0 0 auto; color: var(--green-dark); font-size: 10px; }
 .plan-top-advanced[open] { flex-basis: 100%; }
 .plan-top-advanced summary { cursor: pointer; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-weight: 700; }

@@ -14,6 +14,7 @@ import { roofSupportMatchesSystem } from '../state/auto-roof-supports.js';
 import { hangingRiegelEnabled, hangingRiegelMembers } from './hanging-riegel.js';
 import { layeredFrameLayout } from './layered-frame.js';
 import { roofLathRows } from './roof-lathing.js';
+import { flatRoofFrame } from './flat-roof-frame.js';
 
 export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
@@ -283,6 +284,14 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     assembly.issues.push(...layout.issues);
     if (roof.layeredFrame && layout.items.length !== roof.layeredFrame.items)
       assembly.issues.push(`Наслонные опоры: чертёж содержит ${layout.items.length} деталей, смета учитывает ${roof.layeredFrame?.items || 0}. Сверьте параметры.`);
+  }
+  if (project.services.roof && roof.mainRoofShape === 'flat' && project.settings.roof.type === 'cold') {
+    const frameLayout = flatRoofFrame(assembly, project.settings.roof, settings);
+    assembly.roofTimbers.push(...frameLayout.items);
+    assembly.members.push(...frameLayout.members);
+    assembly.issues.push(...frameLayout.issues);
+    assembly.flatFrame = { rafterCount: frameLayout.rafterCount, chordCount: frameLayout.chordCount,
+      postCount: frameLayout.postCount, depthMm: Number(project.settings.roof.flatFrameDepthMm) || 300 };
   }
   assembly.rafterSystem=frame.system;
   assembly.pileSources=(calculation.foundation?.points||[]).map(p=>p.source);

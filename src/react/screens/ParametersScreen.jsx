@@ -984,6 +984,14 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 20,
                 step: 0.5,
               },
+              project.settings.roof.shape === "flat" && project.settings.roof.type === "cold" && {
+                path: "settings.roof.flatFrameDepthMm",
+                label: "Глубина каркаса с нижним поясом",
+                suffix: "мм",
+                min: 200,
+                max: 1200,
+                step: 10,
+              },
               project.settings.roof.includeCovering !== false && {
                 path: "settings.roof.covering",
                 label: "Кровельное покрытие",
