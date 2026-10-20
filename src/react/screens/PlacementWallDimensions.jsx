@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { nearestWallDimension, placementWallBands } from '../state/placement-walls.js';
+import { nearestPlacementDimension, placementWallBands } from '../state/placement-walls.js';
 
 const label = distance => `${distance.toFixed(2).replace('.', ',')} м`;
 
@@ -7,7 +7,7 @@ export default function PlacementWallDimensions({ plan, items }) {
   const bands = useMemo(() => placementWallBands(plan), [plan]);
   return <g className="placement-wall-dimensions" pointerEvents="none" aria-hidden="true">
     {items.map(item => {
-      const dimension = nearestWallDimension(plan, item, bands);
+      const dimension = nearestPlacementDimension(plan, item, bands);
       if (!dimension || dimension.distance < .015) return null;
       const { from, to, distance } = dimension;
       const x1 = from.x * 100, y1 = from.y * 100, x2 = to.x * 100, y2 = to.y * 100;

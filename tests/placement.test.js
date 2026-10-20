@@ -6,7 +6,7 @@ import { normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESE
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
 import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
-import { nearestWallDimension, placementWallBands } from '../src/react/state/placement-walls.js';
+import { nearestPlacementDimension, nearestWallDimension, placementWallBands } from '../src/react/state/placement-walls.js';
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();
@@ -90,6 +90,32 @@ test('placement dimensions start at the nearest finished wall face on either sid
   assert.equal(Math.round(right.distance * 100), 95);
   assert.equal(outside.wallType, 'outer');
   assert.equal(Math.round(outside.distance * 100), 30);
+});
+
+test('facade dimensions use the nearest corner or opening edge on the same facade', () => {
+  const plan = { house: { w: 10, h: 8 }, wallThickness: .174, rooms: [], walls: [], openings: [
+    { id: 'north-window', type: 'window', outer: true, orientation: 'h', x: 3, y: .087, width: 2 },
+    { id: 'south-window', type: 'window', outer: true, orientation: 'h', x: 7, y: 7.913, width: 1 },
+    { id: 'east-door', type: 'door', outer: true, orientation: 'v', x: 9.913, y: 3, width: 1 },
+  ] };
+  const facade = (x, y) => ({ surface: 'facade', x, y: y - .28, anchorX: x, anchorY: y });
+  const corner = nearestPlacementDimension(plan, facade(1, 0));
+  assert.equal(corner.reference, 'угла');
+  assert.deepEqual(corner.from, { x: 0, y: 0 });
+  assert.equal(corner.distance, 1);
+  const window = nearestPlacementDimension(plan, facade(5.7, 0));
+  assert.equal(window.reference, 'окна');
+  assert(Math.abs(window.from.x - 5) < .001);
+  assert(Math.abs(window.distance - .7) < .001);
+  assert.equal(window.to.y, 0);
+  const otherFacade = nearestPlacementDimension(plan, facade(8.5, 0));
+  assert.equal(otherFacade.reference, 'угла');
+  assert(Math.abs(otherFacade.distance - 1.5) < .001);
+  const door = nearestPlacementDimension(plan, { surface: 'facade', x: 10.28, y: 4.4, anchorX: 10, anchorY: 4.4 });
+  assert.equal(door.reference, 'двери');
+  assert(Math.abs(door.distance - .4) < .001);
+  assert.equal(door.from.x, 10);
+  assert.equal(nearestPlacementDimension(plan, { x: 4, y: 4 }).wallType, 'outer');
 });
 
 test('worker sheets separate disciplines per floor and number saved positions', () => {

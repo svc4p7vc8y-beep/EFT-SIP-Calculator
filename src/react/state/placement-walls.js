@@ -47,3 +47,48 @@ export function nearestWallDimension(plan, item, bands = placementWallBands(plan
   }
   return nearest;
 }
+
+export function nearestPlacementDimension(plan, item, bands = placementWallBands(plan)) {
+  if (item.surface !== 'facade') return nearestWallDimension(plan, item, bands);
+  const anchor = Number.isFinite(item.anchorX) && Number.isFinite(item.anchorY)
+    ? { x: item.anchorX, y: item.anchorY } : { x: item.x, y: item.y };
+  if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return null;
+
+  const edges = bands.outer.map(({ a, b }) => {
+    const dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
+    const ratio = ((anchor.x - a.x) * dx + (anchor.y - a.y) * dy) / lengthSquared;
+    const clamped = Math.max(0, Math.min(1, ratio));
+    const to = { x: a.x + clamped * dx, y: a.y + clamped * dy };
+    return { a, b, dx, dy, lengthSquared, ratio: clamped, to,
+      distance: Math.hypot(anchor.x - to.x, anchor.y - to.y) };
+  }).filter(edge => edge.lengthSquared > 0);
+  const edge = edges.sort((a, b) => a.distance - b.distance)[0];
+  if (!edge) return null;
+
+  const references = [
+    { ratio: 0, reference: 'угла' },
+    { ratio: 1, reference: 'угла' },
+  ];
+  for (const opening of plan.openings || []) {
+    if (opening.outer === false || !['window', 'door'].includes(opening.type)) continue;
+    const width = Number(opening.width);
+    if (!(width > 0) || !Number.isFinite(opening.x) || !Number.isFinite(opening.y)) continue;
+    const start = { x: opening.x, y: opening.y };
+    const end = opening.orientation === 'h' ? { x: start.x + width, y: start.y }
+      : opening.orientation === 'v' ? { x: start.x, y: start.y + width } : null;
+    if (!end) continue;
+    const projected = [start, end].map(p => {
+      const ratio = ((p.x - edge.a.x) * edge.dx + (p.y - edge.a.y) * edge.dy) / edge.lengthSquared;
+      const distance = Math.abs((p.x - edge.a.x) * edge.dy - (p.y - edge.a.y) * edge.dx) / Math.sqrt(edge.lengthSquared);
+      return { ratio, distance };
+    });
+    const openingOffset = Math.max(.05, Number(plan.wallThickness || .174) / 2 + .05);
+    if (projected.some(p => p.distance > openingOffset || p.ratio < -.001 || p.ratio > 1.001)) continue;
+    for (const p of projected) references.push({ ratio: p.ratio, reference: opening.type === 'window' ? 'окна' : 'двери' });
+  }
+  const closest = references.sort((a, b) =>
+    Math.abs(a.ratio - edge.ratio) - Math.abs(b.ratio - edge.ratio))[0];
+  const from = { x: edge.a.x + closest.ratio * edge.dx, y: edge.a.y + closest.ratio * edge.dy };
+  return { from, to: edge.to, distance: Math.hypot(from.x - edge.to.x, from.y - edge.to.y),
+    wallType: 'facade', reference: closest.reference };
+}
