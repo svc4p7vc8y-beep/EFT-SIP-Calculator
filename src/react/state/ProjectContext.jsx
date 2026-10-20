@@ -5,59 +5,34 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import {
   loadInitialProject,
-  migrateProject,
+  createDefaultProject,
   REACT_AUTOSAVE_KEY,
   REACT_BACKUPS_KEY,
 } from "./project-model.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { applySharedPriceCatalog } from '../cloud/price-catalog.js';
-import { recordProductionRegistry } from './production-identities.js';
+import { createProjectWorkspace, projectWorkspaceReducer, PROJECT_TABS_KEY, restoreProjectWorkspace, serializeProjectWorkspace } from './project-tabs.js';
 
 const ProjectContext = createContext(null);
-const HISTORY_LIMIT = 60;
-
-function reducer(state, action) {
-  if (action.type === 'production-registry') return recordProductionRegistry(state, action.expectedPresent, action.registry, action.requests);
-  if (action.type === "undo") {
-    if (!state.past.length) return state;
-    return {
-      past: state.past.slice(0, -1),
-      present: state.past.at(-1),
-      future: [state.present, ...state.future],
-    };
-  }
-  if (action.type === "redo") {
-    if (!state.future.length) return state;
-    return {
-      past: [...state.past, state.present].slice(-HISTORY_LIMIT),
-      present: state.future[0],
-      future: state.future.slice(1),
-    };
-  }
-  if (action.type === "replace")
-    return { past: [], present: migrateProject(action.project), future: [] };
-  if (action.type === "commit") {
-    const next = action.update(structuredClone(state.present));
-    return {
-      past: [...state.past, state.present].slice(-HISTORY_LIMIT),
-      present: next,
-      future: [],
-    };
-  }
-  return state;
-}
-
 export function ProjectProvider({ children }) {
   const team = useTeam();
-  const [history, dispatch] = useReducer(reducer, null, () => ({
-    past: [],
-    present: loadInitialProject(),
-    future: [],
-  }));
+  const [workspace, dispatch] = useReducer(projectWorkspaceReducer, null, () => {
+    const fallback = team.required ? createDefaultProject() : loadInitialProject();
+    if (team.required) return createProjectWorkspace(fallback);
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${PROJECT_TABS_KEY}:local`) || 'null');
+      return saved?.owner === 'local' ? restoreProjectWorkspace(saved, fallback) : createProjectWorkspace(fallback);
+    } catch { return createProjectWorkspace(fallback); }
+  });
+  const [hydrated, setHydrated] = useState(!team.required);
+  const ownerRef = useRef(team.required ? null : 'local');
+  const activeTab = workspace.tabs.find((tab) => tab.id === workspace.activeId) || workspace.tabs[0];
+  const history = activeTab.history;
   const [saveState, setSaveState] = useState({
     status: "saved",
     message: "Автосохранение включено",
@@ -65,12 +40,32 @@ export function ProjectProvider({ children }) {
   const project = useMemo(() => applySharedPriceCatalog(history.present, team.user ? team.priceCatalog.payload : null, team.priceCatalog.revision), [history.present, team.user?.id, team.priceCatalog.payload, team.priceCatalog.revision]);
 
   useEffect(() => {
+    if (team.current?.id && team.current.revision) dispatch({ type: 'server-revision', serverId: team.current.id, revision: team.current.revision, name: team.current.name });
+  }, [team.current?.id, team.current?.revision, team.current?.name]);
+
+  useEffect(() => {
+    if (!team.ready) return;
+    const owner = String(team.user?.id || 'local');
+    if (ownerRef.current === owner) return;
+    ownerRef.current = owner;
+    try {
+      const fallback = team.required ? createDefaultProject() : loadInitialProject();
+      const saved = JSON.parse(localStorage.getItem(`${PROJECT_TABS_KEY}:${owner}`) || 'null');
+      dispatch({ type: 'hydrate', saved: saved?.owner === owner ? saved : null, fallback });
+    } catch { dispatch({ type: 'hydrate', saved: null, fallback: team.required ? createDefaultProject() : loadInitialProject() }); }
+    setHydrated(true);
+  }, [team.ready, team.user?.id]);
+
+  useEffect(() => {
+    if (!hydrated) return undefined;
     const timer = window.setTimeout(() => {
       try {
         const snapshot = {
           ...project,
           savedAt: new Date().toISOString(),
         };
+        const owner = String(team.user?.id || 'local');
+        localStorage.setItem(`${PROJECT_TABS_KEY}:${owner}`, JSON.stringify(serializeProjectWorkspace(workspace, owner)));
         localStorage.setItem(REACT_AUTOSAVE_KEY, JSON.stringify(snapshot));
         setSaveState({
           status: "saved",
@@ -84,28 +79,51 @@ export function ProjectProvider({ children }) {
       }
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [project]);
+  }, [workspace, project, hydrated, team.user?.id]);
 
   useEffect(() => {
-    if (!team.user || !team.current) return undefined;
+    if (!hydrated || !team.user || !team.current || team.current.id !== activeTab.serverId) return undefined;
     const timer = window.setTimeout(
       () => team.saveProject(project).catch(() => {}),
       1500,
     );
     return () => window.clearTimeout(timer);
-  }, [project, team.user, team.current?.id]);
+  }, [project, hydrated, team.user, team.current?.id, activeTab.serverId]);
 
   const commit = useCallback(
-    (update) => dispatch({ type: "commit", update }),
-    [],
+    (update) => dispatch({ type: "commit", tabId: workspace.activeId, update }),
+    [workspace.activeId],
   );
-  const recordMarks = useCallback((registry,requests) => dispatch({ type: 'production-registry', expectedPresent: history.present, registry,requests }), [history.present]);
+  const recordMarks = useCallback((registry,requests) => dispatch({ type: 'production-registry', tabId: workspace.activeId, expectedPresent: history.present, registry,requests }), [workspace.activeId, history.present]);
   const replace = useCallback(
-    (project) => dispatch({ type: "replace", project }),
-    [],
+    (project) => dispatch({ type: "replace", tabId: workspace.activeId, project }),
+    [workspace.activeId],
   );
-  const undo = useCallback(() => dispatch({ type: "undo" }), []);
-  const redo = useCallback(() => dispatch({ type: "redo" }), []);
+  const undo = useCallback(() => dispatch({ type: "undo", tabId: workspace.activeId }), [workspace.activeId]);
+  const redo = useCallback(() => dispatch({ type: "redo", tabId: workspace.activeId }), [workspace.activeId]);
+  const openTab = useCallback((nextProject, serverId = null, serverName = '', serverRevision = 0) => {
+    const id = globalThis.crypto?.randomUUID?.() || `tab-${Date.now()}-${Math.random()}`;
+    dispatch({ type: 'open-tab', id, project: nextProject, serverId, serverName, serverRevision });
+    return id;
+  }, []);
+  const activateTab = useCallback((id) => dispatch({ type: 'activate-tab', id }), []);
+  const closeTab = useCallback((id) => {
+    if (workspace.tabs.length < 2) return false;
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (!tab) return false;
+    try {
+      const existing = JSON.parse(localStorage.getItem(REACT_BACKUPS_KEY) || '[]');
+      const snapshot = { ...tab.history.present, backupId: Date.now(), savedAt: new Date().toISOString() };
+      localStorage.setItem(REACT_BACKUPS_KEY, JSON.stringify([snapshot, ...existing].slice(0, 10)));
+    } catch (error) {
+      setSaveState({ status: 'error', message: `Не удалось закрыть вкладку: резервная копия не создана (${error.message})` });
+      return false;
+    }
+    dispatch({ type: 'close-tab', id });
+    return true;
+  }, [workspace.tabs]);
+  const replaceTab = useCallback((id, nextProject) => dispatch({ type: 'replace', tabId: id, project: nextProject }), []);
+  const attachServer = useCallback((id, serverId, serverName, serverRevision) => dispatch({ type: 'attach-server', id, serverId, serverName, serverRevision }), []);
   const checkpoint = useCallback(() => {
     try {
       const existing = JSON.parse(
@@ -138,6 +156,14 @@ export function ProjectProvider({ children }) {
       commit,
       recordMarks,
       replace,
+      openTab,
+      activateTab,
+      closeTab,
+      replaceTab,
+      attachServer,
+      hydrated,
+      tabs: workspace.tabs.map(({ id, serverId, serverName, serverRevision, history: tabHistory }) => ({ id, serverId, serverName, serverRevision, meta: tabHistory.present.meta })),
+      activeTabId: workspace.activeId,
       undo,
       redo,
       checkpoint,
@@ -145,7 +171,7 @@ export function ProjectProvider({ children }) {
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
     }),
-    [history, project, commit, recordMarks, replace, undo, redo, checkpoint, saveState],
+    [workspace, history, project, commit, recordMarks, replace, openTab, activateTab, closeTab, replaceTab, attachServer, hydrated, undo, redo, checkpoint, saveState],
   );
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FileClock,
   FilePlus2,
@@ -7,6 +7,8 @@ import {
   LogOut,
   Pencil,
   RefreshCw,
+  Search,
+  FolderOpen,
   Trash2,
   UserPlus,
   Users,
@@ -48,6 +50,15 @@ export default function TeamWorkspaceScreen({
   const [versions, setVersions] = useState([]);
   const [versionPreview, setVersionPreview] = useState(null);
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [projectQuery, setProjectQuery] = useState('');
+  const [projectSort, setProjectSort] = useState('recent');
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const visibleProjects = useMemo(() => {
+    const query = projectQuery.trim().toLocaleLowerCase('ru-RU');
+    const rows = team.projects.filter((item) => !query || [item.name, item.summary?.number, item.summary?.address, item.summary?.buildingType, item.updated_by].some((value) => String(value || '').toLocaleLowerCase('ru-RU').includes(query)));
+    return rows.sort((a, b) => projectSort === 'name' ? a.name.localeCompare(b.name, 'ru-RU') : new Date(b.updated_at) - new Date(a.updated_at));
+  }, [team.projects, projectQuery, projectSort]);
+  const selectedProject = visibleProjects.find((item) => item.id === selectedProjectId) || visibleProjects[0];
   useEffect(() => { if (focusTab) setTab(focusTab); }, [focusTab]);
   useEffect(() => {
     if (tab !== "stats" || !team.user) return undefined;
@@ -148,10 +159,8 @@ export default function TeamWorkspaceScreen({
       <header className="screen-header">
         <div>
           <p className="eyebrow">Общее пространство</p>
-          <h1>Проекты и заявки</h1>
-          <p>
-            {team.user?.displayName} · {roleNames[team.user?.role]}
-          </p>
+          <h1>{team.user?.role === 'admin' ? 'Админка проектов' : 'Проекты и заявки'}</h1>
+          <p>{team.user ? `${team.user.displayName} · ${roleNames[team.user.role]}` : 'Локальный режим'}</p>
         </div>
         <div className="screen-actions">
           <button className="button secondary" onClick={() => team.refresh().catch(() => {})}>
@@ -208,45 +217,56 @@ export default function TeamWorkspaceScreen({
         <div className="team-panel">
           <div className="team-panel-head">
             <div>
-              <h2>Общие проекты</h2>
-              <p>
-                Доступны всем сотрудникам. Изменения сохраняются с историей
-                версий.
-              </p>
+              <h2>Портфель проектов</h2>
+              <p>Общие проекты, история ревизий и управление доступом в одном месте.</p>
             </div>
-            <button className="button" onClick={create}>
+            <button className="button" onClick={create} disabled={!team.user} title={!team.user ? 'Войдите в общую базу, чтобы сохранить проект на сервере' : undefined}>
               <FilePlus2 />
               Сохранить текущий как общий
             </button>
           </div>
-          <div className="team-list">
-            {team.projects.map((item) => (
-              <article key={item.id}>
-                <div>
-                  <strong>{item.name}</strong>
-                  <div className="team-card-meta">
-                    {item.summary?.number ? <span>№ {item.summary.number}</span> : null}
-                    {item.summary?.buildingType ? <span>{item.summary.buildingType}</span> : null}
-                    {item.summary?.floors ? <span>{item.summary.floors} эт.</span> : null}
-                    {item.summary?.area ? <span>{item.summary.area} м²</span> : null}
-                    {item.summary?.address ? <span>{item.summary.address}</span> : null}
-                  </div>
-                  <span>
-                    Создан {new Date(item.created_at).toLocaleString("ru-RU")} · изменил {item.updated_by} {new Date(item.updated_at).toLocaleString("ru-RU")}
-                  </span>
+          <div className="team-metrics">
+            <div><small>Проектов в базе</small><strong>{team.projects.length}</strong><span>Доступны сотрудникам</span></div>
+            <div><small>Новые анкеты</small><strong>{team.unreadIntakes}</strong><span>Ожидают просмотра</span></div>
+            <div><small>Сотрудников</small><strong>{team.users.length || '—'}</strong><span>{team.user?.role === 'admin' ? 'Управление во вкладке выше' : 'Доступ задаёт администратор'}</span></div>
+            <div><small>Синхронизация</small><strong className="team-metric-sync">{!team.user ? 'Локально' : team.syncState.status === 'error' ? 'Ошибка' : 'В сети'}</strong><span>{team.lastRefreshAt ? new Date(team.lastRefreshAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : team.user ? 'Обновление…' : 'Без подключения к базе'}</span></div>
+          </div>
+          <div className="team-project-controls">
+            <label className="team-project-search"><Search /><input value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Найти по названию, номеру, адресу или автору" aria-label="Поиск общих проектов" /></label>
+            <select value={projectSort} onChange={(event) => setProjectSort(event.target.value)} aria-label="Сортировка проектов"><option value="recent">Сначала изменённые</option><option value="name">По названию</option></select>
+            <button className="button secondary" onClick={() => team.refresh().catch((error) => setNotice(error.message))}><RefreshCw /> Обновить</button>
+          </div>
+          <div className="team-project-board">
+            <div className="team-project-list" aria-label="Список проектов">
+              {visibleProjects.map((item) => <button key={item.id} className={`team-project-row ${selectedProject?.id === item.id ? 'selected' : ''}`} onClick={() => setSelectedProjectId(item.id)} onDoubleClick={() => onOpenProject(item.id)}>
+                <span className="team-project-glyph"><FolderOpen /></span>
+                <span className="team-project-row-main"><strong>{item.name}</strong><small>№ {item.summary?.number || '—'} · {item.summary?.buildingType || 'Дом'} · {item.summary?.area ? `${item.summary.area} м²` : 'Площадь не указана'}</small></span>
+                <span className="team-project-row-tail"><b>рев. {item.revision}</b><small>{new Date(item.updated_at).toLocaleDateString('ru-RU')}</small></span>
+              </button>)}
+              {!visibleProjects.length ? <p className="empty-state">{projectQuery ? 'По запросу проектов нет.' : 'Общих проектов пока нет.'}</p> : null}
+            </div>
+            <aside className="team-project-detail" aria-label="Данные выбранного проекта">
+              {selectedProject ? <>
+                <span className="team-project-detail-kicker">ВЫБРАННЫЙ ПРОЕКТ</span>
+                <h3>{selectedProject.name}</h3>
+                <p>{selectedProject.summary?.address || 'Адрес пока не указан'}</p>
+                <dl>
+                  <div><dt>Номер</dt><dd>{selectedProject.summary?.number || '—'}</dd></div>
+                  <div><dt>Здание</dt><dd>{selectedProject.summary?.buildingType || '—'}</dd></div>
+                  <div><dt>Этажей</dt><dd>{selectedProject.summary?.floors || '—'}</dd></div>
+                  <div><dt>Площадь</dt><dd>{selectedProject.summary?.area ? `${selectedProject.summary.area} м²` : '—'}</dd></div>
+                  <div><dt>Ревизия</dt><dd>{selectedProject.revision}</dd></div>
+                  <div><dt>Изменил</dt><dd>{selectedProject.updated_by || '—'}</dd></div>
+                </dl>
+                <small>Изменён {new Date(selectedProject.updated_at).toLocaleString('ru-RU')}</small>
+                <div className="team-project-detail-actions">
+                  <button className="button" onClick={() => onOpenProject(selectedProject.id)}>Открыть во вкладке</button>
+                  <button className="button secondary" onClick={() => openHistory(selectedProject)}><FileClock /> История версий</button>
+                  {team.user?.role === 'admin' ? <button className="button secondary" onClick={() => onEditProject(selectedProject.id)}><Pencil /> Параметры</button> : null}
+                  {team.user?.role === 'admin' ? <button className="button secondary danger" onClick={() => setDeleteTarget({ kind: 'project', item: selectedProject })}><Trash2 /> В архив</button> : null}
                 </div>
-                <em>рев. {item.revision}</em>
-                <div className="team-row-actions">
-                  <button className="button secondary" onClick={() => onOpenProject(item.id)}>Открыть</button>
-                  <button className="button secondary" onClick={() => openHistory(item)}><FileClock /> Версии</button>
-                  {team.user?.role === 'admin' ? <button className="button secondary" onClick={() => onEditProject(item.id)}><Pencil /> Редактировать данные</button> : null}
-                  {team.user?.role === "admin" ? <button className="button secondary danger" onClick={() => setDeleteTarget({ kind: 'project', item })} aria-label={`Удалить проект ${item.name}`}><Trash2 /></button> : null}
-                </div>
-              </article>
-            ))}
-            {!team.projects.length ? (
-              <p className="empty-state">Общих проектов пока нет.</p>
-            ) : null}
+              </> : <p>Выберите проект в списке.</p>}
+            </aside>
           </div>
           {historyProject ? <section className="panel-card" aria-label="История версий проекта">
             <div className="team-panel-head"><div><h2>История: {historyProject.name}</h2><p>Контрольные версии сервера. Восстановление создаёт новую ревизию и сохраняет текущее состояние.</p></div><button className="button secondary" onClick={() => setHistoryProject(null)}>Закрыть</button></div>

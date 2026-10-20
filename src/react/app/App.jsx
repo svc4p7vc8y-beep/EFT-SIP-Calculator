@@ -23,6 +23,7 @@ import {
   Moon,
   PaintRoller,
   PanelTop,
+  Plus,
   Ruler,
   Save,
   Settings2,
@@ -171,6 +172,14 @@ export function App() {
     canRedo,
     checkpoint,
     saveState,
+    tabs,
+    activeTabId,
+    openTab,
+    activateTab,
+    closeTab,
+    replaceTab,
+    attachServer,
+    hydrated,
   } = useProject();
   const team = useTeam();
   const [active, setActive] = useState(() => (team.required ? "team" : "plan"));
@@ -204,6 +213,41 @@ export function App() {
     [project.priceMat, project.priceLab],
   );
   const priceFingerprint = useMemo(() => priceCatalogFingerprint(project), [project.priceMat, project.priceLab]);
+  const selectedTab = tabs.find((item) => item.id === activeTabId);
+
+  useEffect(() => {
+    if (!hydrated || !team.ready) return;
+    if (selectedTab) team.activateProjectSession(selectedTab.serverId, selectedTab.serverRevision, selectedTab.serverName);
+  }, [hydrated, team.ready, team.user?.id, activeTabId, selectedTab?.serverId, selectedTab?.serverRevision]);
+
+  const saveBeforeSwitch = async () => {
+    if (!team.user || !team.current || team.current.id !== tabs.find((tab) => tab.id === activeTabId)?.serverId) return;
+    try { await team.saveProject(project); }
+    catch (error) { setNotice(`Проект остался во вкладке, но не сохранён на сервере: ${error.message}`); }
+  };
+
+  const switchProjectTab = async (id) => {
+    if (id === activeTabId) return;
+    await saveBeforeSwitch();
+    const tab = tabs.find((item) => item.id === id);
+    if (!tab) return;
+    team.activateProjectSession(tab.serverId, tab.serverRevision, tab.serverName);
+    activateTab(id);
+    setActive('plan');
+    setNotice(`Открыта вкладка проекта № ${tab.meta?.projectNum || '—'}`);
+  };
+
+  const closeProjectTab = async (id) => {
+    if (tabs.length < 2) return;
+    if (id === activeTabId) await saveBeforeSwitch();
+    const index = tabs.findIndex((tab) => tab.id === id);
+    const next = tabs.filter((tab) => tab.id !== id)[Math.min(index, tabs.length - 2)];
+    if (!closeTab(id)) { setNotice('Вкладка не закрыта: не удалось создать резервную копию'); return; }
+    if (id === activeTabId && next) {
+      team.activateProjectSession(next.serverId, next.serverRevision, next.serverName);
+      setActive('plan');
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -242,10 +286,11 @@ export function App() {
     if (!file) return;
     try {
       const imported = migrateProject(validateImportedProject(JSON.parse(await file.text())));
-      checkpoint();
+      await saveBeforeSwitch();
       team.detachProject();
-      replace(imported);
-      setNotice(`Открыт проект: ${file.name}`);
+      openTab(imported, null, file.name);
+      setActive('plan');
+      setNotice(`Проект «${file.name}» открыт в новой вкладке`);
     } catch (error) {
       setNotice(`Не удалось открыть проект: ${error.message}`);
     } finally {
@@ -272,7 +317,7 @@ export function App() {
 
   const applyClientBrief = async () => {
     if (!briefPreview) return;
-    checkpoint();
+    await saveBeforeSwitch();
     const nextProject = createProjectFromClientBrief(
       project,
       briefPreview.brief,
@@ -289,7 +334,7 @@ export function App() {
         ? team.createFromIntake(nextProject, briefPreview.intakeId)
         : team.createProject(nextProject))
         .then((created) => {
-          replace(created.payload);
+          openTab(created.payload, created.id, created.name, created.revision);
           setActive("parameters");
           setNotice(
             created.intakeLinkWarning
@@ -304,7 +349,7 @@ export function App() {
         );
     } else {
       team.detachProject();
-      replace(nextProject);
+      openTab(nextProject);
       setActive("parameters");
       setNotice(`Создан черновик по заявке: ${briefPreview.fileName}`);
     }
@@ -319,16 +364,16 @@ export function App() {
     const next = createProjectWithCurrentPrices(project);
     if (profile) applyResidentialStandard(next, profile, standards, { applyGeometry: true });
     try {
-      checkpoint();
+      await saveBeforeSwitch();
       if (team.user) {
         const created = await team.createProject(next);
-        replace(created.payload);
+        openTab(created.payload, created.id, created.name, created.revision);
       } else {
         const number = await reserveLocalProjectNumber(project.meta.projectNum);
         next.meta.projectNum = number;
         if (next.request) next.request.number = `КП-${number}`;
         team.detachProject();
-        replace(next);
+        openTab(next);
       }
     } catch (error) {
       setNotice(`Проект не создан: ${error.message}`);
@@ -352,9 +397,15 @@ export function App() {
 
   const openTeamProject = async (id, destination = 'plan') => {
     try {
-      checkpoint();
+      const existing = tabs.find((tab) => tab.serverId === id);
+      if (existing) {
+        await switchProjectTab(existing.id);
+        setActive(destination);
+        return;
+      }
+      await saveBeforeSwitch();
       const result = await team.openProject(id);
-      replace(result.payload);
+      openTab(result.payload, result.id, result.name, result.revision);
       setActive(destination);
       setNotice(`Открыт общий проект «${result.name}»`);
     } catch (error) {
@@ -365,7 +416,11 @@ export function App() {
   const restoreTeamVersion = async (projectId, versionId) => {
     checkpoint();
     const restored = await team.restoreProjectVersion(projectId, versionId);
-    replace(restored.payload);
+    const existing = tabs.find((tab) => tab.serverId === projectId);
+    if (existing) {
+      replaceTab(existing.id, restored.payload);
+      activateTab(existing.id);
+    } else openTab(restored.payload, restored.id, restored.name, restored.revision);
     setActive("plan");
     setNotice(`Восстановлена версия общего проекта как ревизия ${restored.revision}`);
     return restored;
@@ -415,7 +470,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 252</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 253</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -541,6 +596,21 @@ export function App() {
           />
         </div>
       </header>
+      <div className="project-tabbar no-print" role="tablist" aria-label="Открытые проекты">
+        <span className="project-tabbar-label">ПРОЕКТЫ</span>
+        <div className="project-tabbar-scroll">
+          {tabs.map((tab) => <div key={tab.id} className={`project-tab ${tab.id === activeTabId ? 'active' : ''}`}>
+            <button role="tab" aria-selected={tab.id === activeTabId} className="project-tab-select" onClick={() => switchProjectTab(tab.id)} title={tab.serverName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}>
+              <span className={`project-tab-dot ${tab.serverId ? 'cloud' : 'local'}`} />
+              <span className="project-tab-name">{tab.serverName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}</span>
+              <small>{tab.serverId ? `№ ${tab.meta?.projectNum || '—'} · общий` : `№ ${tab.meta?.projectNum || '—'} · локальный`}</small>
+            </button>
+            {tabs.length > 1 ? <button className="project-tab-close" onClick={() => closeProjectTab(tab.id)} aria-label={`Закрыть вкладку ${tab.serverName || tab.meta?.projectNum || ''}`}><X /></button> : null}
+          </div>)}
+        </div>
+        <button className="project-tab-add" onClick={newProject} title="Новый проект в отдельной вкладке" aria-label="Новая вкладка проекта"><Plus /><span>Новый проект</span></button>
+        {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
+      </div>
       <div className={`app-layout${active === 'plan' ? ' plan-app-layout' : ''}`}>
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <div className="sidebar-mobile-head">
@@ -666,8 +736,8 @@ export function App() {
                   onRestoreVersion: restoreTeamVersion,
                   onEditProject: (id) => openTeamProject(id, 'parameters'),
                   onCreatedProject: (created) => {
-                    checkpoint();
-                    replace(created.payload);
+                    replaceTab(activeTabId, created.payload);
+                    attachServer(activeTabId, created.id, created.name, created.revision);
                   },
                   onImportIntake: importTeamIntake,
                   focusTab: teamFocus,

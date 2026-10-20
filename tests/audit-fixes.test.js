@@ -9,16 +9,6 @@ function block(source, start, end) {
   return source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 }
 
-test("switching projects creates a checkpoint before replacing current work", async () => {
-  const app = await read("src/react/app/App.jsx");
-  const imported = block(app, "const importProject", "const importClientBrief");
-  const created = block(app, "const createNewProject", "const saveProject");
-  const opened = block(app, "const openTeamProject", "const importTeamIntake");
-  assert.ok(imported.indexOf("checkpoint()") < imported.indexOf("replace(imported)"));
-  assert.ok(created.indexOf("checkpoint()") < created.indexOf("team.createProject"));
-  assert.ok(opened.indexOf("checkpoint()") < opened.indexOf("team.openProject"));
-});
-
 test("library conflict merge keeps distinct entries and the newest shared ID", () => {
   const local = [
     { id: "local", savedAt: "2026-09-26T10:00:00Z" },

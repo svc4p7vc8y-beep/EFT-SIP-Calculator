@@ -45,6 +45,7 @@ export function TeamProvider({ children }) {
   const nodeRulesQueue = useRef(Promise.resolve());
   const [current, setCurrent] = useState(null);
   const currentRef = useRef(null);
+  const projectSessions = useRef(new Map());
   const saveQueue = useRef(Promise.resolve());
   const [syncState, setSyncState] = useState({
     status: "local",
@@ -137,6 +138,7 @@ export function TeamProvider({ children }) {
       setRefreshError(error.message);
       if (error.code === 'authentication_required') {
         currentRef.current = null;
+        projectSessions.current.clear();
         setCurrent(null);
         setSession({ ready: true, user: null, csrf: '', error: 'Сеанс завершён. Войдите с новым паролем.' });
       }
@@ -317,6 +319,7 @@ export function TeamProvider({ children }) {
     await eftApi("logout", { method: "POST", csrf: session.csrf, body: {} });
     setSession({ ready: true, user: null, csrf: "", error: "" });
     currentRef.current = null;
+    projectSessions.current.clear();
     setCurrent(null);
     nodeRulesRevision.current = 0;
     setNodeTypeRules({});
@@ -334,6 +337,7 @@ export function TeamProvider({ children }) {
         revision: result.project.revision,
         name: result.project.name,
       };
+      projectSessions.current.set(result.project.id, currentRef.current);
       setCurrent(currentRef.current);
       setSyncState({ status: "saved", message: "Общий проект создан" });
       await refresh();
@@ -348,12 +352,29 @@ export function TeamProvider({ children }) {
       revision: Number(result.project.revision),
       name: result.project.name,
     };
+    projectSessions.current.set(result.project.id, currentRef.current);
     setCurrent(currentRef.current);
     setSyncState({
       status: "saved",
       message: `Открыт общий проект · ревизия ${result.project.revision}`,
     });
     return result.project;
+  }, []);
+  const activateProjectSession = useCallback((id, revision = 0, name = '') => {
+    if (!id) {
+      currentRef.current = null;
+      setCurrent(null);
+      setSyncState({ status: 'local', message: 'Локальный проект' });
+      return;
+    }
+    let target = projectSessions.current.get(id);
+    if (!target) {
+      target = { id, revision, name };
+      projectSessions.current.set(id, target);
+    }
+    currentRef.current = target;
+    setCurrent({ ...target });
+    setSyncState({ status: 'saved', message: `Общий проект · ревизия ${target.revision}` });
   }, []);
   const listProjectVersions = useCallback(async (id) => {
     const result = await eftApi("versions", { query: { id } });
@@ -426,6 +447,7 @@ export function TeamProvider({ children }) {
     if (result.loggedOut) {
       setSession({ ready: true, user: null, csrf: '', error: '' });
       currentRef.current = null;
+      projectSessions.current.clear();
       setCurrent(null);
     } else await refresh();
     return result;
@@ -448,6 +470,7 @@ export function TeamProvider({ children }) {
       currentRef.current = null;
       setCurrent(null);
     }
+    projectSessions.current.delete(id);
     await refresh();
   }, [session.csrf, refresh]);
   const deleteIntake = useCallback(async (id, password) => {
@@ -516,6 +539,7 @@ export function TeamProvider({ children }) {
       refresh,
       createProject,
       openProject,
+      activateProjectSession,
       listProjectVersions,
       getProjectVersion,
       restoreProjectVersion,
@@ -551,6 +575,7 @@ export function TeamProvider({ children }) {
       refresh,
       createProject,
       openProject,
+      activateProjectSession,
       listProjectVersions,
       getProjectVersion,
       restoreProjectVersion,
