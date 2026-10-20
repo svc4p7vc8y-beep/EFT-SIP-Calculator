@@ -1,3 +1,5 @@
+import { resolvedElectricalRoutes } from './placement-electrical.js';
+
 export const PLACEMENT_LAYERS = [
   { id: 'furniture', label: 'Мебель' },
   { id: 'appliance', label: 'Бытовая техника' },
@@ -124,7 +126,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 2, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: false, networks: { plumbing: [], heating: [], ventilation: [] } };
+  return { version: 2, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: true, networks: { plumbing: [], heating: [], ventilation: [] } };
 }
 
 export function normalizePlacement(value) {
@@ -138,7 +140,7 @@ export function normalizePlacement(value) {
     ...base,
     ...value,
     version: 2,
-    showAutoDimensions: value.showAutoDimensions === true,
+    showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,
       floor: Math.max(1, Math.min(2, Math.round(finite(item.floor, 1)))),
@@ -147,6 +149,11 @@ export function normalizePlacement(value) {
       depth: Math.max(.05, finite(item.depth, .5)),
       rotation: finite(item.rotation),
       height: Math.max(0, finite(item.height)),
+      dimensionSide: ['auto', 'left', 'right'].includes(item.dimensionSide) ? item.dimensionSide : 'auto',
+      showHeight: item.showHeight === true,
+      showName: item.showName === true,
+      labelOffsetX: finite(item.labelOffsetX, .65),
+      labelOffsetY: finite(item.labelOffsetY, -.45),
       surface: item.surface === 'facade' ? 'facade' : 'interior',
       anchorX: item.surface === 'facade' ? finite(item.anchorX, finite(item.x)) : undefined,
       anchorY: item.surface === 'facade' ? finite(item.anchorY, finite(item.y)) : undefined,
@@ -169,7 +176,7 @@ export function normalizePlacement(value) {
 
 export function placementSummary(placement, floor) {
   const items = (placement?.items || []).filter(item => item.floor === floor);
-  const routes = (placement?.routes || []).filter(route => route.floor === floor);
+  const routes = resolvedElectricalRoutes(placement || { items: [], routes: [] }, floor);
   const length = routes.reduce((sum, route) => sum + route.points.slice(1).reduce((distance, point, index) => {
     const previous = route.points[index];
     return distance + Math.hypot(point.x - previous.x, point.y - previous.y);

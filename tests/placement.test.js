@@ -6,7 +6,8 @@ import { normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESE
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
 import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
-import { nearestPlacementDimension, nearestWallDimension, placementWallBands } from '../src/react/state/placement-walls.js';
+import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, snapPlacementToWall } from '../src/react/state/placement-walls.js';
+import { electricalBill, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();
@@ -130,4 +131,35 @@ test('worker sheets separate disciplines per floor and number saved positions', 
   assert.equal(sheets[0].items[0].item.id, 'bed-1');
   assert.equal(sheets[1].items[0].item.id, 'socket-1');
   assert.equal(sheets[2].items[0].item.id, 'boiler-1');
+});
+
+test('electrical wall snap and left/right datum use finished faces without moving the plan', () => {
+  const plan = { house: { w: 10, h: 8 }, wallThickness: .2, partitionThickness: .1, rooms: [], walls: [{ id: 'middle', x1: 5, y1: .2, x2: 5, y2: 7.8, include: true }] };
+  const left = snapPlacementToWall(plan, { x: .31, y: 3 }, { width: .18, depth: .12 });
+  assert.deepEqual(left, { x: .29, y: 3 });
+  const right = electricalSettingOutDimension(plan, { x: 7, y: 3, dimensionSide: 'right' });
+  assert.equal(right.side, 'right');
+  assert.equal(Math.round(right.from.x * 100), 980);
+  assert.equal(Math.round(right.distance * 100), 280);
+  assert.equal(plan.walls[0].x1, 5);
+});
+
+test('routes follow moved panel and points; BOM survives reopen without changing the estimate', () => {
+  const project = createDefaultProject();
+  const before = calculateProject(project).totals.total;
+  project.placement.items.push({ id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 1, y: 1, width: .45, depth: .16 });
+  project.placement.items.push({ id: 'socket', floor: 1, layer: 'electric', kind: 'socket', x: 4, y: 3, width: .18, depth: .12, circuitId: 'c1', showHeight: true, showName: true, labelOffsetX: .8, labelOffsetY: -.6, dimensionSide: 'left' });
+  project.placement.circuits.push({ id: 'c1', name: 'Розетки', cable: '3×2,5' });
+  project.placement.routes.push({ id: 'r1', floor: 1, circuitId: 'c1', auto: true, panelItemId: 'panel', targetItemId: 'socket', points: [{ x: 1, y: 1 }, { x: 4, y: 3 }] });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(electricalBill(reopened.placement, 1).routeMetres, 5);
+  assert.equal(electricalBill(reopened.placement, 1).components.find(row => row.name === 'Подрозетники').quantity, 1);
+  assert.equal(reopened.placement.items[1].showName, true);
+  assert.equal(reopened.placement.items[1].dimensionSide, 'left');
+  reopened.placement.items[0].x = 2;
+  assert.equal(resolvedElectricalRoutes(reopened.placement, 1)[0].points[0].x, 2);
+  assert.equal(electricalBill(reopened.placement, 1).routeMetres, 4);
+  reopened.placement.routes.push({ id: 'manual', floor: 1, circuitId: 'c1', panelItemId: 'panel', points: [{ x: 1, y: 1 }, { x: 2, y: 4 }] });
+  assert.equal(resolvedElectricalRoutes(reopened.placement, 1)[1].points[0].x, 2);
+  assert.equal(calculateProject(reopened).totals.total, before);
 });

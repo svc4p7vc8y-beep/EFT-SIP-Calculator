@@ -48,6 +48,47 @@ export function nearestWallDimension(plan, item, bands = placementWallBands(plan
   return nearest;
 }
 
+// Snap the physical edge of an object to the room-facing wall face.
+export function snapPlacementToWall(plan, position, item, tolerance = .28, bands = placementWallBands(plan)) {
+  const quarterTurn = Math.round((Number(item.rotation) || 0) / 90) % 2 !== 0;
+  const width = quarterTurn ? item.depth : item.width;
+  const depth = quarterTurn ? item.width : item.depth;
+  let best = null;
+  for (const band of [...bands.outer, ...bands.partitions]) for (const face of band.faces) {
+    const dx = face.b.x - face.a.x, dy = face.b.y - face.a.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (!lengthSquared) continue;
+    const ratio = ((position.x - face.a.x) * dx + (position.y - face.a.y) * dy) / lengthSquared;
+    if (ratio < 0 || ratio > 1) continue;
+    const foot = { x: face.a.x + ratio * dx, y: face.a.y + ratio * dy };
+    const signed = (position.x - foot.x) * face.normal.x + (position.y - foot.y) * face.normal.y;
+    if (signed < -.01 || signed > tolerance + Math.max(width, depth) / 2) continue;
+    const half = (Math.abs(face.normal.x) * width + Math.abs(face.normal.y) * depth) / 2;
+    const gap = Math.abs(signed - half);
+    if (gap > tolerance || (best && gap >= best.gap)) continue;
+    best = { x: foot.x + face.normal.x * half, y: foot.y + face.normal.y * half, gap, wallType: band.type };
+  }
+  return best ? { x: Math.round(best.x * 1000) / 1000, y: Math.round(best.y * 1000) / 1000 } : position;
+}
+
+// A horizontal setting-out dimension from the left or right wall at the object's Y.
+export function electricalSettingOutDimension(plan, item, bands = placementWallBands(plan)) {
+  if (item.surface === 'facade') return nearestPlacementDimension(plan, item, bands);
+  const candidates = [];
+  for (const band of [...bands.outer, ...bands.partitions]) for (const face of band.faces) {
+    if (Math.abs(face.a.x - face.b.x) > .01) continue;
+    const minY = Math.min(face.a.y, face.b.y), maxY = Math.max(face.a.y, face.b.y);
+    if (item.y < minY - .001 || item.y > maxY + .001) continue;
+    const delta = item.x - face.a.x;
+    const side = delta >= 0 ? 'left' : 'right';
+    if (item.dimensionSide && item.dimensionSide !== 'auto' && item.dimensionSide !== side) continue;
+    if (delta * face.normal.x < -.001) continue;
+    candidates.push({ from: { x: face.a.x, y: item.y }, to: { x: item.x, y: item.y }, distance: Math.abs(delta), side, wallType: band.type });
+  }
+  candidates.sort((a, b) => a.distance - b.distance);
+  return candidates[0] || nearestWallDimension(plan, item, bands);
+}
+
 export function nearestPlacementDimension(plan, item, bands = placementWallBands(plan)) {
   if (item.surface !== 'facade') return nearestWallDimension(plan, item, bands);
   const anchor = Number.isFinite(item.anchorX) && Number.isFinite(item.anchorY)

@@ -9,6 +9,8 @@ import { dimensionMetres, pointInPolygon, snapToFacade } from '../state/placemen
 import { CatalogSymbol, PlacementSymbol } from './PlacementClassicSymbol.jsx';
 import PlacementWallDimensions from './PlacementWallDimensions.jsx';
 import PlacementWalls from './PlacementWalls.jsx';
+import { snapPlacementToWall } from '../state/placement-walls.js';
+import { electricalBill, resolvedElectricalRoutes, routeLength } from '../state/placement-electrical.js';
 import './placement.css';
 
 const createId = () => globalThis.crypto?.randomUUID?.() || `place-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -59,6 +61,7 @@ export default function PlacementScreen() {
   const [drawingDimension, setDrawingDimension] = useState(false);
   const [dimensionStart, setDimensionStart] = useState(null);
   const [dragPosition, setDragPosition] = useState(null);
+  const [dragLabel, setDragLabel] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -72,14 +75,16 @@ export default function PlacementScreen() {
   const plan = activeFloor === 1 ? project.plan : project.upperFloors?.[activeFloor - 2] || project.plan;
   const contour = useMemo(() => houseContourPoints(plan), [plan]);
   const rooms = useMemo(() => (plan.rooms || []).filter(room => room.include !== false), [plan]);
-  const drawingBounds = useMemo(() => boundsOf([...contour, ...rooms.flatMap(roomPoints)]), [contour, rooms]);
-  const margin = 65;
+  const platformPoints = (plan.platforms || []).filter(platform => platform.include !== false).flatMap(platform => [{ x: platform.x, y: platform.y }, { x: platform.x + platform.w, y: platform.y + platform.h }]);
+  const drawingBounds = useMemo(() => boundsOf([...contour, ...rooms.flatMap(roomPoints), ...platformPoints]), [contour, rooms, plan.platforms]);
+  const margin = Math.max(145, 70 + (placement.items || []).filter(item => item.floor === activeFloor && item.layer === 'electric').length * 23);
   const baseWidth = Math.max(5, drawingBounds.w) * 100 + margin * 2;
   const baseHeight = Math.max(5, drawingBounds.h) * 100 + margin * 2;
   const viewWidth = baseWidth * 100 / zoom, viewHeight = baseHeight * 100 / zoom;
   const viewBox = `${drawingBounds.x * 100 - margin + (baseWidth - viewWidth) / 2 + pan.x} ${drawingBounds.y * 100 - margin + (baseHeight - viewHeight) / 2 + pan.y} ${viewWidth} ${viewHeight}`;
   const items = useMemo(() => placement.items.filter(item => item.floor === activeFloor), [placement.items, activeFloor]);
-  const routes = useMemo(() => placement.routes.filter(route => route.floor === activeFloor), [placement.routes, activeFloor]);
+  const routes = useMemo(() => resolvedElectricalRoutes(placement, activeFloor), [placement, activeFloor]);
+  const electricBill = useMemo(() => electricalBill(placement, activeFloor), [placement, activeFloor]);
   const dimensions = useMemo(() => (placement.dimensions || []).filter(item => item.floor === activeFloor), [placement.dimensions, activeFloor]);
   const selected = items.find(item => item.id === selectedId);
   const selectedCircuit = placement.circuits.find(item => item.id === selectedCircuitId);
@@ -118,13 +123,14 @@ export default function PlacementScreen() {
     const snapped = snapToFacade(position, contour);
     return snapped ? { x: snapped.x, y: snapped.y, anchorX: snapped.anchorX, anchorY: snapped.anchorY } : position;
   };
+  const itemPosition = (position, item) => item.surface === 'facade' ? facadePosition(position) : snapPlacementToWall(plan, position, item);
   const pointFromEvent = event => {
     const ctm = svgRef.current?.getScreenCTM();
     if (!ctm) return null;
     const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(ctm.inverse());
     return { x: round(point.x / 100), y: round(point.y / 100) };
   };
-  const insidePlan = point => point && (pointInPolygon(point, contour) || rooms.some(room => pointInPolygon(point, roomPoints(room))));
+  const insidePlan = point => point && (pointInPolygon(point, contour) || rooms.some(room => pointInPolygon(point, roomPoints(room))) || (plan.platforms || []).some(platform => platform.include !== false && point.x >= platform.x && point.x <= platform.x + platform.w && point.y >= platform.y && point.y <= platform.y + platform.h));
   const onCanvasClick = event => {
     if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     const point = pointFromEvent(event);
@@ -140,13 +146,14 @@ export default function PlacementScreen() {
     }
     if (drawingRoute) { if (insidePlan(point)) setRoutePoints(current => [...current, point]); return; }
     if (!activePreset) { setSelectedId(null); return; }
-    const location = activePreset.surface === 'facade' ? snapToFacade(point, contour) : insidePlan(point) ? point : null;
+    const location = activePreset.surface === 'facade' ? snapToFacade(point, contour) : insidePlan(point) ? itemPosition(point, activePreset) : null;
     if (!location || (activePreset.surface === 'facade' && location.distance > 1.5)) return;
     const id = createId();
     change(data => data.items.push({
       id, floor: activeFloor, layer: activePreset.layer, kind: activePreset.id, label: activePreset.label,
       x: location.x, y: location.y, width: activePreset.width, depth: activePreset.depth,
       rotation: 0, height: activePreset.height || 0, surface: activePreset.surface || 'interior',
+      dimensionSide: 'auto', showHeight: false, showName: false, labelOffsetX: .65, labelOffsetY: -.45,
       ...(activePreset.surface === 'facade' ? { anchorX: location.anchorX, anchorY: location.anchorY } : {}),
       circuitId: activePreset.layer === 'electric' && activePreset.id !== 'panel' ? selectedCircuitId || '' : '',
     }));
@@ -161,9 +168,18 @@ export default function PlacementScreen() {
   };
   const updateCircuit = patch => change(data => { const circuit = data.circuits.find(item => item.id === selectedCircuitId); if (circuit) Object.assign(circuit, patch); });
   const finishRoute = () => {
-    if (routePoints.length >= 2 && selectedCircuitId) change(data => data.routes.push({ id: createId(), floor: activeFloor, circuitId: selectedCircuitId, points: routePoints }));
+    const panel = items.find(item => item.kind === 'panel');
+    if (routePoints.length >= 1 && selectedCircuitId && panel) change(data => data.routes.push({ id: createId(), floor: activeFloor, circuitId: selectedCircuitId, panelItemId: panel.id, points: [{ x: panel.x, y: panel.y }, ...routePoints] }));
     setRoutePoints([]);
     setDrawingRoute(false);
+  };
+  const autoRouteCircuit = () => {
+    const panel = items.find(item => item.kind === 'panel');
+    if (!panel || !selectedCircuitId) return;
+    change(data => {
+      data.routes = data.routes.filter(route => !(route.floor === activeFloor && route.circuitId === selectedCircuitId && route.auto));
+      for (const item of data.items.filter(entry => entry.floor === activeFloor && entry.circuitId === selectedCircuitId && entry.kind !== 'panel')) data.routes.push({ id: createId(), floor: activeFloor, circuitId: selectedCircuitId, panelItemId: panel.id, targetItemId: item.id, auto: true, points: [{ x: panel.x, y: panel.y }, { x: item.x, y: item.y }] });
+    });
   };
   const beginDrag = (event, item) => {
     if (drawingRoute || drawingDimension) return;
@@ -175,6 +191,15 @@ export default function PlacementScreen() {
     dragRef.current = { id: item.id, pointerId: event.pointerId, start: point, origin: { x: item.x, y: item.y }, last: { x: item.x, y: item.y }, surface: item.surface };
     setSelectedId(item.id);
     setPresetId(null);
+  };
+  const beginLabelDrag = (event, item) => {
+    const point = pointFromEvent(event);
+    if (!point) return;
+    event.preventDefault(); event.stopPropagation();
+    svgRef.current?.setPointerCapture(event.pointerId);
+    const origin = { x: item.x + (item.labelOffsetX ?? .65), y: item.y + (item.labelOffsetY ?? -.45) };
+    dragRef.current = { id: item.id, pointerId: event.pointerId, start: point, origin, last: origin, label: true };
+    setSelectedId(item.id);
   };
   const moveDrag = event => {
     if (event.pointerType === 'touch' && touchPointersRef.current.has(event.pointerId)) {
@@ -197,7 +222,9 @@ export default function PlacementScreen() {
     const point = pointFromEvent(event);
     if (!point) return;
     const proposed = { x: round(drag.origin.x + point.x - drag.start.x), y: round(drag.origin.y + point.y - drag.start.y) };
-    const location = drag.surface === 'facade' ? snapToFacade(proposed, contour) : insidePlan(proposed) ? proposed : null;
+    if (drag.label) { drag.last = proposed; setDragLabel({ id: drag.id, x: proposed.x, y: proposed.y }); return; }
+    const item = items.find(entry => entry.id === drag.id);
+    const location = drag.surface === 'facade' ? snapToFacade(proposed, contour) : insidePlan(proposed) && item ? itemPosition(proposed, item) : null;
     if (!location) return;
     drag.last = location;
     setDragPosition({ id: drag.id, ...location });
@@ -230,13 +257,14 @@ export default function PlacementScreen() {
     const moved = drag.last.x !== drag.origin.x || drag.last.y !== drag.origin.y;
     if (moved && event.type !== 'pointercancel') {
       const location = drag.last;
-      change(data => { const target = data.items.find(item => item.id === drag.id); if (target) Object.assign(target, { x: location.x, y: location.y, ...(drag.surface === 'facade' ? { anchorX: location.anchorX, anchorY: location.anchorY } : {}) }); });
+      change(data => { const target = data.items.find(item => item.id === drag.id); if (target) Object.assign(target, drag.label ? { labelOffsetX: round(location.x - target.x), labelOffsetY: round(location.y - target.y) } : { x: location.x, y: location.y, ...(drag.surface === 'facade' ? { anchorX: location.anchorX, anchorY: location.anchorY } : {}) }); });
     }
     // Pointer capture retargets click to the root SVG, which would clear the selection.
     suppressClickRef.current = event.type !== 'pointercancel';
     window.setTimeout(() => { suppressClickRef.current = false; }, 0);
     dragRef.current = null;
     setDragPosition(null);
+    setDragLabel(null);
   };
   const changeLayer = nextLayer => {
     setLayer(nextLayer); setCategory('all'); setQuery(''); setPresetId(null);
@@ -279,8 +307,8 @@ export default function PlacementScreen() {
     <header className="placement-heading"><div><span className="placement-eyebrow">План проекта · размещение</span><h1>Мебель и инженерия</h1><p>Расставляйте мебель, технику и инженерное оборудование. Поиск находит элементы во всей библиотеке; электроточки и свет можно ставить также на фасаде.</p></div><div className="placement-heading-actions"><button onClick={printWorkerSheets} title="Комплект планов и ведомостей для печати или PDF"><Printer size={17}/> Планы для рабочих / PDF</button><button onClick={undo} disabled={!canUndo} title="Отменить"><Undo2 size={17}/> Отменить</button><button onClick={redo} disabled={!canRedo} title="Повторить"><Redo2 size={17}/> Повторить</button></div></header>
     <div className="placement-toolbar">
       <div className="placement-floor-tabs" aria-label="Этаж">{Array.from({ length: floorCount }, (_, index) => <button key={index} className={activeFloor === index + 1 ? 'active' : ''} onClick={() => { setFloor(index + 1); setSelectedId(null); setRoutePoints([]); setDimensionStart(null); }}>Этаж {index + 1}</button>)}</div>
-      <div className="placement-summary"><span>Мебель <b>{summary.furniture}</b></span><span>Техника <b>{summary.appliance}</b></span><span>Инженерия <b>{summary.equipment}</b></span><span>Электроточки <b>{summary.electric}</b></span><span>Трассы по плану <b>{summary.routeLength} м</b></span></div>
-      <div className="placement-measure-tools"><button className={placement.showAutoDimensions ? 'active' : ''} onClick={() => change(data => { data.showAutoDimensions = !data.showAutoDimensions; })}><Ruler size={16}/> Привязки к стенам</button><button className={drawingDimension ? 'active' : ''} onClick={() => { setDrawingDimension(current => !current); setDimensionStart(null); setDrawingRoute(false); setRoutePoints([]); setPresetId(null); }}><Plus size={16}/> Размер вручную</button></div>
+      <div className="placement-summary"><span>Мебель <b>{summary.furniture}</b></span><span>Техника <b>{summary.appliance}</b></span><span>Инженерия <b>{summary.equipment}</b></span><span>Электроточки <b>{summary.electric}</b></span><span>Трассы по плану <b>{electricBill.routeMetres} м</b></span></div>
+      <div className="placement-measure-tools"><button className={placement.showAutoDimensions ? 'active' : ''} onClick={() => change(data => { data.showAutoDimensions = !data.showAutoDimensions; })}><Ruler size={16}/> Авторазмеры электрики</button><button className={drawingDimension ? 'active' : ''} onClick={() => { setDrawingDimension(current => !current); setDimensionStart(null); setDrawingRoute(false); setRoutePoints([]); setPresetId(null); }}><Plus size={16}/> Размер вручную</button></div>
     </div>
     <div className="placement-layers" role="toolbar" aria-label="Слои плана">{PLACEMENT_LAYERS.map(entry => <div className={`placement-layer-row ${layer === entry.id ? 'active' : ''}`} key={entry.id}><button className="placement-layer-select" disabled={entry.future} onClick={() => changeLayer(entry.id)}>{entry.label}{entry.future ? <small>позже</small> : null}</button>{!entry.future ? <button className="placement-eye" aria-label={`${visible[entry.id] ? 'Скрыть' : 'Показать'} ${entry.label}`} title={`${visible[entry.id] ? 'Скрыть' : 'Показать'} ${entry.label}`} onClick={() => setVisible(old => ({ ...old, [entry.id]: !old[entry.id] }))}>{visible[entry.id] ? <Eye size={16}/> : <EyeOff size={16}/>}</button> : null}</div>)}</div>
     <div className="placement-workspace">
@@ -292,16 +320,20 @@ export default function PlacementScreen() {
         {!catalogItems.length ? <p className="placement-catalog-empty">По этому запросу элементов нет.</p> : null}</div></div>
         {layer === 'electric' ? <div className="placement-circuits"><div className="placement-palette-heading"><h3>Группы щита</h3><button onClick={addCircuit} title="Добавить группу"><Plus size={17}/></button></div>{placement.circuits.length ? placement.circuits.map(circuit => <button key={circuit.id} className={selectedCircuitId === circuit.id ? 'active' : ''} onClick={() => { setSelectedCircuitId(circuit.id); setPresetId(null); }}>{circuit.name}</button>) : <p>Добавьте группу для розеток и света.</p>}{selectedCircuit ? <div className="placement-circuit-form"><label>Название<input value={selectedCircuit.name} onChange={event => updateCircuit({ name: event.target.value })}/></label><label>Кабель, по проекту<input value={selectedCircuit.cable || ''} onChange={event => updateCircuit({ cable: event.target.value })} placeholder="Например, 3×2,5"/></label><label>Защита, по проекту<input value={selectedCircuit.breaker || ''} onChange={event => updateCircuit({ breaker: event.target.value })} placeholder="Заполняется после проверки"/></label><button className={drawingRoute ? 'active' : ''} onClick={() => { setDrawingRoute(!drawingRoute); setPresetId(null); setRoutePoints([]); setDrawingDimension(false); }}><Route size={16}/> {drawingRoute ? 'Отменить трассу' : 'Нарисовать трассу'}</button>{drawingRoute ? <button onClick={finishRoute} disabled={routePoints.length < 2}>Сохранить трассу ({routePoints.length} узла)</button> : null}</div> : null}</div> : null}
         {layer === 'electric' && selectedCircuit ? <button className="placement-remove-circuit" onClick={() => { change(data => { data.circuits = data.circuits.filter(circuit => circuit.id !== selectedCircuit.id); data.routes = data.routes.filter(route => route.circuitId !== selectedCircuit.id); data.items.forEach(item => { if (item.circuitId === selectedCircuit.id) item.circuitId = ''; }); }); setSelectedCircuitId(null); setDrawingRoute(false); setRoutePoints([]); }}><Trash2 size={15}/> Удалить группу и её трассы</button> : null}
+        {layer === 'electric' && selectedCircuit ? <button className="placement-auto-route" disabled={!items.some(item => item.kind === 'panel')} onClick={autoRouteCircuit}><Route size={16}/> Протянуть группу к щиту</button> : null}
+        {layer === 'electric' && !items.some(item => item.kind === 'panel') ? <p className="placement-route-hint">Сначала поставьте электрощит на этом этаже.</p> : null}
         {layer === 'electric' && routes.length ? <div className="placement-route-list"><h3>Трассы этажа</h3>{routes.map((route, index) => <div key={route.id}><span>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || `Трасса ${index + 1}`}</span><button title="Удалить трассу" aria-label={`Удалить трассу ${index + 1}`} onClick={() => change(data => { data.routes = data.routes.filter(item => item.id !== route.id); })}><Trash2 size={15}/></button></div>)}</div> : null}
+        {layer === 'electric' ? <div className="placement-electrical-bill"><h3>Ведомость электрики · этаж {activeFloor}</h3><p>Трассы по плану: {electricBill.routeMetres.toFixed(2)} м. Без вертикальных спусков, запаса и обходов.</p>{electricBill.byCircuit.map(circuit => <p key={circuit.id}>{circuit.name}: {circuit.routeMetres.toFixed(2)} м · {circuit.cable || 'кабель не указан'}</p>)}<ul>{electricBill.components.map(component => <li key={component.name}><span>{component.name}</span><strong>{component.quantity == null ? 'уточнить' : `${component.quantity} ${component.unit}`}</strong>{component.note ? <small>{component.note}</small> : null}</li>)}</ul>{electricBill.unconnected.length ? <p>Без линии к щиту: {electricBill.unconnected.length} точек.</p> : null}<p>Ведомость не меняет смету. Сечение, защита и способ монтажа задаются по проекту.</p></div> : null}
       </aside>
       <section className="placement-canvas-panel"><div className="placement-canvas-title"><div className="placement-canvas-caption"><strong>План этажа {activeFloor}</strong><span>{drawingDimension ? dimensionStart ? 'Укажите вторую точку размера' : 'Укажите первую точку размера' : drawingRoute ? 'Нажимайте точки трассы' : activePreset ? `Разместите: ${activePreset.label}${activePreset.surface === 'facade' ? ' у наружной стены' : ''}` : 'Выберите элемент слева или переместите существующий'}</span></div><div className="placement-viewport-tools" role="toolbar" aria-label="Масштаб и поле плана"><button title="Уменьшить масштаб" aria-label="Уменьшить масштаб" onClick={() => setZoom(current => clampZoom(current - 10))}><ZoomOut size={17}/></button><button className="placement-zoom-value" title="Сбросить масштаб и положение" aria-label={`Масштаб ${zoom}%. Сбросить масштаб и положение`} onClick={resetView}>{zoom}%</button><button title="Увеличить масштаб" aria-label="Увеличить масштаб" onClick={() => setZoom(current => clampZoom(current + 10))}><ZoomIn size={17}/></button><button title={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} aria-label={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} onClick={() => setFullscreen(value => !value)}>{fullscreen ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button></div></div><div className="placement-canvas-scroll"><svg ref={svgRef} className={`placement-canvas ${activePreset || drawingRoute || drawingDimension ? 'placing' : ''}`} viewBox={viewBox} role="img" aria-label={`План этажа ${activeFloor} для расстановки мебели и инженерии`} onClick={onCanvasClick} onPointerDown={beginPan} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
         <defs><pattern id="placement-grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M 50 0 L 0 0 0 50" fill="none" stroke="#dbe5e7" strokeWidth="1"/></pattern><marker id="placement-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 2 L 9 5 L 0 8 z" fill="#497c7a"/></marker></defs>
-        <rect x={drawingBounds.x * 100 - 65} y={drawingBounds.y * 100 - 65} width={Math.max(5, drawingBounds.w) * 100 + 130} height={Math.max(5, drawingBounds.h) * 100 + 130} fill="url(#placement-grid)"/>
+        <rect x={drawingBounds.x * 100 - margin} y={drawingBounds.y * 100 - margin} width={Math.max(5, drawingBounds.w) * 100 + margin * 2} height={Math.max(5, drawingBounds.h) * 100 + margin * 2} fill="url(#placement-grid)"/>
+        {(plan.platforms || []).filter(platform => platform.include !== false).map(platform => <g key={platform.id} className="placement-platform"><rect x={platform.x * 100} y={platform.y * 100} width={platform.w * 100} height={platform.h * 100}/><text x={(platform.x + platform.w / 2) * 100} y={(platform.y + platform.h / 2) * 100} textAnchor="middle">{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text></g>)}
         <path d={pathData(contour)} fill="#f9fbf9" stroke="none"/>
         {rooms.map(room => { const points = roomPoints(room); const box = boundsOf(points); return <g key={room.id}><path d={pathData(points)} fill="rgba(219,233,230,.22)" stroke="none"/><text x={(box.x + box.w / 2) * 100} y={(box.y + box.h / 2) * 100} textAnchor="middle" className="placement-room-label">{room.name}</text></g>; })}
         <PlacementWalls plan={plan} idPrefix={`placement-floor-${activeFloor}`}/>
-        {placement.showAutoDimensions ? <PlacementWallDimensions plan={plan} items={items.filter(item => visible[item.layer])}/> : null}
-        {routes.filter(route => visible.electric).map(route => <g key={route.id} onClick={event => event.stopPropagation()}><path d={routeData(route.points)} fill="none" stroke="#d79b43" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" strokeDasharray="8 4"/><title>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'}</title></g>)}
+        {placement.showAutoDimensions && visible.electric ? <PlacementWallDimensions plan={plan} items={items.filter(item => item.layer === 'electric')}/> : null}
+        {routes.filter(route => visible.electric).map(route => <g key={route.id} onClick={event => event.stopPropagation()}><path d={routeData(route.points)} fill="none" stroke="#d79b43" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" strokeDasharray="8 4"/><title>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'} · {routeLength(route.points).toFixed(2)} м</title></g>)}
         {drawingRoute && routePoints.length ? <path d={routeData(routePoints)} fill="none" stroke="#e39c29" strokeWidth="4" vectorEffect="non-scaling-stroke"/> : null}
         {dimensions.map(dimension => <DimensionLine key={dimension.id} points={dimension.points} label={dimension.label}/>)}
         {dimensionStart ? <circle cx={dimensionStart.x * 100} cy={dimensionStart.y * 100} r="7" fill="#497c7a" pointerEvents="none"/> : null}
@@ -318,9 +350,18 @@ export default function PlacementScreen() {
             <title>{item.label || item.kind}</title>
           </g>;
         })}
-      </svg></div><div className="placement-canvas-note">Внутренние привязки идут от ближайшей грани стены или перегородки до центра объекта. Фасадные — вдоль наружной стены от ближайшего угла, окна или двери до точки крепления. Масштаб меняется колёсиком, кнопками или двумя пальцами. Shift + перетаскивание, средняя кнопка или жест одним пальцем перемещают план. «Планы для рабочих / PDF» собирают листы по этажам.</div></section>
+        {items.filter(item => visible[item.layer]).map(item => {
+          const position = dragPosition?.id === item.id ? dragPosition : item;
+          const labelPosition = dragLabel?.id === item.id ? dragLabel : { x: position.x + (item.labelOffsetX ?? .65), y: position.y + (item.labelOffsetY ?? -.45) };
+          return <g key={`note-${item.id}`}>
+            {item.showHeight ? <text className="placement-height-label" x={position.x * 100 + 36} y={position.y * 100 + 45}>h={Number(item.height || 0).toFixed(2)} м</text> : null}
+            {item.showName ? <g className="placement-name-callout" onPointerDown={event => beginLabelDrag(event, item)} onClick={event => event.stopPropagation()}><line x1={position.x * 100} y1={position.y * 100} x2={labelPosition.x * 100} y2={labelPosition.y * 100}/><text x={labelPosition.x * 100} y={labelPosition.y * 100}>{item.label || item.kind}</text></g> : null}
+          </g>;
+        })}
+      </svg></div><div className="placement-canvas-note">Предметы прилипают к ближайшей грани стены. Автоматические размеры электроточек вынесены за контур дома; сторону отсчёта можно выбрать в свойствах. Линии групп ведутся к электрощиту. Масштаб меняется колёсиком, кнопками или двумя пальцами. Shift + перетаскивание перемещает план.</div></section>
       <aside className="placement-inspector"><div className="placement-inspector-heading"><h2>Свойства и размеры</h2>{selected ? <button onClick={() => setSelectedId(null)} aria-label="Закрыть свойства"><X size={17}/></button> : null}</div>
-        {selected ? <div className="placement-inspector-fields"><span className="placement-type">{PLACEMENT_LAYERS.find(entry => entry.id === selected.layer)?.label} · этаж {selected.floor}{selected.surface === 'facade' ? ' · фасад' : ''}</span><label>Название<input value={selected.label || ''} onChange={event => updateItem({ label: event.target.value })}/></label><div className="placement-field-grid"><Field label="X" value={selected.x} onChange={value => { const position = { x: valueOr(value, selected.x), y: selected.y }; updateItem(selected.surface === 'facade' ? facadePosition(position) : position); }} step={.05} suffix="м"/><Field label="Y" value={selected.y} onChange={value => { const position = { x: selected.x, y: valueOr(value, selected.y) }; updateItem(selected.surface === 'facade' ? facadePosition(position) : position); }} step={.05} suffix="м"/><Field label="Ширина" value={selected.width} onChange={value => updateItem({ width: Math.max(.05, valueOr(value, selected.width)) })} min={.05} suffix="м"/><Field label="Глубина" value={selected.depth} onChange={value => updateItem({ depth: Math.max(.05, valueOr(value, selected.depth)) })} min={.05} suffix="м"/></div><Field label="Высота установки" value={selected.height || 0} onChange={value => updateItem({ height: Math.max(0, valueOr(value, selected.height)) })} min={0} suffix="м"/><button className="placement-rotate" onClick={() => updateItem({ rotation: ((selected.rotation || 0) + 90) % 360 })}><RotateCw size={16}/> Повернуть на 90°</button>{selected.layer === 'electric' && selected.kind !== 'panel' ? <label>Электрическая группа<select value={selected.circuitId || ''} onChange={event => updateItem({ circuitId: event.target.value })}><option value="">Не назначена</option>{placement.circuits.map(circuit => <option key={circuit.id} value={circuit.id}>{circuit.name}</option>)}</select></label> : null}<label>Примечание<textarea rows="3" value={selected.note || ''} onChange={event => updateItem({ note: event.target.value })} placeholder="Модель, подключение или уточнение проекта"/></label><button className="placement-delete" onClick={() => { change(data => { data.items = data.items.filter(item => item.id !== selected.id); }); setSelectedId(null); }}><Trash2 size={16}/> Удалить объект</button></div> : <div className="placement-empty-inspector"><p>Выберите предмет на плане, чтобы уточнить его размеры, координаты и высоту установки.</p></div>}
+        {selected ? <div className="placement-inspector-fields"><span className="placement-type">{PLACEMENT_LAYERS.find(entry => entry.id === selected.layer)?.label} · этаж {selected.floor}{selected.surface === 'facade' ? ' · фасад' : ''}</span><label>Название<input value={selected.label || ''} onChange={event => updateItem({ label: event.target.value })}/></label><div className="placement-field-grid"><Field label="X" value={selected.x} onChange={value => { const position = { x: valueOr(value, selected.x), y: selected.y }; updateItem(selected.surface === 'facade' ? facadePosition(position) : position); }} step={.05} suffix="м"/><Field label="Y" value={selected.y} onChange={value => { const position = { x: selected.x, y: valueOr(value, selected.y) }; updateItem(selected.surface === 'facade' ? facadePosition(position) : position); }} step={.05} suffix="м"/><Field label="Ширина" value={selected.width} onChange={value => updateItem({ width: Math.max(.05, valueOr(value, selected.width)) })} min={.05} suffix="м"/><Field label="Глубина" value={selected.depth} onChange={value => updateItem({ depth: Math.max(.05, valueOr(value, selected.depth)) })} min={.05} suffix="м"/></div><Field label="Высота установки" value={selected.height || 0} onChange={value => updateItem({ height: Math.max(0, valueOr(value, selected.height)) })} min={0} suffix="м"/><button className="placement-rotate" onClick={() => updateItem({ rotation: ((selected.rotation || 0) + 90) % 360 })}><RotateCw size={16}/> Повернуть на 90°</button>{selected.layer === 'electric' && selected.kind !== 'panel' ? <label>Электрическая группа<select value={selected.circuitId || ''} onChange={event => updateItem({ circuitId: event.target.value })}><option value="">Не назначена</option>{placement.circuits.map(circuit => <option key={circuit.id} value={circuit.id}>{circuit.name}</option>)}</select></label> : null}<label>Примечание<textarea rows="3" value={selected.note || ''} onChange={event => updateItem({ note: event.target.value })} placeholder="Модель, подключение или уточнение проекта"/></label><button className="placement-delete" onClick={() => { change(data => { data.items = data.items.filter(item => item.id !== selected.id); data.routes = data.routes.filter(route => route.targetItemId !== selected.id && route.panelItemId !== selected.id); }); setSelectedId(null); }}><Trash2 size={16}/> Удалить объект</button></div> : <div className="placement-empty-inspector"><p>Выберите предмет на плане, чтобы уточнить его размеры, координаты и высоту установки.</p></div>}
+        {selected ? <div className="placement-annotation-settings">{selected.layer === 'electric' ? <label>Размер от стены<select value={selected.dimensionSide || 'auto'} onChange={event => updateItem({ dimensionSide: event.target.value })}><option value="auto">Ближайшая слева или справа</option><option value="left">Слева</option><option value="right">Справа</option></select></label> : null}<label><input type="checkbox" checked={selected.showHeight === true} onChange={event => updateItem({ showHeight: event.target.checked })}/> Показывать высоту рядом</label><label><input type="checkbox" checked={selected.showName === true} onChange={event => updateItem({ showName: event.target.checked })}/> Выноска названия (перетащите на плане)</label></div> : null}
         {dimensions.length ? <div className="placement-dimension-list"><h3>Ручные размеры</h3>{dimensions.map((dimension, index) => <div key={dimension.id}><span>{index + 1}. {measureText(dimensionMetres(dimension.points))}</span><input aria-label={`Подпись размера ${index + 1}`} value={dimension.label || ''} placeholder="Подпись по замеру" onChange={event => change(data => { const target = data.dimensions.find(entry => entry.id === dimension.id); if (target) target.label = event.target.value; })}/><button aria-label={`Удалить размер ${index + 1}`} onClick={() => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== dimension.id); })}><Trash2 size={15}/></button></div>)}</div> : null}
       </aside>
     </div>

@@ -85,8 +85,14 @@
 .placement-canvas{width:100%;height:100%;min-width:0;max-height:none;box-sizing:border-box}
 .placement-room-label{font-size:15px;fill:#667874}
 .placement-wall-dimensions line{stroke:#286b5d;stroke-width:1.7;vector-effect:non-scaling-stroke}
+.placement-wall-dimensions .wall-dimension-extension{stroke:#7da49b;stroke-width:1;stroke-dasharray:3 3}
 .placement-wall-dimensions circle{fill:#286b5d;stroke:#fff;stroke-width:1;vector-effect:non-scaling-stroke}
 .placement-wall-dimensions text{font-size:23px;font-weight:700;fill:#245c50;stroke:#fff;stroke-width:4px;paint-order:stroke}
+.placement-platform rect{fill:#e9e4d7;stroke:#998b6e;stroke-width:2;stroke-dasharray:7 4}.placement-platform text{font-size:17px;fill:#756b58;pointer-events:none}
+.placement-name-callout{cursor:grab}.placement-name-callout line{stroke:#7e6852;stroke-width:2}.placement-name-callout text{font-size:17px;font-weight:700;fill:#503d2e;paint-order:stroke;stroke:#fff;stroke-width:4px}.placement-height-label{font-size:14px;font-weight:700;fill:#66553d;paint-order:stroke;stroke:#fff;stroke-width:3px;pointer-events:none}
+.placement-annotation-settings{border-top:1px solid #e1e9e5;margin-top:14px;padding-top:12px}.placement-annotation-settings label{display:flex;gap:8px;align-items:center;margin:8px 0;font-size:.78rem}.placement-annotation-settings label:has(select){display:grid}.placement-annotation-settings input[type=checkbox]{width:auto;flex:none}.placement-annotation-settings select{width:100%;padding:7px;border:1px solid #d2e0dc;border-radius:7px;background:#fff}
+.placement-auto-route{display:flex;align-items:center;gap:7px;width:100%;padding:9px;margin:8px 0;border:1px solid #80b1a5;border-radius:8px;background:#e7f4ee;color:#24594b}.placement-auto-route:disabled{opacity:.45}.placement-route-hint{font-size:.76rem;color:#947c51}.placement-electrical-bill{border-top:1px solid #e1e9e5;margin-top:13px;padding-top:9px;font-size:.75rem;line-height:1.35}.placement-electrical-bill h3{font-size:.87rem}.placement-electrical-bill ul{padding:0;list-style:none}.placement-electrical-bill li{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid #eef2ef}.placement-electrical-bill li small{width:100%;color:#788782}
+@media(min-width:701px){.placement-sidebar{max-height:min(80vh,820px);overflow-y:auto}}
 .placement-fullscreen{position:fixed;inset:0;z-index:9999;padding:10px;background:#f4f8f6;display:flex;flex-direction:column}
 .placement-fullscreen .placement-heading,.placement-fullscreen .placement-toolbar,.placement-fullscreen .placement-layers,.placement-fullscreen .placement-sidebar,.placement-fullscreen .placement-inspector{display:none}
 .placement-fullscreen .placement-workspace{display:block;flex:1;min-height:0}

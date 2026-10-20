@@ -1,3 +1,5 @@
+import { electricalBill, resolvedElectricalRoutes } from '../state/placement-electrical.js';
+
 export function buildPlacementSheets(project) {
   const placement = project.placement || { items: [], routes: [], dimensions: [], circuits: [] };
   const floors = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
@@ -6,7 +8,7 @@ export function buildPlacementSheets(project) {
     const plan = floor === 1 ? project.plan : project.upperFloors?.[floor - 2] || project.plan;
     for (const discipline of ['layout', 'electric']) {
       const list = (placement.items || []).filter(item => item.floor === floor && (discipline === 'electric' ? item.layer === 'electric' : item.layer !== 'electric'));
-      const routes = discipline === 'electric' ? (placement.routes || []).filter(route => route.floor === floor) : [];
+      const routes = discipline === 'electric' ? resolvedElectricalRoutes(placement, floor) : [];
       const circuitIds = new Set([...list.map(item => item.circuitId), ...routes.map(route => route.circuitId)].filter(Boolean));
       const prefix = discipline === 'electric' ? 'Э' : 'Р';
       sheets.push({
@@ -17,6 +19,7 @@ export function buildPlacementSheets(project) {
         plan,
         items: list.map((item, index) => ({ item, mark: `${prefix}-${String(index + 1).padStart(2, '0')}` })),
         routes,
+        electricalBill: discipline === 'electric' ? electricalBill(placement, floor) : null,
         dimensions: (placement.dimensions || []).filter(dimension => dimension.floor === floor),
         circuits: discipline === 'electric' ? (placement.circuits || []).filter(circuit => circuitIds.has(circuit.id)) : [],
       });
