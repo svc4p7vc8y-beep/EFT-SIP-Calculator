@@ -467,6 +467,12 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             description="Данные для файла, сметы и коммерческого предложения."
           >
             <div className="form-grid three">
+              <Field label="Название проекта" className="span-2">
+                <input
+                  value={project.meta.projectName || ''}
+                  onChange={(event) => write('meta.projectName', event.target.value)}
+                />
+              </Field>
               <Field label="Номер проекта">
                 <input
                   value={project.meta.projectNum}

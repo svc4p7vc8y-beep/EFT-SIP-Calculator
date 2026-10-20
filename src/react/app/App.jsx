@@ -40,6 +40,7 @@ import { isPriceEditorUnlocked, verifyPricePasscode, setPriceEditorUnlocked } fr
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { calculateAdjustedPrice } from "../calculations/price-adjustments.js";
 import {
+  createNewBlankProject,
   createProjectWithCurrentPrices,
   createDefaultPriceLists,
   migrateProject,
@@ -47,14 +48,13 @@ import {
   REACT_PROJECT_VERSION,
   summarizePriceCatalogChanges,
 } from "../state/project-model.js";
-import { applyResidentialStandard } from "../state/residential-preset.js";
 import { validateImportedProject } from "../state/project-import.js";
 import { reserveLocalProjectNumber } from "../storage/project-number.js";
 import { formatMoney } from "../utils/format.js";
 import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
 import ProjectSchemePreview from "../components/ProjectSchemePreview.jsx";
 import ScreenErrorBoundary from "../components/ScreenErrorBoundary.jsx";
-import ResidentialPresetDialog from "../components/ResidentialPresetDialog.jsx";
+import NewProjectDialog from "../components/NewProjectDialog.jsx";
 import TeamLogin from "../components/TeamLogin.jsx";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { resolveEftApiUrl } from "../../shared/team-api.js";
@@ -361,10 +361,9 @@ export function App() {
     setNewProjectOpen(true);
   };
 
-  const createNewProject = async (profile, standards) => {
+  const createNewProject = async (details) => {
     try {
-      const next = createProjectWithCurrentPrices(project);
-      if (profile) applyResidentialStandard(next, profile, standards, { applyGeometry: true });
+      const next = createNewBlankProject(project, details);
       await saveBeforeSwitch();
       if (team.user) {
         const created = await team.createProject(next);
@@ -378,15 +377,11 @@ export function App() {
       }
     } catch (error) {
       setNotice(`Проект не создан: ${error.message}`);
-      setNewProjectOpen(false);
-      return;
+      throw error;
     }
     setActive("plan");
-    setNotice(
-      profile
-        ? "Создан новый проект по стандарту жилого дома" + (team.user ? " и сохранён в общей истории" : "")
-        : "Создан новый проект без шаблона",
-    );
+    setPlanCommand({ kind: 'newProject', id: Date.now() });
+    setNotice(`Создан чистый проект${team.user ? ' и сохранён в общей истории' : ''}. Нарисуйте контур дома.`);
     setNewProjectOpen(false);
   };
 
@@ -471,7 +466,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 254</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 255</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -601,9 +596,9 @@ export function App() {
         <span className="project-tabbar-label">ПРОЕКТЫ</span>
         <div className="project-tabbar-scroll">
           {tabs.map((tab) => <div key={tab.id} className={`project-tab ${tab.id === activeTabId ? 'active' : ''}`}>
-            <button role="tab" aria-selected={tab.id === activeTabId} className="project-tab-select" onClick={() => switchProjectTab(tab.id)} title={tab.serverName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}>
+            <button role="tab" aria-selected={tab.id === activeTabId} className="project-tab-select" onClick={() => switchProjectTab(tab.id)} title={tab.serverName || tab.meta?.projectName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}>
               <ProjectSchemePreview plan={tab.plan} compact label={`Схема проекта № ${tab.meta?.projectNum || '—'}`} />
-              <span className="project-tab-name">{tab.serverName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}</span>
+              <span className="project-tab-name">{tab.serverName || tab.meta?.projectName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}</span>
               <small>{tab.serverId ? `№ ${tab.meta?.projectNum || '—'} · общий` : `№ ${tab.meta?.projectNum || '—'} · локальный`}</small>
             </button>
             {tabs.length > 1 ? <button className="project-tab-close" onClick={() => closeProjectTab(tab.id)} aria-label={`Закрыть вкладку ${tab.serverName || tab.meta?.projectNum || ''}`}><X /></button> : null}
@@ -759,12 +754,9 @@ export function App() {
         ].map(([id,label,Icon])=><button key={id} className={active===id?'active':''} aria-label={label} aria-current={active===id?'page':undefined} onClick={()=>id==='menu'?setMenuOpen(true):(setActive(id),setMenuOpen(false))}><Icon/><span>{label}</span></button>)}
       </nav>
       {newProjectOpen ? (
-        <ResidentialPresetDialog
-          mode="new"
-          project={project}
+        <NewProjectDialog
           onClose={() => setNewProjectOpen(false)}
-          onManual={() => createNewProject(null)}
-          onApply={(profile, standards) => createNewProject(profile, standards)}
+          onCreate={createNewProject}
         />
       ) : null}
       {briefPreview ? (

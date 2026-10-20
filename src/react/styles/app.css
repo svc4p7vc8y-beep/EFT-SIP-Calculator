@@ -7020,19 +7020,14 @@ select,
 .summary-section-openings { --section-accent: #9a665c; }
 .summary-section-engineering { --section-accent: #6c6594; }
 .summary-section-estimate { --section-accent: #4e765f; }
-.plan-screen-v2 .plan-header-floor-switcher { flex: 0 0 auto; align-self: flex-start; }
 .plan-screen-v2 .plan-layer-tabs { display: flex; max-width: calc(50% - 85px); overflow-x: auto; scrollbar-width: thin; }
 .plan-screen-v2 .plan-layer-tab { flex: 0 0 58px; }
-.plan-screen-v2 .plan-canvas-floor-switcher { position: absolute; z-index: 7; top: 12px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); flex-wrap: nowrap; min-height: 44px; }
-.plan-screen-v2 .plan-canvas-floor-switcher button { display: inline-flex; flex: 0 0 auto; flex-direction: row; min-height: 36px; padding: 5px 7px; font-size: 10px; white-space: nowrap; }
-.plan-screen-v2 .plan-canvas-floor-switcher button.active { color: #fff; background: #5d8f32; }
 .plan-screen-v2 .plan-stair-controls { position: absolute; z-index: 7; top: 122px; left: 12px; right: 12px; display: flex; width: min(520px, calc(100% - 24px)); gap: 8px; padding: 6px 8px; border: 1px solid #d6e0d4; border-radius: 9px; background: rgba(255,255,255,.97); box-shadow: 0 3px 12px rgba(28,52,23,.08); }
 .plan-screen-v2 .plan-stair-controls .field { flex: 1 1 0; min-width: 0; }
 .plan-screen-v2 .planner-shell.is-fullscreen .plan-stair-controls { top: 115px; }
-.plan-screen-v2 .planner-shell:not(.is-fullscreen) .canvas-history-controls { top: 66px; }
 .plan-screen-v2 .planner-shell.is-fullscreen .plan-layer-tabs { max-width: calc(100% - 390px); }
 @media (max-width: 760px) { .plan-screen-v2 .planner-shell.is-fullscreen .plan-layer-tabs { max-width: calc(100% - 20px); } }
-@media (max-width: 1200px) { .plan-screen-v2 .plan-layer-tab { flex-basis: 52px; } .plan-screen-v2 .plan-layer-tabs { max-width: calc(100% - 24px); } .plan-screen-v2 .plan-canvas-floor-switcher { top: 64px; } .plan-screen-v2 .planner-shell:not(.is-fullscreen) .canvas-history-controls, .plan-screen-v2 .planner-shell.is-fullscreen .canvas-history-controls { top: 120px; } .plan-screen-v2 .plan-stair-controls, .plan-screen-v2 .planner-shell.is-fullscreen .plan-stair-controls { top: 172px; } }
+@media (max-width: 1200px) { .plan-screen-v2 .plan-layer-tab { flex-basis: 52px; } .plan-screen-v2 .plan-layer-tabs { max-width: calc(100% - 24px); } }
 @media (max-width: 820px) { .plan-screen-v2 .plan-layer-tabs { gap: 3px; } .plan-screen-v2 .plan-layer-tab { flex-basis: 45px; } }
 .plan-top-advanced { order: 3; flex: 0 0 auto; color: var(--green-dark); font-size: 10px; }
 .plan-top-advanced[open] { flex-basis: 100%; }
@@ -7182,6 +7177,50 @@ select,
 .project-tab-close{display:grid;place-items:center;align-self:center;width:26px;height:26px;margin-right:4px;border:0;border-radius:7px;background:transparent;color:var(--muted)}
 .project-tab-close:hover{background:#c24e4220;color:#a32e29}
 .project-tab-close svg{width:13px;height:13px}
+
+.new-project-modal{width:min(520px,calc(100vw - 24px))}
+.new-project-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:18px 0}
+.new-project-fields>label,.new-project-dimensions label{display:grid;gap:5px;min-width:0;font-size:12px;font-weight:750}
+.new-project-fields>label:first-child,.new-project-fields>label:nth-child(3),.new-project-dimensions{grid-column:1/-1}
+.new-project-fields input,.new-project-fields select{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
+.new-project-dimensions{display:grid;gap:7px;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.new-project-dimensions strong{font-size:12px}.new-project-dimensions small{color:var(--muted);font-size:11px;font-weight:400}
+.new-project-dimensions>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.new-project-modal .field-error{color:#a4382f;font-size:12px}
+@media(max-width:430px){.new-project-fields{grid-template-columns:1fr}.new-project-fields>label,.new-project-dimensions{grid-column:1}}
+
+/* The floor selector shares the plan options bar; canvas actions occupy its top edge. */
+.plan-screen-v2 .plan-status-bar{justify-content:space-between;flex-wrap:nowrap}
+.plan-screen-v2 .plan-status-floor-switcher{grid-column:auto;flex:0 0 auto;align-self:center}
+.plan-screen-v2 .plan-layer-tabs{max-width:calc(100% - 370px)}
+.plan-screen-v2 .planner-shell:not(.is-fullscreen) .canvas-history-controls{top:12px}
+.plan-screen-v2 .planner-shell.is-fullscreen .canvas-history-controls{top:64px;right:12px;max-width:none;flex-wrap:nowrap}
+.plan-screen-v2 .plan-status-bar:has(+ .planner-shell.is-fullscreen){position:fixed;z-index:1002;top:0;left:0;right:0;margin:0;border-radius:0;box-shadow:0 3px 12px #102e1818}
+.plan-screen-v2 .planner-shell.is-fullscreen .plan-layer-tabs{top:64px;max-width:calc(100% - 370px)}
+.plan-screen-v2 .planner-shell.is-fullscreen .plan-fullscreen-bar{top:120px}
+.plan-screen-v2 .planner-shell.is-fullscreen .planner-tools{padding-top:58px}
+.plan-screen-v2 .planner-shell.is-fullscreen .planner-inspector{padding-top:58px}
+@media(max-width:1200px){
+  .plan-screen-v2 .plan-layer-tabs,.plan-screen-v2 .planner-shell.is-fullscreen .plan-layer-tabs{max-width:calc(100% - 24px)}
+  .plan-screen-v2 .planner-shell:not(.is-fullscreen) .canvas-history-controls{top:66px}
+  .plan-screen-v2 .planner-shell.is-fullscreen .canvas-history-controls{top:118px}
+  .plan-screen-v2 .plan-stair-controls{top:122px}
+  .plan-screen-v2 .planner-shell.is-fullscreen .plan-stair-controls{top:224px}
+  .plan-screen-v2 .planner-shell.is-fullscreen .plan-fullscreen-bar{top:174px}
+}
+@media(max-width:1000px){
+  .plan-screen-v2 .plan-status-bar{flex-wrap:wrap}
+  .plan-screen-v2 .plan-status-floor-switcher{width:max-content;flex:0 0 auto}
+  .plan-screen-v2 .plan-view-switches{flex:1 1 100%;justify-content:flex-start}
+  .plan-screen-v2 .canvas-history-controls{gap:2px}
+  .plan-screen-v2 .canvas-history-controls button{width:29px;height:30px}
+  .plan-screen-v2 .canvas-history-controls button.canvas-zoom-value{width:42px}
+  .plan-screen-v2 .planner-shell.is-fullscreen .plan-layer-tabs{top:108px}
+  .plan-screen-v2 .planner-shell.is-fullscreen .canvas-history-controls{top:162px;max-width:calc(100% - 16px);flex-wrap:wrap}
+  .plan-screen-v2 .planner-shell.is-fullscreen .plan-fullscreen-bar{top:214px}
+  .plan-screen-v2 .planner-shell.is-fullscreen .plan-stair-controls{top:266px}
+  .plan-screen-v2 .planner-shell.is-fullscreen .planner-tools,.plan-screen-v2 .planner-shell.is-fullscreen .planner-inspector{padding-top:104px}
+}
 .project-tab-add,.project-tab-admin{display:flex;align-items:center;justify-content:center;gap:6px;flex:none;min-height:36px;padding:6px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-size:11px;font-weight:800;white-space:nowrap}
 .project-tab-add:hover,.project-tab-admin:hover{border-color:var(--green);background:var(--green-soft)}
 .project-tab-add svg,.project-tab-admin svg{width:15px;height:15px}

@@ -128,7 +128,10 @@ function eft_audit(?int $userId, string $action, string $entityType, string $ent
 
 function eft_project_name(array $payload): string {
     $number = trim((string)($payload['meta']['projectNum'] ?? ''));
+    $projectName = trim((string)($payload['meta']['projectName'] ?? ''));
     $customer = trim((string)($payload['meta']['customer'] ?? ''));
+    if ($projectName !== '' && $number !== '') return mb_substr($projectName . ' · № ' . $number, 0, 255);
+    if ($projectName !== '') return mb_substr($projectName, 0, 255);
     if ($customer !== '' && $number !== '') return mb_substr($customer . ' · № ' . $number, 0, 255);
     if ($customer !== '') return mb_substr($customer, 0, 255);
     if ($number !== '') return mb_substr('Проект № ' . $number, 0, 255);

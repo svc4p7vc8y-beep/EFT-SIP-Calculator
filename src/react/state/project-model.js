@@ -513,6 +513,7 @@ export function createDefaultProject() {
     savedAt: new Date().toISOString(),
     meta: {
       projectNum: "0001",
+      projectName: "",
       customer: "",
       buildingType: "Жилой дом",
       address: "",
@@ -723,6 +724,20 @@ export function createProjectWithCurrentPrices(currentProject) {
     next.priceLab = clone(currentProject.priceLab);
   if (currentProject?.settings?.residentialStandards)
     next.settings.residentialStandards = normalizeResidentialStandards(currentProject.settings.residentialStandards, next);
+  return next;
+}
+
+export function createNewBlankProject(currentProject, details = {}) {
+  const next = createProjectWithCurrentPrices(currentProject);
+  next.plan = createBlankPlan();
+  next.meta.projectName = String(details.projectName || '').trim();
+  next.meta.customer = String(details.customer || '').trim();
+  next.meta.address = String(details.address || '').trim();
+  next.meta.buildingType = details.buildingType || 'Жилой дом';
+  if (Number.isFinite(details.length) && Number.isFinite(details.width)) {
+    next.plan.house.w = details.length;
+    next.plan.house.h = details.width;
+  }
   return next;
 }
 

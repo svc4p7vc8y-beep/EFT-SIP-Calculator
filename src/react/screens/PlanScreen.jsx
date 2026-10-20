@@ -5517,6 +5517,14 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     if (!planCommand) return;
     if (planCommand.kind === 'openLibrary') setLibraryOpen(true);
     if (planCommand.kind === 'saveLibrary') saveSketch();
+    if (planCommand.kind === 'newProject') {
+      setActiveFloor(1);
+      setActiveLayer('plan');
+      setTool('houseContour');
+      setSelected(null);
+      setPolygonDraft([]);
+      setTransferStatus('Чистый проект открыт: нарисуйте замкнутый внешний контур дома');
+    }
     onPlanCommandHandled?.();
   }, [planCommand?.id]);
   const renameLibraryPlan = (entry) => {
@@ -6184,7 +6192,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             <button type="button" className="button primary" onClick={() => addSecondFloor(true)}>
               Добавить второй этаж и начать проём
             </button>
-          ) : !transferStatus.startsWith("Чистый план") ? (
+          ) : !transferStatus.startsWith("Чистый план") && !transferStatus.startsWith("Чистый проект") ? (
             <small>
               Файл плана не содержит прайс-лист, данные заказчика и ручные правки
               сметы.
@@ -6193,6 +6201,15 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         </div>
       ) : null}
       <div className="plan-status-bar">
+        <div className="plan-floor-switcher plan-status-floor-switcher" role="group" aria-label="Выбор этажа">
+          <button type="button" className={activeFloor === 1 ? "active" : ""} aria-pressed={activeFloor === 1} onClick={() => setActiveFloor(1)}>1 этаж</button>
+          {floorCount > 1 ? <button type="button" className={activeFloor === 2 ? "active" : ""} aria-pressed={activeFloor === 2} onClick={() => setActiveFloor(2)}>2 этаж</button>
+            : <button type="button" className="add-floor" onClick={addSecondFloor}><Plus /> 2 этаж</button>}
+          {floorCount > 1 && activeFloor === 2 ? <>
+            <button type="button" title="Очистить 2 этаж" aria-label="Очистить 2 этаж" onClick={clearSecondFloor}><Eraser /></button>
+            <button type="button" className="remove-floor" title="Удалить 2 этаж" aria-label="Удалить 2 этаж" onClick={removeSecondFloor}><Trash2 /></button>
+          </> : null}
+        </div>
         <div className="plan-view-switches">
           <Toggle
             label="Сваи"
@@ -6300,15 +6317,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           ))}
         </aside>
         <div className="planner-canvas" ref={plannerCanvasRef}>
-          <div className="plan-floor-switcher plan-canvas-floor-switcher" role="group" aria-label="Выбор этажа">
-              <button type="button" className={activeFloor === 1 ? "active" : ""} aria-pressed={activeFloor === 1} onClick={() => setActiveFloor(1)}>1 этаж</button>
-              {floorCount > 1 ? <button type="button" className={activeFloor === 2 ? "active" : ""} aria-pressed={activeFloor === 2} onClick={() => setActiveFloor(2)}>2 этаж</button>
-                : <button type="button" className="add-floor" onClick={addSecondFloor}><Plus /> 2 этаж</button>}
-              {floorCount > 1 && activeFloor === 2 ? <>
-                <button type="button" title="Очистить 2 этаж" aria-label="Очистить 2 этаж" onClick={clearSecondFloor}><Eraser /></button>
-                <button type="button" className="remove-floor" title="Удалить 2 этаж" aria-label="Удалить 2 этаж" onClick={removeSecondFloor}><Trash2 /></button>
-              </> : null}
-          </div>
           <div className="plan-layer-tabs" aria-label="Слои проекта">
             {[
               ["piles", "Сваи", CircleDot],
