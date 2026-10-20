@@ -4,6 +4,8 @@ import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 import { normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
+import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
+import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();
@@ -63,4 +65,25 @@ test('facade points snap outside the contour and dimensions survive import', () 
   assert.equal(reopened.placement.showAutoDimensions, true);
   assert.equal(reopened.placement.dimensions[0].label, 'Проход');
   assert.equal(dimensionMetres(reopened.placement.dimensions[0].points), 2);
+});
+
+test('automatic placement dimensions use the exterior datum and object centres', () => {
+  const contour = [{ x: 2, y: 3 }, { x: 10, y: 3 }, { x: 10, y: 9 }, { x: 2, y: 9 }];
+  const result = perimeterPlacementDimensions(contour, [{ x: 5.25, y: 6.4 }, { x: 8, y: 6.4 }]);
+  assert.deepEqual(result.horizontal.map(station => station.distance), [0, 3.25, 6, 8]);
+  assert.deepEqual(result.vertical.map(station => station.distance), [0, 3.4, 6]);
+});
+
+test('worker sheets separate disciplines per floor and number saved positions', () => {
+  const project = createDefaultProject();
+  project.meta.floors = 2;
+  project.placement.items.push({ id: 'bed-1', floor: 1, layer: 'furniture', kind: 'bed', x: 2, y: 3, width: 2, depth: 1.6 });
+  project.placement.items.push({ id: 'socket-1', floor: 1, layer: 'electric', kind: 'socket', x: 4, y: 3, width: .18, depth: .12 });
+  project.placement.items.push({ id: 'boiler-1', floor: 2, layer: 'equipment', kind: 'boiler', x: 3, y: 2, width: .7, depth: .5 });
+  const sheets = buildPlacementSheets(project);
+  assert.equal(sheets.length, 4);
+  assert.deepEqual(sheets.map(sheet => sheet.items.map(entry => entry.mark)), [['Р-01'], ['Э-01'], ['Р-01'], []]);
+  assert.equal(sheets[0].items[0].item.id, 'bed-1');
+  assert.equal(sheets[1].items[0].item.id, 'socket-1');
+  assert.equal(sheets[2].items[0].item.id, 'boiler-1');
 });

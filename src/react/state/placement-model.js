@@ -57,7 +57,7 @@ const ORIGINAL_GROUPS = {
   socket: 'electric-points', switch: 'electric-points', power: 'electric-points',
   light: 'lighting', panel: 'electrical-panel',
 };
-const ORIGINAL_ICONS = { kitchen: 'counter', refrigerator: 'fridge', stove: 'hob', 'water-heater': 'water-heater', 'other-furniture': 'cabinet', 'other-appliance': 'appliance', 'other-equipment': 'boiler' };
+const ORIGINAL_ICONS = { kitchen: 'counter', refrigerator: 'fridge', stove: 'hob', 'water-heater': 'water-heater', 'other-furniture': 'cabinet', 'other-appliance': 'appliance', 'other-equipment': 'equipment-generic' };
 
 export const PLACEMENT_PRESETS = [
   ...ORIGINAL_PRESETS.map(item => ({ ...item, group: ORIGINAL_GROUPS[item.id] || 'climate', icon: ORIGINAL_ICONS[item.id] || item.id })),

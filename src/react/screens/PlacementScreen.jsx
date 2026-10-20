@@ -1,10 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
-import { Eye, EyeOff, Plus, RotateCw, Route, Trash2, Undo2, Redo2, X, Ruler, Search } from 'lucide-react';
+import { Eye, EyeOff, Plus, RotateCw, Route, Trash2, Undo2, Redo2, X, Ruler, Search, Printer } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import PlacementWorkerSheets from './PlacementWorkerSheets.jsx';
 import { useProject } from '../state/ProjectContext.jsx';
 import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { createPlacement, findPlacementPreset, PLACEMENT_GROUPS, PLACEMENT_LAYERS, PLACEMENT_PRESETS, placementSummary } from '../state/placement-model.js';
 import { dimensionMetres, pointInPolygon, snapToFacade } from '../state/placement-geometry.js';
-import { CatalogSymbol, PlacementSymbol } from './PlacementSymbol.jsx';
+import { CatalogSymbol, PlacementSymbol } from './PlacementClassicSymbol.jsx';
+import PlacementPerimeterDimensions from './PlacementPerimeterDimensions.jsx';
 import './placement.css';
 
 const createId = () => globalThis.crypto?.randomUUID?.() || `place-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -35,21 +38,6 @@ function DimensionLine({ points, label, preview = false }) {
   </g>;
 }
 
-function AutoDimensions({ item, displayWidth, displayDepth }) {
-  if (item.layer === 'electric') return null;
-  const halfW = displayWidth / 2, halfD = displayDepth / 2;
-  return <g className="placement-dimension auto" pointerEvents="none">
-    <line x1={-halfW} y1={-halfD - 15} x2={halfW} y2={-halfD - 15} markerStart="url(#placement-arrow)" markerEnd="url(#placement-arrow)"/>
-    <line x1={-halfW} y1={-halfD - 5} x2={-halfW} y2={-halfD - 27}/>
-    <line x1={halfW} y1={-halfD - 5} x2={halfW} y2={-halfD - 27}/>
-    <text x="0" y={-halfD - 22} textAnchor="middle">{measureText(item.width)}</text>
-    <line x1={halfW + 15} y1={-halfD} x2={halfW + 15} y2={halfD} markerStart="url(#placement-arrow)" markerEnd="url(#placement-arrow)"/>
-    <line x1={halfW + 5} y1={-halfD} x2={halfW + 27} y2={-halfD}/>
-    <line x1={halfW + 5} y1={halfD} x2={halfW + 27} y2={halfD}/>
-    <text x={halfW + 22} y="3" textAnchor="start">{measureText(item.depth)}</text>
-  </g>;
-}
-
 export default function PlacementScreen() {
   const { project, commit, undo, redo, canUndo, canRedo } = useProject();
   const placement = project.placement || createPlacement();
@@ -68,6 +56,7 @@ export default function PlacementScreen() {
   const [drawingDimension, setDrawingDimension] = useState(false);
   const [dimensionStart, setDimensionStart] = useState(null);
   const [dragPosition, setDragPosition] = useState(null);
+  const [printing, setPrinting] = useState(false);
   const svgRef = useRef(null);
   const dragRef = useRef(null);
   const suppressClickRef = useRef(false);
@@ -75,7 +64,8 @@ export default function PlacementScreen() {
   const contour = useMemo(() => houseContourPoints(plan), [plan]);
   const rooms = useMemo(() => (plan.rooms || []).filter(room => room.include !== false), [plan]);
   const drawingBounds = useMemo(() => boundsOf([...contour, ...rooms.flatMap(roomPoints)]), [contour, rooms]);
-  const viewBox = `${drawingBounds.x * 100 - 65} ${drawingBounds.y * 100 - 65} ${Math.max(5, drawingBounds.w) * 100 + 130} ${Math.max(5, drawingBounds.h) * 100 + 130}`;
+  const margin = placement.showAutoDimensions ? 140 : 65;
+  const viewBox = `${drawingBounds.x * 100 - margin} ${drawingBounds.y * 100 - margin} ${Math.max(5, drawingBounds.w) * 100 + margin * 2} ${Math.max(5, drawingBounds.h) * 100 + margin * 2}`;
   const items = useMemo(() => placement.items.filter(item => item.floor === activeFloor), [placement.items, activeFloor]);
   const routes = useMemo(() => placement.routes.filter(route => route.floor === activeFloor), [placement.routes, activeFloor]);
   const dimensions = useMemo(() => (placement.dimensions || []).filter(item => item.floor === activeFloor), [placement.dimensions, activeFloor]);
@@ -150,6 +140,7 @@ export default function PlacementScreen() {
     if (drawingRoute || drawingDimension) return;
     const point = pointFromEvent(event);
     if (!point) return;
+    event.preventDefault();
     event.stopPropagation();
     svgRef.current?.setPointerCapture(event.pointerId);
     dragRef.current = { id: item.id, pointerId: event.pointerId, start: point, origin: { x: item.x, y: item.y }, last: { x: item.x, y: item.y }, surface: item.surface };
@@ -176,8 +167,10 @@ export default function PlacementScreen() {
     if (moved && event.type !== 'pointercancel') {
       const location = drag.last;
       change(data => { const target = data.items.find(item => item.id === drag.id); if (target) Object.assign(target, { x: location.x, y: location.y, ...(drag.surface === 'facade' ? { anchorX: location.anchorX, anchorY: location.anchorY } : {}) }); });
-      suppressClickRef.current = true;
     }
+    // Pointer capture retargets click to the root SVG, which would clear the selection.
+    suppressClickRef.current = event.type !== 'pointercancel';
+    window.setTimeout(() => { suppressClickRef.current = false; }, 0);
     dragRef.current = null;
     setDragPosition(null);
   };
@@ -186,12 +179,27 @@ export default function PlacementScreen() {
     setDrawingRoute(false); setRoutePoints([]); setDrawingDimension(false); setDimensionStart(null);
   };
 
+  const printWorkerSheets = () => {
+    setPrinting(true);
+    document.body.classList.add('print-placement');
+    const originalTitle = document.title;
+    document.title = `ЭФТ ${project.meta?.projectNum || 'проект'} — планы для рабочих — ${new Date().toLocaleDateString('ru-RU')}`;
+    const restore = () => {
+      document.body.classList.remove('print-placement');
+      document.title = originalTitle;
+      setPrinting(false);
+      window.removeEventListener('afterprint', restore);
+    };
+    window.addEventListener('afterprint', restore);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  };
+
   return <main className="placement-screen">
-    <header className="placement-heading"><div><span className="placement-eyebrow">План проекта · размещение</span><h1>Мебель и инженерия</h1><p>Расставляйте мебель, технику и оборудование. Электроточки и освещение можно ставить внутри дома и на фасаде.</p></div><div className="placement-heading-actions"><button onClick={undo} disabled={!canUndo} title="Отменить"><Undo2 size={17}/> Отменить</button><button onClick={redo} disabled={!canRedo} title="Повторить"><Redo2 size={17}/> Повторить</button></div></header>
+    <header className="placement-heading"><div><span className="placement-eyebrow">План проекта · размещение</span><h1>Мебель и инженерия</h1><p>Расставляйте мебель, технику и оборудование. Электроточки и освещение можно ставить внутри дома и на фасаде.</p></div><div className="placement-heading-actions"><button onClick={printWorkerSheets} title="Комплект планов и ведомостей для печати или PDF"><Printer size={17}/> Планы для рабочих / PDF</button><button onClick={undo} disabled={!canUndo} title="Отменить"><Undo2 size={17}/> Отменить</button><button onClick={redo} disabled={!canRedo} title="Повторить"><Redo2 size={17}/> Повторить</button></div></header>
     <div className="placement-toolbar">
       <div className="placement-floor-tabs" aria-label="Этаж">{Array.from({ length: floorCount }, (_, index) => <button key={index} className={activeFloor === index + 1 ? 'active' : ''} onClick={() => { setFloor(index + 1); setSelectedId(null); setRoutePoints([]); setDimensionStart(null); }}>Этаж {index + 1}</button>)}</div>
       <div className="placement-summary"><span>Мебель <b>{summary.furniture}</b></span><span>Техника <b>{summary.appliance}</b></span><span>Оборудование <b>{summary.equipment}</b></span><span>Электроточки <b>{summary.electric}</b></span><span>Трассы по плану <b>{summary.routeLength} м</b></span></div>
-      <div className="placement-measure-tools"><button className={placement.showAutoDimensions ? 'active' : ''} onClick={() => change(data => { data.showAutoDimensions = !data.showAutoDimensions; })}><Ruler size={16}/> Авторазмеры</button><button className={drawingDimension ? 'active' : ''} onClick={() => { setDrawingDimension(current => !current); setDimensionStart(null); setDrawingRoute(false); setRoutePoints([]); setPresetId(null); }}><Plus size={16}/> Размер вручную</button></div>
+      <div className="placement-measure-tools"><button className={placement.showAutoDimensions ? 'active' : ''} onClick={() => change(data => { data.showAutoDimensions = !data.showAutoDimensions; })}><Ruler size={16}/> Привязки по контуру</button><button className={drawingDimension ? 'active' : ''} onClick={() => { setDrawingDimension(current => !current); setDimensionStart(null); setDrawingRoute(false); setRoutePoints([]); setPresetId(null); }}><Plus size={16}/> Размер вручную</button></div>
     </div>
     <div className="placement-workspace">
       <aside className="placement-sidebar"><h2>Библиотека элементов</h2>
@@ -212,6 +220,7 @@ export default function PlacementScreen() {
         {rooms.map(room => { const points = roomPoints(room); const box = boundsOf(points); return <g key={room.id}><path d={pathData(points)} fill="rgba(219,233,230,.22)" stroke="#a8bcb9" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/><text x={(box.x + box.w / 2) * 100} y={(box.y + box.h / 2) * 100} textAnchor="middle" className="placement-room-label">{room.name}</text></g>; })}
         {(plan.walls || []).filter(wall => wall.include !== false).map(wall => <line key={wall.id} x1={wall.x1 * 100} y1={wall.y1 * 100} x2={wall.x2 * 100} y2={wall.y2 * 100} stroke="#77918f" strokeWidth="4" vectorEffect="non-scaling-stroke"/>)}
         {(plan.openings || []).filter(opening => opening.include !== false).map(opening => <line key={opening.id} x1={(opening.x - (opening.orientation === 'h' ? opening.width / 2 : 0)) * 100} y1={(opening.y - (opening.orientation === 'v' ? opening.width / 2 : 0)) * 100} x2={(opening.x + (opening.orientation === 'h' ? opening.width / 2 : 0)) * 100} y2={(opening.y + (opening.orientation === 'v' ? opening.width / 2 : 0)) * 100} stroke={opening.type === 'window' ? '#468fba' : '#b77d52'} strokeWidth="7" vectorEffect="non-scaling-stroke"/>)}
+        {placement.showAutoDimensions ? <PlacementPerimeterDimensions contour={contour} items={items.filter(item => visible[item.layer])}/> : null}
         {routes.filter(route => visible.electric).map(route => <g key={route.id} onClick={event => event.stopPropagation()}><path d={routeData(route.points)} fill="none" stroke="#d79b43" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" strokeDasharray="8 4"/><title>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'}</title></g>)}
         {drawingRoute && routePoints.length ? <path d={routeData(routePoints)} fill="none" stroke="#e39c29" strokeWidth="4" vectorEffect="non-scaling-stroke"/> : null}
         {dimensions.map(dimension => <DimensionLine key={dimension.id} points={dimension.points} label={dimension.label}/>)}
@@ -226,15 +235,15 @@ export default function PlacementScreen() {
             <rect x={-Math.max(displayWidth, electrical ? 100 : displayWidth) / 2} y={-Math.max(displayDepth, electrical ? 100 : displayDepth) / 2} width={Math.max(displayWidth, electrical ? 100 : displayWidth)} height={Math.max(displayDepth, electrical ? 100 : displayDepth)} fill="transparent" stroke="none"/>
             <svg x={-displayWidth / 2} y={-displayDepth / 2} width={displayWidth} height={displayDepth} viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible"><PlacementSymbol kind={item.kind}/></svg>
             {selectedId === item.id ? <rect x={-displayWidth / 2 - 4} y={-displayDepth / 2 - 4} width={displayWidth + 8} height={displayDepth + 8} rx="8" fill="none" stroke="#2b8f85" strokeWidth="3" pointerEvents="none"/> : null}
-            {placement.showAutoDimensions ? <AutoDimensions item={item} displayWidth={displayWidth} displayDepth={displayDepth}/> : null}
             <title>{item.label || item.kind}</title>
           </g>;
         })}
-      </svg></div><div className="placement-canvas-note">Выбор элемента размещает один экземпляр. Затем его можно перетащить. Авторазмеры берутся из свойств предмета; ручные размеры можно провести между двумя точками.</div></section>
+      </svg></div><div className="placement-canvas-note">Выбор элемента размещает один экземпляр. Затем его можно перетащить. Привязки показывают расстояния до центров объектов от крайних наружных габаритов дома; ручные размеры можно провести между двумя точками. Кнопка «Планы для рабочих / PDF» собирает листы по этажам с ведомостями; сохраните PDF с датой выпуска и передайте бригаде актуальный экземпляр.</div></section>
       <aside className="placement-inspector"><div className="placement-inspector-heading"><h2>Свойства и размеры</h2>{selected ? <button onClick={() => setSelectedId(null)} aria-label="Закрыть свойства"><X size={17}/></button> : null}</div>
         {selected ? <div className="placement-inspector-fields"><span className="placement-type">{PLACEMENT_LAYERS.find(entry => entry.id === selected.layer)?.label} · этаж {selected.floor}{selected.surface === 'facade' ? ' · фасад' : ''}</span><label>Название<input value={selected.label || ''} onChange={event => updateItem({ label: event.target.value })}/></label><div className="placement-field-grid"><Field label="X" value={selected.x} onChange={value => { const position = { x: valueOr(value, selected.x), y: selected.y }; updateItem(selected.surface === 'facade' ? facadePosition(position) : position); }} step={.05} suffix="м"/><Field label="Y" value={selected.y} onChange={value => { const position = { x: selected.x, y: valueOr(value, selected.y) }; updateItem(selected.surface === 'facade' ? facadePosition(position) : position); }} step={.05} suffix="м"/><Field label="Ширина" value={selected.width} onChange={value => updateItem({ width: Math.max(.05, valueOr(value, selected.width)) })} min={.05} suffix="м"/><Field label="Глубина" value={selected.depth} onChange={value => updateItem({ depth: Math.max(.05, valueOr(value, selected.depth)) })} min={.05} suffix="м"/></div><Field label="Высота установки" value={selected.height || 0} onChange={value => updateItem({ height: Math.max(0, valueOr(value, selected.height)) })} min={0} suffix="м"/><button className="placement-rotate" onClick={() => updateItem({ rotation: ((selected.rotation || 0) + 90) % 360 })}><RotateCw size={16}/> Повернуть на 90°</button>{selected.layer === 'electric' && selected.kind !== 'panel' ? <label>Электрическая группа<select value={selected.circuitId || ''} onChange={event => updateItem({ circuitId: event.target.value })}><option value="">Не назначена</option>{placement.circuits.map(circuit => <option key={circuit.id} value={circuit.id}>{circuit.name}</option>)}</select></label> : null}<label>Примечание<textarea rows="3" value={selected.note || ''} onChange={event => updateItem({ note: event.target.value })} placeholder="Модель, подключение или уточнение проекта"/></label><button className="placement-delete" onClick={() => { change(data => { data.items = data.items.filter(item => item.id !== selected.id); }); setSelectedId(null); }}><Trash2 size={16}/> Удалить объект</button></div> : <div className="placement-empty-inspector"><p>Выберите предмет на плане, чтобы уточнить его размеры, координаты и высоту установки.</p></div>}
         {dimensions.length ? <div className="placement-dimension-list"><h3>Ручные размеры</h3>{dimensions.map((dimension, index) => <div key={dimension.id}><span>{index + 1}. {measureText(dimensionMetres(dimension.points))}</span><input aria-label={`Подпись размера ${index + 1}`} value={dimension.label || ''} placeholder="Подпись по замеру" onChange={event => change(data => { const target = data.dimensions.find(entry => entry.id === dimension.id); if (target) target.label = event.target.value; })}/><button aria-label={`Удалить размер ${index + 1}`} onClick={() => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== dimension.id); })}><Trash2 size={15}/></button></div>)}</div> : null}
       </aside>
     </div>
+    {printing ? createPortal(<PlacementWorkerSheets project={project}/>, document.body) : null}
   </main>;
 }
