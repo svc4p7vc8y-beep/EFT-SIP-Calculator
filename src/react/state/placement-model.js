@@ -1,7 +1,7 @@
 export const PLACEMENT_LAYERS = [
   { id: 'furniture', label: 'Мебель' },
   { id: 'appliance', label: 'Бытовая техника' },
-  { id: 'equipment', label: 'Оборудование' },
+  { id: 'equipment', label: 'Инженерия' },
   { id: 'electric', label: 'Электрика' },
   { id: 'plumbing', label: 'Сантехника', future: true },
   { id: 'heating', label: 'Отопление', future: true },
