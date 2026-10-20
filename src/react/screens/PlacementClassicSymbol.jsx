@@ -30,6 +30,9 @@ function Electrical({ icon }) {
 }
 
 function Equipment({ icon }) {
+  if (icon === 'hydro-tank' || icon === 'expansion-tank') return <><circle cx="50" cy="50" r={icon === 'hydro-tank' ? 37 : 31}/><circle cx="50" cy="50" r={icon === 'hydro-tank' ? 28 : 22} {...line}/><path d="M50 12v17M50 71v17M13 50h16m42 0h16" {...line}/><path d="M37 52c0-8 13-19 13-19s13 11 13 19a13 13 0 0 1-26 0z" {...line}/>{icon === 'hydro-tank' ? <path d="M25 78v11m50-11v11" {...line}/> : null}</>;
+  if (icon === 'heat-pump') return <><rect x="9" y="13" width="82" height="74" rx="4"/><circle cx="50" cy="49" r="26" {...line}/><circle cx="50" cy="49" r="5" {...line}/><path d="M50 44c-4-16 9-23 14-15M55 49c17-2 21 11 10 20M48 54c-10 13-23 8-22-5" {...line}/></>;
+  if (icon === 'water-filter') return <><rect x="12" y="15" width="76" height="70" rx="3"/><path d="M18 28h64M50 15v13M25 28v45m25-45v45m25-45v45M18 73h64" {...line}/><circle cx="50" cy="50" r="5" {...line}/></>;
   if (icon === 'water-heater') return <><circle cx="50" cy="50" r="39"/><circle cx="50" cy="50" r="30" {...line}/><circle cx="50" cy="50" r="4" {...dot}/><path d="M30 12V5m40 7V5M30 88v7m40-7v7" {...line}/></>;
   if (icon === 'pump') return <><circle cx="50" cy="50" r="28"/><circle cx="50" cy="50" r="17" {...line}/><path d="M43 39l18 11-18 11zM8 36h14m56 0h14M8 64h14m56 0h14" {...line}/></>;
   if (icon === 'manifold') return <><rect x="13" y="23" width="74" height="54" rx="2"/><path d="M20 38h60M20 62h60" {...line}/>{[29,43,57,71].map(cx => <path key={cx} d={`M${cx} 12v26m0 24v26`} {...line}/>)}</>;
@@ -53,11 +56,11 @@ export function PlacementSymbol({ kind, icon: explicitIcon }) {
     {['toilet','bidet'].includes(icon) ? <><rect x="31" y="7" width="38" height="19" rx="2"/><ellipse cx="50" cy="59" rx="25" ry="33"/><ellipse cx="50" cy="56" rx="18" ry="24" {...line}/></> : null}
     {['washer','dryer','dishwasher'].includes(icon) ? <><rect x="10" y="10" width="80" height="80" rx="3"/><rect x="17" y="16" width="66" height="12" {...line}/><circle cx="25" cy="22" r="2" {...dot}/><circle cx="50" cy="59" r="25" {...line}/>{icon === 'dishwasher' ? <path d="M34 56h32m-23-8v16m14-16v16" {...line}/> : <><circle cx="50" cy="59" r="18" {...line}/><path d="M35 60c10-9 20 9 30 0" {...line}/></>}</> : null}
     {['fridge','freezer'].includes(icon) ? <><rect x="13" y="9" width="74" height="82" rx="3"/><rect x="19" y="15" width="62" height="70" {...line}/><path d="M50 15v70M43 28v20m14 5v20" {...line}/></> : null}
-    {icon === 'hob' ? <><rect x="11" y="11" width="78" height="78" rx="2"/>{[[35,35,13],[65,35,11],[35,65,11],[65,65,13]].map(([cx,cy,r]) => <g key={`${cx}-${cy}`}><circle cx={cx} cy={cy} r={r} {...line}/><circle cx={cx} cy={cy} r={r-6} {...line}/></g>)}</> : null}
+    {['hob','gas-stove','electric-stove'].includes(icon) ? <><rect x="11" y="11" width="78" height="78" rx="2"/>{[[35,35,13],[65,35,11],[35,65,11],[65,65,13]].map(([cx,cy,r]) => <g key={`${cx}-${cy}`}><circle cx={cx} cy={cy} r={r} {...line}/><circle cx={cx} cy={cy} r={r-6} {...line}/></g>)}{icon === 'gas-stove' ? <path d="M40 49l10-7 10 7-10 8z" {...line}/> : icon === 'electric-stove' ? <path d="M42 45h16m-16 7h16" {...line}/> : null}</> : null}
     {['oven','microwave'].includes(icon) ? <><rect x="10" y="10" width="80" height="80" rx="3"/><rect x="17" y="30" width="66" height="51" {...line}/><path d="M22 21h40" {...line}/><circle cx="76" cy="21" r="2" {...dot}/></> : null}
     {icon === 'hood' ? <><path d="M33 11h34l20 65H13zM13 76h74v12H13z"/><path d="M38 64h24" {...line}/></> : null}
     {icon === 'vacuum' ? <><circle cx="50" cy="50" r="39"/><circle cx="50" cy="50" r="27" {...line}/><path d="M34 40h32M50 25v8" {...line}/></> : null}
-    {['boiler','water-heater','manifold','pump','vent-unit','air-conditioner','appliance','equipment-generic'].includes(icon) ? <Equipment icon={icon}/> : null}
+    {['boiler','water-heater','manifold','pump','vent-unit','air-conditioner','hydro-tank','expansion-tank','heat-pump','water-filter','appliance','equipment-generic'].includes(icon) ? <Equipment icon={icon}/> : null}
   </g>;
 }
 

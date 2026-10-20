@@ -6,6 +6,7 @@ import { normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESE
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
 import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
+import { nearestWallDimension, placementWallBands } from '../src/react/state/placement-walls.js';
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();
@@ -50,6 +51,7 @@ test('expanded library has unique entries and each one belongs to a visible grou
   }
   assert(PLACEMENT_PRESETS.some(item => item.id === 'facade-socket' && item.surface === 'facade'));
   assert(PLACEMENT_PRESETS.some(item => item.id === 'facade-light' && item.surface === 'facade'));
+  for (const id of ['hydro-tank', 'expansion-tank', 'gas-stove', 'electric-stove']) assert(PLACEMENT_PRESETS.some(item => item.id === id), id);
 });
 
 test('facade points snap outside the contour and dimensions survive import', () => {
@@ -72,6 +74,22 @@ test('automatic placement dimensions use the exterior datum and object centres',
   const result = perimeterPlacementDimensions(contour, [{ x: 5.25, y: 6.4 }, { x: 8, y: 6.4 }]);
   assert.deepEqual(result.horizontal.map(station => station.distance), [0, 3.25, 6, 8]);
   assert.deepEqual(result.vertical.map(station => station.distance), [0, 3.4, 6]);
+});
+
+test('placement dimensions start at the nearest finished wall face on either side of a partition', () => {
+  const plan = { house: { w: 10, h: 8 }, wallThickness: .2, partitionThickness: .1, rooms: [], walls: [{ id: 'middle', x1: 5, y1: .2, x2: 5, y2: 7.8, include: true }] };
+  assert.equal(placementWallBands(plan).partitions.length, 1);
+  const left = nearestWallDimension(plan, { x: 4, y: 4 });
+  const right = nearestWallDimension(plan, { x: 6, y: 4 });
+  const outside = nearestWallDimension(plan, { x: .5, y: 4 });
+  assert.equal(left.wallType, 'partition');
+  assert.equal(right.wallType, 'partition');
+  assert.equal(Math.round(left.from.x * 100), 495);
+  assert.equal(Math.round(right.from.x * 100), 505);
+  assert.equal(Math.round(left.distance * 100), 95);
+  assert.equal(Math.round(right.distance * 100), 95);
+  assert.equal(outside.wallType, 'outer');
+  assert.equal(Math.round(outside.distance * 100), 30);
 });
 
 test('worker sheets separate disciplines per floor and number saved positions', () => {
