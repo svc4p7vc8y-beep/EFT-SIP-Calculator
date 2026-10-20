@@ -49,6 +49,28 @@ test('cold gable frame receives studs on the same purlin bearing axes', () => {
   }
 });
 
+test('near-window purlin support keeps the wall and SIP gable drawable with a separate header', () => {
+  const project=projectWithFrame('sip');
+  project.plan.openings=[{id:'near',type:'window',outer:true,x:10,y:2.1,width:1,height:1.2,sillHeight:.85,orientation:'v'}];
+  const before=structuredClone(project.plan),report=calculateProductionCutting(project,calculateProject(project));
+  const header=report.members.find(member=>member.role==='roof-opening-header');
+  assert.ok(header);
+  assert.equal(header.profile,'145×150');
+  assert.equal(header.length,1000);
+  assert.equal(report.incompleteSurfaces.length,0);
+  assert.ok(report.surfaces.filter(surface=>surface.id.startsWith('ФР-')).every(surface=>
+    report.parts.some(part=>part.surfaceId===surface.id)));
+  const gable=report.surfaces.find(surface=>surface.id==='ФР-1');
+  assert.ok(gable.height>project.settings.roof.ridgeHeight*1000);
+  assert.ok(gable.geometry[0][0].some(([x,y])=>x===0&&y>0));
+  assert.ok(report.issues.some(item=>item.code==='ROOF_OPENING_HEADER_CHECK'));
+  assert.deepEqual(project.plan,before);
+  project.settings.productionCutting.memberOverrides[header.key]={length:1150,profile:'145×200',nodeRef:'Узел У-1'};
+  const revised=calculateProductionCutting(project,calculateProject(project));
+  assert.equal(revised.members.find(member=>member.key===header.key).length,1150);
+  assert.equal(revised.members.find(member=>member.key===header.key).profile,'145×200');
+});
+
 test('a manual wall grid is retained and a purlin crossing an opening is flagged', () => {
   const project = projectWithFrame('sip');
   const first = calculateProductionCutting(project, calculateProject(project));
@@ -60,6 +82,10 @@ test('a manual wall grid is retained and a purlin crossing an opening is flagged
   project.settings.productionCutting.layouts = {};
   project.plan.openings = [{ id: 'window', type: 'window', outer: true, x: 10, y: 2.667, width: 1, height: 1.2, sillHeight: .85, orientation: 'v' }];
   const opening = calculateProductionCutting(project, calculateProject(project));
-  assert.ok(opening.issues.some(item => item.code === 'ROOF_WALL_ALIGNMENT' && item.message.includes('проём')));
+  assert.ok(opening.issues.some(item => item.code === 'ROOF_OPENING_HEADER_CHECK' && item.message.includes('проём')));
+  const header=opening.members.find(member=>member.role==='roof-opening-header');
+  assert.ok(header);
+  assert.equal(header.profile,'145×150');
+  assert.ok(productionScene(opening,project).panels.some(board=>board.id===header.id&&board.timber));
   assert.equal(project.plan.openings[0].y, 2.667);
 });

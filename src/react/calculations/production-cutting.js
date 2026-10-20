@@ -337,6 +337,16 @@ export function tileProductionSurface(surface, panelWidth, panelLength, step, st
   try { return tileSurface(surface,panelWidth,panelLength,step,staggered); }
   catch(error) {
     const layout=surface.layout||{};
+    if(error.code==='MIN_PANEL_WIDTH'&&surface.gableColumns?.length&&
+      !['originX','originY','step'].some(key=>presentNumber(layout[key]))&&(!layout.direction||layout.direction==='auto')){
+      // A taper may leave an unusable fragment between otherwise valid wall joints.
+      // Keep the gable complete and flag the changed joint pattern for review.
+      for(const direction of ['x','y'])try{
+        const parts=tileSurface({...surface,gableColumns:undefined,layout:{...layout,direction}},panelWidth,panelLength,step,staggered);
+        surface.gableColumns=undefined;surface.automaticGableDirection=direction;
+        return parts;
+      }catch(retryError){if(retryError.code!=='MIN_PANEL_WIDTH')throw retryError;}
+    }
     if(error.code!=='MIN_PANEL_WIDTH'||!surface.horizontal||(layout.direction&&layout.direction!=='auto')||
       ['originX','originY','step'].some(key=>presentNumber(layout[key])))throw error;
     try {
@@ -712,13 +722,17 @@ export function calculateProductionCutting(project, calculation) {
       }
     } else if (['sip','cold'].includes(roof.mainGableType)) {
       if (rectangular && roof.mainRoofShape === 'gable') {
-        const height = mm(roofSettings.ridgeHeight), span = roof.ridgeAxis === 'y' ? bounds.width : bounds.height;
+        const rise = mm(roofSettings.ridgeHeight), span = roof.ridgeAxis === 'y' ? bounds.width : bounds.height;
+        // The roof datum follows the centre of the rafter. SIP reaches its upper face.
+        const rafterDepth=Number(String(roofSettings.rafterSection||'').split(/[×xх]/)[1])||0;
+        const upperFaceOffset = Math.round(rafterDepth/2*Math.sqrt(1+(2*rise/span)**2));
+        const height = rise + upperFaceOffset;
         const along=roof.ridgeAxis==='y'?1:0;
         const endWalls=surfaces.filter(s=>s.floor===plans.length&&/^Э\d+-С\d+$/.test(s.id)&&Math.abs(s.planStart[along]-s.planEnd[along])<1).sort((a,b)=>a.planStart[along]-b.planStart[along]);
         const endEdges=exteriorWallConstruction(plans.at(-1),sip,roofSettings,true,services.roof).filter(w=>Math.abs((along===0?w.a.x-w.b.x:w.a.y-w.b.y))<.001).sort((a,b)=>(along===0?a.a.x-b.a.x:a.a.y-b.a.y));
         for (let i = 1; i <= Math.min(2, Number(roofSettings.gableCount) || 0); i++) {
           const wall=endWalls[i-1],trim=wall?Math.max(0,(span-wall.width)/2):0;
-          const clipped=clipping.intersection([[[0,0],[span,0],[span/2,height],[0,0]]],rect(trim,0,span-2*trim,height));
+          const clipped=clipping.intersection([[[0,0],[span,0],[span,upperFaceOffset],[span/2,height],[0,upperFaceOffset],[0,0]]],rect(trim,0,span-2*trim,height));
           // Keep the same per-end material resolution as the estimate engine.
           const selected=roofSettings.type==='combo'?roofSettings.gableSideTypes?.[i===1?'first':'second']:null;
           const type=selected==='sip'?'sip':selected==='frame'?'cold':roof.mainGableType;
@@ -728,7 +742,7 @@ export function calculateProductionCutting(project, calculation) {
             const localY=Number(o.sill)-wall.height,rawHole=rect(o.x,localY,o.width,o.height),upperHole=clipping.intersection(rawHole,rect(0,0,wall.width,height));
             const fullShape=clipping.union(gableShape,rect(0,-wall.height,wall.width,wall.height));
             const excess=clipping.difference(rawHole,fullShape).reduce((sum,p)=>sum+polygonAreaMm(p),0);
-            const cap=Math.min(...[o.x,o.x+o.width].map(x=>wall.height+height*(1-Math.abs(2*(x+trim)/span-1)))),clearance=cap-Number(o.sill)-o.height;
+            const cap=Math.min(...[o.x,o.x+o.width].map(x=>wall.height+upperFaceOffset+rise*(1-Math.abs(2*(x+trim)/span-1)))),clearance=cap-Number(o.sill)-o.height;
             if(excess>1||type!=='sip'){
               issue('GABLE_OPENING',`${o.name}: проём пересекает стену и фронтон${type!=='sip'?' с каркасом, требуется рабочая схема обрамления':` и выходит за наклонный верх фронтона на ${Math.max(0,Math.ceil(-clearance))} мм. При прежней ширине и высоте отметка низа должна быть не выше ${Math.floor(cap-o.height)} мм`}. Проверьте высоту, отметку низа и положение на плане.`,o.key);
               blocked=true;wall.blocked=true;
@@ -738,6 +752,7 @@ export function calculateProductionCutting(project, calculation) {
             const row=openings.find(row=>row.key===o.key);if(row){row.gableId=`ФР-${i}`;row.topClearance=clearance;}
           }
           const gableSurface=addGable(`ФР-${i}`, `Фронтон ${i}`,subtract(gableShape,holes),type);
+          if(type==='sip')gableSurface.topExtensionAreaMm2=upperFaceOffset*gableSurface.width;
           gableSurface.blocked=blocked;gableSurface.openings=transfers.map(o=>({...o,sill:Number(o.sill)-(wall?.height||0)}));
           if(wall)gableSurface.parentWallId=wall.id;
           // With a zero knee wall, use the actual top-floor contour and datum,
@@ -784,9 +799,13 @@ export function calculateProductionCutting(project, calculation) {
   if(wallBearingSupports.length)for(const surface of surfaces.filter(s=>s.exterior&&s.planStart)){
     surface.requiredRoofSupportSeams=roofSupportWallPositions(surface,wallBearingSupports);
     const manualGrid=['originX','originY','step'].some(k=>presentNumber(surface.layout[k]))||surface.layout.direction&&surface.layout.direction!=='auto'||settings.wallPanelMode!=='full';
-    surface.roofSupportSeams=manualGrid?[]:surface.requiredRoofSupportSeams.filter(x=>
-      !(surface.openings||[]).some(o=>x>o.x+.01&&x<o.x+o.width-.01));
-    if(surface.requiredRoofSupportSeams.some(x=>(surface.openings||[]).some(o=>x>o.x+.01&&x<o.x+o.width-.01)))issue('ROOF_WALL_ALIGNMENT',`${surface.name}: опора кровли попадает в проём. Нужен рабочий узел передачи нагрузки; проём не перемещён.`,surface.id);
+    const closeOpening=x=>(surface.openings||[]).find(o=>!o.gap&&['window','door'].includes(o.type)&&
+      x>o.x-MIN_PANEL_WIDTH_MM+.01&&x<o.x+o.width+MIN_PANEL_WIDTH_MM-.01);
+    surface.roofOpeningHeaders=[...new Map(surface.requiredRoofSupportSeams.filter(x=>closeOpening(x)).map(x=>{
+      const opening=closeOpening(x);return [opening.key,{opening,supportPositions:surface.requiredRoofSupportSeams.filter(position=>closeOpening(position)?.key===opening.key)}];
+    })).values()];
+    surface.roofSupportSeams=manualGrid?[]:surface.requiredRoofSupportSeams.filter(x=>!closeOpening(x));
+    for(const {opening} of surface.roofOpeningHeaders)issue('ROOF_OPENING_HEADER_CHECK',`${surface.name}: над проёмом «${opening.name}» предусмотрен пакет 3×50×150 мм на ребро. Опирание пакета, нагрузки и путь усилий до фундамента требуют расчёта; отдельная цена пакета в смету не добавлена. Проём не перемещён.`,surface.id);
     if(surface.requiredRoofSupportSeams.length&&manualGrid)issue('ROOF_WALL_ALIGNMENT',`${surface.name}: ручная сетка сохранена; совместите соединители под опорами кровли.`,surface.id);
     if(surface.roofSupportSeams.length)issue('ROOF_WALL_SUPPORT_CHECK',`${surface.name}: шов SIP и соединительный брус совмещены с прогоном. Сечение, стык по высоте и путь нагрузки до фундамента требуют проверки конструктора.`,surface.id);
   }
@@ -824,6 +843,7 @@ export function calculateProductionCutting(project, calculation) {
       const detail=seamConflict?` Шов под прогоном на ${seamConflict.seam} мм расположен в ${Math.round(seamConflict.distance)} мм от края проёма ${seamConflict.opening.name}; требуется изменить положение шва, проёма или согласовать отдельный узел.`:'';
       issue(error.code,`${error.message}${detail}`,surface.id);
     }
+    if(surface.automaticGableDirection)issue('GABLE_ALIGNMENT',`${surface.name}: для полного раскроя стыки SIP-фронтона смещены относительно стены. Соединители и опирание подтвердите в рабочем узле.`,surface.id);
   }
   const manualIds = new Set();
   for (const item of settings.manualPanels) {
@@ -924,10 +944,27 @@ export function calculateProductionCutting(project, calculation) {
   }
   for(const surface of surfaces.filter(s=>!s.frameOnly&&!s.horizontal))for(const key of completeSipOpeningBoards(surface,members,settings,issue))overrideKeys.add(key);
   for(const surface of surfaces.filter(s=>s.exterior&&!s.frameOnly&&!s.horizontal))for(const member of sipOpeningInserts(surface,settings,issue)){members.push(member);overrideKeys.add(member.key);}
+  for(const surface of surfaces.filter(s=>s.exterior&&!s.frameOnly&&!s.horizontal&&!s.blocked))for(const {opening,supportPositions} of surface.roofOpeningHeaders||[]){
+    const bottom=Number(opening.sill)+opening.height;
+    if(bottom+150>surface.height+.01){issue('ROOF_OPENING_HEADER_CHECK',`${surface.name}: над «${opening.name}» нет 150 мм для пакета; требуется рабочий узел усиления.`,surface.id);continue;}
+    const length=opening.width,key=`roof-opening-header:${surface.layoutKey}:${opening.key}`,override=settings.memberOverrides[key]||{};
+    const selectedProfile=override.profile?.trim()||'145×150',dimensions=selectedProfile.split(/[×xх]/).map(Number);
+    const actualLength=presentNumber(override.length)?Number(override.length):length;
+    if(!(actualLength>0&&actualLength<=100000&&dimensions.length===2&&dimensions.every(value=>value>0))){issue('MEMBER_OVERRIDE',`${opening.name}: неверная длина или сечение пакета`,key);continue;}
+    if((override.exclude||override.profile||presentNumber(override.length))&&!override.nodeRef?.trim())issue('MEMBER_NODE',`${opening.name}: для изменения перемычки укажите рабочий узел`,key);
+    overrideKeys.add(key);
+    members.push({id:`${surface.id}-УП-${opening.id}`,key,a:[opening.x,bottom+75],b:[opening.x+opening.width,bottom+75],
+      length:actualLength,geometricLength:length,cutLength:actualLength+2*Number(settings.endAllowanceMm||0),
+      material:selectedProfile==='145×150'?'Пакет клеёных досок 3×50×150 мм (145×150 мм)':'Проектная перемычка проёма',profile:selectedProfile,estimateProfile:'145×150',
+      faceWidth:dimensions[1],normalDepthMm:dimensions[0],role:'roof-opening-header',openingRef:opening.name,supportPositions,
+      surface:surface.name,surfaceId:surface.id,source:'Усиление проёма под опорой кровли',panels:[],excluded:override.exclude===true,
+      nodeRef:override.nodeRef||'',processing:override.processing||'Пакет на ребро; зоны опирания, крепление и несущая способность по проекту'});
+  }
   fitSipTJunctions(members,settings,surfaces);
   const sipJunctionConflicts=sipMemberIntersections(members);
   for(const s of surfaces){const conflicts=sipJunctionConflicts.filter(c=>c.surfaceId===s.id);if(conflicts.length)issue('SIP_JUNCTION',`${s.name}: ${conflicts.some(c=>c.geometryError)?'неподтверждённые проверки геометрии / пересечения':'пересечения деревянных деталей'} ×${conflicts.length} (${conflicts.slice(0,5).map(c=>c.memberIds.join(' / ')).join('; ')}). Откройте развёртку и согласуйте стык/врубку по рабочему узлу; пересечение не считается готовым соединением.`,s.id);}
   const notices = [...profileMismatches].map(value => `Сечение раскроя / сметы: ${value} мм. Смета не изменена; подтвердите проектный профиль.`);
+  for(const surface of surfaces.filter(s=>s.topExtensionAreaMm2>10000))notices.push(`${surface.name}: до верхней грани стропил добавлена полоса SIP около ${round(surface.topExtensionAreaMm2/1e6)} м². Проверьте закупку: коммерческая смета не пересчитана по этой полосе.`);
   if(assembly.usesRoofPlanes&&!settings.roofDesign.enabled&&Math.abs(assembly.roofModel.faces.filter(face=>face.group==='main'&&face.warm).reduce((sum,face)=>sum+face.area,0)-Number(roof.mainWarmSlopeArea||0))>.01)issue('ROOF_LAYOUT_ESTIMATE',`SIP-кровля: площадь основной кровли по геометрии раскроя ${round(assembly.roofModel.faces.filter(face=>face.group==='main'&&face.warm).reduce((sum,face)=>sum+face.area,0))} м², сметная площадь ${roof.mainWarmSlopeArea} м². Свесы продолжают уклон стен; действующая смета не изменена, закупку нужно согласовать.`, 'Кровля');
   const ids = new Set(); let manualCount = 0;
   for (const item of settings.manualParts) {

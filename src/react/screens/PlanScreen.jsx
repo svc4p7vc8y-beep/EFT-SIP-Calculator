@@ -6300,8 +6300,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           ))}
         </aside>
         <div className="planner-canvas" ref={plannerCanvasRef}>
-          <div className="plan-layer-tabs" aria-label="Слои проекта">
-            <div className="plan-floor-switcher plan-canvas-floor-switcher" role="group" aria-label="Выбор этажа">
+          <div className="plan-floor-switcher plan-canvas-floor-switcher" role="group" aria-label="Выбор этажа">
               <button type="button" className={activeFloor === 1 ? "active" : ""} aria-pressed={activeFloor === 1} onClick={() => setActiveFloor(1)}>1 этаж</button>
               {floorCount > 1 ? <button type="button" className={activeFloor === 2 ? "active" : ""} aria-pressed={activeFloor === 2} onClick={() => setActiveFloor(2)}>2 этаж</button>
                 : <button type="button" className="add-floor" onClick={addSecondFloor}><Plus /> 2 этаж</button>}
@@ -6309,7 +6308,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 <button type="button" title="Очистить 2 этаж" aria-label="Очистить 2 этаж" onClick={clearSecondFloor}><Eraser /></button>
                 <button type="button" className="remove-floor" title="Удалить 2 этаж" aria-label="Удалить 2 этаж" onClick={removeSecondFloor}><Trash2 /></button>
               </> : null}
-            </div>
+          </div>
+          <div className="plan-layer-tabs" aria-label="Слои проекта">
             {[
               ["piles", "Сваи", CircleDot],
               ["binding", "Обвязка", Layers3],
@@ -6396,7 +6396,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           {showPlan3D && plan3DPlacement === 'floating' ? <FloatingPlan3D containerRef={plannerCanvasRef} size={plan3DSize} onSizeChange={setPlan3DSize}>
             <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
           </FloatingPlan3D> : null}
-          {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
+          {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
             sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
             stairPreset={stairPreset}

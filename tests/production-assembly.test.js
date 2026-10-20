@@ -43,7 +43,7 @@ test('framed and SIP gables generate their own assembly details without double-c
 test('gable studs fit between the bottom and inclined top boards',()=>{
   const r=run(base()),studs=r.members.filter(m=>m.material==='Стойка фронтона');
   assert.ok(studs.length);assert.ok(studs.every(m=>m.a[1]>=50&&m.b[1]-m.a[1]>0));
-  const height=base().settings.roof.ridgeHeight*1000;
+  const height=r.surfaces.find(s=>s.id==='ФР-1').height;
   assert.ok(studs.every(m=>m.b[1]<=height-50));
   const outline=r.assembly.roofOutline;
   const along=Math.hypot(outline[1][0]-outline[0][0],outline[1][1]-outline[0][1]);
