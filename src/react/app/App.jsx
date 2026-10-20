@@ -380,6 +380,7 @@ export function App() {
       throw error;
     }
     setActive("plan");
+    setMenuOpen(false);
     setPlanCommand({ kind: 'newProject', id: Date.now() });
     setNotice(`Создан чистый проект${team.user ? ' и сохранён в общей истории' : ''}. Нарисуйте контур дома.`);
     setNewProjectOpen(false);
@@ -466,7 +467,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 255</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 256</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
