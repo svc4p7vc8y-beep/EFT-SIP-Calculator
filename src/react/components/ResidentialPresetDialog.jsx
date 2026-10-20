@@ -18,6 +18,7 @@ export default function ResidentialPresetDialog({ mode = 'existing', project, on
   const [selectedId, setSelectedId] = useState(library.activeId);
   const [saved, setSaved] = useState(false);
   const [applyGeometry, setApplyGeometry] = useState(creating);
+  const [creatingProject, setCreatingProject] = useState(false);
   const selected = library.profiles.find((item) => item.id === selectedId) || library.profiles[0];
   const change = (patch) => {
     setLibrary((current) => ({ ...current, profiles: current.profiles.map((item) => item.id === selectedId ? { ...item, ...patch } : item) }));
@@ -48,9 +49,17 @@ export default function ResidentialPresetDialog({ mode = 'existing', project, on
   };
   const prepared = () => normalizeResidentialStandards({ ...library, activeId: selectedId }, project);
   const save = () => { onSave?.(prepared()); setSaved(true); };
+  const runCreate = async (callback) => {
+    if (creatingProject) return;
+    setCreatingProject(true);
+    try { await callback(); }
+    finally { setCreatingProject(false); }
+  };
   const apply = () => {
     const standards = prepared();
-    onApply(standards.profiles.find((item) => item.id === selectedId), standards, { applyGeometry });
+    const action = () => onApply(standards.profiles.find((item) => item.id === selectedId), standards, { applyGeometry });
+    if (creating) return runCreate(action);
+    return action();
   };
 
   return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -76,7 +85,7 @@ export default function ResidentialPresetDialog({ mode = 'existing', project, on
       </div>
       {!creating ? <label className="residential-profile-geometry"><input type="checkbox" checked={applyGeometry} onChange={(event) => setApplyGeometry(event.target.checked)} /> Применить габариты, высоту и этажность к плану</label> : null}
       <p className="residential-profile-hint">Сохраняются параметры фундамента, SIP, кровли, крепежа, инженерии, отделки и доставки, а также состав разделов. Цены, ручной раскрой и настройки печати остаются в проекте. Габариты и этажность меняются только при включённом флажке выше.</p>
-      <footer>{creating ? <button className="button secondary" onClick={onManual}>Без стандарта</button> : <><button className="button secondary" onClick={save}>{saved ? 'Сохранено' : 'Сохранить стандарты'}</button><button className="button secondary" onClick={onClose}>Закрыть</button></>}<button className="button primary" onClick={apply}>{creating ? 'Создать по стандарту' : 'Применить выбранный'}</button></footer>
+      <footer>{creating ? <button className="button secondary" disabled={creatingProject} onClick={() => runCreate(onManual)}>Без стандарта</button> : <><button className="button secondary" onClick={save}>{saved ? 'Сохранено' : 'Сохранить стандарты'}</button><button className="button secondary" onClick={onClose}>Закрыть</button></>}<button className="button primary" disabled={creatingProject} onClick={apply}>{creatingProject ? 'Создаём проект…' : creating ? 'Создать по стандарту' : 'Применить выбранный'}</button></footer>
     </section>
   </div>;
 }

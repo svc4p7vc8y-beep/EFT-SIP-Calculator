@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileClock,
   FilePlus2,
@@ -17,6 +17,7 @@ import { useTeam } from "../cloud/TeamContext.jsx";
 import { clientBriefSummary } from "../storage/client-brief.js";
 import { eftApi, resolveEftApiUrl } from "../../shared/team-api.js";
 import { PasswordInput } from "../components/ui.jsx";
+import ProjectSchemePreview from "../components/ProjectSchemePreview.jsx";
 
 const roleNames = {
   admin: "Администратор",
@@ -24,6 +25,22 @@ const roleNames = {
   estimator: "Сметчик",
   viewer: "Просмотр",
 };
+
+function VisibleProjectScheme({ projectId, diagram, request }) {
+  const holder = useRef(null);
+  useEffect(() => {
+    if (diagram) return undefined;
+    const node = holder.current;
+    if (!node) return undefined;
+    if (!('IntersectionObserver' in window)) { request(projectId); return undefined; }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) { request(projectId); observer.disconnect(); }
+    }, { rootMargin: '160px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [projectId, diagram, request]);
+  return <span className="team-project-row-diagram" ref={holder}>{diagram?.plan ? <ProjectSchemePreview plan={diagram.plan} compact label="Схема первого этажа" /> : <span className="team-project-diagram-loading" aria-label={diagram?.error ? 'Схема недоступна' : 'Загружается схема проекта'}><FolderOpen /></span>}</span>;
+}
 
 export default function TeamWorkspaceScreen({
   project,
@@ -53,12 +70,29 @@ export default function TeamWorkspaceScreen({
   const [projectQuery, setProjectQuery] = useState('');
   const [projectSort, setProjectSort] = useState('recent');
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [diagrams, setDiagrams] = useState({});
+  const diagramsRef = useRef(new Map());
+  const diagramRequests = useRef(new Set());
+  const requestDiagram = useCallback((id) => {
+    if (!team.user || !id || diagramsRef.current.has(id) || diagramRequests.current.has(id)) return;
+    diagramRequests.current.add(id);
+    eftApi('project', { query: { id } }).then((result) => {
+      const diagram = { plan: result.project?.payload?.plan || null, upperPlan: result.project?.payload?.upperFloors?.[0] || null };
+      diagramsRef.current.set(id, diagram);
+      setDiagrams((current) => ({ ...current, [id]: diagram }));
+    }).catch(() => {
+      const diagram = { error: true };
+      diagramsRef.current.set(id, diagram);
+      setDiagrams((current) => ({ ...current, [id]: diagram }));
+    }).finally(() => diagramRequests.current.delete(id));
+  }, [team.user?.id]);
   const visibleProjects = useMemo(() => {
     const query = projectQuery.trim().toLocaleLowerCase('ru-RU');
     const rows = team.projects.filter((item) => !query || [item.name, item.summary?.number, item.summary?.address, item.summary?.buildingType, item.updated_by].some((value) => String(value || '').toLocaleLowerCase('ru-RU').includes(query)));
     return rows.sort((a, b) => projectSort === 'name' ? a.name.localeCompare(b.name, 'ru-RU') : new Date(b.updated_at) - new Date(a.updated_at));
   }, [team.projects, projectQuery, projectSort]);
   const selectedProject = visibleProjects.find((item) => item.id === selectedProjectId) || visibleProjects[0];
+  useEffect(() => { if (selectedProject?.id) requestDiagram(selectedProject.id); }, [selectedProject?.id, requestDiagram]);
   useEffect(() => { if (focusTab) setTab(focusTab); }, [focusTab]);
   useEffect(() => {
     if (tab !== "stats" || !team.user) return undefined;
@@ -239,7 +273,7 @@ export default function TeamWorkspaceScreen({
           <div className="team-project-board">
             <div className="team-project-list" aria-label="Список проектов">
               {visibleProjects.map((item) => <button key={item.id} className={`team-project-row ${selectedProject?.id === item.id ? 'selected' : ''}`} onClick={() => setSelectedProjectId(item.id)} onDoubleClick={() => onOpenProject(item.id)}>
-                <span className="team-project-glyph"><FolderOpen /></span>
+                <VisibleProjectScheme projectId={item.id} diagram={diagrams[item.id]} request={requestDiagram} />
                 <span className="team-project-row-main"><strong>{item.name}</strong><small>№ {item.summary?.number || '—'} · {item.summary?.buildingType || 'Дом'} · {item.summary?.area ? `${item.summary.area} м²` : 'Площадь не указана'}</small></span>
                 <span className="team-project-row-tail"><b>рев. {item.revision}</b><small>{new Date(item.updated_at).toLocaleDateString('ru-RU')}</small></span>
               </button>)}
@@ -250,6 +284,10 @@ export default function TeamWorkspaceScreen({
                 <span className="team-project-detail-kicker">ВЫБРАННЫЙ ПРОЕКТ</span>
                 <h3>{selectedProject.name}</h3>
                 <p>{selectedProject.summary?.address || 'Адрес пока не указан'}</p>
+                <div className="team-project-diagram-grid">
+                  <div><small>1 ЭТАЖ</small><ProjectSchemePreview plan={diagrams[selectedProject.id]?.plan} label={`Схема первого этажа проекта ${selectedProject.name}`} /></div>
+                  {diagrams[selectedProject.id]?.upperPlan ? <div><small>2 ЭТАЖ</small><ProjectSchemePreview plan={diagrams[selectedProject.id].upperPlan} label={`Схема второго этажа проекта ${selectedProject.name}`} /></div> : null}
+                </div>
                 <dl>
                   <div><dt>Номер</dt><dd>{selectedProject.summary?.number || '—'}</dd></div>
                   <div><dt>Здание</dt><dd>{selectedProject.summary?.buildingType || '—'}</dd></div>

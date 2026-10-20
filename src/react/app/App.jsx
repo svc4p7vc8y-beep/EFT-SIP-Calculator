@@ -52,6 +52,7 @@ import { validateImportedProject } from "../state/project-import.js";
 import { reserveLocalProjectNumber } from "../storage/project-number.js";
 import { formatMoney } from "../utils/format.js";
 import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
+import ProjectSchemePreview from "../components/ProjectSchemePreview.jsx";
 import ScreenErrorBoundary from "../components/ScreenErrorBoundary.jsx";
 import ResidentialPresetDialog from "../components/ResidentialPresetDialog.jsx";
 import TeamLogin from "../components/TeamLogin.jsx";
@@ -361,9 +362,9 @@ export function App() {
   };
 
   const createNewProject = async (profile, standards) => {
-    const next = createProjectWithCurrentPrices(project);
-    if (profile) applyResidentialStandard(next, profile, standards, { applyGeometry: true });
     try {
+      const next = createProjectWithCurrentPrices(project);
+      if (profile) applyResidentialStandard(next, profile, standards, { applyGeometry: true });
       await saveBeforeSwitch();
       if (team.user) {
         const created = await team.createProject(next);
@@ -470,7 +471,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 253</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 254</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -601,7 +602,7 @@ export function App() {
         <div className="project-tabbar-scroll">
           {tabs.map((tab) => <div key={tab.id} className={`project-tab ${tab.id === activeTabId ? 'active' : ''}`}>
             <button role="tab" aria-selected={tab.id === activeTabId} className="project-tab-select" onClick={() => switchProjectTab(tab.id)} title={tab.serverName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}>
-              <span className={`project-tab-dot ${tab.serverId ? 'cloud' : 'local'}`} />
+              <ProjectSchemePreview plan={tab.plan} compact label={`Схема проекта № ${tab.meta?.projectNum || '—'}`} />
               <span className="project-tab-name">{tab.serverName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}</span>
               <small>{tab.serverId ? `№ ${tab.meta?.projectNum || '—'} · общий` : `№ ${tab.meta?.projectNum || '—'} · локальный`}</small>
             </button>

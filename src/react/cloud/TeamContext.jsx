@@ -340,10 +340,27 @@ export function TeamProvider({ children }) {
       projectSessions.current.set(result.project.id, currentRef.current);
       setCurrent(currentRef.current);
       setSyncState({ status: "saved", message: "Общий проект создан" });
-      await refresh();
+      try { await refresh(); }
+      catch (error) {
+        setRefreshError(error.message);
+        setProjects((items) => [{
+          ...result.project,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          updated_by: session.user?.displayName || '',
+          summary: {
+            number: result.project.payload?.meta?.projectNum || '',
+            customer: result.project.payload?.meta?.customer || '',
+            buildingType: result.project.payload?.meta?.buildingType || '',
+            address: result.project.payload?.meta?.address || '',
+            floors: result.project.payload?.meta?.floors || '',
+            area: result.project.payload?.meta?.area || '',
+          },
+        }, ...items.filter((item) => item.id !== result.project.id)]);
+      }
       return result.project;
     },
-    [session.csrf, refresh],
+    [session.csrf, session.user?.displayName, refresh],
   );
   const openProject = useCallback(async (id) => {
     const result = await eftApi("project", { query: { id } });

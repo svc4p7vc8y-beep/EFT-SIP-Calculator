@@ -162,7 +162,7 @@ export function ProjectProvider({ children }) {
       replaceTab,
       attachServer,
       hydrated,
-      tabs: workspace.tabs.map(({ id, serverId, serverName, serverRevision, history: tabHistory }) => ({ id, serverId, serverName, serverRevision, meta: tabHistory.present.meta })),
+      tabs: workspace.tabs.map(({ id, serverId, serverName, serverRevision, history: tabHistory }) => ({ id, serverId, serverName, serverRevision, meta: tabHistory.present.meta, plan: tabHistory.present.plan })),
       activeTabId: workspace.activeId,
       undo,
       redo,

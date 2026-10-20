@@ -4,6 +4,7 @@ import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { Building2, CheckCircle2, ChevronDown, CircleAlert, DoorOpen, Home, HousePlus, Layers3, LayoutGrid, ListChecks, PanelsTopLeft, Truck, Wrench } from "lucide-react";
 import { calculateTerraceRoof, resolveTerracePlatform } from "../../calculations/terrace-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
+import { roofRafterControlValues } from "../calculations/roof-control-values.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
@@ -168,6 +169,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
   const { project, commit, checkpoint } = useProject();
   const [presetOpen, setPresetOpen] = useState(false);
   const calculation = useMemo(() => suppliedCalculation || calculateProject(project), [project, suppliedCalculation]);
+  const rafterControls = roofRafterControlValues(project.settings.roof, calculation.roof);
   const { metrics, inputs } = calculation;
   const links = project.settings.links;
   const floorCount = Math.max(
@@ -1071,10 +1073,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 path: "settings.roof.rafterSystem",
                 label: "Стропильная система",
                 type: "select",
-                value:
-                  project.settings.roof.structureMode === "auto"
-                    ? calculation.roof.rafterStructure.system
-                    : project.settings.roof.rafterSystem,
+                value: rafterControls.system,
                 disabled: project.settings.roof.structureMode === "auto",
                 options: [
                   { value: "hanging", label: "Висячая" },
@@ -1085,10 +1084,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
               {
                 path: "settings.roof.rafterStep",
                 label: "Шаг стропил",
-                value:
-                  project.settings.roof.structureMode === "auto"
-                    ? calculation.roof.rafterStructure.step
-                    : project.settings.roof.rafterStep,
+                value: rafterControls.step,
                 disabled: project.settings.roof.structureMode === "auto",
                 suffix: "м",
                 min: 0.3,
@@ -1099,10 +1095,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 path: "settings.roof.rafterSection",
                 label: "Доска стропил",
                 type: "select",
-                value:
-                  project.settings.roof.structureMode === "auto"
-                    ? calculation.roof.rafterStructure.section
-                    : project.settings.roof.rafterSection,
+                value: rafterControls.section,
                 disabled: project.settings.roof.structureMode === "auto",
                 options: [
                   { value: "50x150", label: "50×150 мм" },
