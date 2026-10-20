@@ -64,7 +64,7 @@ export default function PlacementScreen() {
   const contour = useMemo(() => houseContourPoints(plan), [plan]);
   const rooms = useMemo(() => (plan.rooms || []).filter(room => room.include !== false), [plan]);
   const drawingBounds = useMemo(() => boundsOf([...contour, ...rooms.flatMap(roomPoints)]), [contour, rooms]);
-  const margin = placement.showAutoDimensions ? 140 : 65;
+  const margin = placement.showAutoDimensions ? 190 : 65;
   const viewBox = `${drawingBounds.x * 100 - margin} ${drawingBounds.y * 100 - margin} ${Math.max(5, drawingBounds.w) * 100 + margin * 2} ${Math.max(5, drawingBounds.h) * 100 + margin * 2}`;
   const items = useMemo(() => placement.items.filter(item => item.floor === activeFloor), [placement.items, activeFloor]);
   const routes = useMemo(() => placement.routes.filter(route => route.floor === activeFloor), [placement.routes, activeFloor]);
