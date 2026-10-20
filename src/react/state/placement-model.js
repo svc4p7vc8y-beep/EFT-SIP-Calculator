@@ -8,7 +8,23 @@ export const PLACEMENT_LAYERS = [
   { id: 'ventilation', label: 'Вентиляция', future: true },
 ];
 
-export const PLACEMENT_PRESETS = [
+export const PLACEMENT_GROUPS = [
+  { id: 'living', label: 'Гостиная и спальня', layer: 'furniture' },
+  { id: 'kitchen', label: 'Кухня', layer: 'furniture' },
+  { id: 'bathroom', label: 'Ванная и туалет', layer: 'furniture' },
+  { id: 'storage', label: 'Шкафы и хранение', layer: 'furniture' },
+  { id: 'kitchen-appliances', label: 'Кухонная техника', layer: 'appliance' },
+  { id: 'laundry', label: 'Стирка и уборка', layer: 'appliance' },
+  { id: 'climate', label: 'Климат и вода', layer: 'equipment' },
+  { id: 'electric-points', label: 'Розетки и выключатели', layer: 'electric' },
+  { id: 'lighting', label: 'Освещение', layer: 'electric' },
+  { id: 'facade', label: 'Фасад', layer: 'electric' },
+  { id: 'electrical-panel', label: 'Щиты', layer: 'electric' },
+];
+
+const preset = (id, label, layer, group, width, depth, icon = id, extra = {}) => ({ id, label, layer, group, width, depth, icon, ...extra });
+
+const ORIGINAL_PRESETS = [
   { id: 'bed', label: 'Кровать', layer: 'furniture', width: 2, depth: 1.6 },
   { id: 'sofa', label: 'Диван', layer: 'furniture', width: 2.1, depth: .9 },
   { id: 'wardrobe', label: 'Шкаф', layer: 'furniture', width: 1.8, depth: .6 },
@@ -33,11 +49,75 @@ export const PLACEMENT_PRESETS = [
   { id: 'power', label: 'Силовая точка', layer: 'electric', width: .18, depth: .12, height: .3 },
 ];
 
+const ORIGINAL_GROUPS = {
+  bed: 'living', sofa: 'living', table: 'living',
+  kitchen: 'kitchen', wardrobe: 'storage', 'other-furniture': 'storage',
+  refrigerator: 'kitchen-appliances', dishwasher: 'kitchen-appliances', stove: 'kitchen-appliances',
+  washer: 'laundry', 'other-appliance': 'laundry',
+  socket: 'electric-points', switch: 'electric-points', power: 'electric-points',
+  light: 'lighting', panel: 'electrical-panel',
+};
+const ORIGINAL_ICONS = { kitchen: 'counter', refrigerator: 'fridge', stove: 'hob', 'water-heater': 'water-heater', 'other-furniture': 'cabinet', 'other-appliance': 'appliance', 'other-equipment': 'boiler' };
+
+export const PLACEMENT_PRESETS = [
+  ...ORIGINAL_PRESETS.map(item => ({ ...item, group: ORIGINAL_GROUPS[item.id] || 'climate', icon: ORIGINAL_ICONS[item.id] || item.id })),
+  preset('single-bed', 'Односпальная кровать', 'furniture', 'living', 2, .9, 'bed'),
+  preset('corner-sofa', 'Угловой диван', 'furniture', 'living', 2.5, 1.6, 'corner-sofa'),
+  preset('armchair', 'Кресло', 'furniture', 'living', .85, .85, 'armchair'),
+  preset('coffee-table', 'Журнальный стол', 'furniture', 'living', 1, .55, 'table'),
+  preset('desk', 'Письменный стол', 'furniture', 'living', 1.4, .7, 'desk'),
+  preset('chair', 'Стул', 'furniture', 'living', .5, .5, 'chair'),
+  preset('base-cabinet', 'Напольный шкаф 60', 'furniture', 'kitchen', .6, .6, 'cabinet'),
+  preset('base-cabinet-80', 'Напольный шкаф 80', 'furniture', 'kitchen', .8, .6, 'cabinet'),
+  preset('corner-cabinet', 'Угловой модуль', 'furniture', 'kitchen', .9, .9, 'corner-cabinet'),
+  preset('wall-cabinet', 'Навесной шкаф', 'furniture', 'kitchen', .8, .35, 'wall-cabinet', { height: 1.45 }),
+  preset('tall-cabinet', 'Шкаф-пенал', 'furniture', 'kitchen', .6, .6, 'wardrobe'),
+  preset('kitchen-island', 'Кухонный остров', 'furniture', 'kitchen', 1.8, .9, 'island'),
+  preset('countertop', 'Столешница', 'furniture', 'kitchen', 1.2, .6, 'counter'),
+  preset('kitchen-sink', 'Кухонная мойка', 'furniture', 'kitchen', .8, .6, 'sink'),
+  preset('bathtub', 'Ванна', 'furniture', 'bathroom', 1.7, .7, 'bathtub'),
+  preset('corner-bathtub', 'Угловая ванна', 'furniture', 'bathroom', 1.5, 1.5, 'corner-bathtub'),
+  preset('shower', 'Душевая кабина', 'furniture', 'bathroom', .9, .9, 'shower'),
+  preset('walk-in-shower', 'Душевая зона', 'furniture', 'bathroom', 1.2, .9, 'shower'),
+  preset('toilet', 'Унитаз', 'furniture', 'bathroom', .7, .38, 'toilet'),
+  preset('wall-toilet', 'Подвесной унитаз', 'furniture', 'bathroom', .55, .38, 'toilet'),
+  preset('bidet', 'Биде', 'furniture', 'bathroom', .6, .38, 'bidet'),
+  preset('bathroom-sink', 'Раковина', 'furniture', 'bathroom', .6, .5, 'basin'),
+  preset('double-sink', 'Двойная раковина', 'furniture', 'bathroom', 1.2, .5, 'double-basin'),
+  preset('vanity', 'Тумба с раковиной', 'furniture', 'bathroom', .8, .5, 'vanity'),
+  preset('sliding-wardrobe', 'Шкаф-купе', 'furniture', 'storage', 2.4, .65, 'sliding-wardrobe'),
+  preset('built-in-wardrobe', 'Встроенный шкаф', 'furniture', 'storage', 1.8, .6, 'wardrobe'),
+  preset('dresser', 'Комод', 'furniture', 'storage', 1.2, .5, 'dresser'),
+  preset('shelves', 'Стеллаж', 'furniture', 'storage', 1, .4, 'shelves'),
+  preset('side-by-side-fridge', 'Широкий холодильник', 'appliance', 'kitchen-appliances', .9, .75, 'fridge'),
+  preset('freezer', 'Морозильник', 'appliance', 'kitchen-appliances', .6, .65, 'freezer'),
+  preset('hob', 'Варочная панель', 'appliance', 'kitchen-appliances', .6, .52, 'hob'),
+  preset('oven', 'Духовой шкаф', 'appliance', 'kitchen-appliances', .6, .6, 'oven'),
+  preset('microwave', 'Микроволновая печь', 'appliance', 'kitchen-appliances', .5, .4, 'microwave'),
+  preset('hood', 'Вытяжка', 'appliance', 'kitchen-appliances', .6, .5, 'hood', { height: 1.6 }),
+  preset('dryer', 'Сушильная машина', 'appliance', 'laundry', .6, .6, 'dryer'),
+  preset('washer-dryer', 'Стирально-сушильная машина', 'appliance', 'laundry', .6, .6, 'washer'),
+  preset('vacuum', 'Робот-пылесос', 'appliance', 'laundry', .36, .36, 'vacuum'),
+  preset('air-conditioner', 'Кондиционер', 'equipment', 'climate', .9, .25, 'air-conditioner', { height: 2.2 }),
+  preset('double-socket', 'Двойная розетка', 'electric', 'electric-points', .28, .12, 'double-socket', { height: .3 }),
+  preset('double-switch', 'Двойной выключатель', 'electric', 'electric-points', .22, .12, 'double-switch', { height: .9 }),
+  preset('dimmer', 'Диммер', 'electric', 'electric-points', .18, .12, 'dimmer', { height: .9 }),
+  preset('spotlight', 'Точечный светильник', 'electric', 'lighting', .14, .14, 'spotlight', { height: 2.5 }),
+  preset('pendant-light', 'Подвесной светильник', 'electric', 'lighting', .35, .35, 'pendant-light', { height: 2.2 }),
+  preset('wall-light', 'Настенный светильник', 'electric', 'lighting', .24, .16, 'wall-light', { height: 1.8 }),
+  preset('led-strip', 'LED-лента', 'electric', 'lighting', 1.2, .06, 'led-strip', { height: 2.4 }),
+  preset('facade-socket', 'Уличная розетка', 'electric', 'facade', .18, .12, 'facade-socket', { height: 1.1, surface: 'facade' }),
+  preset('facade-light', 'Фасадный светильник', 'electric', 'facade', .26, .18, 'facade-light', { height: 2.2, surface: 'facade' }),
+  preset('facade-spotlight', 'Фасадный прожектор', 'electric', 'facade', .28, .2, 'facade-spotlight', { height: 2.6, surface: 'facade' }),
+];
+
+export const findPlacementPreset = kind => PLACEMENT_PRESETS.find(item => item.id === kind);
+
 const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 1, items: [], circuits: [], routes: [], networks: { plumbing: [], heating: [], ventilation: [] } };
+  return { version: 2, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: false, networks: { plumbing: [], heating: [], ventilation: [] } };
 }
 
 export function normalizePlacement(value) {
@@ -46,10 +126,12 @@ export function normalizePlacement(value) {
   const items = Array.isArray(value.items) ? value.items : [];
   const circuits = Array.isArray(value.circuits) ? value.circuits : [];
   const routes = Array.isArray(value.routes) ? value.routes : [];
+  const dimensions = Array.isArray(value.dimensions) ? value.dimensions : [];
   return {
     ...base,
     ...value,
-    version: 1,
+    version: 2,
+    showAutoDimensions: value.showAutoDimensions === true,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,
       floor: Math.max(1, Math.min(2, Math.round(finite(item.floor, 1)))),
@@ -58,6 +140,9 @@ export function normalizePlacement(value) {
       depth: Math.max(.05, finite(item.depth, .5)),
       rotation: finite(item.rotation),
       height: Math.max(0, finite(item.height)),
+      surface: item.surface === 'facade' ? 'facade' : 'interior',
+      anchorX: item.surface === 'facade' ? finite(item.anchorX, finite(item.x)) : undefined,
+      anchorY: item.surface === 'facade' ? finite(item.anchorY, finite(item.y)) : undefined,
     })),
     circuits: circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа') })),
     routes: routes.filter(route => route && typeof route.id === 'string' && Array.isArray(route.points)).map(route => ({
@@ -65,6 +150,12 @@ export function normalizePlacement(value) {
       floor: Math.max(1, Math.min(2, Math.round(finite(route.floor, 1)))),
       points: route.points.filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y))).map(point => ({ x: Number(point.x), y: Number(point.y) })),
     })).filter(route => route.points.length >= 2),
+    dimensions: dimensions.filter(dimension => dimension && typeof dimension.id === 'string' && Array.isArray(dimension.points) && dimension.points.length === 2).map(dimension => ({
+      ...dimension,
+      floor: Math.max(1, Math.min(2, Math.round(finite(dimension.floor, 1)))),
+      points: dimension.points.map(point => ({ x: finite(point?.x), y: finite(point?.y) })),
+      label: typeof dimension.label === 'string' ? dimension.label.slice(0, 80) : '',
+    })),
     networks: { ...base.networks, ...(value.networks && typeof value.networks === 'object' ? value.networks : {}) },
   };
 }

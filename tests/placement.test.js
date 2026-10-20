@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
-import { normalizePlacement, placementSummary } from '../src/react/state/placement-model.js';
+import { normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
+import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();
@@ -36,4 +37,30 @@ test('malformed placement entries are discarded on import', () => {
   assert.equal(normalized.items.length, 1);
   assert.equal(normalized.items[0].floor, 2);
   assert.equal(normalized.routes.length, 0);
+});
+
+test('expanded library has unique entries and each one belongs to a visible group', () => {
+  const ids = PLACEMENT_PRESETS.map(item => item.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const item of PLACEMENT_PRESETS) {
+    assert(PLACEMENT_GROUPS.some(group => group.id === item.group && group.layer === item.layer), item.id);
+    assert(item.width > 0 && item.depth > 0, item.id);
+  }
+  assert(PLACEMENT_PRESETS.some(item => item.id === 'facade-socket' && item.surface === 'facade'));
+  assert(PLACEMENT_PRESETS.some(item => item.id === 'facade-light' && item.surface === 'facade'));
+});
+
+test('facade points snap outside the contour and dimensions survive import', () => {
+  const contour = [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 6 }, { x: 0, y: 6 }];
+  const snapped = snapToFacade({ x: .2, y: 3 }, contour);
+  assert.equal(snapped.anchorX, 0);
+  assert(snapped.x < 0);
+  assert.equal(snapped.y, 3);
+  const project = createDefaultProject();
+  project.placement.showAutoDimensions = true;
+  project.placement.dimensions.push({ id: 'd1', floor: 1, points: [{ x: 1, y: 1 }, { x: 3, y: 1 }], label: 'Проход' });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.placement.showAutoDimensions, true);
+  assert.equal(reopened.placement.dimensions[0].label, 'Проход');
+  assert.equal(dimensionMetres(reopened.placement.dimensions[0].points), 2);
 });

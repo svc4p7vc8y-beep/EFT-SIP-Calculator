@@ -28,7 +28,7 @@ import { normalizeResidentialStandards } from './residential-standards.js';
 import { createPlacement, normalizePlacement } from './placement-model.js';
 import { normalizeEstimateFiles } from './estimate-files.js';
 
-export const REACT_PROJECT_VERSION = 232;
+export const REACT_PROJECT_VERSION = 233;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
