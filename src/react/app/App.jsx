@@ -66,6 +66,7 @@ import {
 } from "../storage/client-brief.js";
 
 const PlanScreen = lazy(() => import("../screens/PlanScreen.jsx"));
+const PlacementScreen = lazy(() => import("../screens/PlacementScreen.jsx"));
 const ParametersScreen = lazy(() => import("../screens/ParametersScreen.jsx"));
 const Calculators = lazy(() => import("../screens/Calculators.jsx"));
 const PriceScreen = lazy(() => import("../screens/PriceScreen.jsx"));
@@ -93,6 +94,7 @@ const NAV_ITEMS = [
   { id: "mail", label: "Почта", icon: Mail, group: "team" },
   { id: "files", label: "Файлы", icon: FolderOpen, group: "team" },
   { id: "plan", label: "План дома", icon: Ruler, group: "project" },
+  { id: "placement", label: "Мебель и инженерия", icon: Layers3, group: "project" },
   { id: "parameters", label: "Параметры", icon: Settings2, group: "project" },
   { id: "piles", label: "Сваи", icon: HardHat, group: "calculate" },
   { id: "sip", label: "СИП", icon: Layers3, group: "calculate" },
@@ -149,6 +151,7 @@ function Screen({ active, calculation, teamProps, onNavigate, planCommand, onPla
   if (active === "mail") return <MailScreen />;
   if (active === "files") return <FilesScreen />;
   if (active === "plan") return <PlanScreen planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
+  if (active === "placement") return <PlacementScreen />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
   if (active === "request") return <RequestScreen />;
@@ -608,7 +611,7 @@ export function App() {
         <button className="project-tab-add" onClick={newProject} title="Новый проект в отдельной вкладке" aria-label="Новая вкладка проекта"><Plus /><span>Новый проект</span></button>
         {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
       </div>
-      <div className={`app-layout${active === 'plan' ? ' plan-app-layout' : ''}`}>
+      <div className={`app-layout${['plan', 'placement'].includes(active) ? ' plan-app-layout' : ''}`}>
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <div className="sidebar-mobile-head">
             <strong>Разделы</strong>
@@ -743,7 +746,7 @@ export function App() {
             </Suspense>
           </ScreenErrorBoundary>
         </main>
-        {active === 'plan' || (team.user && team.priceCatalog.status !== 'ready') ? null : <ProjectSummarySidebar
+        {['plan', 'placement'].includes(active) || (team.user && team.priceCatalog.status !== 'ready') ? null : <ProjectSummarySidebar
           project={project}
           calculation={calculation}
           onNavigate={setActive}
