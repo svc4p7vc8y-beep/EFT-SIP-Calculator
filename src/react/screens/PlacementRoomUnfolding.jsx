@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { boundsOf, roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from '../state/placement-geometry.js';
 import { PLACEMENT_LAYERS } from '../state/placement-model.js';
-import { roomItemPlane, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../state/placement-room.js';
+import { roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../state/placement-room.js';
 import { PlacementSymbol } from './PlacementClassicSymbol.jsx';
 
 const round = value => Math.round(value * 100) / 100;
@@ -91,36 +91,31 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
       window.setTimeout(() => { skipClick.current = false; }, 0);
     }
   };
-  const mark = (item, x, y, surface = 'floor') => <g key={`${surface}-${item.id}`} data-room-item={item.id} className="placement-room-mark"
-    onPointerDown={event => handleDown(event, item)} onClick={event => { event.stopPropagation(); if (skipClick.current) { skipClick.current = false; return; } if (routeMode) onPickNode(item); else onSelect(item.id); }}>
-    {item.kind !== 'connection-port' ? <><rect x={x - Math.max(26, Math.min(surface === 'wall' ? 65 : 999, (Number(item.width) || .1) * 100)) / 2 - 2} y={y - Math.max(26, Math.min(surface === 'wall' ? 60 : 999, (Number(item.depth) || .1) * 100)) / 2 - 2} width={Math.max(26, Math.min(surface === 'wall' ? 65 : 999, (Number(item.width) || .1) * 100)) + 4} height={Math.max(26, Math.min(surface === 'wall' ? 60 : 999, (Number(item.depth) || .1) * 100)) + 4} rx="4" fill="#fff" fillOpacity=".7" stroke={itemColor(item)} strokeWidth="1"/><svg x={x - Math.max(26, Math.min(surface === 'wall' ? 65 : 999, (Number(item.width) || .1) * 100)) / 2} y={y - Math.max(26, Math.min(surface === 'wall' ? 60 : 999, (Number(item.depth) || .1) * 100)) / 2} width={Math.max(26, Math.min(surface === 'wall' ? 65 : 999, (Number(item.width) || .1) * 100))} height={Math.max(26, Math.min(surface === 'wall' ? 60 : 999, (Number(item.depth) || .1) * 100))} viewBox="0 0 100 100" overflow="visible"><PlacementSymbol kind={item.kind} system={item.layer} medium={item.connectionMedium}/></svg></> : <circle cx={x} cy={y} r={selectedId === item.id ? 10 : 7} fill={item.connectionMedium === 'hot' ? '#bd5547' : itemColor(item)} stroke="#fff" strokeWidth="2"/>}
-    {selectedId === item.id ? <circle cx={x} cy={y} r="13" fill="none" stroke="#2b8f85" strokeWidth="2" pointerEvents="none"/> : null}
-    {selectedId === item.id ? <text x={x + 12} y={y - 10} className="placement-room-mark-label">{item.label}</text> : null}
-    <title>{item.label}{item.connectionMedium ? ` · ${item.connectionMedium}` : ''}</title>
-  </g>;
+  const mark = (item, x, y, surface = 'floor') => {
+    const width = Math.max(26, Math.min(surface === 'wall' ? 65 : 999, (Number(item.width) || .1) * 100));
+    const depth = Math.max(26, Math.min(surface === 'wall' ? 60 : 999, (Number(item.depth) || .1) * 100));
+    return <g key={`${surface}-${item.id}`} data-room-item={item.id} className="placement-room-mark"
+      onPointerDown={event => handleDown(event, item)} onClick={event => { event.stopPropagation(); if (skipClick.current) { skipClick.current = false; return; } if (routeMode) onPickNode(item); else onSelect(item.id); }}>
+      {item.kind !== 'connection-port' ? <g transform={surface === 'floor' && item.rotation ? `rotate(${item.rotation} ${x} ${y})` : undefined}>
+        <rect x={x - width / 2 - 2} y={y - depth / 2 - 2} width={width + 4} height={depth + 4} rx="4" fill="#fff" fillOpacity=".7" stroke={itemColor(item)} strokeWidth="1"/>
+        <svg x={x - width / 2} y={y - depth / 2} width={width} height={depth} viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible"><PlacementSymbol kind={item.kind} system={item.layer} medium={item.connectionMedium}/></svg>
+      </g> : <circle cx={x} cy={y} r={selectedId === item.id ? 10 : 7} fill={item.connectionMedium === 'hot' ? '#bd5547' : itemColor(item)} stroke="#fff" strokeWidth="2"/>}
+      {selectedId === item.id ? <circle cx={x} cy={y} r="13" fill="none" stroke="#2b8f85" strokeWidth="2" pointerEvents="none"/> : null}
+      {selectedId === item.id ? <text x={x + 12} y={y - 10} className="placement-room-mark-label">{item.label}</text> : null}
+      <title>{item.label}{item.connectionMedium ? ` · ${item.connectionMedium}` : ''}</title>
+    </g>;
+  };
   const wall = edge => {
     const { index, side, length } = edge;
     const horizontal = side === 'top' || side === 'bottom';
     const width = (horizontal ? length : height) * 100;
     const wallHeight = (horizontal ? height : length) * 100;
-    const openings = (plan.openings || []).filter(opening => {
-      if (!['window', 'door'].includes(opening.type) || !(Number(opening.width) > 0)) return false;
-      const start = { x: Number(opening.x), y: Number(opening.y) };
-      const end = opening.orientation === 'h' ? { x: start.x + Number(opening.width), y: start.y } : { x: start.x, y: start.y + Number(opening.width) };
-      return roomWallDisplayPoint(room, index, start, 0, height)?.distance < .28 && roomWallDisplayPoint(room, index, end, 0, height)?.distance < .28;
-    });
+    const openings = (plan.openings || []).map(opening => ({ opening, display: roomOpeningOnEdge(room, index, opening, height) })).filter(entry => entry.display);
     return <div key={index} className={`placement-room-surface wall-${side}${selectedEdge?.index === index ? ' selected-wall' : ''}`} style={{ left: `${edge.x * SCALE}px`, top: `${edge.y * SCALE}px`, width: `${width * SCALE / 100}px`, height: `${wallHeight * SCALE / 100}px` }} data-edge-index={index} data-edge-length={length.toFixed(3)} data-detached={edge.detached || undefined}><strong>Стена {index + 1} · {sideNames[side]} · {length.toFixed(2)} м{edge.detached ? ' ↔ грань' : ''}</strong>
       <svg viewBox={`0 0 ${width} ${wallHeight}`} aria-label={`Стена ${index + 1} комнаты ${room.name}`} role="img" onClick={event => handleClick(event, index)} onPointerUp={event => handleUp(event, index)} onPointerCancel={() => { drag.current = null; }}>
         <rect width={width} height={wallHeight} className="placement-room-wall-fill"/>
         {Array.from({ length: Math.floor(length) + 1 }, (_, station) => horizontal ? <line key={station} className="placement-room-grid" x1={station * 100} y1="0" x2={station * 100} y2={wallHeight}/> : <line key={station} className="placement-room-grid" x1="0" y1={station * 100} x2={width} y2={station * 100}/>)}
-        {openings.map(opening => {
-          const start = { x: Number(opening.x), y: Number(opening.y) };
-          const end = opening.orientation === 'h' ? { x: start.x + Number(opening.width), y: start.y } : { x: start.x, y: start.y + Number(opening.width) };
-          const sill = Number.isFinite(Number(opening.sillHeight)) && opening.sillHeight != null ? Number(opening.sillHeight) : opening.type === 'door' ? 0 : Math.max(0, (height - Number(opening.height || 1.2)) / 2);
-          const upper = Math.min(height, sill + Number(opening.height || 1.2));
-          const a = roomWallDisplayPoint(room, index, start, sill, height), b = roomWallDisplayPoint(room, index, end, upper, height);
-          return <g key={opening.id}><rect x={Math.min(a.x, b.x) * 100} y={Math.min(a.y, b.y) * 100} width={Math.max(5, Math.abs(a.x - b.x) * 100)} height={Math.max(5, Math.abs(a.y - b.y) * 100)} className={`placement-room-opening ${opening.type}`}/><title>{opening.type === 'door' ? 'Дверь' : 'Окно'} · {Number(opening.width).toFixed(2)} м{opening.type === 'window' && opening.sillHeight == null ? ' · отметка подоконника не указана' : ''}</title></g>;
-        })}
+        {openings.map(({ opening, display }) => <g key={opening.id} data-opening-id={opening.id}><rect x={display.x * 100} y={display.y * 100} width={display.width * 100} height={display.height * 100} className={`placement-room-opening ${opening.type}`}/><title>{opening.type === 'door' ? 'Дверь' : 'Окно'} · {display.clippedWidth.toFixed(2)} м{opening.type === 'window' && opening.sillHeight == null ? ' · отметка подоконника не указана' : ''}</title></g>)}
         {roomRoutes.filter(route => route.points.length > 1 && route.points.every(point => roomWallDisplayPoint(room, index, point, point.z || 0, height)?.distance < .22)).map(route => <path key={route.id} d={route.points.map((point, pointIndex) => { const position = roomWallDisplayPoint(room, index, point, point.z || 0, height); return `${pointIndex ? 'L' : 'M'} ${position.x * 100} ${position.y * 100}`; }).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>)}
         {wallItems.filter(item => assignments.get(item.id)?.edgeIndex === index).map(item => { const position = roomWallDisplayPoint(room, index, item, item.height || 0, height); return position ? mark(item, position.x * 100, position.y * 100, 'wall') : null; })}
       </svg>

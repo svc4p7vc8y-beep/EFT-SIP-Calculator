@@ -10,7 +10,7 @@ import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDi
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
-import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
+import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
 
 test('room unfolding keeps every wall edge length and projects all four shared edges consistently', () => {
   const room = createDefaultProject().plan.rooms[0];
@@ -26,6 +26,20 @@ test('room unfolding keeps every wall edge length and projects all four shared e
     assert.equal(restored.elevation, 0);
   }
   assert.deepEqual([0, 1, 2, 3].map(index => roomEdgeDisplay(room, index).side), ['top', 'right', 'bottom', 'left']);
+});
+test('wall openings use plan centre, orientation, width and installation height', () => {
+  const room = { points: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 3 }, { x: 0, y: 3 }] };
+  const window = { id: 'window', type: 'window', x: 1.5, y: 0, orientation: 'h', width: 1, height: 1.2, sillHeight: .8 };
+  const top = roomOpeningOnEdge(room, 0, window, 2.5);
+  assert.deepEqual([top.x, top.y, top.width, top.height], [1, .5, 1, 1.2]);
+  assert.equal(roomOpeningOnEdge(room, 1, window, 2.5), null);
+  const bottom = roomOpeningOnEdge(room, 2, { ...window, y: 3, type: 'door', width: .9, height: 2.05, sillHeight: undefined }, 2.5);
+  assert.ok(Math.abs(bottom.x - 1.05) < 1e-9);
+  assert.equal(bottom.y, 0);
+  assert.ok(Math.abs(bottom.width - .9) < 1e-9);
+  const right = roomOpeningOnEdge(room, 1, { ...window, x: 4, y: 1.5, orientation: 'v' }, 2.5);
+  assert.deepEqual([right.x, right.y, right.width, right.height], [.8, 1, 1.2, 1]);
+  assert.equal(roomOpeningOnEdge(room, 0, { ...window, include: false }, 2.5), null);
 });
 test('concave room unfolds each true edge without changing its length or putting items on two planes', () => {
   const room = { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 5 }, { x: 0, y: 5 }] };

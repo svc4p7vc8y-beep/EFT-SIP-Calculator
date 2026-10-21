@@ -127,3 +127,36 @@ export function roomWallPlanPoint(room, edgeIndex, x, y, wallHeight) {
   const elevation = edge.side === 'right' ? x : edge.side === 'bottom' ? y : edge.side === 'left' ? wallHeight - x : wallHeight - y;
   return { position: roomEdgePosition(room, edgeIndex, station), elevation: round(clamp(elevation, 0, wallHeight)) };
 }
+
+export function roomOpeningOnEdge(room, edgeIndex, opening, wallHeight) {
+  if (!opening || opening.include === false || !['window', 'door'].includes(opening.type)) return null;
+  const width = Number(opening.width), openingHeight = Number(opening.height || 1.2);
+  if (!(width > 0) || !(openingHeight > 0)) return null;
+  const vertices = roomPoints(room);
+  const a = vertices[edgeIndex], b = vertices[(edgeIndex + 1) % vertices.length];
+  if (!a || !b) return null;
+  const horizontal = Math.abs(b.x - a.x) > Math.abs(b.y - a.y);
+  if ((opening.orientation === 'h') !== horizontal) return null;
+  const center = { x: Number(opening.x), y: Number(opening.y) };
+  if (!Number.isFinite(center.x) || !Number.isFinite(center.y)) return null;
+  const projected = projectToRoomEdge(room, edgeIndex, center);
+  if (!projected || projected.distance > .28) return null;
+  const startStation = Math.max(0, projected.station - width / 2);
+  const endStation = Math.min(projected.length, projected.station + width / 2);
+  if (endStation - startStation < .01) return null;
+  const direction = { x: (b.x - a.x) / projected.length, y: (b.y - a.y) / projected.length };
+  const start = { x: a.x + direction.x * startStation, y: a.y + direction.y * startStation };
+  const end = { x: a.x + direction.x * endStation, y: a.y + direction.y * endStation };
+  const sill = opening.sillHeight == null
+    ? opening.type === 'door' ? 0 : Math.max(0, (wallHeight - openingHeight) / 2)
+    : clamp(Number(opening.sillHeight) || 0, 0, wallHeight);
+  const top = clamp(sill + openingHeight, 0, wallHeight);
+  const first = roomWallDisplayPoint(room, edgeIndex, start, sill, wallHeight);
+  const second = roomWallDisplayPoint(room, edgeIndex, end, top, wallHeight);
+  if (!first || !second) return null;
+  return {
+    x: Math.min(first.x, second.x), y: Math.min(first.y, second.y),
+    width: Math.abs(first.x - second.x), height: Math.abs(first.y - second.y),
+    sill, clippedWidth: endStation - startStation,
+  };
+}

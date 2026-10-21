@@ -35,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { useProject } from "../state/ProjectContext.jsx";
+import { APP_VERSION } from '../data/app-version.js';
 import { priceCatalogFingerprint, showLocalPriceChangeNotice } from '../state/price-change-notice.js';
 import { isPriceEditorUnlocked, verifyPricePasscode, setPriceEditorUnlocked } from '../security/price-access.js';
 import { calculateProject } from "../calculations/estimate-engine.js";
@@ -472,7 +473,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия {import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия {APP_VERSION}{import.meta.env.VITE_BUILD_REVISION ? ` · ${import.meta.env.VITE_BUILD_REVISION.slice(0, 7)}` : ''}</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
