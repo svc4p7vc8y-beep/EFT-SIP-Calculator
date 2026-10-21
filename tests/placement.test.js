@@ -10,7 +10,7 @@ import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDi
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
-import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
+import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
 
 test('room unfolding keeps every wall edge length and projects all four shared edges consistently', () => {
   const room = createDefaultProject().plan.rooms[0];
@@ -26,6 +26,31 @@ test('room unfolding keeps every wall edge length and projects all four shared e
     assert.equal(restored.elevation, 0);
   }
   assert.deepEqual([0, 1, 2, 3].map(index => roomEdgeDisplay(room, index).side), ['top', 'right', 'bottom', 'left']);
+});
+test('concave room unfolds each true edge without changing its length or putting items on two planes', () => {
+  const room = { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 5 }, { x: 0, y: 5 }] };
+  const layout = roomUnfoldLayout(room, 2.5);
+  assert.equal(layout.edges.length, room.points.length);
+  assert.deepEqual(layout.edges.map(edge => edge.length), [5, 2, 3, 3, 2, 5]);
+  assert.equal(layout.edges.find(edge => edge.index === 3).detached, true);
+  for (const edge of layout.edges) {
+    const a = room.points[edge.index], b = room.points[(edge.index + 1) % room.points.length];
+    const horizontal = edge.side === 'top' || edge.side === 'bottom';
+    assert.ok(Math.abs((horizontal ? edge.width : edge.height) - Math.hypot(b.x - a.x, b.y - a.y)) < 1e-9);
+    const position = roomEdgePosition(room, edge.index, edge.length / 2);
+    const wallPoint = roomWallDisplayPoint(room, edge.index, position, 1.25, 2.5);
+    const restored = roomWallPlanPoint(room, edge.index, wallPoint.x, wallPoint.y, 2.5);
+    assert.ok(Math.hypot(restored.position.x - position.x, restored.position.y - position.y) < .02);
+    assert.equal(restored.elevation, 1.25);
+  }
+  const nearWall = { x: .12, y: 2, layer: 'electric', kind: 'socket', wallRef: 'wall' };
+  assert.equal(roomItemPlane(room, nearWall).plane, 'wall');
+  assert.equal(roomItemPlane(room, { ...nearWall, layer: 'furniture', kind: 'bed' }).plane, 'floor');
+  assert.equal(roomItemPlane(room, { ...nearWall, displayPlane: 'floor' }).plane, 'floor');
+  assert.equal(roomItemPlane(room, { ...nearWall, displayPlane: 'wall' }).edgeIndex, 5);
+  assert.equal(roomItemPlane(room, { ...nearWall, x: 1, y: 1, displayPlane: 'wall' }).plane, 'floor');
+  const reopened = normalizePlacement({ items: [{ id: 'old', layer: 'electric', kind: 'socket', x: .12, y: 2 }, { id: 'manual', layer: 'electric', kind: 'socket', x: .12, y: 2, displayPlane: 'floor' }] });
+  assert.deepEqual(reopened.items.map(item => item.displayPlane), ['auto', 'floor']);
 });
 import { electricalGroupColor, electricalPlacementClusters, roomNameForPlacement } from '../src/react/state/placement-visibility.js';
 

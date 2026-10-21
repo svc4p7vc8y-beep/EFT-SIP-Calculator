@@ -223,6 +223,19 @@
 .placement-room-layer-switches button{flex:none;border:1px solid #b9d3c4;border-radius:999px;background:#e8f3ed;color:#2a604a;padding:5px 9px;font-size:.68rem;cursor:pointer}
 .placement-room-layer-switches button.muted{background:#fff;color:#889991;border-color:#dce6df;text-decoration:line-through}
 .placement-room-unfold-scroll{overflow:auto;max-width:100%;max-height:min(78vh,900px)}
+.placement-room-unfolding .placement-room-unfold-grid{position:relative;display:block;min-width:0;max-width:none;margin:14px auto}
+.placement-room-unfolding .placement-room-surface{position:absolute;z-index:1}
+.placement-room-unfolding .placement-room-surface.floor{z-index:2;border:0;background:transparent;overflow:visible}
+.placement-room-unfolding .placement-room-surface.floor>svg{pointer-events:none;overflow:hidden}
+.placement-room-unfolding .placement-room-surface.floor>svg .placement-room-floor-fill,.placement-room-unfolding .placement-room-surface.floor>svg .placement-room-mark,.placement-room-unfolding .placement-room-surface.floor>svg .placement-room-anchor,.placement-room-unfolding .placement-room-surface.floor>svg path:not(.placement-room-floor-fill){pointer-events:visiblePainted}
+.placement-room-unfolding .placement-room-surface.selected-wall{outline:3px solid #277f70;outline-offset:2px}
+.placement-room-unfolding .placement-room-links{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;overflow:visible}
+.placement-room-point-list{margin-top:8px;font-size:.7rem;color:#365b4f}
+.placement-room-point-list>div{display:flex;gap:5px;overflow-x:auto;padding:5px 0}
+.placement-room-point-list button{display:inline-flex;align-items:center;gap:5px;flex:none;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #c6d9ce;border-radius:7px;background:#fff;color:#315547;padding:5px 7px;font:inherit;cursor:pointer}
+.placement-room-point-list button.active{border-color:#277f70;background:#e6f3eb}
+.placement-room-point-list i{display:inline-block;flex:none;width:9px;height:9px;border-radius:50%}
+.placement-room-anchor{cursor:pointer}
 .placement-room-unfold-grid{display:grid;grid-template-columns:var(--room-wall-span) var(--room-floor-w) var(--room-wall-span);grid-template-rows:var(--room-wall-span) var(--room-floor-h) var(--room-wall-span);grid-template-areas:'. top .' 'left floor right' '. bottom .';gap:10px;width:max-content;min-width:0;margin:14px auto}
 .placement-room-surface{position:relative;display:block;min-width:0;min-height:0;padding:0;box-sizing:border-box;overflow:hidden;border:1px solid #9eb9aa;border-radius:3px;background:#f7fbf8}
 .placement-room-surface>strong{position:absolute;z-index:2;top:4px;left:5px;max-width:calc(100% - 10px);padding:2px 5px;border-radius:4px;background:#ffffffe6;color:#315547;font-size:.61rem;pointer-events:none}

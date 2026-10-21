@@ -202,6 +202,7 @@ export function normalizePlacement(value) {
       height: Math.max(0, finite(item.height)),
       heightKnown: item.heightKnown === true || (item.heightKnown !== false && Number(item.height) > 0),
       wallRef: typeof item.wallRef === 'string' ? item.wallRef : '',
+      displayPlane: ['floor', 'wall'].includes(item.displayPlane) ? item.displayPlane : 'auto',
       dimensionSide: ['auto', 'left', 'right'].includes(item.dimensionSide) ? item.dimensionSide : 'auto',
       showHeight: item.showHeight === true,
       showName: item.showName === true,

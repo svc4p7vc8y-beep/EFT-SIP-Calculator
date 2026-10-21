@@ -34,17 +34,77 @@ export function roomEdgeDisplay(room, edgeIndex) {
   if (!a || !b) return null;
   const length = Math.hypot(b.x - a.x, b.y - a.y);
   if (!length) return null;
-  const box = boundsOf(vertices);
   const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  const choices = [
-    ['top', Math.abs(middle.y - box.y)],
-    ['right', Math.abs(middle.x - box.x - box.w)],
-    ['bottom', Math.abs(middle.y - box.y - box.h)],
-    ['left', Math.abs(middle.x - box.x)],
-  ];
-  const side = choices.sort((first, second) => first[1] - second[1])[0][0];
+  const normal = { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
+  const insideOnLeft = pointInPolygon({ x: middle.x + normal.x * .05, y: middle.y + normal.y * .05 }, vertices);
+  const outward = insideOnLeft ? { x: -normal.x, y: -normal.y } : normal;
+  const side = Math.abs(outward.x) > Math.abs(outward.y)
+    ? outward.x > 0 ? 'right' : 'left'
+    : outward.y > 0 ? 'bottom' : 'top';
   const reverse = (side === 'top' || side === 'bottom') ? b.x < a.x : b.y < a.y;
-  return { side, length, reverse };
+  return { side, length, reverse, outward };
+}
+
+const overlap = (a, b) => Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > .01
+  && Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > .01;
+
+export function roomUnfoldLayout(room, wallHeight) {
+  const vertices = roomPoints(room);
+  const box = boundsOf(vertices);
+  const span = Math.max(.5, Number(wallHeight) || 2.5);
+  const floor = { x: span, y: span, width: box.w, height: box.h };
+  const placed = [];
+  const detached = [];
+  for (let index = 0; index < vertices.length; index++) {
+    const a = vertices[index], b = vertices[(index + 1) % vertices.length];
+    const display = roomEdgeDisplay(room, index);
+    if (!display || display.length < .01) continue;
+    const { side, length } = display;
+    const horizontal = side === 'top' || side === 'bottom';
+    const edgeX = floor.x + Math.min(a.x, b.x) - box.x;
+    const edgeY = floor.y + Math.min(a.y, b.y) - box.y;
+    const initial = {
+      index, side, length, outward: display.outward,
+      x: edgeX + (side === 'left' ? -span : 0),
+      y: edgeY + (side === 'top' ? -span : 0),
+      width: horizontal ? length : span,
+      height: horizontal ? span : length,
+      hinge: { x: floor.x + (a.x + b.x) / 2 - box.x, y: floor.y + (a.y + b.y) / 2 - box.y },
+    };
+    if (Math.abs(a.x - b.x) > .01 && Math.abs(a.y - b.y) > .01 || placed.some(other => overlap(initial, other))) detached.push(initial);
+    else placed.push(initial);
+  }
+  let width = Math.max(floor.x + floor.width + span, ...placed.map(edge => edge.x + edge.width));
+  let height = Math.max(floor.y + floor.height + span, ...placed.map(edge => edge.y + edge.height));
+  const rowWidth = width;
+  let cursorX = 0, cursorY = height + .4, rowHeight = 0;
+  const edges = [...placed, ...detached.map(edge => {
+    if (cursorX && cursorX + edge.width > rowWidth) { cursorX = 0; cursorY += rowHeight + .3; rowHeight = 0; }
+    const shifted = { ...edge, x: cursorX, y: cursorY, detached: true };
+    cursorX += edge.width + .3;
+    rowHeight = Math.max(rowHeight, edge.height);
+    width = Math.max(width, cursorX);
+    return shifted;
+  })].sort((a, b) => a.index - b.index);
+  if (detached.length) height = cursorY + rowHeight;
+  return { box, floor, edges, width, height };
+}
+
+const floorKinds = new Set(['light', 'spotlight', 'pendant-light', 'floor-heating-loop', 'sewer-floor-drain', 'floor-drain', 'heat-source', 'air-unit', 'water-heater-point']);
+const wallLayers = new Set(['electric', 'plumbing', 'heating', 'sewer', 'ventilation']);
+
+export function roomItemPlane(room, item) {
+  const vertices = roomPoints(room);
+  const nearest = vertices.map((_, index) => ({ index, ...projectToRoomEdge(room, index, item) }))
+    .filter(entry => Number.isFinite(entry.distance))
+    .sort((a, b) => a.distance - b.distance)[0];
+  if (!nearest) return { plane: 'floor', edgeIndex: -1 };
+  const explicit = item.displayPlane;
+  const wallEligible = wallLayers.has(item.layer) && !floorKinds.has(item.kind) || item.kind === 'wall-cabinet';
+  const onWall = explicit === 'wall' ? nearest.distance <= .8
+    : explicit === 'floor' ? false
+      : wallEligible && nearest.distance <= .35 && (Boolean(item.wallRef) || nearest.distance <= .2);
+  return { plane: onWall ? 'wall' : 'floor', edgeIndex: onWall ? nearest.index : -1, distance: nearest.distance };
 }
 
 export function roomWallDisplayPoint(room, edgeIndex, position, elevation, wallHeight) {

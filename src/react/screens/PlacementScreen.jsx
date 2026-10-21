@@ -200,14 +200,14 @@ export default function PlacementScreen() {
   };
   const insidePlan = point => point && (pointInPolygon(point, contour) || rooms.some(room => pointInPolygon(point, roomPoints(room))) || (plan.platforms || []).some(platform => platform.include !== false && point.x >= platform.x && point.x <= platform.x + platform.w && point.y >= platform.y && point.y <= platform.y + platform.h));
   const insideWorkingArea = point => insidePlan(point) && (!selectedRoom || pointInPolygon(point, roomPoints(selectedRoom)));
-  const addPlacementItem = (preset, location, height = preset.height || 0, wallRef = '') => {
+  const addPlacementItem = (preset, location, height = preset.height || 0, wallRef = '', displayPlane = 'auto') => {
     const id = createId();
     const supplyKind = applianceSupplyKind(preset);
     change(data => {
       const placed = {
       id, floor: activeFloor, layer: preset.layer, kind: preset.id, label: preset.label,
       x: location.x, y: location.y, width: preset.width, depth: preset.depth,
-      rotation: 0, height, heightKnown: wallRef !== '' || Boolean(preset.height), wallRef,
+      rotation: 0, height, heightKnown: wallRef !== '' || Boolean(preset.height), wallRef, displayPlane,
       surface: preset.surface || 'interior', dimensionSide: 'auto', showHeight: false, showName: false,
       labelOffsetX: .65, labelOffsetY: -.45,
       ...(preset.surface === 'facade' ? { anchorX: location.anchorX, anchorY: location.anchorY } : {}),
@@ -370,7 +370,7 @@ export default function PlacementScreen() {
     const location = activePreset.surface === 'facade' ? snapToFacade(position, contour) : itemPosition(position, activePreset);
     if (!location || !insidePlan(location)) return;
     const nearest = closestWallTo(location);
-    addPlacementItem(activePreset, location, height, edgeIndex >= 0 && nearest?.projection.distance < .5 ? nearest.face.ref : '');
+    addPlacementItem(activePreset, location, height, edgeIndex >= 0 && nearest?.projection.distance < .5 ? nearest.face.ref : '', edgeIndex >= 0 ? 'wall' : 'floor');
   };
   const roomMove = (itemId, position, height, edgeIndex) => {
     if (elementsLocked) return;
@@ -382,7 +382,7 @@ export default function PlacementScreen() {
       const item = data.items.find(entry => entry.id === itemId);
       if (!item) return;
       const dx = location.x - item.x, dy = location.y - item.y;
-      Object.assign(item, { x: location.x, y: location.y, ...(height == null ? {} : { height, heightKnown: true }), wallRef: edgeIndex >= 0 && nearest?.projection.distance < .5 ? nearest.face.ref : '' });
+      Object.assign(item, { x: location.x, y: location.y, ...(height == null ? {} : { height, heightKnown: true }), wallRef: edgeIndex >= 0 && nearest?.projection.distance < .5 ? nearest.face.ref : '', displayPlane: edgeIndex >= 0 ? 'wall' : 'floor' });
       if (item.linkedApplianceId) item.followsAppliance = false;
       data.items.filter(entry => entry.linkedApplianceId === item.id && entry.followsAppliance).forEach(linked => Object.assign(linked, { x: round(linked.x + dx), y: round(linked.y + dy) }));
     });
@@ -694,7 +694,7 @@ export default function PlacementScreen() {
         {selected && items.some(item => item.linkedApplianceId === selected.id && item.kind === 'connection-port') ? <div className="placement-control-links"><h3>Выводы для подключения</h3><p>Выберите вывод для трассы. Положение и высоту каждой точки можно изменить отдельно.</p>{items.filter(item => item.linkedApplianceId === selected.id && item.kind === 'connection-port').map(port => <button key={port.id} onClick={() => { setLayer(port.layer); setSelectedId(port.id); setNetworkFromId(port.id); setNetworkToId(''); setNetworkMedium(port.connectionMedium); setNetworkNotice('Вывод выбран. Укажите вторую точку на плане.'); }}>{NETWORK_SYSTEMS[port.layer]?.label} · {port.label.split(' · ').at(-1)}</button>)}</div> : null}
         {selected?.linkedApplianceId ? <div className="placement-control-links"><p>Связано с прибором. {selected.followsAppliance ? 'Точка следует за прибором.' : 'Положение задано вручную.'}</p><label><input type="checkbox" checked={selected.followsAppliance === true} onChange={event => updateItem({ followsAppliance: event.target.checked })}/> Следовать за прибором</label></div> : null}
         {selected?.kind === 'connection-port' && !selected.heightKnown ? <p className="placement-route-hint">Высота этого вывода ещё не задана по проекту. Укажите её перед выпуском рабочих схем.</p> : null}
-        {selected ? <div className="placement-annotation-settings">{selected.layer === 'electric' ? <label>Размер от стены<select value={selected.dimensionSide || 'auto'} onChange={event => updateItem({ dimensionSide: event.target.value })}><option value="auto">Ближайшая слева или справа</option><option value="left">Слева</option><option value="right">Справа</option></select></label> : null}<label><input type="checkbox" checked={selected.showHeight === true} onChange={event => updateItem({ showHeight: event.target.checked })}/> Показывать высоту рядом</label><label><input type="checkbox" checked={selected.showName === true} onChange={event => updateItem({ showName: event.target.checked })}/> Выноска названия (перетащите на плане)</label></div> : null}
+        {selected ? <div className="placement-annotation-settings"><label>Плоскость на развёртке<select value={selected.displayPlane || 'auto'} onChange={event => updateItem({ displayPlane: event.target.value })} disabled={elementsLocked}><option value="auto">Автоматически</option><option value="floor">Пол</option><option value="wall">Ближайшая стена</option></select></label>{selected.layer === 'electric' ? <label>Размер от стены<select value={selected.dimensionSide || 'auto'} onChange={event => updateItem({ dimensionSide: event.target.value })}><option value="auto">Ближайшая слева или справа</option><option value="left">Слева</option><option value="right">Справа</option></select></label> : null}<label><input type="checkbox" checked={selected.showHeight === true} onChange={event => updateItem({ showHeight: event.target.checked })}/> Показывать высоту рядом</label><label><input type="checkbox" checked={selected.showName === true} onChange={event => updateItem({ showName: event.target.checked })}/> Выноска названия (перетащите на плане)</label></div> : null}
         {dimensions.length ? <div className="placement-dimension-list"><h3>Ручные размеры</h3>{dimensions.map((dimension, index) => <div key={dimension.id}><span>{index + 1}. {measureText(dimensionMetres(dimension.points))}</span><input aria-label={`Подпись размера ${index + 1}`} value={dimension.label || ''} placeholder="Подпись по замеру" onChange={event => change(data => { const target = data.dimensions.find(entry => entry.id === dimension.id); if (target) target.label = event.target.value; })}/><button aria-label={`Удалить размер ${index + 1}`} onClick={() => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== dimension.id); })}><Trash2 size={15}/></button></div>)}</div> : null}
       </aside>
       {selectedRoom ? <PlacementRoomUnfolding room={selectedRoom} plan={plan} items={items} visible={visible} onToggleLayer={id => setVisible(current => ({ ...current, [id]: !current[id] }))} routes={[...networkRoutes, ...routes.map(route => ({ ...route, system: 'electric' }))]} draftPoints={networkDrawing ? networkPoints : drawingRoute ? routePoints : []} draftSystem={layer} draftCircuitId={selectedCircuitId || items.find(item => item.id === routeStartId)?.circuitId} activePreset={activePreset} selectedId={selectedId} elementsLocked={elementsLocked} onToggleLock={() => setElementsLocked(value => !value)} circuitColor={id => electricalGroupColor(id, placement.circuits)} routeMode={!activePreset && (networkDrawing || drawingRoute || assigningCircuit || isNetworkLayer(layer))} onPlace={roomPlace} onMove={roomMove} onSelect={id => { setSelectedId(id); setPresetId(null); }} onPickNode={pickCanvasItem} onRoutePoint={roomRoutePoint} onSelectRoute={route => { setLayer(route.system); setSelectedId(null); if (route.system === 'electric') setSelectedRouteId(route.id); else setSelectedNetworkRouteId(route.id); }}/> : null}
