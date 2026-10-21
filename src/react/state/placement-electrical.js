@@ -1,3 +1,5 @@
+import { placementWallFaces } from './placement-walls.js';
+
 const round = value => Math.round(value * 100) / 100;
 export const routeLength = points => (points || []).slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
 export const electricalRouteLength3d = points => (points || []).slice(1).reduce((sum, point, index) => {
@@ -5,16 +7,43 @@ export const electricalRouteLength3d = points => (points || []).slice(1).reduce(
   return sum + Math.hypot(point.x - previous.x, point.y - previous.y, (point.z || 0) - (previous.z || 0));
 }, 0);
 
-const switches = new Set(['switch', 'double-switch', 'dimmer']);
+const switches = new Set(['switch', 'double-switch', 'two-way-switch', 'dimmer']);
 const lights = new Set(['light', 'spotlight', 'pendant-light', 'wall-light', 'led-strip', 'facade-light', 'facade-spotlight']);
 
-export function routeBetweenElectricalNodes(from, to, routeLevel = null) {
+const crosses = (a, b, c, d) => {
+  const orient = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const first = orient(a, b, c), second = orient(a, b, d), third = orient(c, d, a), fourth = orient(c, d, b);
+  return first * second < -.000001 && third * fourth < -.000001;
+};
+
+export function orthogonalElectricalPath(from, to, plan) {
+  const start = { x: from.x, y: from.y }, end = { x: to.x, y: to.y };
+  if (Math.abs(start.x - end.x) < .01 || Math.abs(start.y - end.y) < .01) return [start, end];
+  const candidates = [
+    [start, { x: end.x, y: start.y }, end],
+    [start, { x: start.x, y: end.y }, end],
+  ];
+  if (plan) {
+    const faces = placementWallFaces(plan);
+    const values = (axis, min, max) => [...new Set(faces.flatMap(face => [face.a[axis], face.b[axis]]).filter(value => value > min + .05 && value < max - .05).map(value => round(value)))];
+    for (const x of values('x', Math.min(start.x, end.x), Math.max(start.x, end.x))) candidates.push([start, { x, y: start.y }, { x, y: end.y }, end]);
+    for (const y of values('y', Math.min(start.y, end.y), Math.max(start.y, end.y))) candidates.push([start, { x: start.x, y }, { x: end.x, y }, end]);
+    const score = path => path.slice(1).reduce((sum, point, index) => {
+      const previous = path[index];
+      return sum + Math.hypot(point.x - previous.x, point.y - previous.y) + faces.reduce((crossings, face) => crossings + (crosses(previous, point, face.a, face.b) ? 8 : 0), 0);
+    }, 0) + path.length * .01;
+    return candidates.sort((a, b) => score(a) - score(b))[0].filter((point, index, path) => index === 0 || Math.hypot(point.x - path[index - 1].x, point.y - path[index - 1].y) > .01);
+  }
+  return candidates[0];
+}
+
+export function routeBetweenElectricalNodes(from, to, routeLevel = null, plan = null) {
   const hasHeight = Number.isFinite(Number(from.height)) && Number.isFinite(Number(to.height)) && (from.heightKnown === true || to.heightKnown === true || Number(from.height) > 0 || Number(to.height) > 0);
   const level = routeLevel == null ? Number(from.height) || 0 : Number(routeLevel) || 0;
   const at = (item, z) => ({ x: item.x, y: item.y, ...(hasHeight ? { z } : {}) });
   const points = [at(from, Number(from.height) || 0)];
   if (hasHeight && Math.abs((Number(from.height) || 0) - level) > .001) points.push(at(from, level));
-  if (Math.abs(from.x - to.x) > .01 && Math.abs(from.y - to.y) > .01) points.push({ x: to.x, y: from.y, ...(hasHeight ? { z: level } : {}) });
+  points.push(...orthogonalElectricalPath(from, to, plan).slice(1, -1).map(point => ({ ...point, ...(hasHeight ? { z: level } : {}) })));
   points.push(at(to, level));
   if (hasHeight && Math.abs((Number(to.height) || 0) - level) > .001) points.push(at(to, Number(to.height) || 0));
   return points.filter((p, i) => i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y, (p.z || 0) - (points[i - 1].z || 0)) > .001);
@@ -24,46 +53,69 @@ export function routeToPanel(panel, item) {
   return routeBetweenElectricalNodes(panel, item);
 }
 
-export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId, createId) {
+export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId, createId, plan = null) {
   const floorItems = items.filter(item => item.floor === floor);
   const panel = floorItems.find(item => item.id === panelId && item.kind === 'panel');
   if (!panel) return [];
   const assigned = floorItems.filter(item => item.circuitId === circuitId && item.kind !== 'panel');
   const junctions = assigned.filter(item => item.kind === 'junction-box');
   const nearestJunction = item => junctions.find(entry => entry.id === item.junctionItemId) || [...junctions].sort((a, b) => Math.hypot(item.x - a.x, item.y - a.y) - Math.hypot(item.x - b.x, item.y - b.y))[0] || null;
-  const make = (from, to, purpose) => ({ id: createId(), floor, circuitId, panelItemId: panel.id, fromItemId: from.id, targetItemId: to.id, purpose, auto: true, points: routeBetweenElectricalNodes(from, to) });
+  const make = (from, to, purpose) => ({ id: createId(), floor, circuitId, panelItemId: panel.id, fromItemId: from.id, targetItemId: to.id, purpose, auto: true, points: routeBetweenElectricalNodes(from, to, null, plan) });
   const result = junctions.map(junction => make(panel, junction, 'feed'));
   const routed = new Set(junctions.map(item => item.id));
+  // A two-way pair has a feed, a traveller cable and a switched return.
+  // Both switches remain explicit nodes, so moving either updates its cables.
+  for (const first of assigned.filter(item => item.kind === 'two-way-switch' && item.pairedSwitchId && !routed.has(item.id))) {
+    const second = assigned.find(item => item.id === first.pairedSwitchId && item.kind === 'two-way-switch' && item.pairedSwitchId === first.id);
+    if (!second || routed.has(second.id)) continue;
+    const junction = nearestJunction(first) || panel;
+    result.push(make(junction, first, 'switch-feed'));
+    result.push(make(first, second, 'travellers'));
+    const lamp = assigned.find(item => item.id === first.controlsItemId && lights.has(item.kind)) || assigned.find(item => item.id === second.controlsItemId && lights.has(item.kind));
+    if (lamp) {
+      result.push(make(second, lamp, 'switched-light'));
+      if (junction.id !== panel.id) result.push(make(junction, lamp, 'neutral-light'));
+      routed.add(lamp.id);
+    }
+    routed.add(first.id); routed.add(second.id);
+  }
   for (const item of assigned) {
     if (item.kind === 'junction-box' || routed.has(item.id)) continue;
-    const controllingSwitch = assigned.find(candidate => switches.has(candidate.kind) && candidate.controlsItemId === item.id);
+    const controllingSwitch = assigned.find(candidate => switches.has(candidate.kind) && candidate.kind !== 'two-way-switch' && candidate.controlsItemId === item.id);
     const from = controllingSwitch ? nearestJunction(controllingSwitch) || controllingSwitch : nearestJunction(item) || panel;
-    result.push(make(from, item, controllingSwitch && from.id === controllingSwitch.id ? 'switch-light' : switches.has(item.kind) ? 'switch-leg' : lights.has(item.kind) ? 'light-feed' : 'device-feed'));
+    result.push(make(from, item, controllingSwitch && from.id === controllingSwitch.id ? 'switched-light' : switches.has(item.kind) ? 'switch-feed' : lights.has(item.kind) ? 'light-feed' : 'device-feed'));
     routed.add(item.id);
   }
   return result;
 }
 
-export function resolvedElectricalRoutes(placement, floor) {
+export function resolvedElectricalRoutes(placement, floor, plan = null) {
   const items = (placement.items || []).filter(item => item.floor === floor);
   return (placement.routes || []).filter(route => route.floor === floor).map(route => {
     const panel = items.find(item => item.id === route.panelItemId);
     const from = items.find(item => item.id === route.fromItemId) || panel;
-    if (!route.auto) return from ? { ...route, points: [{ x: from.x, y: from.y, ...(Number.isFinite(Number(from.height)) && from.heightKnown ? { z: Number(from.height) } : {}) }, ...route.points.slice(1)] } : route;
+    if (!route.auto) {
+      const target = items.find(item => item.id === route.targetItemId);
+      if (!from || route.points.length < 2) return route;
+      const points = route.points.map(point => ({ ...point }));
+      points[0] = { ...points[0], x: from.x, y: from.y, ...(from.heightKnown ? { z: Number(from.height) || 0 } : {}) };
+      if (target) points[points.length - 1] = { ...points[points.length - 1], x: target.x, y: target.y, ...(target.heightKnown ? { z: Number(target.height) || 0 } : {}) };
+      return { ...route, points };
+    }
     const target = items.find(item => item.id === route.targetItemId);
-    return from && target ? { ...route, points: routeBetweenElectricalNodes(from, target, route.routeLevel) } : null;
+    return from && target ? { ...route, points: routeBetweenElectricalNodes(from, target, route.routeLevel, plan) } : null;
   }).filter(Boolean);
 }
 
-export function electricalBill(placement, floor) {
+export function electricalBill(placement, floor, plan = null) {
   const items = (placement.items || []).filter(item => item.floor === floor && item.layer === 'electric');
-  const routes = resolvedElectricalRoutes(placement, floor);
+  const routes = resolvedElectricalRoutes(placement, floor, plan);
   const circuits = (placement.circuits || []).filter(circuit => items.some(item => item.circuitId === circuit.id) || routes.some(route => route.circuitId === circuit.id));
   const routeMetres = round(routes.reduce((sum, route) => sum + electricalRouteLength3d(route.points), 0));
   const byCircuit = circuits.map(circuit => ({ ...circuit, routeMetres: round(routes.filter(route => route.circuitId === circuit.id).reduce((sum, route) => sum + electricalRouteLength3d(route.points), 0)) }));
   const count = kinds => items.filter(item => kinds.includes(item.kind)).length;
   const outletCount = count(['socket', 'double-socket', 'power', 'facade-socket']);
-  const switchCount = count(['switch', 'double-switch', 'dimmer']);
+  const switchCount = count(['switch', 'double-switch', 'two-way-switch', 'dimmer']);
   const lightCount = count(['light', 'spotlight', 'pendant-light', 'wall-light', 'led-strip', 'facade-light', 'facade-spotlight']);
   const components = [
     { name: 'Электрощит', quantity: count(['panel']), unit: 'шт' },
@@ -90,6 +142,11 @@ export function electricalBill(placement, floor) {
   for (const item of items.filter(entry => switches.has(entry.kind) && entry.controlsItemId)) {
     if (!items.some(candidate => candidate.id === item.controlsItemId && lights.has(candidate.kind) && candidate.circuitId === item.circuitId)) topologyIssues.push(`${item.label || 'Выключатель'}: связь со светильником недействительна`);
     if (!items.some(candidate => candidate.id === item.junctionItemId && candidate.kind === 'junction-box') && !items.some(candidate => candidate.circuitId === item.circuitId && candidate.kind === 'junction-box')) topologyIssues.push(`${item.label || 'Выключатель'}: коробка не выбрана; проверьте соединение у выключателя`);
+  }
+  for (const item of items.filter(entry => entry.kind === 'two-way-switch')) {
+    const pair = items.find(candidate => candidate.id === item.pairedSwitchId);
+    if (!pair || pair.kind !== 'two-way-switch' || pair.pairedSwitchId !== item.id || pair.circuitId !== item.circuitId) topologyIssues.push(`${item.label || 'Проходной выключатель'}: выберите парный выключатель той же группы`);
+    else if (item.controlsItemId && pair.controlsItemId && item.controlsItemId !== pair.controlsItemId) topologyIssues.push(`${item.label || 'Проходной выключатель'}: пара управляет разными светильниками`);
   }
   return { routes, byCircuit, components, manualComponents, routeMetres, topologyIssues, unconnected: items.filter(item => item.kind !== 'panel' && !routes.some(route => route.targetItemId === item.id || (!route.auto && route.circuitId === item.circuitId))) };
 }

@@ -10,7 +10,7 @@ export function buildPlacementSheets(project) {
     const plan = floor === 1 ? project.plan : project.upperFloors?.[floor - 2] || project.plan;
     for (const discipline of ['layout', 'electric', ...Object.keys(NETWORK_SYSTEMS)]) {
       const list = (placement.items || []).filter(item => item.floor === floor && (discipline === 'electric' ? item.layer === 'electric' : discipline === 'layout' ? !['electric', ...Object.keys(NETWORK_SYSTEMS)].includes(item.layer) : item.layer === discipline));
-      const routes = discipline === 'electric' ? resolvedElectricalRoutes(placement, floor) : NETWORK_SYSTEMS[discipline] ? resolvedNetworkRoutes(placement, discipline, floor) : [];
+      const routes = discipline === 'electric' ? resolvedElectricalRoutes(placement, floor, plan) : NETWORK_SYSTEMS[discipline] ? resolvedNetworkRoutes(placement, discipline, floor) : [];
       if (NETWORK_SYSTEMS[discipline] && !list.length && !routes.length) continue;
       const circuitIds = new Set([...list.map(item => item.circuitId), ...routes.map(route => route.circuitId)].filter(Boolean));
       const prefix = discipline === 'electric' ? 'Э' : NETWORK_SYSTEMS[discipline]?.prefix || 'Р';
@@ -22,7 +22,7 @@ export function buildPlacementSheets(project) {
         plan,
         items: list.map((item, index) => ({ item, mark: `${prefix}-${String(index + 1).padStart(2, '0')}` })),
         routes,
-        electricalBill: discipline === 'electric' ? electricalBill(placement, floor) : null,
+        electricalBill: discipline === 'electric' ? electricalBill(placement, floor, plan) : null,
         networkBill: NETWORK_SYSTEMS[discipline] ? networkBill(placement, discipline, floor) : null,
         dimensions: ['layout', 'electric'].includes(discipline) ? (placement.dimensions || []).filter(dimension => dimension.floor === floor) : [],
         circuits: discipline === 'electric' ? (placement.circuits || []).filter(circuit => circuitIds.has(circuit.id)) : [],

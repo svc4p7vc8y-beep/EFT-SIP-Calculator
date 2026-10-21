@@ -16,12 +16,12 @@ function Cabinet({ icon }) {
 function Electrical({ icon }) {
   const facade = icon.startsWith('facade');
   const sockets = ['socket', 'double-socket', 'power', 'facade-socket'].includes(icon);
-  const switches = ['switch', 'double-switch', 'dimmer'].includes(icon);
+  const switches = ['switch', 'double-switch', 'two-way-switch', 'dimmer'].includes(icon);
   const lighting = ['light', 'spotlight', 'pendant-light', 'wall-light', 'facade-light', 'facade-spotlight'].includes(icon);
   return <>
     {sockets ? (icon === 'double-socket' ? [32,68] : [50]).map(cx => <g key={cx}><circle cx={cx} cy="50" r={icon === 'double-socket' ? 18 : 25}/><circle cx={cx - 7} cy="48" r="2.5" {...dot}/><circle cx={cx + 7} cy="48" r="2.5" {...dot}/><path d={`M${cx - 5} 61h10`} {...line}/></g>) : null}
     {icon === 'power' ? <path d="M53 25L42 49h10l-5 22 13-27H50z" {...line}/> : null}
-    {switches ? <><rect x="27" y="27" width="46" height="46" rx="3"/>{icon === 'dimmer' ? <><circle cx="50" cy="50" r="13"/><path d="M50 37v10" {...line}/></> : (icon === 'double-switch' ? [41,59] : [50]).map(cx => <rect key={cx} x={cx - 6} y="35" width="12" height="30" rx="1"/>)}</> : null}
+    {switches ? <><rect x="27" y="27" width="46" height="46" rx="3"/>{icon === 'dimmer' ? <><circle cx="50" cy="50" r="13"/><path d="M50 37v10" {...line}/></> : icon === 'two-way-switch' ? <><path d="M36 50h13l13-13M49 50l13 13" {...line}/><circle cx="36" cy="50" r="3"/><circle cx="62" cy="37" r="3"/><circle cx="62" cy="63" r="3"/></> : (icon === 'double-switch' ? [41,59] : [50]).map(cx => <rect key={cx} x={cx - 6} y="35" width="12" height="30" rx="1"/>)}</> : null}
     {lighting ? <><circle cx="50" cy="50" r={icon.includes('spotlight') ? 20 : 26}/><circle cx="50" cy="50" r={icon.includes('spotlight') ? 5 : 10} {...line}/>{icon === 'spotlight' || icon === 'facade-spotlight' ? <path d="M34 66l-10 10m42-10 10 10" {...line}/> : <path d="M50 16v8m0 52v8M16 50h8m52 0h8" {...line}/>}</> : null}
     {icon === 'led-strip' ? <><path d="M10 50h80" strokeWidth="5" {...line}/>{[25,40,55,70].map(cx => <circle key={cx} cx={cx} cy="50" r="2.5" {...dot}/>)}</> : null}
     {icon === 'panel' ? <><rect x="24" y="17" width="52" height="66" rx="2"/><rect x="31" y="25" width="38" height="50" {...line}/>{[35,47,59].map(y => <path key={y} d={`M35 ${y}h30`} {...line}/>)}</> : null}
@@ -56,10 +56,13 @@ function Equipment({ icon }) {
 
 export function PlacementSymbol({ kind, icon: explicitIcon }) {
   const icon = explicitIcon || findPlacementPreset(kind)?.icon || kind;
-  return <g className="placement-classic-symbol" fill="#fff" stroke="#26373d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    {['socket','double-socket','power','switch','double-switch','dimmer','light','spotlight','pendant-light','wall-light','led-strip','panel','junction-box','facade-socket','facade-light','facade-spotlight'].includes(icon) ? <Electrical icon={icon}/> : null}
+  const electrical = ['socket','double-socket','power','switch','double-switch','two-way-switch','dimmer','light','spotlight','pendant-light','wall-light','led-strip','panel','junction-box','facade-socket','facade-light','facade-spotlight'].includes(icon);
+  const palette = icon === 'power' ? ['#fff0e9', '#ad4f33'] : icon.includes('switch') || icon === 'dimmer' ? ['#fff1d8', '#9d650f'] : icon === 'panel' ? ['#e5e8ff', '#414e9a'] : icon === 'junction-box' ? ['#f3e7ff', '#784e9e'] : ['light','spotlight','pendant-light','wall-light','led-strip','facade-light','facade-spotlight'].includes(icon) ? ['#fff8d9', '#9c7510'] : electrical ? ['#e1f6ed', '#237456'] : ['#fff', '#26373d'];
+  return <g className="placement-classic-symbol" fill={palette[0]} stroke={palette[1]} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    {electrical ? <Electrical icon={icon}/> : null}
     {['water-source','water-outlet','hot-outlet','valve','damper','tee','radiator','floor-loop','stack','drain','floor-drain','cleanout','supply-diffuser','extract-grille','air-intake','air-exhaust'].includes(icon) ? <Network icon={icon}/> : null}
     {icon === 'bed' ? <><rect x="13" y="7" width="74" height="86" rx="2"/><rect x="19" y="15" width="62" height="72" {...line}/><path d="M19 54h62M19 64c20 3 42 3 62 0" {...line}/><rect x="21" y="18" width="27" height="21" rx="4"/><rect x="52" y="18" width="27" height="21" rx="4"/></> : null}
+    {icon.startsWith('bed-nightstand') ? <><rect x="23" y="8" width="54" height="84" rx="2"/><rect x="28" y="14" width="44" height="72" {...line}/><path d="M28 51h44M28 62h44" {...line}/><rect x="29" y="17" width="19" height="20" rx="3"/><rect x="52" y="17" width="19" height="20" rx="3"/>{icon !== 'bed-nightstand-right' ? <><rect x="2" y="13" width="17" height="24" rx="2"/><path d="M5 22h11" {...line}/></> : null}{icon !== 'bed-nightstand-left' ? <><rect x="81" y="13" width="17" height="24" rx="2"/><path d="M84 22h11" {...line}/></> : null}</> : null}
     {['sofa','corner-sofa','armchair'].includes(icon) ? <><rect x="8" y="15" width="84" height="70" rx="6"/><rect x="18" y="25" width="64" height="50" rx="2" {...line}/><path d="M50 26v48M18 46h64" {...line}/><rect x="9" y="26" width="11" height="48" rx="2"/><rect x="80" y="26" width="11" height="48" rx="2"/><rect x="20" y="16" width="60" height="11" rx="2"/>{icon === 'corner-sofa' ? <rect x="53" y="48" width="29" height="28" {...line}/> : null}</> : null}
     {['table','desk','chair'].includes(icon) ? <><rect x="16" y="18" width="68" height="64" rx={icon === 'table' ? 12 : 2}/><rect x="22" y="24" width="56" height="52" rx={icon === 'table' ? 8 : 0} {...line}/>{icon === 'chair' ? <path d="M22 37h56" {...line}/> : null}</> : null}
     {['cabinet','corner-cabinet','wall-cabinet','wardrobe','sliding-wardrobe','dresser','shelves'].includes(icon) ? <Cabinet icon={icon}/> : null}

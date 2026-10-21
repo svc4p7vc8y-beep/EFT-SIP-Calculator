@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
-import { normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
+import { applianceSupplyKind, normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
 import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
@@ -97,6 +97,43 @@ test('electrical topology routes panel through one junction to switch and contro
   assert.equal(electricalBill(placement, 1).manualComponents.find(row => row.name === 'Клемма проекта').quantity, 4);
   items[1].x = 3;
   assert.equal(resolvedElectricalRoutes(placement, 1)[1].points[0].x, 3);
+});
+
+test('two-way switches create an anchored pair route and remain in the electric bill', () => {
+  const items = [
+    { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0 },
+    { id: 'box', floor: 1, layer: 'electric', kind: 'junction-box', x: 1, y: 0, circuitId: 'c' },
+    { id: 'a', floor: 1, layer: 'electric', kind: 'two-way-switch', x: 1, y: 1, circuitId: 'c', pairedSwitchId: 'b', controlsItemId: 'lamp' },
+    { id: 'b', floor: 1, layer: 'electric', kind: 'two-way-switch', x: 4, y: 1, circuitId: 'c', pairedSwitchId: 'a', controlsItemId: 'lamp' },
+    { id: 'lamp', floor: 1, layer: 'electric', kind: 'light', x: 4, y: 3, circuitId: 'c' },
+  ];
+  const routes = proposeElectricalCircuitRoutes(items, 1, 'c', 'panel', (() => { let n = 0; return () => `r${++n}`; })());
+  assert(routes.some(route => route.fromItemId === 'a' && route.targetItemId === 'b' && route.purpose === 'travellers'));
+  assert(routes.some(route => route.fromItemId === 'b' && route.targetItemId === 'lamp'));
+  assert.equal(electricalBill({ items, circuits: [{ id: 'c', name: 'Свет' }], routes }, 1).components.find(row => row.name === 'Выключатели и диммеры').quantity, 2);
+  items[3].x = 5;
+  assert.equal(resolvedElectricalRoutes({ items, routes }, 1).find(route => route.purpose === 'travellers').points.at(-1).x, 5);
+});
+
+test('manual electrical waypoints preserve their shape while both endpoints follow devices', () => {
+  const placement = { items: [
+    { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0 },
+    { id: 'socket', floor: 1, layer: 'electric', kind: 'socket', x: 3, y: 2, circuitId: 'c' },
+  ], routes: [{ id: 'r', floor: 1, circuitId: 'c', panelItemId: 'panel', fromItemId: 'panel', targetItemId: 'socket', auto: false, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 2 }, { x: 3, y: 2 }] }] };
+  placement.items[0].x = .5;
+  placement.items[1].y = 3;
+  const route = resolvedElectricalRoutes(placement, 1)[0];
+  assert.deepEqual(route.points, [{ x: .5, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 2 }, { x: 3, y: 3 }]);
+  const reopened = migrateProject({ ...createDefaultProject(), placement });
+  assert.equal(resolvedElectricalRoutes(reopened.placement, 1)[0].points.at(-1).y, 3);
+});
+
+test('appliance planning defaults add a separate socket or power point without assumed load', () => {
+  const byId = id => PLACEMENT_PRESETS.find(preset => preset.id === id);
+  assert.equal(applianceSupplyKind(byId('refrigerator')), 'socket');
+  assert.equal(applianceSupplyKind(byId('food-disposer')), 'socket');
+  assert.equal(applianceSupplyKind(byId('electric-stove')), 'power');
+  assert.equal(applianceSupplyKind(byId('bed-nightstands')), '');
 });
 
 test('placement survives project import and stays separate from estimate calculations', () => {

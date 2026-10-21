@@ -74,6 +74,9 @@ const ORIGINAL_ICONS = { kitchen: 'counter', refrigerator: 'fridge', stove: 'hob
 
 export const PLACEMENT_PRESETS = [
   ...ORIGINAL_PRESETS.map(item => ({ ...item, group: ORIGINAL_GROUPS[item.id] || 'climate', icon: ORIGINAL_ICONS[item.id] || item.id })),
+  preset('bed-nightstand-left', 'Кровать с тумбой слева', 'furniture', 'living', 2.05, 2, 'bed-nightstand-left'),
+  preset('bed-nightstand-right', 'Кровать с тумбой справа', 'furniture', 'living', 2.05, 2, 'bed-nightstand-right'),
+  preset('bed-nightstands', 'Кровать с двумя тумбами', 'furniture', 'living', 2.5, 2, 'bed-nightstands'),
   preset('single-bed', 'Односпальная кровать', 'furniture', 'living', 2, .9, 'bed'),
   preset('corner-sofa', 'Угловой диван', 'furniture', 'living', 2.5, 1.6, 'corner-sofa'),
   preset('armchair', 'Кресло', 'furniture', 'living', .85, .85, 'armchair'),
@@ -107,6 +110,7 @@ export const PLACEMENT_PRESETS = [
   preset('hob', 'Варочная панель', 'appliance', 'kitchen-appliances', .6, .52, 'hob'),
   preset('oven', 'Духовой шкаф', 'appliance', 'kitchen-appliances', .6, .6, 'oven'),
   preset('microwave', 'Микроволновая печь', 'appliance', 'kitchen-appliances', .5, .4, 'microwave'),
+  preset('food-disposer', 'Измельчитель отходов', 'appliance', 'kitchen-appliances', .3, .3, 'appliance'),
   preset('hood', 'Вытяжка', 'appliance', 'kitchen-appliances', .6, .5, 'hood', { height: 1.6 }),
   preset('dryer', 'Сушильная машина', 'appliance', 'laundry', .6, .6, 'dryer'),
   preset('washer-dryer', 'Стирально-сушильная машина', 'appliance', 'laundry', .6, .6, 'washer'),
@@ -120,6 +124,7 @@ export const PLACEMENT_PRESETS = [
   preset('electric-stove', 'Электрическая плита', 'appliance', 'kitchen-appliances', .6, .6, 'electric-stove'),
   preset('double-socket', 'Двойная розетка', 'electric', 'electric-points', .28, .12, 'double-socket', { height: .3 }),
   preset('double-switch', 'Двойной выключатель', 'electric', 'electric-points', .22, .12, 'double-switch', { height: .9 }),
+  preset('two-way-switch', 'Проходной выключатель', 'electric', 'electric-points', .18, .12, 'two-way-switch', { height: .9 }),
   preset('dimmer', 'Диммер', 'electric', 'electric-points', .18, .12, 'dimmer', { height: .9 }),
   preset('spotlight', 'Точечный светильник', 'electric', 'lighting', .14, .14, 'spotlight', { height: 2.5 }),
   preset('pendant-light', 'Подвесной светильник', 'electric', 'lighting', .35, .35, 'pendant-light', { height: 2.2 }),
@@ -158,6 +163,14 @@ export const PLACEMENT_PRESETS = [
 ];
 
 export const findPlacementPreset = kind => PLACEMENT_PRESETS.find(item => item.id === kind);
+
+// These points are a planning default only: the designer may move, change or
+// remove each socket independently. No assumed wattage or cable gauge enters the estimate.
+export function applianceSupplyKind(preset) {
+  if (preset?.layer === 'appliance') return ['stove', 'electric-stove', 'hob', 'oven'].includes(preset.id) ? 'power' : 'socket';
+  if (preset?.layer === 'equipment' && ['water-heater', 'pump', 'vent-unit', 'air-conditioner', 'heat-pump', 'boiler'].includes(preset.id)) return 'power';
+  return '';
+}
 
 const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
