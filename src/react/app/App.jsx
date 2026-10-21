@@ -472,7 +472,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 263{import.meta.env.VITE_BUILD_REVISION ? ` · ${import.meta.env.VITE_BUILD_REVISION.slice(0, 7)}` : ''}</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия {import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -688,7 +688,7 @@ export function App() {
         ) : null}
         <main className="workspace">
           {team.user && team.priceCatalog.status !== 'ready' ? <div className="notice no-print" role="alert">Не удалось подтвердить актуальные цены: {team.priceCatalog.error}. Планы доступны; смета станет доступна после обновления прайса. <button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Обновить прайс</button></div> : null}
-          {appUpdateReady ? <div className="notice no-print" role="status">Доступна новая версия калькулятора. Сохраните проект, затем обновите страницу. <button className="button secondary" onClick={() => window.location.reload()}>Обновить версию</button></div> : null}
+          {appUpdateReady ? <div className="notice no-print" role="status">Доступна новая версия калькулятора. Сохраните проект, затем обновите страницу. <button className="button secondary" onClick={() => { const url = new URL(window.location.href); url.searchParams.set('refresh', String(Date.now())); window.location.assign(url.href); }}>Обновить версию</button></div> : null}
           {team.refreshError || team.mailError ? <div className="notice no-print" role="alert">
             {team.refreshError ? `Общие проекты и анкеты могут быть неактуальны: ${team.refreshError}. ` : ""}
             {team.mailError ? `Статус почты может быть неактуален: ${team.mailError}.` : ""}

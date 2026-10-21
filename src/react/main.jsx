@@ -34,7 +34,7 @@ createRoot(document.getElementById("root")).render(
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").then((registration) => {
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: 'none' }).then((registration) => {
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.addEventListener('controllerchange', () => window.dispatchEvent(new Event('eft:app-update-ready')));
       }
@@ -42,4 +42,23 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
       window.addEventListener('focus', () => registration.update().catch(() => {}));
     }).catch(() => {});
   });
+}
+
+// The service worker script can stay unchanged across application releases.
+// Compare the versioned entry asset so an open tab also notices those releases.
+const entryAsset = document.querySelector('script[type="module"][src]')?.src;
+if (entryAsset && location.protocol !== 'file:') {
+  const checkBuild = async () => {
+    try {
+      const response = await fetch('./react.html?build-check=1', { cache: 'no-store' });
+      if (!response.ok) return;
+      const document = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const nextAsset = document.querySelector('script[type="module"][src]')?.getAttribute('src');
+      if (nextAsset && new URL(nextAsset, response.url).href !== entryAsset) {
+        window.dispatchEvent(new Event('eft:app-update-ready'));
+      }
+    } catch { /* Offline use remains available through the service worker. */ }
+  };
+  window.addEventListener('focus', checkBuild);
+  window.setInterval(checkBuild, 2 * 60 * 1000);
 }

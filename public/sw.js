@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-v229-mobile-workbench';
+const CACHE_NAME = 'eft-calculator-react-current-build';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
@@ -16,9 +16,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin || url.pathname.includes('/api/')) return;
+  if (url.origin !== self.location.origin || url.pathname.includes('/api/') || url.searchParams.has('build-check')) return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, event.request.mode === 'navigate' ? { cache: 'no-store' } : undefined)
       .then((response) => {
         const copy = response.clone();
         if (response.ok && !/no-store|private/i.test(response.headers.get('Cache-Control') || '')) {
