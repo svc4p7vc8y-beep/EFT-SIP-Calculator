@@ -324,8 +324,11 @@ html[data-build-stage="1"] .build-foundation,html[data-build-stage="2"] .build-f
 .max-chat-entry{position:fixed;right:clamp(16px,3vw,40px);bottom:clamp(18px,3vw,36px);z-index:40;display:flex;align-items:center;gap:11px;padding:13px 17px;border:1px solid #1a6558;border-radius:50px;background:#244b3b;color:#fff;box-shadow:0 10px 30px #173b2e30;text-decoration:none;transition:transform .2s,background .2s}
 .max-chat-entry:hover,.max-chat-entry:focus-visible{background:#173c2c;color:#fff;transform:translateY(-3px)}
 .max-chat-entry span{display:grid;gap:1px}.max-chat-entry strong{font-size:13px;line-height:1.2}.max-chat-entry small{font-size:11px;color:#d9e9de}
+@media(min-width:901px){.max-chat-entry{min-width:225px;min-height:76px;justify-content:center;gap:14px;padding:17px 23px}.max-chat-entry>svg{width:29px;height:29px}.max-chat-entry strong{font-size:17px}.max-chat-entry small{font-size:13px}}
+@keyframes max-chat-pulse{0%,100%{transform:scale(1);box-shadow:0 10px 30px #173b2e30}50%{transform:scale(1.045);box-shadow:0 15px 40px #173b2e70}}
+@media(min-width:901px) and (prefers-reduced-motion:no-preference){.max-chat-entry{animation:max-chat-pulse 5s ease-in-out infinite}.max-chat-entry:hover,.max-chat-entry:focus-visible{animation-play-state:paused;transform:translateY(-3px)}}
 @media(max-width:600px){.max-chat-entry{right:12px;bottom:12px;padding:12px 14px}.max-chat-entry strong{font-size:12px}.max-chat-entry small{font-size:10px}}
-@media(prefers-reduced-motion:reduce){.max-chat-entry{transition:none}}
+@media(prefers-reduced-motion:reduce){.max-chat-entry{transition:none;animation:none}}
 .escrow-section{padding-top:38px;padding-bottom:48px}
 .escrow-card{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.65fr);gap:30px;align-items:center;width:min(100%,1040px);min-height:0;margin-inline:auto;padding:28px clamp(28px,4vw,52px);border-radius:8px;background:#2b4552;color:#fff;overflow:hidden}
 .escrow-card .section-number{color:#c6d4d9}

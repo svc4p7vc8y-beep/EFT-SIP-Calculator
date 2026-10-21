@@ -21,8 +21,10 @@
 .intro-sketch{opacity:0}
 .intro-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(9,19,15,.8),rgba(9,19,15,.52) 28%,transparent 62%),linear-gradient(0deg,rgba(9,19,15,.45),transparent 24%);pointer-events:none}
 .welcome-copy{max-width:690px;position:relative}
-.winter-badge{display:inline-flex;align-items:center;gap:9px;margin-bottom:20px;padding:9px 15px;border:1px solid #d4e8db99;border-radius:99px;background:#173a36b8;color:#f5fff6;font-size:12px;font-weight:700;letter-spacing:.04em;box-shadow:0 8px 28px #071d1933;backdrop-filter:blur(9px)}
-.winter-badge svg{color:#bfe9ef;stroke-width:2.2}
+.winter-badge{display:inline-flex;align-items:center;justify-content:center;gap:13px;min-width:295px;min-height:60px;width:max-content;margin-bottom:30px;padding:16px 24px;border:1px solid #a8c9e8;border-radius:19px;background:#fff;box-shadow:0 12px 32px #071d1933;font-size:17px;font-weight:800;letter-spacing:.01em;position:relative;top:-12px}
+.winter-badge svg{flex:none;color:#1269b4;stroke-width:2.2}
+.winter-badge-text{background:linear-gradient(105deg,#fff 0%,#a7d6f6 22%,#3189d0 58%,#0758a5 100%);background-clip:text;-webkit-background-clip:text;color:#0758a5;-webkit-text-fill-color:transparent;-webkit-text-stroke:.35px #2169a7}
+@media(min-width:601px) and (max-width:1200px){.winter-badge{min-width:260px}}
 .welcome-copy h1{font-size:clamp(44px,4.2vw,68px);font-weight:700;letter-spacing:-2.2px;line-height:1.1;text-wrap:balance}
 .welcome-copy p{font-size:clamp(16px,1.55vw,24px);line-height:1.65;margin-top:25px}
 .welcome-actions{display:flex;gap:18px;flex-wrap:wrap;margin-top:38px}
@@ -55,4 +57,4 @@
 @media(max-width:700px){.welcome-header .header-cta{display:none}}
 @media(max-width:600px){.welcome-header .header-brand-group{gap:8px;min-width:0}.welcome-header .header-contact{font-size:10px}.welcome-header .header-phone{font-size:17px}.welcome-header .menu-toggle{margin-left:auto;flex-shrink:0}}
 @media(max-width:420px){.welcome-header{gap:6px}.welcome-header .header-wordmark{width:110px;min-width:110px}.welcome-header .logo-motion{width:108px;height:44px;flex-basis:44px}.welcome-header .brand-caption{font-size:9px}.welcome-header .header-phone{font-size:16px}}
-@media(max-width:600px){.winter-badge{margin-bottom:16px;padding:8px 12px;font-size:11px}}
+@media(max-width:600px){.winter-badge{min-width:228px;min-height:50px;margin-bottom:22px;padding:11px 17px;gap:9px;border-radius:14px;font-size:14px;top:-10px}.winter-badge svg{width:19px;height:19px}}

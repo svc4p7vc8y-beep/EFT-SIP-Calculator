@@ -71,7 +71,7 @@ export default function HeroIntro() {
     </div>}
     <div className="intro-shade" aria-hidden="true" />
     <div className="welcome-copy">
-      <span className="winter-badge"><Snowflake size={17} aria-hidden="true" />Строим зимой</span>
+      <span className="winter-badge"><Snowflake size={22} aria-hidden="true" /><span className="winter-badge-text">Строим зимой</span></span>
       <h1 id="welcome-title">Домой хочется<br />ещё до переезда.</h1>
       <p>Сначала — ваша идея. Затем — ваш дом.</p>
       <div className="welcome-actions">
