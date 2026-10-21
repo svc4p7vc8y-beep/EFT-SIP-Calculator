@@ -166,7 +166,6 @@
 .placement-panel-row>b{display:grid;place-items:center;border-radius:4px;background:#d7e9df}.placement-panel-row span{display:grid;gap:2px;min-width:0}.placement-panel-row small{color:#607975;overflow-wrap:anywhere}.placement-panel-row>small{grid-column:2}
 .placement-panel-diagram>small{display:block;color:#667b74;font-size:.68rem;line-height:1.4}
 .placement-point-groups label{display:grid;gap:3px;margin:7px 0;font-size:.73rem}.placement-point-groups label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.placement-point-groups select{width:100%;min-width:0;padding:6px;border:1px solid #d2e0dc;border-radius:7px;background:#fff;color:#1e3c3b}
-.placement-room-mark-label{font-size:12px;font-weight:700;fill:#29483b;stroke:#fff;stroke-width:3px;paint-order:stroke;pointer-events:none}
 
 /* Keep the layer choices and floor controls available while working down the plan. */
 .placement-heading{align-items:center;min-height:40px;margin-bottom:8px}
@@ -235,6 +234,10 @@
 .placement-room-point-list button{display:inline-flex;align-items:center;gap:5px;flex:none;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #c6d9ce;border-radius:7px;background:#fff;color:#315547;padding:5px 7px;font:inherit;cursor:pointer}
 .placement-room-point-list button.active{border-color:#277f70;background:#e6f3eb}
 .placement-room-point-list i{display:inline-block;flex:none;width:9px;height:9px;border-radius:50%}
+.placement-room-surface-labels{display:flex;gap:6px;overflow-x:auto;padding:7px 0 2px;scrollbar-width:thin}
+.placement-room-surface-labels span{flex:none;padding:4px 7px;border:1px solid #d6e3da;border-radius:6px;background:#fff;color:#456557;font-size:.68rem;white-space:nowrap}
+.placement-room-surface-labels span.active{border-color:#277f70;background:#e6f3eb;color:#245d50}
+.placement-room-selected-label{margin-top:5px;font-size:.7rem;font-weight:700;color:#315547}
 .placement-room-anchor{cursor:pointer}
 .placement-room-unfold-grid{display:grid;grid-template-columns:var(--room-wall-span) var(--room-floor-w) var(--room-wall-span);grid-template-rows:var(--room-wall-span) var(--room-floor-h) var(--room-wall-span);grid-template-areas:'. top .' 'left floor right' '. bottom .';gap:10px;width:max-content;min-width:0;margin:14px auto}
 .placement-room-surface{position:relative;display:block;min-width:0;min-height:0;padding:0;box-sizing:border-box;overflow:hidden;border:1px solid #9eb9aa;border-radius:3px;background:#f7fbf8}

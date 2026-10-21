@@ -13,7 +13,7 @@ import PlacementNetworkPanel from './PlacementNetworkPanel.jsx';
 import PlacementWallElevation from './PlacementWallElevation.jsx';
 import PlacementRoomUnfolding from './PlacementRoomUnfolding.jsx';
 import { connectionPortsFor } from '../state/placement-connections.js';
-import { electricalGroupColor, electricalPlacementClusters, roomNameForPlacement } from '../state/placement-visibility.js';
+import { electricalGroupColor, electricalPlacementClusters, roomNameForPlacement, wallPointDisplayOrder } from '../state/placement-visibility.js';
 import { electricalSettingOutDimension, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../state/placement-walls.js';
 import { ELECTRICAL_CABLE_CHOICES, breakerDescription, electricalBill, electricalRouteLength3d, proposeElectricalCircuitRoutes, resolvedElectricalRoutes, routeLength } from '../state/placement-electrical.js';
 import { NETWORK_SYSTEMS, isNetworkLayer, networkLength3d, resolvedNetworkRoutes } from '../state/placement-networks.js';
@@ -658,21 +658,25 @@ export default function PlacementScreen() {
             <title>{item.label || item.kind}</title>
           </g>;
         })}
-        {visible.electric ? electricalClusters.map(cluster => <g key={cluster.id} className="placement-electrical-row" data-cluster-id={cluster.id}>
-          <line x1={cluster.x * 100} y1={cluster.y * 100} x2={(cluster.x + cluster.normal.x * (.2 + cluster.items.length * .3)) * 100} y2={(cluster.y + cluster.normal.y * (.2 + cluster.items.length * .3)) * 100} stroke="#9aaea4" strokeWidth="2" strokeDasharray="4 4" pointerEvents="none"/>
-          {cluster.items.map((item, index) => {
+        {visible.electric ? electricalClusters.map(cluster => {
+          const displayItems = wallPointDisplayOrder(cluster.items);
+          const rowEnd = displayItems.at(-1).offset;
+          return <g key={cluster.id} className="placement-electrical-row" data-cluster-id={cluster.id}>
+          <line x1={cluster.x * 100} y1={cluster.y * 100} x2={(cluster.x + cluster.normal.x * rowEnd) * 100} y2={(cluster.y + cluster.normal.y * rowEnd) * 100} stroke="#9aaea4" strokeWidth="2" strokeDasharray="4 4" pointerEvents="none"/>
+          {displayItems.map(({ item, offset }) => {
             const color = electricalGroupColor(item.circuitId, placement.circuits);
-            const x = cluster.x + cluster.normal.x * (.24 + index * .3);
-            const y = cluster.y + cluster.normal.y * (.24 + index * .3);
+            const x = cluster.x + cluster.normal.x * offset;
+            const y = cluster.y + cluster.normal.y * offset;
             const position = dragPosition?.id === item.id ? dragPosition : { x, y };
             return <g key={item.id} data-placement-id={item.id} className="placement-object placement-electrical-row-item" transform={`translate(${position.x * 100} ${position.y * 100})`} onPointerDown={event => beginDrag(event, item)} onClick={event => { event.stopPropagation(); pickCanvasItem(item); }}>
-              <circle r="16" fill="#fff" stroke={color} strokeWidth="3"/>
-              <circle r="9" fill={color}/>
+              <circle r={item.kind === 'junction-box' ? 11 : 16} fill="#fff" stroke={color} strokeWidth="3"/>
+              <circle r={item.kind === 'junction-box' ? 5 : 9} fill={color}/>
               {selectedId === item.id ? <circle r="22" fill="none" stroke="#245d50" strokeWidth="2" pointerEvents="none"/> : null}
               <title>{item.label || item.kind} · h={Number(item.height || 0).toFixed(2)} м · {placement.circuits.find(circuit => circuit.id === item.circuitId)?.name || 'Без группы'}</title>
             </g>;
           })}
-        </g>) : null}
+        </g>;
+        }) : null}
         {items.filter(item => visible[item.layer]).map(item => {
           const position = dragPosition?.id === item.id ? dragPosition : item;
           const labelPosition = dragLabel?.id === item.id ? dragLabel : { x: position.x + (item.labelOffsetX ?? .65), y: position.y + (item.labelOffsetY ?? -.45) };

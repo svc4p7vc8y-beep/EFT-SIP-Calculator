@@ -1,6 +1,13 @@
 import { roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from './placement-geometry.js';
 
+const wallSwitchKinds = new Set(['switch', 'double-switch', 'two-way-switch', 'dimmer']);
+
+export function linkedWallSwitch(items, junction) {
+  return items.filter(item => wallSwitchKinds.has(item.kind) && item.junctionItemId === junction.id && (item.floor == null || junction.floor == null || item.floor === junction.floor))
+    .sort((a, b) => Math.hypot(Number(a.x) - Number(junction.x), Number(a.y) - Number(junction.y)) - Math.hypot(Number(b.x) - Number(junction.x), Number(b.y) - Number(junction.y)))[0];
+}
+
 const edgeDistance = (point, a, b) => {
   const dx = b.x - a.x, dy = b.y - a.y;
   const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
@@ -31,7 +38,9 @@ export function electricalPlacementClusters(items, rooms) {
       for (const candidate of electrical) {
         if (visited.has(candidate.id)) continue;
         // Only points on the same vertical installation axis share a row.
-        if (Math.hypot(Number(start.x) - Number(candidate.x), Number(start.y) - Number(candidate.y)) > .06) continue;
+        const linked = current.junctionItemId === candidate.id || candidate.junctionItemId === current.id;
+        if (!linked && Math.hypot(Number(start.x) - Number(candidate.x), Number(start.y) - Number(candidate.y)) > .06) continue;
+        if (current.floor != null && candidate.floor != null && current.floor !== candidate.floor) continue;
         if (current.wallRef && candidate.wallRef && current.wallRef !== candidate.wallRef) continue;
         if (roomNames.get(current.id) !== roomNames.get(candidate.id)) continue;
         visited.add(candidate.id);
@@ -39,8 +48,9 @@ export function electricalPlacementClusters(items, rooms) {
       }
     }
     if (group.length > 1) {
-      const x = group.reduce((sum, item) => sum + Number(item.x), 0) / group.length;
-      const y = group.reduce((sum, item) => sum + Number(item.y), 0) / group.length;
+      const linkedSwitch = group.find(item => wallSwitchKinds.has(item.kind) && group.some(candidate => candidate.id === item.junctionItemId && candidate.kind === 'junction-box'));
+      const x = linkedSwitch ? Number(linkedSwitch.x) : group.reduce((sum, item) => sum + Number(item.x), 0) / group.length;
+      const y = linkedSwitch ? Number(linkedSwitch.y) : group.reduce((sum, item) => sum + Number(item.y), 0) / group.length;
       const room = rooms.find(entry => pointInPolygon({ x, y }, roomPoints(entry))) || rooms.find(entry => roomNameForPlacement({ x, y }, [entry]) !== 'Вне комнат');
       const vertices = room ? roomPoints(room) : [];
       const edges = vertices.map((a, index) => {
@@ -59,6 +69,23 @@ export function electricalPlacementClusters(items, rooms) {
     }
   }
   return clusters;
+}
+
+// Display-only positions: the junction stays beside its wall switch in plan,
+// while saved x/y and installation height still drive the wall elevation.
+export function wallPointDisplayOrder(items) {
+  if (items.length < 2) return items.map(item => ({ item, offset: 0 }));
+  const switches = items.filter(item => item.layer === 'electric' && wallSwitchKinds.has(item.kind));
+  const junction = items.find(item => item.kind === 'junction-box' && switches.some(entry => entry.junctionItemId === item.id))
+    || items.find(item => item.kind === 'junction-box' && switches.some(entry => entry.circuitId && entry.circuitId === item.circuitId));
+  const wallSwitch = junction && switches.find(item => item.junctionItemId === junction.id)
+    || junction && switches.find(item => item.circuitId && item.circuitId === junction.circuitId);
+  const sorted = [...items].sort((a, b) => Number(a.height || 0) - Number(b.height || 0));
+  const ordered = wallSwitch ? [wallSwitch, junction, ...sorted.filter(item => item.id !== wallSwitch.id && item.id !== junction.id)] : sorted;
+  return ordered.map((item, index) => ({
+    item,
+    offset: wallSwitch ? (index === 0 ? .12 : .30 + (index - 1) * .3) : .18 + index * .3,
+  }));
 }
 
 const circuitColors = ['#b84b36', '#326fb4', '#16806c', '#9860a9', '#aa6a16', '#527b2d', '#b14d85', '#417f93'];

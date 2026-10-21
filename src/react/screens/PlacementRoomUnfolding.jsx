@@ -3,6 +3,7 @@ import { boundsOf, roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from '../state/placement-geometry.js';
 import { PLACEMENT_LAYERS } from '../state/placement-model.js';
 import { roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../state/placement-room.js';
+import { linkedWallSwitch, wallPointDisplayOrder } from '../state/placement-visibility.js';
 import { PlacementSymbol } from './PlacementClassicSymbol.jsx';
 
 const round = value => Math.round(value * 100) / 100;
@@ -40,12 +41,19 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
   }
   for (const group of anchorGroups) {
     const edge = edges.find(entry => entry.index === group.edgeIndex);
-    group.items.sort((a, b) => (Number(a.height) || 0) - (Number(b.height) || 0));
-    group.items.forEach((item, index) => {
-      const offset = group.items.length > 1 ? .18 + index * .3 : 0;
+    wallPointDisplayOrder(group.items).forEach(({ item, offset }) => {
       const candidate = { x: item.x - edge.outward.x * offset, y: item.y - edge.outward.y * offset };
       anchorPositions.set(item.id, pointInPolygon(candidate, vertices) ? candidate : item);
     });
+  }
+  for (const junction of wallItems.filter(item => item.kind === 'junction-box')) {
+    const host = linkedWallSwitch(wallItems, junction);
+    const edgeIndex = assignments.get(junction.id)?.edgeIndex;
+    if (!host || assignments.get(host.id)?.edgeIndex !== edgeIndex) continue;
+    const edge = edges.find(entry => entry.index === edgeIndex);
+    const hostAnchor = anchorPositions.get(host.id) || host;
+    const candidate = { x: hostAnchor.x - edge.outward.x * .18, y: hostAnchor.y - edge.outward.y * .18 };
+    if (pointInPolygon(candidate, vertices)) anchorPositions.set(junction.id, candidate);
   }
   const itemColor = item => item.layer === 'electric' ? circuitColor?.(item.circuitId) || colors.electric : colors[item.layer] || '#708d7b';
   const selectedWall = wallItems.find(item => item.id === selectedId);
@@ -101,7 +109,6 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
         <svg x={x - width / 2} y={y - depth / 2} width={width} height={depth} viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible"><PlacementSymbol kind={item.kind} system={item.layer} medium={item.connectionMedium}/></svg>
       </g> : <circle cx={x} cy={y} r={selectedId === item.id ? 10 : 7} fill={item.connectionMedium === 'hot' ? '#bd5547' : itemColor(item)} stroke="#fff" strokeWidth="2"/>}
       {selectedId === item.id ? <circle cx={x} cy={y} r="13" fill="none" stroke="#2b8f85" strokeWidth="2" pointerEvents="none"/> : null}
-      {selectedId === item.id ? <text x={x + 12} y={y - 10} className="placement-room-mark-label">{item.label}</text> : null}
       <title>{item.label}{item.connectionMedium ? ` · ${item.connectionMedium}` : ''}</title>
     </g>;
   };
@@ -111,7 +118,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
     const width = (horizontal ? length : height) * 100;
     const wallHeight = (horizontal ? height : length) * 100;
     const openings = (plan.openings || []).map(opening => ({ opening, display: roomOpeningOnEdge(room, index, opening, height) })).filter(entry => entry.display);
-    return <div key={index} className={`placement-room-surface wall-${side}${selectedEdge?.index === index ? ' selected-wall' : ''}`} style={{ left: `${edge.x * SCALE}px`, top: `${edge.y * SCALE}px`, width: `${width * SCALE / 100}px`, height: `${wallHeight * SCALE / 100}px` }} data-edge-index={index} data-edge-length={length.toFixed(3)} data-detached={edge.detached || undefined}><strong>Стена {index + 1} · {sideNames[side]} · {length.toFixed(2)} м{edge.detached ? ' ↔ грань' : ''}</strong>
+    return <div key={index} className={`placement-room-surface wall-${side}${selectedEdge?.index === index ? ' selected-wall' : ''}`} style={{ left: `${edge.x * SCALE}px`, top: `${edge.y * SCALE}px`, width: `${width * SCALE / 100}px`, height: `${wallHeight * SCALE / 100}px` }} data-edge-index={index} data-edge-length={length.toFixed(3)} data-detached={edge.detached || undefined}>
       <svg viewBox={`0 0 ${width} ${wallHeight}`} aria-label={`Стена ${index + 1} комнаты ${room.name}`} role="img" onClick={event => handleClick(event, index)} onPointerUp={event => handleUp(event, index)} onPointerCancel={() => { drag.current = null; }}>
         <rect width={width} height={wallHeight} className="placement-room-wall-fill"/>
         {Array.from({ length: Math.floor(length) + 1 }, (_, station) => horizontal ? <line key={station} className="placement-room-grid" x1={station * 100} y1="0" x2={station * 100} y2={wallHeight}/> : <line key={station} className="placement-room-grid" x1="0" y1={station * 100} x2={width} y2={station * 100}/>)}
@@ -125,7 +132,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
     <div className="placement-room-layer-switches" role="group" aria-label="Слои развёртки">{PLACEMENT_LAYERS.filter(entry => !entry.future).map(entry => <button key={entry.id} className={visible[entry.id] === false ? 'muted' : 'active'} aria-pressed={visible[entry.id] !== false} onClick={() => onToggleLayer?.(entry.id)}>{entry.label}</button>)}</div>
     <div className="placement-room-unfold-scroll"><div className="placement-room-unfold-grid" style={{ width: `${layout.width * SCALE}px`, height: `${layout.height * SCALE}px` }}>
       {edges.map(wall)}
-      <div className="placement-room-surface floor" style={{ left: `${layout.floor.x * SCALE}px`, top: `${layout.floor.y * SCALE}px`, width: `${floorW * SCALE / 100}px`, height: `${floorH * SCALE / 100}px` }}><strong>Пол · {box.w.toFixed(2)} × {box.h.toFixed(2)} м</strong>
+      <div className="placement-room-surface floor" style={{ left: `${layout.floor.x * SCALE}px`, top: `${layout.floor.y * SCALE}px`, width: `${floorW * SCALE / 100}px`, height: `${floorH * SCALE / 100}px` }}>
         <svg viewBox={`0 0 ${floorW} ${floorH}`} aria-label={`Пол комнаты ${room.name}`} role="img"
           onClick={handleClick} onPointerUp={handleUp} onPointerCancel={() => { drag.current = null; }}>
           <defs><clipPath id={`room-floor-${room.id}`}><path d={floorPath}/></clipPath></defs>
@@ -143,7 +150,9 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
         {selectedAnchor && selectedWallCanvasPoint ? <path d={`M ${selectedAnchor.x * 100} ${selectedAnchor.y * 100} L ${selectedWallCanvasPoint.x * 100} ${selectedWallCanvasPoint.y * 100}`} stroke={itemColor(selectedWall)} strokeWidth="4" strokeDasharray="8 5" fill="none"/> : null}
       </svg>
     </div></div>
+    <div className="placement-room-surface-labels" aria-label="Размеры плоскостей"><span>Пол · {box.w.toFixed(2)} × {box.h.toFixed(2)} м</span>{edges.map(edge => <span key={edge.index} className={selectedEdge?.index === edge.index ? 'active' : ''}>Стена {edge.index + 1} · {sideNames[edge.side]} · {edge.length.toFixed(2)} м{edge.detached ? ' ↔ грань' : ''}</span>)}</div>
     {wallItems.length ? <div className="placement-room-point-list"><strong>Привязки к стенам · цветные точки на полу показывают место установки</strong><div>{wallItems.map(item => <button key={item.id} type="button" className={selectedId === item.id ? 'active' : ''} onClick={() => onSelect(item.id)}><i style={{ background: itemColor(item) }}/>{item.label} · стена {(assignments.get(item.id)?.edgeIndex ?? -1) + 1} · h={Number(item.height || 0).toFixed(2)} м</button>)}</div></div> : null}
+    {floorItems.some(item => item.id === selectedId) ? <div className="placement-room-selected-label">Выбрано на полу: {floorItems.find(item => item.id === selectedId)?.label}</div> : null}
     <p>Нажмите на плоскость, чтобы поставить элемент или точку трассы. Элементы можно перемещать между планом пола и стенами.</p>
   </section>;
 }

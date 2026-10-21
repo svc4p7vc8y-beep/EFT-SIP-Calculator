@@ -66,7 +66,7 @@ test('concave room unfolds each true edge without changing its length or putting
   const reopened = normalizePlacement({ items: [{ id: 'old', layer: 'electric', kind: 'socket', x: .12, y: 2 }, { id: 'manual', layer: 'electric', kind: 'socket', x: .12, y: 2, displayPlane: 'floor' }] });
   assert.deepEqual(reopened.items.map(item => item.displayPlane), ['auto', 'floor']);
 });
-import { electricalGroupColor, electricalPlacementClusters, roomNameForPlacement } from '../src/react/state/placement-visibility.js';
+import { electricalGroupColor, electricalPlacementClusters, linkedWallSwitch, roomNameForPlacement, wallPointDisplayOrder } from '../src/react/state/placement-visibility.js';
 
 test('electrical points on one vertical axis form a wall-perpendicular row without changing coordinates', () => {
   const rooms = createDefaultProject().plan.rooms;
@@ -86,6 +86,34 @@ test('electrical points on one vertical axis form a wall-perpendicular row witho
   assert.equal(clusters[0].normal.x > 0, true);
   assert.notEqual(electricalGroupColor('one', [{ id: 'one' }, { id: 'two' }]), electricalGroupColor('two', [{ id: 'one' }, { id: 'two' }]));
   assert.equal(roomNameForPlacement(items[0], rooms), rooms[0].name);
+  assert.deepEqual(items, before);
+});
+
+test('a linked junction stays beside its wall switch in plan without moving its wall position', () => {
+  const items = [
+    { id: 'socket', layer: 'electric', kind: 'socket', x: 2, y: 0, height: .3, circuitId: 'c1' },
+    { id: 'junction', layer: 'electric', kind: 'junction-box', x: 2, y: 0, height: 2.3, circuitId: 'c1' },
+    { id: 'switch', layer: 'electric', kind: 'switch', x: 2, y: 0, height: .9, circuitId: 'c1', junctionItemId: 'junction' },
+  ];
+  const before = structuredClone(items);
+  const display = wallPointDisplayOrder(items);
+  assert.deepEqual(display.map(entry => entry.item.id), ['switch', 'junction', 'socket']);
+  assert.equal(Number((display[1].offset - display[0].offset).toFixed(2)), .18);
+  assert.deepEqual(items, before);
+});
+
+test('a linked junction follows the switch row after their saved plan points separate', () => {
+  const rooms = createDefaultProject().plan.rooms;
+  const items = [
+    { id: 'junction', floor: 1, layer: 'electric', kind: 'junction-box', x: .25, y: 1.4, height: 2.3, wallRef: 'wall-a' },
+    { id: 'switch', floor: 1, layer: 'electric', kind: 'switch', x: .25, y: 1, height: .9, wallRef: 'wall-a', junctionItemId: 'junction' },
+  ];
+  const before = structuredClone(items);
+  const clusters = electricalPlacementClusters(items, rooms);
+  assert.equal(clusters.length, 1);
+  assert.equal(clusters[0].x, items[1].x);
+  assert.equal(clusters[0].y, items[1].y);
+  assert.equal(linkedWallSwitch(items, items[0])?.id, 'switch');
   assert.deepEqual(items, before);
 });
 
