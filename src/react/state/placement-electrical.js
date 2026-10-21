@@ -9,6 +9,9 @@ export const electricalRouteLength3d = points => (points || []).slice(1).reduce(
 
 const switches = new Set(['switch', 'double-switch', 'two-way-switch', 'dimmer']);
 const lights = new Set(['light', 'spotlight', 'pendant-light', 'wall-light', 'led-strip', 'facade-light', 'facade-spotlight']);
+const outlets = new Set(['socket', 'double-socket', 'power', 'facade-socket']);
+export const ELECTRICAL_CABLE_CHOICES = ['3×1,5', '3×2,5', '3×4', '3×6', '5×2,5', '5×4', '5×6'];
+export const breakerDescription = circuit => [circuit.breakerAmps ? `${circuit.breakerAmps} А` : '', circuit.breaker || ''].filter(Boolean).join(' · ') || 'Не указана';
 
 const crosses = (a, b, c, d) => {
   const orient = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
@@ -63,6 +66,24 @@ export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId,
   const make = (from, to, purpose) => ({ id: createId(), floor, circuitId, panelItemId: panel.id, fromItemId: from.id, targetItemId: to.id, purpose, auto: true, points: routeBetweenElectricalNodes(from, to, null, plan) });
   const result = junctions.map(junction => make(panel, junction, 'feed'));
   const routed = new Set(junctions.map(item => item.id));
+  // Build one editable chain for each junction. Without junctions the chain
+  // starts at the panel. Every outlet remains an explicit route endpoint.
+  const outletGroups = new Map();
+  for (const outlet of assigned.filter(item => outlets.has(item.kind))) {
+    const anchor = nearestJunction(outlet) || panel;
+    if (!outletGroups.has(anchor.id)) outletGroups.set(anchor.id, { anchor, pending: [] });
+    outletGroups.get(anchor.id).pending.push(outlet);
+  }
+  for (const { anchor, pending } of outletGroups.values()) {
+    let previous = anchor;
+    while (pending.length) {
+      pending.sort((a, b) => Math.hypot(a.x - previous.x, a.y - previous.y) - Math.hypot(b.x - previous.x, b.y - previous.y) || a.id.localeCompare(b.id));
+      const outlet = pending.shift();
+      result.push(make(previous, outlet, previous.id === anchor.id ? 'outlet-feed' : 'outlet-chain'));
+      routed.add(outlet.id);
+      previous = outlet;
+    }
+  }
   // A two-way pair has a feed, a traveller cable and a switched return.
   // Both switches remain explicit nodes, so moving either updates its cables.
   for (const first of assigned.filter(item => item.kind === 'two-way-switch' && item.pairedSwitchId && !routed.has(item.id))) {
@@ -148,5 +169,17 @@ export function electricalBill(placement, floor, plan = null) {
     if (!pair || pair.kind !== 'two-way-switch' || pair.pairedSwitchId !== item.id || pair.circuitId !== item.circuitId) topologyIssues.push(`${item.label || 'Проходной выключатель'}: выберите парный выключатель той же группы`);
     else if (item.controlsItemId && pair.controlsItemId && item.controlsItemId !== pair.controlsItemId) topologyIssues.push(`${item.label || 'Проходной выключатель'}: пара управляет разными светильниками`);
   }
-  return { routes, byCircuit, components, manualComponents, routeMetres, topologyIssues, unconnected: items.filter(item => item.kind !== 'panel' && !routes.some(route => route.targetItemId === item.id || (!route.auto && route.circuitId === item.circuitId))) };
+  const connectedToPanel = new Set(items.filter(item => item.kind === 'panel').map(item => item.id));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const route of routes) {
+      const fromId = route.fromItemId || route.panelItemId;
+      const toId = route.targetItemId;
+      if (!fromId || !toId) continue;
+      if (connectedToPanel.has(fromId) && !connectedToPanel.has(toId)) { connectedToPanel.add(toId); changed = true; }
+      if (connectedToPanel.has(toId) && !connectedToPanel.has(fromId)) { connectedToPanel.add(fromId); changed = true; }
+    }
+  }
+  return { routes, byCircuit, components, manualComponents, routeMetres, topologyIssues, unconnected: items.filter(item => item.kind !== 'panel' && !connectedToPanel.has(item.id)) };
 }

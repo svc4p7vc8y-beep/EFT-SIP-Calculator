@@ -99,6 +99,38 @@ test('electrical topology routes panel through one junction to switch and contro
   assert.equal(resolvedElectricalRoutes(placement, 1)[1].points[0].x, 3);
 });
 
+test('socket group forms a junction-to-socket chain, keeps project breaker data and estimate', () => {
+  const project = createDefaultProject();
+  const before = calculateProject(project).totals.total;
+  const items = [
+    { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0, width: .45, depth: .16 },
+    { id: 'box', floor: 1, layer: 'electric', kind: 'junction-box', x: 2, y: 0, width: .15, depth: .15, circuitId: 'c1' },
+    { id: 'socket-a', floor: 1, layer: 'electric', kind: 'socket', x: 3, y: 0, width: .18, depth: .12, circuitId: 'c1' },
+    { id: 'socket-b', floor: 1, layer: 'electric', kind: 'socket', x: 4, y: 0, width: .18, depth: .12, circuitId: 'c1' },
+  ];
+  const routes = proposeElectricalCircuitRoutes(items, 1, 'c1', 'panel', (() => { let id = 0; return () => `r${++id}`; })());
+  assert.deepEqual(routes.map(route => [route.fromItemId, route.targetItemId]), [['panel', 'box'], ['box', 'socket-a'], ['socket-a', 'socket-b']]);
+  project.placement.items.push(...items);
+  project.placement.routes.push(...routes);
+  project.placement.circuits.push({ id: 'c1', name: 'Розетки', cable: '3×2,5', breakerAmps: 16, breaker: 'Тип по проекту' });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.placement.circuits[0].breakerAmps, 16);
+  assert.equal(electricalBill(reopened.placement, 1).routeMetres, 4);
+  assert.equal(calculateProject(reopened).totals.total, before);
+});
+
+test('a manual link between sockets does not pretend to reach the panel', () => {
+  const items = [
+    { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0 },
+    { id: 'a', floor: 1, layer: 'electric', kind: 'socket', circuitId: 'c1', x: 2, y: 1 },
+    { id: 'b', floor: 1, layer: 'electric', kind: 'socket', circuitId: 'c1', x: 3, y: 1 },
+  ];
+  const manual = { id: 'manual', floor: 1, circuitId: 'c1', auto: false, fromItemId: 'a', targetItemId: 'b', points: [{ x: 2, y: 1 }, { x: 3, y: 1 }] };
+  assert.deepEqual(electricalBill({ items, circuits: [{ id: 'c1', name: 'Розетки' }], routes: [manual] }, 1).unconnected.map(item => item.id), ['a', 'b']);
+  const feed = { id: 'feed', floor: 1, circuitId: 'c1', auto: false, fromItemId: 'panel', targetItemId: 'a', points: [{ x: 0, y: 0 }, { x: 2, y: 1 }] };
+  assert.deepEqual(electricalBill({ items, circuits: [{ id: 'c1', name: 'Розетки' }], routes: [manual, feed] }, 1).unconnected, []);
+});
+
 test('two-way switches create an anchored pair route and remain in the electric bill', () => {
   const items = [
     { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0 },

@@ -10,7 +10,7 @@ test("shared file storage is authenticated and persisted by the server", async (
     read("server/beget-api/schema.sql"),
   ]);
   const userGate = api.indexOf("$user = eft_user();");
-  for (const action of ["files", "file-folder", "file-upload", "file-download"]) {
+  for (const action of ["files", "file-folder", "file-upload", "file-download", "file-folders", "file-manage"]) {
     assert.ok(api.indexOf(`$action === '${action}'`) > userGate, `${action} must be after employee authentication`);
   }
   assert.match(schema, /CREATE TABLE IF NOT EXISTS eft_file_folders/);
@@ -18,6 +18,8 @@ test("shared file storage is authenticated and persisted by the server", async (
   assert.match(schema, /content MEDIUMBLOB NOT NULL/);
   assert.match(api, /eft_questionnaire_attachments a JOIN eft_questionnaires/);
   assert.match(api, /Размер одного файла не должен превышать 8 МБ/);
+  assert.match(api, /\$operation === 'move' && \$targetId !== null && in_array\(\$targetId, \$subtree, true\)/);
+  assert.match(api, /foreach \(array_reverse\(\$subtree\) as \$folderId\) \$deleteFolder->execute/);
 });
 
 test("the Files screen replaces the persistent questionnaire banner", async () => {

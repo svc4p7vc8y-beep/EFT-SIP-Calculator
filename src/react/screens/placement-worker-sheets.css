@@ -22,5 +22,6 @@
   .worker-schedule th,.worker-schedule td,.worker-circuit-schedule th,.worker-circuit-schedule td{border:1px solid #aaa;padding:1.4mm 1mm;text-align:left;vertical-align:top;overflow-wrap:anywhere}
   .worker-schedule th,.worker-circuit-schedule th{background:#f0f0f0;font-weight:700}
   .worker-schedule tr,.worker-circuit-schedule tr{break-inside:avoid}
+  .worker-panel-schematic h2{font-size:10pt;margin:1mm 0}.worker-panel-schematic>div{display:flex;align-items:stretch;gap:2mm;flex-wrap:wrap}.worker-panel-schematic>div>strong,.worker-panel-schematic>div>span{display:grid;gap:.5mm;min-width:25mm;max-width:48mm;padding:1.5mm 2mm;border:1px solid #777;font-size:7pt}.worker-panel-schematic>div>span{border-left:3px solid #555}.worker-panel-schematic small{font-size:6pt}.worker-panel-schematic p{font-size:7pt;margin:1mm 0}
   .worker-sheet-footer{display:flex;justify-content:space-between;gap:5mm;margin-top:auto;padding-top:2mm;border-top:1px solid #111;font-size:7pt}
 }

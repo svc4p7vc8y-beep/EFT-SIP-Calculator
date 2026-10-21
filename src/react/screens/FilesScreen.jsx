@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Download, File, FileImage, Folder, FolderPlus, HardDrive, RefreshCw, Upload } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, Download, File, FileImage, Folder, FolderPlus, HardDrive, MoveRight, RefreshCw, Trash2, Upload } from "lucide-react";
 import { eftApi, resolveEftApiUrl } from "../../shared/team-api.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { PLAN_LIBRARY_KEY, readPlanLibrary } from "../storage/plan-library.js";
@@ -29,6 +29,10 @@ export default function FilesScreen({ onOpenLibraryPlan }) {
   const [crmFiles, setCrmFiles] = useState([]);
   const [crmConnected, setCrmConnected] = useState(false);
   const [libraryPlans, setLibraryPlans] = useState(readPlanLibrary);
+  const [allFolders, setAllFolders] = useState([]);
+  const [operation, setOperation] = useState(null);
+  const [targetFolderId, setTargetFolderId] = useState("");
+  const [operating, setOperating] = useState(false);
   const inPlanLibrary = folderId === PLAN_LIBRARY_FOLDER;
   const canWrite = Boolean(team.user && team.user.role !== "viewer" && folderId !== "questionnaires" && !inPlanLibrary);
   const apiBase = useMemo(() => resolveEftApiUrl(), []);
@@ -103,6 +107,51 @@ export default function FilesScreen({ onOpenLibraryPlan }) {
     } catch (error) { setNotice(error.message); }
   };
 
+  const folderOptions = useMemo(() => {
+    const options = [{ id: "", label: "Файлы · корень" }];
+    const append = (parentId, depth, visited) => {
+      if (depth > 30) return;
+      allFolders.filter((item) => (item.parent_id || "") === parentId && !visited.has(item.id)).forEach((item) => {
+        options.push({ id: item.id, label: `${"  ".repeat(depth)}↳ ${item.name}` });
+        append(item.id, depth + 1, new Set([...visited, item.id]));
+      });
+    };
+    append("", 0, new Set());
+    return options;
+  }, [allFolders]);
+  const originalFolderId = operation?.kind === "folder" ? operation.item.parent_id || "" : operation?.item.folder_id || folderId || "";
+  const sameMoveDestination = operation?.action === "move" && targetFolderId === originalFolderId;
+
+  const manage = async (action, kind, item, destination = null) => {
+    setOperating(true);
+    try {
+      await eftApi("file-manage", { method: "POST", csrf: team.csrf, body: { operation: action, kind, id: item.id, targetFolderId: destination } });
+      setOperation(null);
+      await load(folderId);
+      setNotice({ delete: "Удалено", copy: "Копия создана", move: "Перемещено" }[action]);
+    } catch (error) { setNotice(error.message); }
+    finally { setOperating(false); }
+  };
+
+  const beginManage = async (action, kind, item) => {
+    if (action === "delete") {
+      if (window.confirm(kind === "folder" ? `Удалить папку «${item.name}» со всеми вложенными файлами и папками?` : `Удалить файл «${item.original_name}»?`)) await manage(action, kind, item);
+      return;
+    }
+    try {
+      const result = await eftApi("file-folders");
+      setAllFolders(result.folders || []);
+      setTargetFolderId(kind === "folder" ? item.parent_id || "" : item.folder_id || folderId || "");
+      setOperation({ action, kind, item });
+    } catch (error) { setNotice(error.message); }
+  };
+
+  const fileActions = (kind, item) => <span className="file-item-actions">
+    <button type="button" className="icon-button" aria-label={`Копировать ${kind === "folder" ? "папку" : "файл"} ${item.name || item.original_name}`} title="Копировать" onClick={() => beginManage("copy", kind, item)}><Copy /></button>
+    <button type="button" className="icon-button" aria-label={`Переместить ${kind === "folder" ? "папку" : "файл"} ${item.name || item.original_name}`} title="Переместить" onClick={() => beginManage("move", kind, item)}><MoveRight /></button>
+    <button type="button" className="icon-button danger" aria-label={`Удалить ${kind === "folder" ? "папку" : "файл"} ${item.name || item.original_name}`} title="Удалить" onClick={() => beginManage("delete", kind, item)}><Trash2 /></button>
+  </span>;
+
   const visibleFolders = inPlanLibrary ? [] : data.folders?.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())) || [];
   const visibleFiles = inPlanLibrary ? [] : [...(data.files || []), ...(!folderId ? crmFiles : [])].filter((item) => item.original_name.toLowerCase().includes(query.toLowerCase()));
   const visiblePlans = inPlanLibrary ? libraryPlans.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())) : [];
@@ -123,6 +172,7 @@ export default function FilesScreen({ onOpenLibraryPlan }) {
         </div>
       </header>
       <div className="files-toolbar">
+        <button className="files-back" disabled={breadcrumbs.length < 2} onClick={() => openFolder(breadcrumbs[breadcrumbs.length - 2].id)}><ArrowLeft size={17}/> Назад</button>
         <nav className="files-breadcrumbs" aria-label="Путь к папке">
           {breadcrumbs.map((part, index) => <span key={part.id || "root"}><button onClick={() => openFolder(part.id)}>{part.name}</button>{index < breadcrumbs.length - 1 ? <ChevronRight /> : null}</span>)}
         </nav>
@@ -134,14 +184,15 @@ export default function FilesScreen({ onOpenLibraryPlan }) {
       <div className="file-grid" aria-busy={loading}>
         {showPlanFolder ? <button className="folder-card featured" onClick={() => openFolder(PLAN_LIBRARY_FOLDER)}><Folder /><span><strong>Планы из библиотеки</strong><small>{libraryPlans.length} планов · открыть в редакторе</small></span></button> : null}
         {!folderId && data.questionnaireCount > 0 ? <button className="folder-card featured" onClick={() => openFolder("questionnaires")}><Folder /><span><strong>Файлы из анкет</strong><small>{data.questionnaireCount} файлов</small></span></button> : null}
-        {visibleFolders.map((folder) => <button key={folder.id} className="folder-card" onClick={() => openFolder(folder.id)}><Folder /><span><strong>{folder.name}</strong><small>Создал: {folder.created_by}</small></span></button>)}
+        {visibleFolders.map((folder) => <div key={folder.id} className="folder-card folder-card-managed"><button className="folder-card-open" onClick={() => openFolder(folder.id)}><Folder /><span><strong>{folder.name}</strong><small>Создал: {folder.created_by}</small></span></button>{canWrite ? fileActions("folder", folder) : null}</div>)}
       </div>
-      {visibleFiles.length ? <div className="file-table-wrap"><table className="file-table"><thead><tr><th>Название</th><th>Источник / сотрудник</th><th>Дата</th><th>Размер</th><th aria-label="Действия" /></tr></thead><tbody>{visibleFiles.map((file) => <tr key={file.id}><td><span className="file-name">{isImage(file.mime_type) ? <FileImage /> : <File />}<strong>{file.original_name}</strong></span></td><td>{file.source === "questionnaire" ? `${file.public_number} · ${file.customer_name}` : file.created_by}</td><td>{formatDate(file.created_at)}</td><td>{formatSize(file.size_bytes)}</td><td><a className="icon-button" href={fileHref(file)} target="_blank" rel="noreferrer" title="Скачать"><Download /></a></td></tr>)}</tbody></table></div> : null}
+      {visibleFiles.length ? <div className="file-table-wrap"><table className="file-table"><thead><tr><th>Название</th><th>Источник / сотрудник</th><th>Дата</th><th>Размер</th><th aria-label="Действия" /></tr></thead><tbody>{visibleFiles.map((file) => <tr key={file.id}><td><span className="file-name">{isImage(file.mime_type) ? <FileImage /> : <File />}<strong>{file.original_name}</strong></span></td><td>{file.source === "questionnaire" ? `${file.public_number} · ${file.customer_name}` : file.created_by}</td><td>{formatDate(file.created_at)}</td><td>{formatSize(file.size_bytes)}</td><td><span className="file-item-actions"><a className="icon-button" href={fileHref(file)} target="_blank" rel="noreferrer" title="Скачать" aria-label={`Скачать ${file.original_name}`}><Download /></a>{file.source === "shared" && canWrite ? fileActions("file", file) : null}</span></td></tr>)}</tbody></table></div> : null}
       {inPlanLibrary && visiblePlans.length ? <div className="file-table-wrap"><table className="file-table"><thead><tr><th>План</th><th>Источник</th><th>Сохранён</th><th aria-label="Действия" /></tr></thead><tbody>{visiblePlans.map((entry) => <tr key={entry.id}><td><button className="file-plan-link" onClick={() => onOpenLibraryPlan?.(entry.id)}><File /><strong>{entry.name}</strong></button></td><td>Библиотека планов</td><td>{formatDate(entry.savedAt)}</td><td><button className="button secondary" onClick={() => onOpenLibraryPlan?.(entry.id)}>Открыть план</button></td></tr>)}</tbody></table></div> : null}
       {inPlanLibrary && !visiblePlans.length ? <div className="files-empty"><Folder /><h2>{query ? "Планы не найдены" : "В библиотеке пока нет планов"}</h2><p>Сохраните план в библиотеку из редактора плана.</p></div> : null}
       {!inPlanLibrary && !loading && !visibleFolders.length && !visibleFiles.length && !showPlanFolder && !(!folderId && data.questionnaireCount > 0) ? <div className="files-empty"><HardDrive /><h2>{query ? "Ничего не найдено" : "Папка пока пуста"}</h2><p>{canWrite ? "Создайте папку или загрузите файлы с компьютера." : "Здесь появятся файлы анкет."}</p></div> : null}
       {loading ? <div className="files-loading">Загружаем содержимое…</div> : null}
       {newFolder ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setNewFolder(false)}><form className="modal file-folder-modal" role="dialog" aria-modal="true" onSubmit={createFolder} onMouseDown={(event) => event.stopPropagation()}><header><div><h2>Новая папка</h2><p>Она будет доступна всем сотрудникам.</p></div></header><label>Название<input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={180} required /></label><footer><button type="button" className="button secondary" onClick={() => setNewFolder(false)}>Отмена</button><button className="button"><FolderPlus />Создать</button></footer></form></div> : null}
+      {operation ? <div className="modal-backdrop" role="presentation" onMouseDown={() => setOperation(null)}><form className="modal file-folder-modal" role="dialog" aria-modal="true" aria-label={operation.action === "copy" ? "Копировать" : "Переместить"} onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); if (!sameMoveDestination) manage(operation.action, operation.kind, operation.item, targetFolderId); }}><header><div><h2>{operation.action === "copy" ? "Копировать" : "Переместить"} {operation.kind === "folder" ? "папку" : "файл"}</h2><p>{operation.item.name || operation.item.original_name}</p></div></header><label>Папка назначения<select value={targetFolderId} onChange={(event) => setTargetFolderId(event.target.value)}>{folderOptions.map((folder) => <option key={folder.id || "root"} value={folder.id}>{folder.label}</option>)}</select></label>{sameMoveDestination ? <p>Выберите другую папку назначения.</p> : null}<footer><button type="button" className="button secondary" onClick={() => setOperation(null)}>Отмена</button><button className="button" disabled={operating || sameMoveDestination}>{operation.action === "copy" ? <Copy /> : <MoveRight />}{operating ? "Выполняется…" : operation.action === "copy" ? "Копировать" : "Переместить"}</button></footer></form></div> : null}
     </section>
   );
 }

@@ -211,6 +211,7 @@ export function normalizePlacement(value) {
       anchorY: item.surface === 'facade' ? finite(item.anchorY, finite(item.y)) : undefined,
     })),
     circuits: circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа'),
+      breakerAmps: circuit.breakerAmps === '' || circuit.breakerAmps == null || !Number.isFinite(Number(circuit.breakerAmps)) || Number(circuit.breakerAmps) <= 0 ? null : Number(circuit.breakerAmps),
       accessories: (Array.isArray(circuit.accessories) ? circuit.accessories : []).filter(entry => entry && typeof entry.name === 'string').map(entry => ({ name: entry.name.slice(0, 100), quantity: Math.max(0, finite(entry.quantity)), unit: String(entry.unit || 'шт').slice(0, 20) })),
     })),
     routes: routes.filter(route => route && typeof route.id === 'string' && Array.isArray(route.points)).map(route => ({

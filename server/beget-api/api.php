@@ -341,6 +341,101 @@ if ($action === 'file-download' && $method === 'GET') {
     exit;
 }
 
+if ($action === 'file-folders' && $method === 'GET') {
+    eft_json(['ok' => true, 'folders' => $pdo->query('SELECT id, parent_id, name FROM eft_file_folders ORDER BY name')->fetchAll()]);
+}
+
+if ($action === 'file-manage' && $method === 'POST') {
+    $input = eft_input(32768);
+    $operation = (string)($input['operation'] ?? '');
+    $kind = (string)($input['kind'] ?? '');
+    $id = (string)($input['id'] ?? '');
+    $targetId = trim((string)($input['targetFolderId'] ?? '')) ?: null;
+    if (!in_array($operation, ['delete', 'move', 'copy'], true) || !in_array($kind, ['file', 'folder'], true) || !preg_match('/^[a-f0-9-]{36}$/i', $id)) eft_json(['ok' => false, 'code' => 'invalid_file_action', 'message' => 'Недопустимое действие с файлом.'], 422);
+    if ($targetId !== null) {
+        if (!preg_match('/^[a-f0-9-]{36}$/i', $targetId)) eft_json(['ok' => false, 'code' => 'invalid_folder', 'message' => 'Папка назначения не найдена.'], 422);
+        $check = $pdo->prepare('SELECT COUNT(*) FROM eft_file_folders WHERE id = ?');
+        $check->execute([$targetId]);
+        if (!(int)$check->fetchColumn()) eft_json(['ok' => false, 'code' => 'folder_not_found', 'message' => 'Папка назначения не найдена.'], 404);
+    }
+    $source = $pdo->prepare($kind === 'file' ? 'SELECT id, folder_id, original_name FROM eft_files WHERE id = ?' : 'SELECT id, parent_id, name FROM eft_file_folders WHERE id = ?');
+    $source->execute([$id]);
+    $entry = $source->fetch();
+    if (!$entry) eft_json(['ok' => false, 'code' => 'file_not_found', 'message' => 'Файл или папка не найдены.'], 404);
+    $subtree = [$id];
+    if ($kind === 'folder') {
+        $children = $pdo->prepare('SELECT id FROM eft_file_folders WHERE parent_id = ?');
+        for ($index = 0; $index < count($subtree); $index++) {
+            $children->execute([$subtree[$index]]);
+            foreach ($children->fetchAll(PDO::FETCH_COLUMN) as $childId) {
+                if (!in_array($childId, $subtree, true)) $subtree[] = $childId;
+            }
+            if (count($subtree) > 1000) eft_json(['ok' => false, 'code' => 'folder_too_large', 'message' => 'Слишком большая папка для одной операции.'], 422);
+        }
+        if ($operation === 'move' && $targetId !== null && in_array($targetId, $subtree, true)) eft_json(['ok' => false, 'code' => 'folder_cycle', 'message' => 'Нельзя переместить папку внутрь самой себя.'], 422);
+    }
+    if ($operation === 'move' && $kind === 'folder') {
+        $duplicate = $pdo->prepare($targetId === null ? 'SELECT COUNT(*) FROM eft_file_folders WHERE parent_id IS NULL AND name = ? AND id <> ?' : 'SELECT COUNT(*) FROM eft_file_folders WHERE parent_id = ? AND name = ? AND id <> ?');
+        $duplicate->execute($targetId === null ? [$entry['name'], $id] : [$targetId, $entry['name'], $id]);
+        if ((int)$duplicate->fetchColumn()) eft_json(['ok' => false, 'code' => 'folder_exists', 'message' => 'В папке назначения уже есть папка с таким названием.'], 409);
+    }
+    $pdo->beginTransaction();
+    try {
+        if ($operation === 'delete') {
+            if ($kind === 'file') $pdo->prepare('DELETE FROM eft_files WHERE id = ?')->execute([$id]);
+            else {
+                $deleteFiles = $pdo->prepare('DELETE FROM eft_files WHERE folder_id = ?');
+                $deleteFolder = $pdo->prepare('DELETE FROM eft_file_folders WHERE id = ?');
+                foreach ($subtree as $folderId) $deleteFiles->execute([$folderId]);
+                foreach (array_reverse($subtree) as $folderId) $deleteFolder->execute([$folderId]);
+            }
+        } elseif ($operation === 'move') {
+            $pdo->prepare($kind === 'file' ? 'UPDATE eft_files SET folder_id = ? WHERE id = ?' : 'UPDATE eft_file_folders SET parent_id = ? WHERE id = ?')->execute([$targetId, $id]);
+        } elseif ($kind === 'file') {
+            $newId = eft_uuid();
+            $nameParts = pathinfo($entry['original_name']);
+            $extension = isset($nameParts['extension']) ? '.' . $nameParts['extension'] : '';
+            $copyName = mb_substr($nameParts['filename'] ?? $entry['original_name'], 0, 240 - mb_strlen($extension)) . ' — копия' . $extension;
+            $copy = $pdo->prepare('INSERT INTO eft_files (id, folder_id, original_name, mime_type, size_bytes, content, created_by) SELECT ?, ?, ?, mime_type, size_bytes, content, ? FROM eft_files WHERE id = ?');
+            $copy->execute([$newId, $targetId, $copyName, (int)$user['id'], $id]);
+        } else {
+            $newFolders = [];
+            $readFolder = $pdo->prepare('SELECT parent_id, name FROM eft_file_folders WHERE id = ?');
+            $insertFolder = $pdo->prepare('INSERT INTO eft_file_folders (id, parent_id, name, created_by) VALUES (?, ?, ?, ?)');
+            $readFiles = $pdo->prepare('SELECT id FROM eft_files WHERE folder_id = ?');
+            $copyFile = $pdo->prepare('INSERT INTO eft_files (id, folder_id, original_name, mime_type, size_bytes, content, created_by) SELECT ?, ?, original_name, mime_type, size_bytes, content, ? FROM eft_files WHERE id = ?');
+            foreach ($subtree as $folderId) {
+                $readFolder->execute([$folderId]);
+                $folder = $readFolder->fetch();
+                $parentId = $folderId === $id ? $targetId : $newFolders[$folder['parent_id']];
+                $name = $folderId === $id ? mb_substr($folder['name'], 0, 165) . ' — копия' : $folder['name'];
+                if ($folderId === $id) {
+                    $candidate = $name;
+                    $suffix = 2;
+                    $exists = $pdo->prepare($parentId === null ? 'SELECT COUNT(*) FROM eft_file_folders WHERE parent_id IS NULL AND name = ?' : 'SELECT COUNT(*) FROM eft_file_folders WHERE parent_id = ? AND name = ?');
+                    do {
+                        $exists->execute($parentId === null ? [$candidate] : [$parentId, $candidate]);
+                        if (!(int)$exists->fetchColumn()) break;
+                        $candidate = mb_substr($name, 0, 170) . ' ' . $suffix++;
+                    } while ($suffix < 1000);
+                    $name = $candidate;
+                }
+                $newFolders[$folderId] = eft_uuid();
+                $insertFolder->execute([$newFolders[$folderId], $parentId, $name, (int)$user['id']]);
+                $readFiles->execute([$folderId]);
+                foreach ($readFiles->fetchAll(PDO::FETCH_COLUMN) as $fileId) $copyFile->execute([eft_uuid(), $newFolders[$folderId], (int)$user['id'], $fileId]);
+            }
+            $newId = $newFolders[$id];
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+    eft_audit((int)$user['id'], 'file_' . $operation, $kind, $id, ['targetFolderId' => $targetId, 'newId' => $newId ?? null]);
+    eft_json(['ok' => true, 'id' => $newId ?? $id]);
+}
+
 if ($action === 'projects' && $method === 'GET') {
     $rows = $pdo->query("SELECT p.id, p.name, p.status, p.revision, p.payload, p.created_at, p.updated_at, u.display_name AS updated_by FROM eft_projects p JOIN eft_users u ON u.id = p.updated_by WHERE p.status <> 'archived' ORDER BY p.updated_at DESC LIMIT 250")->fetchAll();
     foreach ($rows as &$row) {
