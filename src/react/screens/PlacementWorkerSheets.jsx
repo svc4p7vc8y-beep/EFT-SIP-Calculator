@@ -2,6 +2,7 @@ import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js
 import { buildPlacementSheets } from '../export/placement-sheets.js';
 import { dimensionMetres } from '../state/placement-geometry.js';
 import { electricalSettingOutDimension, nearestPlacementDimension, projectToWallFace } from '../state/placement-walls.js';
+import { electricalGroupColor } from '../state/placement-visibility.js';
 import PlacementWallDimensions from './PlacementWallDimensions.jsx';
 import PlacementWalls from './PlacementWalls.jsx';
 import { PlacementSymbol } from './PlacementClassicSymbol.jsx';
@@ -37,7 +38,7 @@ function WallPlan({ sheet }) {
   </svg>;
 }
 
-function Plan({ sheet }) {
+function Plan({ sheet, circuits }) {
   const contour = houseContourPoints(sheet.plan);
   const rooms = (sheet.plan.rooms || []).filter(room => room.include !== false);
   const platforms = (sheet.plan.platforms || []).filter(platform => platform.include !== false);
@@ -54,7 +55,7 @@ function Plan({ sheet }) {
     <PlacementWalls plan={sheet.plan} idPrefix={`worker-${sheet.id}`}/>
     {sheet.discipline === 'electric' ? <PlacementWallDimensions plan={sheet.plan} items={sheet.items.map(entry => entry.item)}/> : null}
     {sheet.dimensions.map(dimension => <ManualDimension key={dimension.id} dimension={dimension}/>)}
-    {sheet.routes.map(route => <g key={route.id}><path d={routeData(route.points)} className="worker-route" style={{ stroke: NETWORK_SYSTEMS[sheet.discipline] ? { plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' }[sheet.discipline] : undefined }}/>{route.points?.[0] ? <text className="worker-route-name" x={route.points[0].x * 100 + 8} y={route.points[0].y * 100 - 8}>{NETWORK_SYSTEMS[sheet.discipline] ? `${NETWORK_SYSTEMS[sheet.discipline].media.find(entry => entry.id === route.medium)?.label} · ${metres(networkLength3d(route.points))}` : sheet.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'}</text> : null}</g>)}
+    {sheet.routes.map(route => <g key={route.id}><path d={routeData(route.points)} className="worker-route" style={{ stroke: NETWORK_SYSTEMS[sheet.discipline] ? { plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' }[sheet.discipline] : electricalGroupColor(route.circuitId, circuits) }}/>{route.points?.[0] ? <text className="worker-route-name" x={route.points[0].x * 100 + 8} y={route.points[0].y * 100 - 8}>{NETWORK_SYSTEMS[sheet.discipline] ? `${NETWORK_SYSTEMS[sheet.discipline].media.find(entry => entry.id === route.medium)?.label} · ${metres(networkLength3d(route.points))}` : sheet.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'}</text> : null}</g>)}
     {sheet.items.map(({ item, mark }) => {
       const width = item.layer === 'electric' ? Math.max(item.width * 100, 48) : item.width * 100;
       const depth = item.layer === 'electric' ? Math.max(item.depth * 100, 48) : item.depth * 100;
@@ -75,7 +76,7 @@ export default function PlacementWorkerSheets({ project }) {
   return <div className="placement-worker-print">
     {sheets.map((sheet, index) => <article className="placement-worker-sheet" key={sheet.id}>
       <header className="worker-sheet-head"><div><span>ЭФТ · {project.meta?.projectNum || 'Проект'} · этаж {sheet.floor}</span><h1>{sheet.title}</h1><p>{project.meta?.address || project.meta?.buildingType || 'Жилой дом'}</p></div><div className="worker-sheet-index">Лист {index + 1} / {sheets.length}<small>Выдано {date}</small></div></header>
-      <div className="worker-sheet-plan">{sheet.wall ? <WallPlan sheet={sheet}/> : <Plan sheet={sheet}/>}</div>
+      <div className="worker-sheet-plan">{sheet.wall ? <WallPlan sheet={sheet}/> : <Plan sheet={sheet} circuits={project.placement?.circuits || []}/>}</div>
       <div className="worker-sheet-note">{sheet.wall ? 'Развёртка выбранной грани стены: горизонтальная координата вдоль стены, вертикальная — высота от уровня пола. Состав стен и проходки согласовать с проектом.' : sheet.networkBill ? 'Длина сети рассчитана по координатам и заданным высотам точек. Пунктир — предложенный маршрут; проходки, фитинги и запас уточнить по рабочему проекту.' : 'Автоматические размеры показаны только на листе электрики за контуром дома. Габариты и высоты — в ведомости. Линии трасс по плану; вертикальные спуски и запас уточнить по проекту.'} Размеры с листа не снимать.</div>
       <section className="worker-schedule"><h2>Ведомость позиций</h2><table><thead><tr><th>№</th><th>Элемент</th><th>Привязка</th><th>X от габарита</th><th>Y от габарита</th><th>Габарит Ш × Г</th><th>Высота установки</th>{sheet.discipline === 'electric' ? <th>Группа</th> : null}<th>Примечание</th></tr></thead><tbody>
         {sheet.items.length ? sheet.items.map(({ item, mark }) => { const dimension = sheet.wall ? { reference: 'начала стены', distance: projectToWallFace(sheet.wall, item)?.station || 0 } : sheet.discipline === 'electric' ? electricalSettingOutDimension(sheet.plan, item) : nearestPlacementDimension(sheet.plan, item); return <tr key={item.id}><td>{mark}</td><td>{item.label || item.kind}{item.surface === 'facade' ? ' · фасад' : ''}</td><td>{dimension ? `${dimension.reference ? `От ${dimension.reference} · ` : ''}${metres(dimension.distance)}` : '—'}</td><td>{metres((item.surface === 'facade' && Number.isFinite(item.anchorX) ? item.anchorX : item.x) - boundsOf(houseContourPoints(sheet.plan)).x)}</td><td>{metres((item.surface === 'facade' && Number.isFinite(item.anchorY) ? item.anchorY : item.y) - boundsOf(houseContourPoints(sheet.plan)).y)}</td><td>{metres(item.width)} × {metres(item.depth)}</td><td>{item.heightKnown === false ? 'Не задана' : item.height || item.heightKnown ? metres(item.height) : 'Не задана'}</td>{sheet.discipline === 'electric' ? <td>{sheet.circuits.find(circuit => circuit.id === item.circuitId)?.name || 'Не назначена'}</td> : null}<td>{item.note || '—'}</td></tr>; }) : <tr><td colSpan={sheet.discipline === 'electric' ? 9 : 8}>Элементы на этаже ещё не размещены.</td></tr>}

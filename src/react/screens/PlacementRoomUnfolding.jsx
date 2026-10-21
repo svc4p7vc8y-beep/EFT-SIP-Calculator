@@ -10,13 +10,14 @@ const round = value => Math.round(value * 100) / 100;
 const SCALE = 68;
 const colors = { electric: '#d77524', plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' };
 const sideNames = { top: 'верхняя', right: 'правая', bottom: 'нижняя', left: 'левая' };
+const routeColor = (route, circuitColor) => route.system === 'electric' ? circuitColor?.(route.circuitId) : colors[route.system] || '#d77524';
 
 const svgPosition = (svg, event) => {
   const matrix = svg?.getScreenCTM();
   return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
 };
 
-export default function PlacementRoomUnfolding({ room, plan, items, routes = [], draftPoints = [], draftSystem = '', visible = {}, onToggleLayer, elementsLocked, onToggleLock, circuitColor, activePreset, selectedId, routeMode, onPlace, onMove, onSelect, onPickNode, onRoutePoint, onSelectRoute }) {
+export default function PlacementRoomUnfolding({ room, plan, items, routes = [], draftPoints = [], draftSystem = '', draftCircuitId = '', visible = {}, onToggleLayer, elementsLocked, onToggleLock, circuitColor, activePreset, selectedId, routeMode, onPlace, onMove, onSelect, onPickNode, onRoutePoint, onSelectRoute }) {
   const drag = useRef(null);
   const skipClick = useRef(false);
   if (!room) return null;
@@ -99,7 +100,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
           const a = roomWallDisplayPoint(room, index, start, sill, height), b = roomWallDisplayPoint(room, index, end, upper, height);
           return <g key={opening.id}><rect x={Math.min(a.x, b.x) * 100} y={Math.min(a.y, b.y) * 100} width={Math.max(5, Math.abs(a.x - b.x) * 100)} height={Math.max(5, Math.abs(a.y - b.y) * 100)} className={`placement-room-opening ${opening.type}`}/><title>{opening.type === 'door' ? 'Дверь' : 'Окно'} · {Number(opening.width).toFixed(2)} м{opening.type === 'window' && opening.sillHeight == null ? ' · отметка подоконника не указана' : ''}</title></g>;
         })}
-        {roomRoutes.filter(route => route.points.length > 1 && route.points.every(point => roomWallDisplayPoint(room, index, point, point.z || 0, height)?.distance < .22)).map(route => <path key={route.id} d={route.points.map((point, pointIndex) => { const position = roomWallDisplayPoint(room, index, point, point.z || 0, height); return `${pointIndex ? 'L' : 'M'} ${position.x * 100} ${position.y * 100}`; }).join(' ')} fill="none" stroke={colors[route.system] || '#d77524'} strokeWidth="4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>)}
+        {roomRoutes.filter(route => route.points.length > 1 && route.points.every(point => roomWallDisplayPoint(room, index, point, point.z || 0, height)?.distance < .22)).map(route => <path key={route.id} d={route.points.map((point, pointIndex) => { const position = roomWallDisplayPoint(room, index, point, point.z || 0, height); return `${pointIndex ? 'L' : 'M'} ${position.x * 100} ${position.y * 100}`; }).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>)}
         {roomItems.map(item => { const position = roomWallDisplayPoint(room, index, item, item.height || 0, height); return position?.distance <= .35 ? mark(item, position.x * 100, position.y * 100, 'wall') : null; })}
       </svg>
     </div>;
@@ -112,8 +113,8 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
         <svg viewBox={`0 0 ${floorW} ${floorH}`} aria-label={`Пол комнаты ${room.name}`} role="img"
           onClick={handleClick} onPointerUp={handleUp} onPointerCancel={() => { drag.current = null; }}>
           <path d={vertices.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ') + ' Z'} className="placement-room-floor-fill"/>
-          {roomRoutes.map(route => <path key={route.id} d={route.points.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={colors[route.system] || '#d77524'} strokeWidth="4" strokeDasharray={route.auto ? '7 5' : undefined} vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>)}
-          {draftPoints.length > 1 ? <path d={draftPoints.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={colors[draftSystem] || '#d77524'} strokeWidth="3" strokeDasharray="5 5" vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
+          {roomRoutes.map(route => <path key={route.id} d={route.points.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" strokeDasharray={route.auto ? '7 5' : undefined} vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>)}
+          {draftPoints.length > 1 ? <path d={draftPoints.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={draftSystem === 'electric' ? circuitColor?.(draftCircuitId) : colors[draftSystem] || '#d77524'} strokeWidth="3" strokeDasharray="5 5" vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
           {roomItems.map(item => { const position = rowPositions.get(item.id) || item; return mark(item, (position.x - box.x) * 100, (position.y - box.y) * 100); })}
         </svg>
       </div>
