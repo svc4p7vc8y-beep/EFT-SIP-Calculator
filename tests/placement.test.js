@@ -11,6 +11,24 @@ import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoute
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
 import { projectToRoomEdge, roomEdgePosition } from '../src/react/state/placement-room.js';
+import { electricalPlacementClusters, roomNameForPlacement } from '../src/react/state/placement-visibility.js';
+
+test('nearby electrical points form one selectable node without changing their coordinates', () => {
+  const rooms = createDefaultProject().plan.rooms;
+  const items = [
+    { id: 'switch', layer: 'electric', x: 1, y: 1, wallRef: 'wall-a' },
+    { id: 'socket', layer: 'electric', x: 1, y: 1.4, wallRef: 'wall-a' },
+    { id: 'junction', layer: 'electric', x: 1, y: 1.8, wallRef: 'wall-a' },
+    { id: 'other-wall', layer: 'electric', x: 1, y: 1.85, wallRef: 'wall-b' },
+    { id: 'furniture', layer: 'furniture', x: 1, y: 1.1 },
+  ];
+  const before = structuredClone(items);
+  const clusters = electricalPlacementClusters(items, rooms);
+  assert.equal(clusters.length, 1);
+  assert.deepEqual(clusters[0].items.map(item => item.id), ['switch', 'socket', 'junction']);
+  assert.equal(roomNameForPlacement(items[0], rooms), rooms[0].name);
+  assert.deepEqual(items, before);
+});
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();

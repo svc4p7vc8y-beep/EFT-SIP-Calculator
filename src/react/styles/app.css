@@ -7265,3 +7265,20 @@ select,
 @media(max-width:1000px){.project-tabbar{top:0}.project-tabbar-label{display:none}.project-tab-add span,.project-tab-admin span{display:none}.team-project-board{grid-template-columns:minmax(0,1fr) 260px}}
 @media(max-width:760px){.team-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.team-project-board{grid-template-columns:1fr}.team-project-controls{flex-wrap:wrap}.team-project-search{flex-basis:100%}.team-project-controls select{flex:1;max-width:none}.team-project-detail-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:430px){.project-tabbar{padding:6px 8px;gap:5px}.project-tab{max-width:175px}.project-tab-select{max-width:145px}.team-metrics{gap:6px}.team-metrics>div{padding:10px}.team-metrics strong{font-size:22px}.team-project-row-tail{display:none}}
+/* A narrow icon rail leaves more room for the plan without hiding navigation. */
+@media (min-width: 821px) {
+  .app-layout.sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr) 340px; }
+  .app-layout.plan-app-layout.sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+  .sidebar-desktop-toggle { display:flex; align-items:center; gap:9px; width:100%; min-height:38px; padding:0 11px; margin-bottom:9px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--muted); cursor:pointer; }
+  .sidebar-desktop-toggle svg { width:18px; height:18px; flex:none; }
+  .sidebar-collapsed .sidebar { padding-inline:7px; }
+  .sidebar-collapsed .sidebar-desktop-toggle { justify-content:center; padding:0; }
+  .sidebar-collapsed .sidebar-desktop-toggle span,.sidebar-collapsed .sidebar nav button>span:not(.nav-alert-badge),.sidebar-collapsed .intake-indicator span,.sidebar-collapsed .sidebar-status { display:none; }
+  .sidebar-collapsed .sidebar nav button { justify-content:center; padding:0; }
+  .sidebar-collapsed .sidebar nav button svg { flex:none; }
+  .sidebar-collapsed .nav-alert-badge { position:absolute; right:0; top:0; min-width:15px; padding:1px 3px; font-size:8px; }
+  .sidebar-collapsed .sidebar nav button { position:relative; }
+  .sidebar-collapsed .intake-indicator { justify-content:center; }
+}
+@media (max-width: 820px) { .sidebar-desktop-toggle { display:none; } }
+@media (min-width: 821px) and (max-width: 1100px) { .app-layout.sidebar-collapsed { grid-template-columns:64px minmax(0,1fr); } }

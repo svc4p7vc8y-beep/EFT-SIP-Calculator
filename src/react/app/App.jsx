@@ -191,6 +191,8 @@ export function App() {
     () => localStorage.getItem("eft-react-theme") || "light",
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('eft-sidebar-collapsed') !== 'false');
+  useEffect(() => { localStorage.setItem('eft-sidebar-collapsed', String(sidebarCollapsed)); }, [sidebarCollapsed]);
   const [planCommand, setPlanCommand] = useState(null);
   const runPlanCommand = (kind, details = {}) => { setActive('plan'); setMenuOpen(false); setPlanCommand({kind,...details,id:Date.now()}); };
   const [backupOpen, setBackupOpen] = useState(false);
@@ -470,7 +472,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 262{import.meta.env.VITE_BUILD_REVISION ? ` · ${import.meta.env.VITE_BUILD_REVISION.slice(0, 7)}` : ''}</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 263{import.meta.env.VITE_BUILD_REVISION ? ` · ${import.meta.env.VITE_BUILD_REVISION.slice(0, 7)}` : ''}</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -611,8 +613,9 @@ export function App() {
         <button className="project-tab-add" onClick={newProject} title="Новый проект в отдельной вкладке" aria-label="Новая вкладка проекта"><Plus /><span>Новый проект</span></button>
         {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
       </div>
-      <div className={`app-layout${['plan', 'placement'].includes(active) ? ' plan-app-layout' : ''}`}>
+      <div className={`app-layout${['plan', 'placement'].includes(active) ? ' plan-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
+          <button className="sidebar-desktop-toggle" onClick={() => setSidebarCollapsed(value => !value)} title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <ChevronRight/> : <ChevronLeft/>}<span>{sidebarCollapsed ? 'Развернуть' : 'Свернуть'}</span></button>
           <div className="sidebar-mobile-head">
             <strong>Разделы</strong>
             <button onClick={() => setMenuOpen(false)}>
@@ -637,6 +640,8 @@ export function App() {
               >
                 <button
                   className={active === id ? "active" : ""}
+                  title={sidebarCollapsed ? label : undefined}
+                  aria-label={label}
                   onClick={() => {
                     setActive(id);
                     if (id === "team") setTeamFocus("projects");
