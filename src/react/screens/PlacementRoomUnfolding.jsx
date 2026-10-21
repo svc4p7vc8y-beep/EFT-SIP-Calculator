@@ -1,9 +1,10 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { boundsOf, roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from '../state/placement-geometry.js';
 import { PLACEMENT_LAYERS } from '../state/placement-model.js';
 import { roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../state/placement-room.js';
 import { linkedWallSwitch, wallPointDisplayOrder } from '../state/placement-visibility.js';
+import { pointOnRouteSegment, routeSegmentDirection, shiftRouteSegment, shiftRouteSegmentTo } from '../state/placement-route-edit.js';
 import { PlacementSymbol } from './PlacementClassicSymbol.jsx';
 
 const round = value => Math.round(value * 100) / 100;
@@ -17,9 +18,10 @@ const svgPosition = (svg, event) => {
   return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
 };
 
-export default function PlacementRoomUnfolding({ room, plan, items, routes = [], draftPoints = [], draftSystem = '', draftCircuitId = '', visible = {}, onToggleLayer, elementsLocked, onToggleLock, circuitColor, activePreset, selectedId, routeMode, onPlace, onMove, onSelect, onPickNode, onRoutePoint, onSelectRoute }) {
+export default function PlacementRoomUnfolding({ room, plan, items, routes = [], draftPoints = [], draftSystem = '', draftCircuitId = '', visible = {}, onToggleLayer, elementsLocked, onToggleLock, circuitColor, activePreset, selectedId, selectedRouteId, routeMode, onPlace, onMove, onSelect, onPickNode, onRoutePoint, onSelectRoute, onInsertRoutePoint, onShiftRouteSegment }) {
   const drag = useRef(null);
   const skipClick = useRef(false);
+  const [routePreview, setRoutePreview] = useState(null);
   if (!room) return null;
   const vertices = roomPoints(room);
   const box = boundsOf(vertices);
@@ -67,6 +69,67 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
   const surfacePosition = (local, edgeIndex) => edgeIndex < 0
     ? { position: { x: round(box.x + local.x / 100), y: round(box.y + local.y / 100) }, elevation: activePreset?.height || 0 }
     : roomWallPlanPoint(room, edgeIndex, local.x / 100, local.y / 100, height);
+  const routePointAt = (route, segmentIndex, local, edgeIndex) => {
+    if (edgeIndex < 0) return pointOnRouteSegment(route.points, segmentIndex, { x: box.x + local.x / 100, y: box.y + local.y / 100 });
+    const a = roomWallDisplayPoint(room, edgeIndex, route.points[segmentIndex], route.points[segmentIndex].z || 0, height);
+    const b = roomWallDisplayPoint(room, edgeIndex, route.points[segmentIndex + 1], route.points[segmentIndex + 1].z || 0, height);
+    if (!a || !b) return null;
+    const dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared < .0001) return null;
+    const ratio = Math.max(0, Math.min(1, ((local.x / 100 - a.x) * dx + (local.y / 100 - a.y) * dy) / lengthSquared));
+    if (ratio * Math.sqrt(lengthSquared) < .03 || (1 - ratio) * Math.sqrt(lengthSquared) < .03) return null;
+    const target = roomWallPlanPoint(room, edgeIndex, a.x + dx * ratio, a.y + dy * ratio, height);
+    return target ? { x: target.position.x, y: target.position.y, z: target.elevation } : null;
+  };
+  const handleRouteDown = (event, route, segmentIndex, edgeIndex) => {
+    if (elementsLocked || routeMode || activePreset || route.system !== 'electric') return;
+    const svg = event.currentTarget.ownerSVGElement;
+    const start = svgPosition(svg, event);
+    if (!start) return;
+    event.preventDefault(); event.stopPropagation();
+    svg.setPointerCapture(event.pointerId);
+    drag.current = { route, segmentIndex, edgeIndex, pointerId: event.pointerId, start, clientX: event.clientX, clientY: event.clientY, delta: 0, preview: null };
+  };
+  const handleRouteMove = (event, edgeIndex) => {
+    const current = drag.current;
+    if (!current?.route || current.pointerId !== event.pointerId || current.edgeIndex !== edgeIndex) return;
+    const local = svgPosition(event.currentTarget, event);
+    if (!local) return;
+    const { route, segmentIndex } = current;
+    let preview = null;
+    if (edgeIndex < 0) {
+      const direction = routeSegmentDirection(route.points[segmentIndex], route.points[segmentIndex + 1]);
+      const axis = direction === 'horizontal' ? 'y' : direction === 'vertical' ? 'x' : null;
+      if (axis) {
+        current.delta = Math.round((local[axis] - current.start[axis]) / 5) / 20;
+        preview = shiftRouteSegment(route.points, segmentIndex, current.delta);
+      }
+    } else {
+      const a = roomWallDisplayPoint(room, edgeIndex, route.points[segmentIndex], route.points[segmentIndex].z || 0, height);
+      const b = roomWallDisplayPoint(room, edgeIndex, route.points[segmentIndex + 1], route.points[segmentIndex + 1].z || 0, height);
+      if (a && b) {
+        const direction = routeSegmentDirection(a, b);
+        const axis = direction === 'horizontal' ? 'y' : direction === 'vertical' ? 'x' : null;
+        if (axis) {
+          const edge = edges.find(entry => entry.index === edgeIndex);
+          const limit = edge?.[axis === 'x' ? 'width' : 'height'] || 0;
+          const requested = Math.round((local[axis] - current.start[axis]) / 5) / 20;
+          current.delta = Math.max(-Math.min(a[axis], b[axis]), Math.min(limit - Math.max(a[axis], b[axis]), requested));
+          if (Math.abs(current.delta) >= .01) {
+            const shiftedA = { ...a, [axis]: a[axis] + current.delta };
+            const shiftedB = { ...b, [axis]: b[axis] + current.delta };
+            const first = roomWallPlanPoint(room, edgeIndex, shiftedA.x, shiftedA.y, height);
+            const second = roomWallPlanPoint(room, edgeIndex, shiftedB.x, shiftedB.y, height);
+            if (first && second) preview = shiftRouteSegmentTo(route.points, segmentIndex,
+              { x: first.position.x, y: first.position.y, z: first.elevation },
+              { x: second.position.x, y: second.position.y, z: second.elevation });
+          }
+        }
+      }
+    }
+    current.preview = preview;
+    setRoutePreview(preview ? { id: route.id, points: preview } : null);
+  };
   const handleClick = (event, edgeIndex = -1) => {
     if (skipClick.current) { skipClick.current = false; return; }
     const local = svgPosition(event.currentTarget, event);
@@ -86,6 +149,23 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
   const handleUp = (event, edgeIndex = -1) => {
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
+    if (current.route) {
+      drag.current = null;
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      const travelled = Math.hypot(event.clientX - current.clientX, event.clientY - current.clientY);
+      if (event.type !== 'pointercancel' && !elementsLocked) {
+        if (travelled > 5 && current.preview) onShiftRouteSegment?.(current.route, current.preview);
+        else if (travelled <= 5) {
+          const local = svgPosition(event.currentTarget, event);
+          const point = local && routePointAt(current.route, current.segmentIndex, local, edgeIndex);
+          if (point) onInsertRoutePoint?.(current.route, current.segmentIndex, point);
+        }
+      }
+      setRoutePreview(null);
+      skipClick.current = true;
+      window.setTimeout(() => { skipClick.current = false; }, 0);
+      return;
+    }
     const moved = Math.hypot(event.clientX - current.x, event.clientY - current.y) > 4;
     drag.current = null;
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -119,11 +199,16 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
     const wallHeight = (horizontal ? height : length) * 100;
     const openings = (plan.openings || []).map(opening => ({ opening, display: roomOpeningOnEdge(room, index, opening, height) })).filter(entry => entry.display);
     return <div key={index} className={`placement-room-surface wall-${side}${selectedEdge?.index === index ? ' selected-wall' : ''}`} style={{ left: `${edge.x * SCALE}px`, top: `${edge.y * SCALE}px`, width: `${width * SCALE / 100}px`, height: `${wallHeight * SCALE / 100}px` }} data-edge-index={index} data-edge-length={length.toFixed(3)} data-detached={edge.detached || undefined}>
-      <svg viewBox={`0 0 ${width} ${wallHeight}`} aria-label={`Стена ${index + 1} комнаты ${room.name}`} role="img" onClick={event => handleClick(event, index)} onPointerUp={event => handleUp(event, index)} onPointerCancel={() => { drag.current = null; }}>
+      <svg viewBox={`0 0 ${width} ${wallHeight}`} aria-label={`Стена ${index + 1} комнаты ${room.name}`} role="img" onClick={event => handleClick(event, index)} onPointerMove={event => handleRouteMove(event, index)} onPointerUp={event => handleUp(event, index)} onPointerCancel={() => { drag.current = null; setRoutePreview(null); }}>
         <rect width={width} height={wallHeight} className="placement-room-wall-fill"/>
         {Array.from({ length: Math.floor(length) + 1 }, (_, station) => horizontal ? <line key={station} className="placement-room-grid" x1={station * 100} y1="0" x2={station * 100} y2={wallHeight}/> : <line key={station} className="placement-room-grid" x1="0" y1={station * 100} x2={width} y2={station * 100}/>)}
         {openings.map(({ opening, display }) => <g key={opening.id} data-opening-id={opening.id}><rect x={display.x * 100} y={display.y * 100} width={display.width * 100} height={display.height * 100} className={`placement-room-opening ${opening.type}`}/><title>{opening.type === 'door' ? 'Дверь' : 'Окно'} · {display.clippedWidth.toFixed(2)} м{opening.type === 'window' && opening.sillHeight == null ? ' · отметка подоконника не указана' : ''}</title></g>)}
-        {roomRoutes.filter(route => route.points.length > 1 && route.points.every(point => roomWallDisplayPoint(room, index, point, point.z || 0, height)?.distance < .22)).map(route => <path key={route.id} d={route.points.map((point, pointIndex) => { const position = roomWallDisplayPoint(room, index, point, point.z || 0, height); return `${pointIndex ? 'L' : 'M'} ${position.x * 100} ${position.y * 100}`; }).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>)}
+        {roomRoutes.filter(route => route.points.length > 1 && route.points.every(point => roomWallDisplayPoint(room, index, point, point.z || 0, height)?.distance < .22)).map(route => {
+          const points = routePreview?.id === route.id ? routePreview.points : route.points;
+          return <g key={route.id} data-route-id={route.id}><path d={points.map((point, pointIndex) => { const position = roomWallDisplayPoint(room, index, point, point.z || 0, height); return `${pointIndex ? 'L' : 'M'} ${position.x * 100} ${position.y * 100}`; }).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>
+            {route.system === 'electric' && route.id === selectedRouteId && !routeMode && !elementsLocked ? route.points.slice(0, -1).map((point, segmentIndex) => { const a = roomWallDisplayPoint(room, index, point, point.z || 0, height); const b = roomWallDisplayPoint(room, index, route.points[segmentIndex + 1], route.points[segmentIndex + 1].z || 0, height); return a && b ? <line key={segmentIndex} className="placement-route-segment-target" x1={a.x * 100} y1={a.y * 100} x2={b.x * 100} y2={b.y * 100} onPointerDown={event => handleRouteDown(event, route, segmentIndex, index)}><title>Нажмите для новой точки или перетащите участок</title></line> : null; }) : null}
+          </g>;
+        })}
         {wallItems.filter(item => assignments.get(item.id)?.edgeIndex === index).map(item => { const position = roomWallDisplayPoint(room, index, item, item.height || 0, height); return position ? mark(item, position.x * 100, position.y * 100, 'wall') : null; })}
       </svg>
     </div>;
@@ -134,11 +219,16 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
       {edges.map(wall)}
       <div className="placement-room-surface floor" style={{ left: `${layout.floor.x * SCALE}px`, top: `${layout.floor.y * SCALE}px`, width: `${floorW * SCALE / 100}px`, height: `${floorH * SCALE / 100}px` }}>
         <svg viewBox={`0 0 ${floorW} ${floorH}`} aria-label={`Пол комнаты ${room.name}`} role="img"
-          onClick={handleClick} onPointerUp={handleUp} onPointerCancel={() => { drag.current = null; }}>
+          onClick={handleClick} onPointerMove={event => handleRouteMove(event, -1)} onPointerUp={handleUp} onPointerCancel={() => { drag.current = null; setRoutePreview(null); }}>
           <defs><clipPath id={`room-floor-${room.id}`}><path d={floorPath}/></clipPath></defs>
           <path d={floorPath} className="placement-room-floor-fill"/>
           <g clipPath={`url(#room-floor-${room.id})`}>
-          {roomRoutes.map(route => <path key={route.id} d={route.points.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" strokeDasharray={route.auto ? '7 5' : undefined} vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>)}
+          {roomRoutes.map(route => {
+            const points = routePreview?.id === route.id ? routePreview.points : route.points;
+            return <g key={route.id} data-route-id={route.id}><path d={points.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" strokeDasharray={route.auto ? '7 5' : undefined} vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>
+              {route.system === 'electric' && route.id === selectedRouteId && !routeMode && !elementsLocked ? route.points.slice(0, -1).map((point, segmentIndex) => <line key={segmentIndex} className="placement-route-segment-target" x1={(point.x - box.x) * 100} y1={(point.y - box.y) * 100} x2={(route.points[segmentIndex + 1].x - box.x) * 100} y2={(route.points[segmentIndex + 1].y - box.y) * 100} onPointerDown={event => handleRouteDown(event, route, segmentIndex, -1)}><title>Нажмите для новой точки или перетащите участок</title></line>) : null}
+            </g>;
+          })}
           {draftPoints.length > 1 ? <path d={draftPoints.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={draftSystem === 'electric' ? circuitColor?.(draftCircuitId) : colors[draftSystem] || '#d77524'} strokeWidth="3" strokeDasharray="5 5" vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
           {wallItems.map(item => { const anchor = anchorPositions.get(item.id) || item; return <g key={`anchor-${item.id}`} className="placement-room-anchor" onClick={event => { event.stopPropagation(); onSelect(item.id); }}><circle cx={(anchor.x - box.x) * 100} cy={(anchor.y - box.y) * 100} r={selectedId === item.id ? 9 : 6} fill={itemColor(item)} stroke="#fff" strokeWidth="2"/><title>{item.label} · стена {(assignments.get(item.id)?.edgeIndex ?? -1) + 1} · h={Number(item.height || 0).toFixed(2)} м</title></g>; })}
           {floorItems.map(item => mark(item, (item.x - box.x) * 100, (item.y - box.y) * 100))}
