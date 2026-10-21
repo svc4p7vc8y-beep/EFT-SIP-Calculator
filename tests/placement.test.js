@@ -10,22 +10,42 @@ import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDi
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
-import { projectToRoomEdge, roomEdgePosition } from '../src/react/state/placement-room.js';
-import { electricalPlacementClusters, roomNameForPlacement } from '../src/react/state/placement-visibility.js';
+import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
 
-test('nearby electrical points form one selectable node without changing their coordinates', () => {
+test('room unfolding keeps every wall edge length and projects all four shared edges consistently', () => {
+  const room = createDefaultProject().plan.rooms[0];
+  const points = room.points;
+  for (let index = 0; index < 4; index++) {
+    const a = points[index], b = points[(index + 1) % 4];
+    const edge = roomEdgeDisplay(room, index);
+    assert.ok(Math.abs(edge.length - Math.hypot(b.x - a.x, b.y - a.y)) < 1e-9);
+    const middle = roomEdgePosition(room, index, edge.length / 2);
+    const display = roomWallDisplayPoint(room, index, middle, 0, 2.5);
+    const restored = roomWallPlanPoint(room, index, display.x, display.y, 2.5);
+    assert.ok(Math.hypot(restored.position.x - middle.x, restored.position.y - middle.y) < .02);
+    assert.equal(restored.elevation, 0);
+  }
+  assert.deepEqual([0, 1, 2, 3].map(index => roomEdgeDisplay(room, index).side), ['top', 'right', 'bottom', 'left']);
+});
+import { electricalGroupColor, electricalPlacementClusters, roomNameForPlacement } from '../src/react/state/placement-visibility.js';
+
+test('electrical points on one vertical axis form a wall-perpendicular row without changing coordinates', () => {
   const rooms = createDefaultProject().plan.rooms;
   const items = [
-    { id: 'switch', layer: 'electric', x: 1, y: 1, wallRef: 'wall-a' },
-    { id: 'socket', layer: 'electric', x: 1, y: 1.4, wallRef: 'wall-a' },
-    { id: 'junction', layer: 'electric', x: 1, y: 1.8, wallRef: 'wall-a' },
-    { id: 'other-wall', layer: 'electric', x: 1, y: 1.85, wallRef: 'wall-b' },
-    { id: 'furniture', layer: 'furniture', x: 1, y: 1.1 },
+    { id: 'switch', layer: 'electric', x: .25, y: 1, height: .9, wallRef: 'wall-a' },
+    { id: 'socket', layer: 'electric', x: .27, y: 1.01, height: .3, wallRef: 'wall-a' },
+    { id: 'junction', layer: 'electric', x: .25, y: 1, height: 2.3, wallRef: 'wall-a' },
+    { id: 'other-wall', layer: 'electric', x: .25, y: 1, wallRef: 'wall-b' },
+    { id: 'nearby-in-plan', layer: 'electric', x: .25, y: 1.4, wallRef: 'wall-a' },
+    { id: 'furniture', layer: 'furniture', x: .25, y: 1.1 },
   ];
   const before = structuredClone(items);
   const clusters = electricalPlacementClusters(items, rooms);
   assert.equal(clusters.length, 1);
-  assert.deepEqual(clusters[0].items.map(item => item.id), ['switch', 'socket', 'junction']);
+  assert.deepEqual(clusters[0].items.map(item => item.id), ['socket', 'switch', 'junction']);
+  assert.ok(Math.abs(Math.hypot(clusters[0].normal.x, clusters[0].normal.y) - 1) < 1e-9);
+  assert.equal(clusters[0].normal.x > 0, true);
+  assert.notEqual(electricalGroupColor('one', [{ id: 'one' }, { id: 'two' }]), electricalGroupColor('two', [{ id: 'one' }, { id: 'two' }]));
   assert.equal(roomNameForPlacement(items[0], rooms), rooms[0].name);
   assert.deepEqual(items, before);
 });
