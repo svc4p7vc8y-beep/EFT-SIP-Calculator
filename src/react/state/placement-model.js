@@ -1,13 +1,15 @@
 import { resolvedElectricalRoutes } from './placement-electrical.js';
+import { normalizeNetworkRoutes } from './placement-networks.js';
 
 export const PLACEMENT_LAYERS = [
   { id: 'furniture', label: 'Мебель' },
   { id: 'appliance', label: 'Бытовая техника' },
   { id: 'equipment', label: 'Инженерия' },
   { id: 'electric', label: 'Электрика' },
-  { id: 'plumbing', label: 'Сантехника', future: true },
-  { id: 'heating', label: 'Отопление', future: true },
-  { id: 'ventilation', label: 'Вентиляция', future: true },
+  { id: 'plumbing', label: 'Водоснабжение' },
+  { id: 'heating', label: 'Отопление' },
+  { id: 'sewer', label: 'Канализация' },
+  { id: 'ventilation', label: 'Вентиляция' },
 ];
 
 export const PLACEMENT_GROUPS = [
@@ -23,6 +25,14 @@ export const PLACEMENT_GROUPS = [
   { id: 'lighting', label: 'Освещение', layer: 'electric' },
   { id: 'facade', label: 'Фасад', layer: 'electric' },
   { id: 'electrical-panel', label: 'Щиты', layer: 'electric' },
+  { id: 'water-sources', label: 'Источники и коллекторы', layer: 'plumbing' },
+  { id: 'water-points', label: 'Водорозетки и арматура', layer: 'plumbing' },
+  { id: 'heat-sources', label: 'Источник и коллектор', layer: 'heating' },
+  { id: 'heat-points', label: 'Приборы и арматура', layer: 'heating' },
+  { id: 'sewer-risers', label: 'Стояки и ревизии', layer: 'sewer' },
+  { id: 'sewer-points', label: 'Выпуски и трапы', layer: 'sewer' },
+  { id: 'air-units', label: 'Установки и узлы', layer: 'ventilation' },
+  { id: 'air-points', label: 'Решётки и диффузоры', layer: 'ventilation' },
 ];
 
 const preset = (id, label, layer, group, width, depth, icon = id, extra = {}) => ({ id, label, layer, group, width, depth, icon, ...extra });
@@ -118,6 +128,33 @@ export const PLACEMENT_PRESETS = [
   preset('facade-socket', 'Уличная розетка', 'electric', 'facade', .18, .12, 'facade-socket', { height: 1.1, surface: 'facade' }),
   preset('facade-light', 'Фасадный светильник', 'electric', 'facade', .26, .18, 'facade-light', { height: 2.2, surface: 'facade' }),
   preset('facade-spotlight', 'Фасадный прожектор', 'electric', 'facade', .28, .2, 'facade-spotlight', { height: 2.6, surface: 'facade' }),
+  preset('junction-box', 'Распределительная коробка', 'electric', 'electrical-panel', .18, .12, 'junction-box'),
+  preset('water-source', 'Ввод воды', 'plumbing', 'water-sources', .2, .16, 'water-source'),
+  preset('cold-manifold', 'Коллектор ХВС', 'plumbing', 'water-sources', .45, .18, 'manifold'),
+  preset('hot-manifold', 'Коллектор ГВС', 'plumbing', 'water-sources', .45, .18, 'manifold'),
+  preset('water-heater-point', 'Водонагреватель', 'plumbing', 'water-sources', .55, .4, 'water-heater'),
+  preset('cold-outlet', 'Водорозетка ХВС', 'plumbing', 'water-points', .16, .12, 'water-outlet'),
+  preset('hot-outlet', 'Водорозетка ГВС', 'plumbing', 'water-points', .16, .12, 'hot-outlet'),
+  preset('water-valve', 'Запорный кран', 'plumbing', 'water-points', .16, .12, 'valve'),
+  preset('water-tee', 'Тройник', 'plumbing', 'water-points', .14, .12, 'tee'),
+  preset('heat-source', 'Источник тепла', 'heating', 'heat-sources', .55, .4, 'boiler'),
+  preset('heat-manifold', 'Коллектор отопления', 'heating', 'heat-sources', .5, .2, 'manifold'),
+  preset('radiator-point', 'Радиатор', 'heating', 'heat-points', .8, .16, 'radiator'),
+  preset('floor-heating-loop', 'Контур тёплого пола', 'heating', 'heat-points', .25, .25, 'floor-loop'),
+  preset('heat-valve', 'Клапан отопления', 'heating', 'heat-points', .16, .12, 'valve'),
+  preset('heat-tee', 'Тройник отопления', 'heating', 'heat-points', .14, .12, 'tee'),
+  preset('sewer-stack', 'Канализационный стояк', 'sewer', 'sewer-risers', .2, .2, 'stack'),
+  preset('sewer-cleanout', 'Ревизия', 'sewer', 'sewer-risers', .18, .15, 'cleanout'),
+  preset('sewer-outlet', 'Выпуск канализации', 'sewer', 'sewer-points', .16, .12, 'drain'),
+  preset('sewer-floor-drain', 'Трап', 'sewer', 'sewer-points', .18, .18, 'floor-drain'),
+  preset('sewer-tee', 'Тройник канализации', 'sewer', 'sewer-points', .14, .12, 'tee'),
+  preset('air-unit', 'Вентустановка', 'ventilation', 'air-units', .8, .5, 'vent-unit'),
+  preset('air-junction', 'Разветвитель воздуховодов', 'ventilation', 'air-units', .2, .2, 'tee'),
+  preset('air-damper', 'Заслонка', 'ventilation', 'air-units', .2, .16, 'damper'),
+  preset('supply-diffuser', 'Приточный диффузор', 'ventilation', 'air-points', .25, .25, 'supply-diffuser'),
+  preset('extract-grille', 'Вытяжная решётка', 'ventilation', 'air-points', .25, .18, 'extract-grille'),
+  preset('air-intake', 'Наружный воздухозабор', 'ventilation', 'air-points', .26, .18, 'air-intake', { surface: 'facade' }),
+  preset('air-exhaust', 'Наружный выброс', 'ventilation', 'air-points', .26, .18, 'air-exhaust', { surface: 'facade' }),
 ];
 
 export const findPlacementPreset = kind => PLACEMENT_PRESETS.find(item => item.id === kind);
@@ -126,7 +163,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 2, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: true, networks: { plumbing: [], heating: [], ventilation: [] } };
+  return { version: 3, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: true, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -139,7 +176,7 @@ export function normalizePlacement(value) {
   return {
     ...base,
     ...value,
-    version: 2,
+    version: 3,
     showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,
@@ -149,6 +186,8 @@ export function normalizePlacement(value) {
       depth: Math.max(.05, finite(item.depth, .5)),
       rotation: finite(item.rotation),
       height: Math.max(0, finite(item.height)),
+      heightKnown: item.heightKnown === true || (item.heightKnown !== false && Number(item.height) > 0),
+      wallRef: typeof item.wallRef === 'string' ? item.wallRef : '',
       dimensionSide: ['auto', 'left', 'right'].includes(item.dimensionSide) ? item.dimensionSide : 'auto',
       showHeight: item.showHeight === true,
       showName: item.showName === true,
@@ -158,11 +197,13 @@ export function normalizePlacement(value) {
       anchorX: item.surface === 'facade' ? finite(item.anchorX, finite(item.x)) : undefined,
       anchorY: item.surface === 'facade' ? finite(item.anchorY, finite(item.y)) : undefined,
     })),
-    circuits: circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа') })),
+    circuits: circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа'),
+      accessories: (Array.isArray(circuit.accessories) ? circuit.accessories : []).filter(entry => entry && typeof entry.name === 'string').map(entry => ({ name: entry.name.slice(0, 100), quantity: Math.max(0, finite(entry.quantity)), unit: String(entry.unit || 'шт').slice(0, 20) })),
+    })),
     routes: routes.filter(route => route && typeof route.id === 'string' && Array.isArray(route.points)).map(route => ({
       ...route,
       floor: Math.max(1, Math.min(2, Math.round(finite(route.floor, 1)))),
-      points: route.points.filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y))).map(point => ({ x: Number(point.x), y: Number(point.y) })),
+      points: route.points.filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y))).map(point => ({ x: Number(point.x), y: Number(point.y), ...(Number.isFinite(Number(point?.z)) && point?.z != null ? { z: Number(point.z) } : {}) })),
     })).filter(route => route.points.length >= 2),
     dimensions: dimensions.filter(dimension => dimension && typeof dimension.id === 'string' && Array.isArray(dimension.points) && dimension.points.length === 2).map(dimension => ({
       ...dimension,
@@ -170,7 +211,7 @@ export function normalizePlacement(value) {
       points: dimension.points.map(point => ({ x: finite(point?.x), y: finite(point?.y) })),
       label: typeof dimension.label === 'string' ? dimension.label.slice(0, 80) : '',
     })),
-    networks: { ...base.networks, ...(value.networks && typeof value.networks === 'object' ? value.networks : {}) },
+    networks: normalizeNetworkRoutes(value.networks),
   };
 }
 

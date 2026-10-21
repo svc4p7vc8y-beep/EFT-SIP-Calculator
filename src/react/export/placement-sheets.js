@@ -1,4 +1,6 @@
 import { electricalBill, resolvedElectricalRoutes } from '../state/placement-electrical.js';
+import { NETWORK_SYSTEMS, networkBill, resolvedNetworkRoutes } from '../state/placement-networks.js';
+import { placementWallFaces } from '../state/placement-walls.js';
 
 export function buildPlacementSheets(project) {
   const placement = project.placement || { items: [], routes: [], dimensions: [], circuits: [] };
@@ -6,23 +8,37 @@ export function buildPlacementSheets(project) {
   const sheets = [];
   for (let floor = 1; floor <= floors; floor += 1) {
     const plan = floor === 1 ? project.plan : project.upperFloors?.[floor - 2] || project.plan;
-    for (const discipline of ['layout', 'electric']) {
-      const list = (placement.items || []).filter(item => item.floor === floor && (discipline === 'electric' ? item.layer === 'electric' : item.layer !== 'electric'));
-      const routes = discipline === 'electric' ? resolvedElectricalRoutes(placement, floor) : [];
+    for (const discipline of ['layout', 'electric', ...Object.keys(NETWORK_SYSTEMS)]) {
+      const list = (placement.items || []).filter(item => item.floor === floor && (discipline === 'electric' ? item.layer === 'electric' : discipline === 'layout' ? !['electric', ...Object.keys(NETWORK_SYSTEMS)].includes(item.layer) : item.layer === discipline));
+      const routes = discipline === 'electric' ? resolvedElectricalRoutes(placement, floor) : NETWORK_SYSTEMS[discipline] ? resolvedNetworkRoutes(placement, discipline, floor) : [];
+      if (NETWORK_SYSTEMS[discipline] && !list.length && !routes.length) continue;
       const circuitIds = new Set([...list.map(item => item.circuitId), ...routes.map(route => route.circuitId)].filter(Boolean));
-      const prefix = discipline === 'electric' ? 'Э' : 'Р';
+      const prefix = discipline === 'electric' ? 'Э' : NETWORK_SYSTEMS[discipline]?.prefix || 'Р';
       sheets.push({
         id: `${floor}-${discipline}`,
         floor,
         discipline,
-        title: discipline === 'electric' ? 'План электроточек и освещения' : 'План мебели и оборудования',
+        title: discipline === 'electric' ? 'План электроточек и освещения' : NETWORK_SYSTEMS[discipline] ? `План сети · ${NETWORK_SYSTEMS[discipline].label}` : 'План мебели и оборудования',
         plan,
         items: list.map((item, index) => ({ item, mark: `${prefix}-${String(index + 1).padStart(2, '0')}` })),
         routes,
         electricalBill: discipline === 'electric' ? electricalBill(placement, floor) : null,
-        dimensions: (placement.dimensions || []).filter(dimension => dimension.floor === floor),
+        networkBill: NETWORK_SYSTEMS[discipline] ? networkBill(placement, discipline, floor) : null,
+        dimensions: ['layout', 'electric'].includes(discipline) ? (placement.dimensions || []).filter(dimension => dimension.floor === floor) : [],
         circuits: discipline === 'electric' ? (placement.circuits || []).filter(circuit => circuitIds.has(circuit.id)) : [],
       });
+      if (NETWORK_SYSTEMS[discipline]) {
+        const refs = new Set([...list.map(item => item.wallRef), ...routes.map(route => route.wallRef)].filter(Boolean));
+        for (const wall of placementWallFaces(plan).filter(face => refs.has(face.ref))) {
+          sheets.push({
+            id: `${floor}-${discipline}-${wall.ref}`, floor, discipline,
+            title: `${NETWORK_SYSTEMS[discipline].label} · развёртка стены`, plan, wall,
+            items: list.map((item, index) => ({ item, mark: `${prefix}-${String(index + 1).padStart(2, '0')}` })).filter(entry => entry.item.wallRef === wall.ref),
+            routes: routes.filter(route => route.wallRef === wall.ref),
+            dimensions: [], circuits: [], networkBill: null,
+          });
+        }
+      }
     }
   }
   return sheets;

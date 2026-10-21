@@ -6,8 +6,9 @@ import { normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESE
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
 import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
-import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, snapPlacementToWall } from '../src/react/state/placement-walls.js';
-import { electricalBill, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
+import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../src/react/state/placement-walls.js';
+import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
+import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();
@@ -16,8 +17,86 @@ test('old projects receive an empty placement layer without changing the estimat
   const before = calculateProject(old).totals.total;
   const migrated = migrateProject(old);
   assert.deepEqual(migrated.placement.items, []);
-  assert.deepEqual(migrated.placement.networks, { plumbing: [], heating: [], ventilation: [] });
+  assert.deepEqual(migrated.placement.networks, { plumbing: [], heating: [], sewer: [], ventilation: [] });
   assert.equal(calculateProject(migrated).totals.total, before);
+});
+
+test('network routes preserve wall station, heights and independent sheets after JSON reopen', () => {
+  const project = createDefaultProject();
+  const estimateBefore = calculateProject(project).totals.total;
+  const wall = placementWallFaces(project.plan)[0];
+  const first = wallFacePoint(wall, 1), second = wallFacePoint(wall, 3);
+  assert.equal(Math.round(projectToWallFace(wall, second).station), 3);
+  project.placement.items.push(
+    { id: 'water-in', floor: 1, layer: 'plumbing', kind: 'water-source', label: 'Ввод', ...first, height: 1, heightKnown: true, wallRef: wall.ref, width: .2, depth: .16 },
+    { id: 'water-out', floor: 1, layer: 'plumbing', kind: 'cold-outlet', label: 'Кухня', ...second, height: .5, heightKnown: true, wallRef: wall.ref, width: .16, depth: .12 },
+  );
+  project.placement.networks.plumbing.push({ id: 'water-route', floor: 1, medium: 'cold', fromId: 'water-in', toId: 'water-out', auto: true, wallRef: wall.ref, routeLevel: 2, diameterMm: 20, material: 'Труба проекта', accessories: [{ name: 'Кран', quantity: 2, unit: 'шт' }], points: [{ ...first, z: 1 }, { ...second, z: .5 }] });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.placement.version, 3);
+  assert.equal(networkBill(reopened.placement, 'plumbing', 1).totalLength, 4.5);
+  assert.equal(networkBill(reopened.placement, 'plumbing', 1).pipeRows[0].metres, 4.5);
+  assert.equal(networkBill(reopened.placement, 'plumbing', 1).components.find(entry => entry.name === 'Кран').quantity, 2);
+  assert.equal(buildPlacementSheets(reopened).find(sheet => sheet.discipline === 'plumbing').items.length, 2);
+  assert.equal(buildPlacementSheets(reopened).find(sheet => sheet.wall?.ref === wall.ref).routes.length, 1);
+  reopened.placement.items.find(item => item.id === 'water-out').x += 1;
+  assert.equal(resolvedNetworkRoutes(reopened.placement, 'plumbing', 1)[0].points.at(-1).x, second.x + 1);
+  assert.equal(calculateProject(reopened).totals.total, estimateBefore);
+});
+
+test('sewer checks only the entered project slope and ventilation requires entered flow', () => {
+  const project = createDefaultProject();
+  project.placement.items.push(
+    { id: 'drain', floor: 1, layer: 'sewer', kind: 'sewer-outlet', x: 1, y: 1, height: .5, width: .16, depth: .12 },
+    { id: 'stack', floor: 1, layer: 'sewer', kind: 'sewer-stack', x: 4, y: 1, height: .4, width: .2, depth: .2 },
+    { id: 'unit', floor: 1, layer: 'ventilation', kind: 'air-unit', x: 1, y: 2, height: 2, width: .8, depth: .5 },
+    { id: 'grille', floor: 1, layer: 'ventilation', kind: 'supply-diffuser', x: 3, y: 2, height: 2, width: .25, depth: .25 },
+  );
+  project.placement.networks.sewer.push({ id: 's1', floor: 1, medium: 'waste', fromId: 'drain', toId: 'stack', auto: true, slopePermille: 40, diameterMm: 110, material: 'Проект', points: [{ x: 1, y: 1, z: .5 }, { x: 4, y: 1, z: .4 }] });
+  project.placement.networks.ventilation.push({ id: 'v1', floor: 1, medium: 'supply-air', fromId: 'unit', toId: 'grille', auto: true, diameterMm: 125, material: 'Проект', points: [{ x: 1, y: 2, z: 2 }, { x: 3, y: 2, z: 2 }] });
+  assert(networkBill(project.placement, 'sewer', 1).issues.some(issue => issue.includes('перепад')));
+  assert(networkBill(project.placement, 'ventilation', 1).issues.some(issue => issue.includes('расход')));
+  project.placement.items.find(item => item.id === 'stack').height = .3;
+  assert(!networkBill(project.placement, 'sewer', 1).issues.some(issue => issue.includes('перепад')));
+  assert.deepEqual(buildPlacementSheets(project).filter(sheet => ['sewer', 'ventilation'].includes(sheet.discipline)).map(sheet => sheet.discipline), ['sewer', 'ventilation']);
+});
+
+test('manual heating waypoints keep their heights while endpoints and paired lines can move', () => {
+  const project = createDefaultProject();
+  project.placement.items.push(
+    { id: 'collector', floor: 1, layer: 'heating', kind: 'heat-manifold', x: 1, y: 1, height: 1, heightKnown: true, width: .5, depth: .2 },
+    { id: 'radiator', floor: 1, layer: 'heating', kind: 'radiator-point', x: 4, y: 2, height: .4, heightKnown: true, width: .8, depth: .16 },
+  );
+  project.placement.networks.heating.push(
+    { id: 'supply', floor: 1, medium: 'supply', fromId: 'collector', toId: 'radiator', auto: false, material: 'Проект', diameterMm: 20, points: [{ x: 1, y: 1, z: 1 }, { x: 1, y: 2, z: .8 }, { x: 4, y: 2, z: .4 }] },
+    { id: 'return', floor: 1, medium: 'return', fromId: 'radiator', toId: 'collector', auto: true, material: 'Проект', diameterMm: 20, points: [{ x: 4, y: 2, z: .4 }, { x: 1, y: 1, z: 1 }] },
+  );
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  const bill = networkBill(reopened.placement, 'heating', 1);
+  assert(bill.totals.supply > 4);
+  assert(bill.totals.return > 4);
+  reopened.placement.items.find(item => item.id === 'collector').x = 2;
+  const routes = resolvedNetworkRoutes(reopened.placement, 'heating', 1);
+  assert.equal(routes[0].points[0].x, 2);
+  assert.equal(routes[0].points[1].z, .8);
+  assert.equal(routes[1].points.at(-1).x, 2);
+});
+
+test('electrical topology routes panel through one junction to switch and controlled light', () => {
+  const items = [
+    { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0 },
+    { id: 'junction', floor: 1, layer: 'electric', kind: 'junction-box', x: 2, y: 0, circuitId: 'c1' },
+    { id: 'switch', floor: 1, layer: 'electric', kind: 'switch', x: 2, y: 2, circuitId: 'c1', controlsItemId: 'light', junctionItemId: 'junction' },
+    { id: 'light', floor: 1, layer: 'electric', kind: 'light', x: 4, y: 2, circuitId: 'c1' },
+  ];
+  const routes = proposeElectricalCircuitRoutes(items, 1, 'c1', 'panel', (() => { let n = 0; return () => `r${++n}`; })());
+  assert.deepEqual(routes.map(route => [route.fromItemId, route.targetItemId]), [['panel', 'junction'], ['junction', 'switch'], ['junction', 'light']]);
+  const placement = { items, circuits: [{ id: 'c1', name: 'Свет', accessories: [{ name: 'Клемма проекта', quantity: 4, unit: 'шт' }] }], routes };
+  assert.equal(electricalBill(placement, 1).routeMetres, 8);
+  assert.equal(electricalBill(placement, 1).components.find(row => row.name === 'Распределительные коробки').quantity, 1);
+  assert.equal(electricalBill(placement, 1).manualComponents.find(row => row.name === 'Клемма проекта').quantity, 4);
+  items[1].x = 3;
+  assert.equal(resolvedElectricalRoutes(placement, 1)[1].points[0].x, 3);
 });
 
 test('placement survives project import and stays separate from estimate calculations', () => {

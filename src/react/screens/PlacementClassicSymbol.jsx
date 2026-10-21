@@ -25,8 +25,21 @@ function Electrical({ icon }) {
     {lighting ? <><circle cx="50" cy="50" r={icon.includes('spotlight') ? 20 : 26}/><circle cx="50" cy="50" r={icon.includes('spotlight') ? 5 : 10} {...line}/>{icon === 'spotlight' || icon === 'facade-spotlight' ? <path d="M34 66l-10 10m42-10 10 10" {...line}/> : <path d="M50 16v8m0 52v8M16 50h8m52 0h8" {...line}/>}</> : null}
     {icon === 'led-strip' ? <><path d="M10 50h80" strokeWidth="5" {...line}/>{[25,40,55,70].map(cx => <circle key={cx} cx={cx} cy="50" r="2.5" {...dot}/>)}</> : null}
     {icon === 'panel' ? <><rect x="24" y="17" width="52" height="66" rx="2"/><rect x="31" y="25" width="38" height="50" {...line}/>{[35,47,59].map(y => <path key={y} d={`M35 ${y}h30`} {...line}/>)}</> : null}
+    {icon === 'junction-box' ? <><circle cx="50" cy="50" r="31"/><path d="M32 50h36M50 32v36M26 50H10m80 0H74M50 26V10m0 80V74" {...line}/></> : null}
     {facade ? <path d="M10 91h80" strokeDasharray="5 3" {...line}/> : null}
   </>;
+}
+
+function Network({ icon }) {
+  if (['water-source', 'water-outlet', 'hot-outlet'].includes(icon)) return <><circle cx="50" cy="50" r="28"/><path d="M50 20v14M50 66v14M22 50h56" {...line}/><path d="M42 46c0-6 8-14 8-14s8 8 8 14a8 8 0 0 1-16 0z" {...line}/></>;
+  if (icon === 'valve' || icon === 'damper') return <><path d="M9 50h25m32 0h25M34 31l32 38V31L34 69z"/><circle cx="50" cy="50" r="5" {...line}/></>;
+  if (icon === 'tee') return <><path d="M12 50h76M50 15v70" strokeWidth="7" {...line}/><circle cx="50" cy="50" r="8"/></>;
+  if (icon === 'radiator') return <><rect x="9" y="20" width="82" height="60" rx="4"/>{[25,37,49,61,73].map(x => <path key={x} d={`M${x} 23v54`} {...line}/>)}</>;
+  if (icon === 'floor-loop') return <><rect x="8" y="10" width="84" height="80" rx="3"/><path d="M12 70h20V28h18v42h18V28h20" {...line}/></>;
+  if (icon === 'stack') return <><circle cx="50" cy="50" r="29"/><circle cx="50" cy="50" r="13" {...line}/><path d="M50 8v17m0 50v17M8 50h17m50 0h17" {...line}/></>;
+  if (['drain', 'floor-drain', 'cleanout'].includes(icon)) return <><rect x="17" y="17" width="66" height="66" rx="4"/><circle cx="50" cy="50" r="23" {...line}/><path d="M29 50h42M50 29v42" {...line}/></>;
+  if (['supply-diffuser', 'extract-grille', 'air-intake', 'air-exhaust'].includes(icon)) return <><circle cx="50" cy="50" r="33"/><path d="M30 50h40M50 30v40M33 33l34 34M67 33L33 67" {...line}/><circle cx="50" cy="50" r="6" {...line}/></>;
+  return <><circle cx="50" cy="50" r="28"/><path d="M30 50h40M50 30v40" {...line}/></>;
 }
 
 function Equipment({ icon }) {
@@ -44,7 +57,8 @@ function Equipment({ icon }) {
 export function PlacementSymbol({ kind, icon: explicitIcon }) {
   const icon = explicitIcon || findPlacementPreset(kind)?.icon || kind;
   return <g className="placement-classic-symbol" fill="#fff" stroke="#26373d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    {['socket','double-socket','power','switch','double-switch','dimmer','light','spotlight','pendant-light','wall-light','led-strip','panel','facade-socket','facade-light','facade-spotlight'].includes(icon) ? <Electrical icon={icon}/> : null}
+    {['socket','double-socket','power','switch','double-switch','dimmer','light','spotlight','pendant-light','wall-light','led-strip','panel','junction-box','facade-socket','facade-light','facade-spotlight'].includes(icon) ? <Electrical icon={icon}/> : null}
+    {['water-source','water-outlet','hot-outlet','valve','damper','tee','radiator','floor-loop','stack','drain','floor-drain','cleanout','supply-diffuser','extract-grille','air-intake','air-exhaust'].includes(icon) ? <Network icon={icon}/> : null}
     {icon === 'bed' ? <><rect x="13" y="7" width="74" height="86" rx="2"/><rect x="19" y="15" width="62" height="72" {...line}/><path d="M19 54h62M19 64c20 3 42 3 62 0" {...line}/><rect x="21" y="18" width="27" height="21" rx="4"/><rect x="52" y="18" width="27" height="21" rx="4"/></> : null}
     {['sofa','corner-sofa','armchair'].includes(icon) ? <><rect x="8" y="15" width="84" height="70" rx="6"/><rect x="18" y="25" width="64" height="50" rx="2" {...line}/><path d="M50 26v48M18 46h64" {...line}/><rect x="9" y="26" width="11" height="48" rx="2"/><rect x="80" y="26" width="11" height="48" rx="2"/><rect x="20" y="16" width="60" height="11" rx="2"/>{icon === 'corner-sofa' ? <rect x="53" y="48" width="29" height="28" {...line}/> : null}</> : null}
     {['table','desk','chair'].includes(icon) ? <><rect x="16" y="18" width="68" height="64" rx={icon === 'table' ? 12 : 2}/><rect x="22" y="24" width="56" height="52" rx={icon === 'table' ? 8 : 0} {...line}/>{icon === 'chair' ? <path d="M22 37h56" {...line}/> : null}</> : null}

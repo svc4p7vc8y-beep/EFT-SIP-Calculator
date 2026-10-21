@@ -28,6 +28,35 @@ export function placementWallBands(plan) {
   return { contour, outer, partitions };
 }
 
+export function placementWallFaces(plan) {
+  const bands = placementWallBands(plan);
+  return [...bands.outer.map((band, index) => ({ band, index, prefix: 'outer' })),
+    ...bands.partitions.map((band, index) => ({ band, index, prefix: 'partition' }))]
+    .flatMap(({ band, index, prefix }) => band.faces.map((face, side) => ({
+      ...face,
+      ref: `${prefix}-${index}-${side}`,
+      type: band.type,
+      length: Math.hypot(face.b.x - face.a.x, face.b.y - face.a.y),
+      label: `${prefix === 'outer' ? 'Наружная стена' : 'Перегородка'} ${index + 1}${band.faces.length > 1 ? ` · грань ${side + 1}` : ''}`,
+    })));
+}
+
+export function projectToWallFace(face, point) {
+  if (!face || !point) return null;
+  const dx = face.b.x - face.a.x, dy = face.b.y - face.a.y;
+  const length = Math.hypot(dx, dy);
+  if (!length) return null;
+  const station = Math.max(0, Math.min(length, ((point.x - face.a.x) * dx + (point.y - face.a.y) * dy) / length));
+  const foot = { x: face.a.x + dx * station / length, y: face.a.y + dy * station / length };
+  return { station, foot, distance: Math.hypot(point.x - foot.x, point.y - foot.y) };
+}
+
+export function wallFacePoint(face, station) {
+  const ratio = Math.max(0, Math.min(1, station / face.length));
+  return { x: Math.round((face.a.x + (face.b.x - face.a.x) * ratio) * 1000) / 1000,
+    y: Math.round((face.a.y + (face.b.y - face.a.y) * ratio) * 1000) / 1000 };
+}
+
 export function nearestWallDimension(plan, item, bands = placementWallBands(plan)) {
   const location = item.surface === 'facade' && Number.isFinite(item.anchorX) && Number.isFinite(item.anchorY)
     ? { x: item.anchorX, y: item.anchorY } : { x: item.x, y: item.y };
