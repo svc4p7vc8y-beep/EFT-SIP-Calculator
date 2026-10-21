@@ -1,12 +1,16 @@
 import { NETWORK_SYSTEMS, networkBill, networkLength3d, networkPlanLength } from '../state/placement-networks.js';
+import { roomPoints } from '../planner/geometry.js';
+import { pointInPolygon } from '../state/placement-geometry.js';
 
 const metres = value => `${Number(value || 0).toFixed(2)} м`;
 const positive = value => value === '' ? null : Math.max(0, Number(value) || 0);
 
 export default function PlacementNetworkPanel({ system, floor, placement, fromId, toId, medium, onFrom, onTo, onMedium,
-  onAuto, onPair, onBeginManual, onFinishManual, onCancelManual, drawing, points, selectedRouteId, onSelectRoute, onUpdateRoute, onDeleteRoute }) {
+  onAuto, onPair, onBeginManual, onFinishManual, onCancelManual, drawing, points, selectedRouteId, onSelectRoute, onUpdateRoute, onDeleteRoute, room, notice }) {
   const spec = NETWORK_SYSTEMS[system];
   const items = (placement.items || []).filter(item => item.floor === floor && item.layer === system);
+  const localItems = room ? items.filter(item => pointInPolygon(item, roomPoints(room))) : items;
+  const orderedItems = room ? [...localItems, ...items.filter(item => !localItems.includes(item))] : items;
   const bill = networkBill(placement, system, floor);
   const selected = bill.routes.find(route => route.id === selectedRouteId);
   const canConnect = fromId && toId && fromId !== toId;
@@ -17,10 +21,11 @@ export default function PlacementNetworkPanel({ system, floor, placement, fromId
   };
   return <section className="placement-network-panel">
     <h3>{spec.label} · этаж {floor}</h3>
-    <p>Выберите два узла на плане или развёртке стены. Линия маршрута остаётся редактируемой.</p>
+    <p>Выберите две точки на плане или развёртке комнаты. Точки выбранной комнаты показаны первыми; тип подключения прибора указан в названии.</p>
+    {notice ? <p role="status">{notice}</p> : null}
     <label>Линия<select value={medium} onChange={event => onMedium(event.target.value)}>{spec.media.map(entry => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label>
-    <label>{system === 'sewer' ? 'От прибора' : 'От узла'}<select value={fromId} onChange={event => onFrom(event.target.value)}><option value="">Выберите точку</option>{items.map(item => <option key={item.id} value={item.id}>{item.label} · {item.id.slice(0, 6)}</option>)}</select></label>
-    <label>{system === 'sewer' ? 'К стояку / выпуску' : 'К узлу'}<select value={toId} onChange={event => onTo(event.target.value)}><option value="">Выберите точку</option>{items.filter(item => item.id !== fromId).map(item => <option key={item.id} value={item.id}>{item.label} · {item.id.slice(0, 6)}</option>)}</select></label>
+    <label>{system === 'sewer' ? 'От прибора' : 'От узла'}<select value={fromId} onChange={event => onFrom(event.target.value)}><option value="">Выберите точку</option>{orderedItems.map(item => <option key={item.id} value={item.id}>{item.label} · {item.id.slice(0, 6)}</option>)}</select></label>
+    <label>{system === 'sewer' ? 'К стояку / выпуску' : 'К узлу'}<select value={toId} onChange={event => onTo(event.target.value)}><option value="">Выберите точку</option>{orderedItems.filter(item => item.id !== fromId).map(item => <option key={item.id} value={item.id}>{item.label} · {item.id.slice(0, 6)}</option>)}</select></label>
     <div className="placement-network-actions"><button disabled={!canConnect || drawing} onClick={onAuto}>Предложить маршрут</button><button disabled={!canConnect} className={drawing ? 'active' : ''} onClick={drawing ? onCancelManual : onBeginManual}>{drawing ? 'Отменить рисование' : 'Нарисовать вручную'}</button></div>
     {system === 'heating' ? <button className="placement-network-pair" disabled={!canConnect || drawing} onClick={onPair}>Предложить подачу и обратку</button> : null}
     {drawing ? <div className="placement-network-drawing"><p>Нажимайте промежуточные точки на плане или развёртке стены. Концы привязаны к выбранным узлам.</p><button onClick={onFinishManual}>Сохранить маршрут · {points.length} промежуточных точек</button></div> : null}

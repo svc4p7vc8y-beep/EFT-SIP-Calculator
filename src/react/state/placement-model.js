@@ -1,5 +1,6 @@
 import { resolvedElectricalRoutes } from './placement-electrical.js';
 import { normalizeNetworkRoutes } from './placement-networks.js';
+import { addMissingConnectionPorts } from './placement-connections.js';
 
 export const PLACEMENT_LAYERS = [
   { id: 'furniture', label: 'Мебель' },
@@ -176,7 +177,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 3, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: true, networks: normalizeNetworkRoutes() };
+  return { version: 4, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: true, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -186,10 +187,10 @@ export function normalizePlacement(value) {
   const circuits = Array.isArray(value.circuits) ? value.circuits : [];
   const routes = Array.isArray(value.routes) ? value.routes : [];
   const dimensions = Array.isArray(value.dimensions) ? value.dimensions : [];
-  return {
+  const normalized = {
     ...base,
     ...value,
-    version: 3,
+    version: 4,
     showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,
@@ -227,6 +228,8 @@ export function normalizePlacement(value) {
     })),
     networks: normalizeNetworkRoutes(value.networks),
   };
+  if (Number(value.version || 0) < 4) normalized.items = addMissingConnectionPorts(normalized.items);
+  return normalized;
 }
 
 export function placementSummary(placement, floor) {

@@ -131,7 +131,7 @@ export function networkBill(placement, system, floor) {
     if (existing) existing.quantity += quantity;
     else components.push({ name, quantity, unit });
   };
-  items.forEach(item => addComponent(item.label || item.kind, 1));
+  items.filter(item => item.kind !== 'connection-port').forEach(item => addComponent(item.label || item.kind, 1));
   routes.forEach(route => (route.accessories || []).filter(entry => entry.name.trim()).forEach(entry => addComponent(entry.name.trim(), entry.quantity, entry.unit)));
   return {
     routes, items, totals, pipeRows, components,

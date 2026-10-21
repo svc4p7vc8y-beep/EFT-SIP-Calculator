@@ -54,8 +54,12 @@ function Equipment({ icon }) {
   return <><rect x="16" y="10" width="68" height="80" rx="3"/><path d="M24 20h52M24 73h52" {...line}/><rect x="32" y="30" width="36" height="23" {...line}/>{[39,50,61].map(cx => <circle key={cx} cx={cx} cy="62" r="2" {...dot}/>)}<path d="M30 90v7m40-7v7" {...line}/></>;
 }
 
-export function PlacementSymbol({ kind, icon: explicitIcon }) {
+export function PlacementSymbol({ kind, icon: explicitIcon, system, medium }) {
   const icon = explicitIcon || findPlacementPreset(kind)?.icon || kind;
+  if (icon === 'connection-port') {
+    const color = medium === 'hot' ? '#bd5547' : { plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' }[system] || '#4e7770';
+    return <g fill="#fff" stroke={color} strokeWidth="8"><circle cx="50" cy="50" r="34"/><circle cx="50" cy="50" r="8" fill={color} stroke="none"/></g>;
+  }
   const electrical = ['socket','double-socket','power','switch','double-switch','two-way-switch','dimmer','light','spotlight','pendant-light','wall-light','led-strip','panel','junction-box','facade-socket','facade-light','facade-spotlight'].includes(icon);
   const palette = icon === 'power' ? ['#fff0e9', '#ad4f33'] : icon.includes('switch') || icon === 'dimmer' ? ['#fff1d8', '#9d650f'] : icon === 'panel' ? ['#e5e8ff', '#414e9a'] : icon === 'junction-box' ? ['#f3e7ff', '#784e9e'] : ['light','spotlight','pendant-light','wall-light','led-strip','facade-light','facade-spotlight'].includes(icon) ? ['#fff8d9', '#9c7510'] : electrical ? ['#e1f6ed', '#237456'] : ['#fff', '#26373d'];
   return <g className="placement-classic-symbol" fill={palette[0]} stroke={palette[1]} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

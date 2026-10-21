@@ -9,6 +9,8 @@ import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
 import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../src/react/state/placement-walls.js';
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
+import { connectionPortsFor } from '../src/react/state/placement-connections.js';
+import { projectToRoomEdge, roomEdgePosition } from '../src/react/state/placement-room.js';
 
 test('old projects receive an empty placement layer without changing the estimate', () => {
   const old = createDefaultProject();
@@ -19,6 +21,48 @@ test('old projects receive an empty placement layer without changing the estimat
   assert.deepEqual(migrated.placement.items, []);
   assert.deepEqual(migrated.placement.networks, { plumbing: [], heating: [], sewer: [], ventilation: [] });
   assert.equal(calculateProject(migrated).totals.total, before);
+});
+
+test('existing appliances receive editable network ports once without changing the estimate', () => {
+  const project = createDefaultProject();
+  const before = calculateProject(project).totals.total;
+  project.placement.version = 3;
+  project.placement.items.push({ id: 'sink-1', floor: 1, layer: 'furniture', kind: 'kitchen-sink', label: 'Мойка', x: 2, y: 2, width: .8, depth: .6, height: 0 });
+  const migrated = migrateProject(project);
+  const ports = migrated.placement.items.filter(item => item.linkedApplianceId === 'sink-1');
+  assert.equal(migrated.placement.version, 4);
+  assert.deepEqual(ports.map(item => [item.layer, item.connectionMedium]), [['plumbing', 'cold'], ['plumbing', 'hot'], ['sewer', 'waste']]);
+  assert.equal(ports.every(item => item.heightKnown === false && item.followsAppliance), true);
+  assert.equal(calculateProject(migrated).totals.total, before);
+  const reopened = migrateProject(JSON.parse(JSON.stringify(migrated)));
+  assert.equal(reopened.placement.items.filter(item => item.linkedApplianceId === 'sink-1').length, 3);
+  reopened.placement.items = reopened.placement.items.filter(item => item.id !== ports[0].id);
+  assert.equal(migrateProject(reopened).placement.items.filter(item => item.linkedApplianceId === 'sink-1').length, 2);
+});
+
+test('ports of tank, boiler, bath and dishwasher are distinct route endpoints', () => {
+  const examples = [
+    ['hydro-tank', 2, ['plumbing']], ['water-heater', 2, ['plumbing']],
+    ['boiler', 4, ['heating', 'plumbing']], ['bathtub', 3, ['plumbing', 'sewer']],
+    ['dishwasher', 2, ['plumbing', 'sewer']],
+  ];
+  for (const [kind, count, systems] of examples) {
+    const ports = connectionPortsFor({ id: kind, kind, label: kind, floor: 1, x: 2, y: 2, width: .6, depth: .6 });
+    assert.equal(ports.length, count);
+    assert.deepEqual([...new Set(ports.map(port => port.layer))], systems);
+    assert.equal(new Set(ports.map(port => port.id)).size, count);
+  }
+});
+
+test('unfolded room maps each wall station back inside the original room', () => {
+  const room = { id: 'test-room', x: 1, y: 2, w: 4, h: 3 };
+  for (let edge = 0; edge < 4; edge += 1) {
+    const position = roomEdgePosition(room, edge, 1);
+    const projection = projectToRoomEdge(room, edge, position);
+    assert.ok(position.x > 1 && position.x < 5 && position.y > 2 && position.y < 5);
+    assert.ok(Math.abs(projection.station - 1) < .01);
+    assert.ok(Math.abs(projection.distance - .08) < .01);
+  }
 });
 
 test('network routes preserve wall station, heights and independent sheets after JSON reopen', () => {
@@ -33,7 +77,7 @@ test('network routes preserve wall station, heights and independent sheets after
   );
   project.placement.networks.plumbing.push({ id: 'water-route', floor: 1, medium: 'cold', fromId: 'water-in', toId: 'water-out', auto: true, wallRef: wall.ref, routeLevel: 2, diameterMm: 20, material: 'Труба проекта', accessories: [{ name: 'Кран', quantity: 2, unit: 'шт' }], points: [{ ...first, z: 1 }, { ...second, z: .5 }] });
   const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
-  assert.equal(reopened.placement.version, 3);
+  assert.equal(reopened.placement.version, 4);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).totalLength, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).pipeRows[0].metres, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).components.find(entry => entry.name === 'Кран').quantity, 2);
