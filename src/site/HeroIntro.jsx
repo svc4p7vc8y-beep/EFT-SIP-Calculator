@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUpRight, RotateCcw, SkipForward } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, RotateCcw, SkipForward, Snowflake } from 'lucide-react';
 import { asset } from './data.js';
 import HeroPhoto from './HeroPhoto.jsx';
 
@@ -16,7 +16,6 @@ export default function HeroIntro() {
   useEffect(() => {
     let active = true;
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const small = window.matchMedia('(max-width: 600px)');
     const updateMotion = () => {
       setCanAnimate(!motion.matches);
       if (motion.matches) setPhase('done');
@@ -36,7 +35,7 @@ export default function HeroIntro() {
       window.clearTimeout(fallback);
       ready.current = loaded.every(Boolean);
       setMediaFailed(!ready.current);
-      setPhase(ready.current && !motion.matches && !small.matches ? 'playing' : 'done');
+      setPhase(ready.current && !motion.matches ? 'playing' : 'done');
     });
     return () => {
       active = false;
@@ -47,7 +46,7 @@ export default function HeroIntro() {
 
   useEffect(() => {
     if (phase !== 'playing') return undefined;
-    const duration = window.matchMedia('(max-width: 600px)').matches ? 700 : 7000;
+    const duration = window.matchMedia('(max-width: 600px)').matches ? 4200 : 7000;
     const timer = window.setTimeout(() => setPhase('done'), duration);
     return () => window.clearTimeout(timer);
   }, [phase, run]);
@@ -72,6 +71,7 @@ export default function HeroIntro() {
     </div>}
     <div className="intro-shade" aria-hidden="true" />
     <div className="welcome-copy">
+      <span className="winter-badge"><Snowflake size={17} aria-hidden="true" />Строим зимой</span>
       <h1 id="welcome-title">Домой хочется<br />ещё до переезда.</h1>
       <p>Сначала — ваша идея. Затем — ваш дом.</p>
       <div className="welcome-actions">

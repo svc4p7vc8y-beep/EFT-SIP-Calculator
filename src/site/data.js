@@ -2,12 +2,14 @@ import { residentialProjects } from './residential.js';
 import { referenceProjects } from './referenceProjects.js';
 import { cabinProjects } from './cabinProjects.js';
 import { showcaseProjects } from './showcaseProjects.js';
+import { featuredProjects } from './featuredProjects.js';
 
 export const projectCategories = [
   {
     id: 'projects', number: '01', eyebrow: 'Коллекция проектов', title: 'Жилые дома', accent: 'Для вашей истории.',
     description: 'Продуманные пространства для постоянной жизни — от компактного дома до семейной резиденции.',
     projects: [
+      ...featuredProjects,
       ...cabinProjects,
       ...referenceProjects,
       ...residentialProjects,

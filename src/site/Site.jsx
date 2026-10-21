@@ -25,6 +25,7 @@ const nav = [
   ["technology", "Технология"],
   ["contact", "Контакты"],
 ];
+const projectPriceFormat = new Intl.NumberFormat('ru-RU');
 
 function projectCountLabel(count) {
   const lastTwo = count % 100;
@@ -40,11 +41,13 @@ function projectCountLabel(count) {
 }
 
 function ProjectCard({ project, onOpen, index = 0 }) {
+  const hasPrice = typeof project.price === 'number' && Number.isFinite(project.price) && project.price > 0;
+  const priceLabel = hasPrice ? `${projectPriceFormat.format(project.price)} ₽` : 'Узнать цену';
   return (
     <button
       className="house-card motion-card"
       style={{ "--reveal-index": index }}
-      aria-label={`Открыть проект ${project.name}`}
+      aria-label={`Открыть проект ${project.name}. ${priceLabel}`}
       onPointerEnter={() => import("./ProjectDialog.jsx")}
       onFocus={() => import("./ProjectDialog.jsx")}
       onClick={() => onOpen(project)}
@@ -74,6 +77,13 @@ function ProjectCard({ project, onOpen, index = 0 }) {
         {project.meta.map((item) => (
           <span key={item}>{item}</span>
         ))}
+      </div>
+      {project.description ? <p className="house-summary">{project.description}</p> : null}
+      {project.highlights?.length ? <span className="house-feature">{project.highlights[0]}</span> : null}
+      <div className="house-card-bottom">
+        <span className="house-price-caption">Стоимость проекта</span>
+        <strong className={hasPrice ? 'house-price' : 'house-price house-price-inquiry'}>{priceLabel}</strong>
+        <span className="house-card-action">Подробнее <ArrowUpRight size={16} /></span>
       </div>
     </button>
   );
@@ -115,7 +125,8 @@ function ProjectCollection({ category, expanded, onOpen, onToggle }) {
           aria-controls={extraId}
           onClick={() => onToggle(category.id)}
         >
-          {expanded ? "Свернуть каталог" : "Показать весь каталог"}
+          <span>{expanded ? "Свернуть каталог" : "Показать весь каталог"}</span>
+          {!expanded ? <small>{projectCountLabel(category.projects.length).replace(' в подборке', '')}</small> : null}
           {expanded ? (
             <ArrowDown className="turn-up" size={17} />
           ) : (
