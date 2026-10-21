@@ -112,12 +112,48 @@
 .placement-annotation-settings{border-top:1px solid #e1e9e5;margin-top:14px;padding-top:12px}.placement-annotation-settings label{display:flex;gap:8px;align-items:center;margin:8px 0;font-size:.78rem}.placement-annotation-settings label:has(select){display:grid}.placement-annotation-settings input[type=checkbox]{width:auto;flex:none}.placement-annotation-settings select{width:100%;padding:7px;border:1px solid #d2e0dc;border-radius:7px;background:#fff}
 .placement-auto-route{display:flex;align-items:center;gap:7px;width:100%;padding:9px;margin:8px 0;border:1px solid #80b1a5;border-radius:8px;background:#e7f4ee;color:#24594b}.placement-auto-route:disabled{opacity:.45}.placement-route-hint{font-size:.76rem;color:#947c51}.placement-electrical-bill{border-top:1px solid #e1e9e5;margin-top:13px;padding-top:9px;font-size:.75rem;line-height:1.35}.placement-electrical-bill h3{font-size:.87rem}.placement-electrical-bill ul{padding:0;list-style:none}.placement-electrical-bill li{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid #eef2ef}.placement-electrical-bill li small{width:100%;color:#788782}
 @media(min-width:701px){.placement-sidebar{max-height:min(80vh,820px);overflow-y:auto}}
-.placement-fullscreen{position:fixed;inset:0;z-index:9999;padding:10px;background:#f4f8f6;display:flex;flex-direction:column}
-.placement-fullscreen .placement-heading,.placement-fullscreen .placement-toolbar,.placement-fullscreen .placement-layers,.placement-fullscreen .placement-sidebar,.placement-fullscreen .placement-inspector{display:none}
-.placement-fullscreen .placement-workspace{display:block;flex:1;min-height:0}
-.placement-fullscreen .placement-canvas-panel{height:100%;display:flex;flex-direction:column}
+.placement-fullscreen-panel-tools,.placement-heading-actions .placement-fullscreen-exit{display:none}
+.placement-fullscreen{position:fixed;inset:0;z-index:9999;padding:8px;background:#f4f8f6;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:6px;overflow:hidden;box-sizing:border-box}
+.placement-fullscreen .placement-heading{margin:0;align-items:center;min-width:0}
+.placement-fullscreen .placement-heading h1{font-size:1.1rem;margin:0}
+.placement-fullscreen .placement-heading p,.placement-fullscreen .placement-eyebrow{display:none}
+.placement-fullscreen .placement-heading-actions{align-items:center;justify-content:flex-end}
+.placement-fullscreen .placement-heading-actions .placement-fullscreen-exit{display:inline-flex}
+.placement-fullscreen .placement-heading-actions>button{padding:6px 9px}
+.placement-fullscreen .placement-toolbar{margin:0;padding:5px 8px;min-height:38px;flex-wrap:nowrap;overflow-x:auto}
+.placement-fullscreen .placement-floor-tabs,.placement-fullscreen .placement-summary{flex-wrap:nowrap;white-space:nowrap}
+.placement-fullscreen .placement-summary,.placement-fullscreen .placement-measure-tools{flex:none}
+.placement-fullscreen .placement-measure-tools{flex-wrap:nowrap;margin-left:0;white-space:nowrap}
+.placement-fullscreen .placement-measure-tools button{white-space:nowrap}
+.placement-fullscreen .placement-layers{margin:0;min-height:38px;overflow-x:auto;flex-wrap:nowrap}
+.placement-fullscreen .placement-workspace{display:grid;grid-template-columns:clamp(200px,17vw,265px) minmax(0,1fr) clamp(215px,18vw,280px);gap:7px;min-height:0;align-items:stretch}
+.placement-fullscreen .placement-sidebar,.placement-fullscreen .placement-inspector{display:block;grid-column:auto;max-height:none;min-height:0;overflow-y:auto;box-sizing:border-box}
+.placement-fullscreen .placement-palette{max-height:none;min-height:0;overflow:visible}
+.placement-fullscreen .placement-canvas-panel{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .placement-fullscreen .placement-canvas-scroll{flex:1;min-height:0;height:auto}
 .placement-fullscreen .placement-canvas{height:100%;width:100%;min-width:0}
 .placement-fullscreen .placement-canvas-note{padding:6px 12px}
 @media(max-width:1150px){.placement-workspace{grid-template-columns:minmax(220px,245px) minmax(0,1fr)}.placement-inspector{grid-column:1/-1}}
 @media(max-width:700px){.placement-screen{padding:10px}.placement-layers{margin-bottom:10px}.placement-workspace{display:flex;flex-direction:column}.placement-sidebar,.placement-canvas-panel,.placement-inspector{width:100%}.placement-category-rail{flex-direction:column}.placement-palette{display:grid;grid-template-columns:1fr;max-height:300px;min-height:180px;overflow:auto}.placement-palette>button{width:100%;min-width:0}.placement-canvas-title{align-items:center;flex-direction:row;flex-wrap:wrap}.placement-canvas-scroll{height:550px}.placement-canvas{min-width:0}.placement-fullscreen .placement-canvas-scroll{height:auto}}
+@media(max-width:1150px){
+  .placement-fullscreen .placement-heading{display:flex;flex-wrap:wrap}
+  .placement-fullscreen .placement-heading-actions{flex-wrap:nowrap;min-width:0;overflow-x:auto;margin:0}
+  .placement-fullscreen .placement-fullscreen-panel-tools{display:flex;gap:4px;flex:none}
+  .placement-fullscreen-panel-tools button{padding:6px 8px;white-space:nowrap}
+  .placement-fullscreen-panel-tools button.active{background:#315f58;color:#fff;border-color:#315f58}
+  .placement-fullscreen .placement-workspace{display:block;position:relative;min-height:0}
+  .placement-fullscreen .placement-canvas-panel{width:100%;height:100%}
+  .placement-fullscreen .placement-sidebar,.placement-fullscreen .placement-inspector{display:none;position:absolute;top:0;bottom:0;z-index:5;width:min(320px,85vw);max-height:none;box-shadow:0 12px 32px #1c433c33}
+  .placement-fullscreen-library .placement-sidebar{display:block;left:0}
+  .placement-fullscreen-properties .placement-inspector{display:block;right:0}
+}
+@media(max-width:700px){
+  .placement-fullscreen{padding:5px;gap:4px}
+  .placement-fullscreen .placement-heading{display:block}
+  .placement-fullscreen .placement-heading h1{font-size:.94rem}
+  .placement-fullscreen .placement-heading-actions{margin-top:3px;justify-content:flex-start}
+  .placement-fullscreen .placement-heading-actions>button{font-size:.72rem;padding:5px 7px;white-space:nowrap}
+  .placement-fullscreen .placement-toolbar,.placement-fullscreen .placement-layers{min-height:34px}
+  .placement-fullscreen .placement-sidebar,.placement-fullscreen .placement-inspector{width:min(330px,92vw)}
+  .placement-fullscreen .placement-palette{display:grid;grid-template-columns:1fr;max-height:none;min-height:0;overflow:visible}
+}

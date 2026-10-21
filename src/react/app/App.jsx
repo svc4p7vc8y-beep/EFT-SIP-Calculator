@@ -146,10 +146,10 @@ function downloadProject(project) {
   setTimeout(() => URL.revokeObjectURL(link.href), 0);
 }
 
-function Screen({ active, calculation, teamProps, onNavigate, planCommand, onPlanCommandHandled }) {
+function Screen({ active, calculation, teamProps, onNavigate, onOpenLibraryPlan, planCommand, onPlanCommandHandled }) {
   if (active === "team") return <TeamWorkspaceScreen {...teamProps} />;
   if (active === "mail") return <MailScreen />;
-  if (active === "files") return <FilesScreen />;
+  if (active === "files") return <FilesScreen onOpenLibraryPlan={onOpenLibraryPlan} />;
   if (active === "plan") return <PlanScreen planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
   if (active === "placement") return <PlacementScreen />;
   if (active === "parameters") return <ParametersScreen />;
@@ -192,7 +192,7 @@ export function App() {
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [planCommand, setPlanCommand] = useState(null);
-  const runPlanCommand = kind => { setActive('plan'); setMenuOpen(false); setPlanCommand({kind,id:Date.now()}); };
+  const runPlanCommand = (kind, details = {}) => { setActive('plan'); setMenuOpen(false); setPlanCommand({kind,...details,id:Date.now()}); };
   const [backupOpen, setBackupOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [briefPreview, setBriefPreview] = useState(null);
@@ -470,7 +470,7 @@ export function App() {
             <strong>ЭнергоЭффективные Технологии</strong>
             <span>React-конструктор СИП-домов</span>
           </div>
-          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 259{import.meta.env.VITE_BUILD_REVISION ? ` · ${import.meta.env.VITE_BUILD_REVISION.slice(0, 7)}` : ''}</span>
+          <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия 260{import.meta.env.VITE_BUILD_REVISION ? ` · ${import.meta.env.VITE_BUILD_REVISION.slice(0, 7)}` : ''}</span>
         </div>
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
@@ -728,6 +728,7 @@ export function App() {
                 active={active}
                 planCommand={planCommand}
                 onPlanCommandHandled={() => setPlanCommand(null)}
+                onOpenLibraryPlan={entryId => runPlanCommand('openLibraryEntry', { entryId })}
                 calculation={calculation}
                 onNavigate={setActive}
                 teamProps={{

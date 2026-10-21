@@ -5516,6 +5516,11 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   useEffect(() => {
     if (!planCommand) return;
     if (planCommand.kind === 'openLibrary') setLibraryOpen(true);
+    if (planCommand.kind === 'openLibraryEntry') {
+      const entry = libraryPlans.find(item => item.id === planCommand.entryId);
+      if (entry) openLibraryPlan(entry);
+      else { setLibraryOpen(true); setTransferStatus('План не найден в библиотеке. Выберите доступный план.'); }
+    }
     if (planCommand.kind === 'saveLibrary') saveSketch();
     if (planCommand.kind === 'newProject') {
       setActiveFloor(1);
