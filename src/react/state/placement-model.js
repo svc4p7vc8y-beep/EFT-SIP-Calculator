@@ -177,7 +177,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 4, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: true, networks: normalizeNetworkRoutes() };
+  return { version: 5, items: [], circuits: [], routes: [], dimensions: [], showAutoDimensions: true, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -190,12 +190,13 @@ export function normalizePlacement(value) {
   const normalized = {
     ...base,
     ...value,
-    version: 4,
+    version: 5,
     showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,
       floor: Math.max(1, Math.min(2, Math.round(finite(item.floor, 1)))),
       x: finite(item.x), y: finite(item.y),
+      ...(item.kind === 'junction-box' ? { diagramX: finite(item.diagramX, finite(item.x)), diagramY: finite(item.diagramY, finite(item.y)) } : {}),
       width: Math.max(.05, finite(item.width, .5)),
       depth: Math.max(.05, finite(item.depth, .5)),
       rotation: finite(item.rotation),

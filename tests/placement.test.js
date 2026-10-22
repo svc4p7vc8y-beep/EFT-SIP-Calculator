@@ -11,6 +11,51 @@ import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoute
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
 import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
+import { alignLightToNeighbors, junctionWallMount, panelRouteBundles, schematicPosition } from '../src/react/state/placement-schematic.js';
+
+test('light alignment guides snap to nearby lights on both axes', () => {
+  const room = { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }, { x: 0, y: 5 }] };
+  const light = { id: 'a', kind: 'light', floor: 1, x: 2, y: 2 };
+  const result = alignLightToNeighbors({ x: 2.08, y: 2.09 }, { id: 'b', kind: 'spotlight', floor: 1 }, [light], [room]);
+  assert.deepEqual(result.position, { x: 2, y: 2 });
+  assert.deepEqual(result.guides.map(guide => guide.axis), ['x', 'y']);
+});
+
+test('junction schematic position is independent of its physical wall mount and cable length', () => {
+  const project = createDefaultProject();
+  const room = project.plan.rooms[0];
+  const vertices = room.points;
+  const at = { x: (vertices[0].x + vertices[2].x) / 2, y: (vertices[0].y + vertices[2].y) / 2 };
+  const mount = junctionWallMount(project.plan, at, room);
+  assert.ok(mount);
+  assert.ok(Math.min(...vertices.map((_, index) => projectToRoomEdge(room, index, mount).distance)) < .12);
+  const junction = { id: 'box', floor: 1, layer: 'electric', kind: 'junction-box', ...mount, diagramX: at.x, diagramY: at.y, height: 2.35, heightKnown: true, circuitId: 'c1' };
+  assert.deepEqual(schematicPosition(junction), at);
+  const normalized = normalizePlacement({ items: [junction], circuits: [{ id: 'c1', name: 'Группа 1' }] });
+  assert.equal(normalized.items[0].diagramX, at.x);
+  project.placement.items.push(junction);
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.deepEqual(schematicPosition(reopened.placement.items.find(item => item.id === 'box')), at);
+  assert.equal(reopened.placement.items.find(item => item.id === 'box').x, mount.x);
+  const legacy = normalizePlacement({ items: [{ ...junction, diagramX: undefined, diagramY: undefined }] });
+  assert.deepEqual(schematicPosition(legacy.items[0]), { x: mount.x, y: mount.y });
+  const panel = { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: mount.x + 1, y: mount.y + 1, height: 1.5, heightKnown: true };
+  const circuit = { id: 'c1', name: 'Группа 1' };
+  const route = { id: 'feed', floor: 1, circuitId: 'c1', panelItemId: 'panel', fromItemId: 'panel', targetItemId: 'box', auto: true, points: [] };
+  const physical = electricalBill({ items: [panel, junction], circuits: [circuit], routes: [route] }, 1, project.plan).routeMetres;
+  const movedDiagram = electricalBill({ items: [panel, { ...junction, diagramX: at.x + .5, diagramY: at.y + .5 }], circuits: [circuit], routes: [route] }, 1, project.plan).routeMetres;
+  assert.equal(movedDiagram, physical);
+});
+
+test('shared panel approach displays a lane per circuit without changing route geometry', () => {
+  const routes = ['c1', 'c2'].map((circuitId, index) => ({ circuitId, panelItemId: 'panel', fromItemId: 'panel', points: [{ x: 0, y: 0 }, { x: 0, y: index ? 3 : 2 }] }));
+  const original = JSON.stringify(routes);
+  const bundles = panelRouteBundles(routes);
+  assert.equal(bundles.length, 1);
+  assert.deepEqual(bundles[0].circuits, ['c1', 'c2']);
+  assert.equal(bundles[0].end.y, 2);
+  assert.equal(JSON.stringify(routes), original);
+});
 
 test('room unfolding keeps every wall edge length and projects all four shared edges consistently', () => {
   const room = createDefaultProject().plan.rooms[0];
@@ -135,7 +180,7 @@ test('existing appliances receive editable network ports once without changing t
   project.placement.items.push({ id: 'sink-1', floor: 1, layer: 'furniture', kind: 'kitchen-sink', label: 'Мойка', x: 2, y: 2, width: .8, depth: .6, height: 0 });
   const migrated = migrateProject(project);
   const ports = migrated.placement.items.filter(item => item.linkedApplianceId === 'sink-1');
-  assert.equal(migrated.placement.version, 4);
+  assert.equal(migrated.placement.version, 5);
   assert.deepEqual(ports.map(item => [item.layer, item.connectionMedium]), [['plumbing', 'cold'], ['plumbing', 'hot'], ['sewer', 'waste']]);
   assert.equal(ports.every(item => item.heightKnown === false && item.followsAppliance), true);
   assert.equal(calculateProject(migrated).totals.total, before);
@@ -182,7 +227,7 @@ test('network routes preserve wall station, heights and independent sheets after
   );
   project.placement.networks.plumbing.push({ id: 'water-route', floor: 1, medium: 'cold', fromId: 'water-in', toId: 'water-out', auto: true, wallRef: wall.ref, routeLevel: 2, diameterMm: 20, material: 'Труба проекта', accessories: [{ name: 'Кран', quantity: 2, unit: 'шт' }], points: [{ ...first, z: 1 }, { ...second, z: .5 }] });
   const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
-  assert.equal(reopened.placement.version, 4);
+  assert.equal(reopened.placement.version, 5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).totalLength, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).pipeRows[0].metres, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).components.find(entry => entry.name === 'Кран').quantity, 2);
