@@ -1,6 +1,6 @@
 import { placementWallFaces } from './placement-walls.js';
 import { appendSurfaceWaypoint, surfaceRouteLeg } from './placement-route-surfaces.js';
-import { appendManualRouteWaypoint, finishManualRoute } from './placement-manual-routing.js';
+import { electricalDrawingAnchors } from './placement-schematic.js';
 
 const round = value => Math.round(value * 100) / 100;
 export const routeLength = points => (points || []).slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
@@ -133,33 +133,35 @@ export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId,
 
 export function resolvedElectricalRoutes(placement, floor, plan = null) {
   const items = (placement.items || []).filter(item => item.floor === floor);
+  const drawingAnchors = plan ? electricalDrawingAnchors(items, plan.rooms || []) : null;
   return (placement.routes || []).filter(route => route.floor === floor && (placement.electricalRouteMode === 'manual' ? route.auto !== true : placement.electricalRouteMode === 'automatic' ? route.auto !== false : true)).map(route => {
     const panel = items.find(item => item.id === route.panelItemId);
     const from = items.find(item => item.id === route.fromItemId) || panel;
     if (!route.auto) {
       const target = items.find(item => item.id === route.targetItemId);
       if (!from || route.points.length < 2) return route;
-      if (route.rebuildOnMove && target && plan) {
+      if (route.rebuildOnMove && route.purpose !== 'manual' && target && plan) {
         const start = { x: from.x, y: from.y, z: from.heightKnown ? Number(from.height) || 0 : Number(route.points[0].z) || 0, surface: 'device', wallRef: from.wallRef || '' };
         const end = { x: target.x, y: target.y, z: target.heightKnown ? Number(target.height) || 0 : Number(route.points.at(-1).z) || 0, surface: 'device', wallRef: target.wallRef || '' };
         let rebuilt = [start];
         for (const anchor of route.points.filter(point => point.waypoint)) {
-          const next = route.purpose === 'manual'
-            ? appendManualRouteWaypoint(rebuilt, { position: anchor, surface: anchor.surface || 'ceiling', wallRef: anchor.wallRef || '' }, plan, route.wallHeight ?? null)
-            : appendSurfaceWaypoint(rebuilt, anchor, anchor.surface || 'ceiling', plan, route.wallHeight ?? null, anchor.wallRef || '');
+          const next = appendSurfaceWaypoint(rebuilt, anchor, anchor.surface || 'ceiling', plan, route.wallHeight ?? null, anchor.wallRef || '');
           if (!next) { rebuilt = null; break; }
           rebuilt = next;
         }
         if (rebuilt) {
           const surface = route.surface || rebuilt.at(-1).surface || 'ceiling';
-          const leg = route.purpose === 'manual' ? finishManualRoute(rebuilt, end, surface, plan, route.wallHeight ?? null)
-            : surfaceRouteLeg(rebuilt.at(-1), end, surface, plan, route.wallHeight ?? null);
-          if (leg) return { ...route, points: route.purpose === 'manual' ? leg : [...rebuilt, ...leg.slice(1)] };
+          const leg = surfaceRouteLeg(rebuilt.at(-1), end, surface, plan, route.wallHeight ?? null);
+          if (leg) return { ...route, points: [...rebuilt, ...leg.slice(1)] };
         }
       }
       const points = route.points.map(point => ({ ...point }));
-      points[0] = { ...points[0], x: from.x, y: from.y, ...(from.heightKnown ? { z: Number(from.height) || 0 } : {}) };
-      if (target) points[points.length - 1] = { ...points[points.length - 1], x: target.x, y: target.y, ...(target.heightKnown ? { z: Number(target.height) || 0 } : {}) };
+      const start = route.purpose === 'manual' ? drawingAnchors?.get(from.id) || from : from;
+      points[0] = { ...points[0], x: start.x, y: start.y, ...(from.heightKnown ? { z: Number(from.height) || 0 } : {}) };
+      if (target) {
+        const end = route.purpose === 'manual' ? drawingAnchors?.get(target.id) || target : target;
+        points[points.length - 1] = { ...points[points.length - 1], x: end.x, y: end.y, ...(target.heightKnown ? { z: Number(target.height) || 0 } : {}) };
+      }
       return { ...route, points };
     }
     const target = items.find(item => item.id === route.targetItemId);

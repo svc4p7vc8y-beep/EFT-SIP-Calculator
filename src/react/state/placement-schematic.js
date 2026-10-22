@@ -2,12 +2,24 @@ import { roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from './placement-geometry.js';
 import { projectToRoomEdge, roomEdgePosition } from './placement-room.js';
 import { placementWallFaces, projectToWallFace } from './placement-walls.js';
+import { electricalPlacementClusters, wallPointDisplayOrder } from './placement-visibility.js';
 
 const round = value => Math.round(value * 100) / 100;
 const lightKinds = new Set(['light', 'spotlight', 'pendant-light']);
 
 export const schematicPosition = item => item?.kind === 'junction-box' && Number.isFinite(item.diagramX) && Number.isFinite(item.diagramY)
   ? { x: item.diagramX, y: item.diagramY } : { x: item.x, y: item.y };
+
+/** The cable endpoint uses the same on-plan position as the clicked symbol. */
+export function electricalDrawingAnchors(items, rooms = []) {
+  const anchors = new Map(items.map(item => [item.id, schematicPosition(item)]));
+  for (const cluster of electricalPlacementClusters(items.filter(item => item.kind !== 'junction-box'), rooms)) {
+    for (const { item, offset } of wallPointDisplayOrder(cluster.items)) {
+      anchors.set(item.id, { x: cluster.x + cluster.normal.x * offset, y: cluster.y + cluster.normal.y * offset });
+    }
+  }
+  return anchors;
+}
 
 export function junctionWallMount(plan, position, preferredRoom = null) {
   const rooms = (plan.rooms || []).filter(room => room.include !== false);

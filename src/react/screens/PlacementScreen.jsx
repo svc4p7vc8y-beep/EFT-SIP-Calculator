@@ -20,7 +20,7 @@ import { ELECTRICAL_CABLE_CHOICES, breakerDescription, electricalBill, electrica
 import { NETWORK_SYSTEMS, isNetworkLayer, networkLength3d, resolvedNetworkRoutes } from '../state/placement-networks.js';
 import { insertRoutePoint, pointOnRouteSegment, removeRoutePoint, routeSegmentDirection, shiftRouteSegment } from '../state/placement-route-edit.js';
 import { ROUTE_SURFACES, appendSurfaceWaypoint, nearestRouteWall, orthogonalizeSurfaceRoute, replaceRouteSurface, routeSurfaceAtPoint, routeSurfaceHeight, surfaceRouteLeg } from '../state/placement-route-surfaces.js';
-import { alignLightToNeighbors, junctionWallMount, schematicPosition, sharedElectricalRouteLanes } from '../state/placement-schematic.js';
+import { alignLightToNeighbors, electricalDrawingAnchors, junctionWallMount, schematicPosition, sharedElectricalRouteLanes } from '../state/placement-schematic.js';
 import { appendManualRouteWaypoint, finishManualRoute, manualRouteSnap } from '../state/placement-manual-routing.js';
 import './placement.css';
 
@@ -140,6 +140,8 @@ export default function PlacementScreen() {
   const hiddenCircuitPoints = useMemo(() => new Set(placement.hiddenCircuitPointIds || []), [placement.hiddenCircuitPointIds]);
   const displayedItems = useMemo(() => items.filter(item => item.layer !== 'electric' || item.kind === 'panel' || !hiddenCircuitPoints.has(item.circuitId)), [items, hiddenCircuitPoints]);
   const electricalClusters = useMemo(() => electricalPlacementClusters(displayedItems.filter(item => item.kind !== 'junction-box'), rooms), [displayedItems, rooms]);
+  const electricalAnchors = useMemo(() => electricalDrawingAnchors(displayedItems, rooms), [displayedItems, rooms]);
+  const routeAnchor = item => electricalAnchors.get(item.id) || schematicPosition(item);
   const clusteredItemIds = useMemo(() => new Set(electricalClusters.flatMap(cluster => cluster.items.map(item => item.id))), [electricalClusters]);
   const routes = useMemo(() => resolvedElectricalRoutes(placement, activeFloor, plan), [placement, activeFloor, plan]);
   const displayedRoutes = useMemo(() => routes.filter(route => !hiddenCircuitLines.has(route.circuitId)), [routes, hiddenCircuitLines]);
@@ -405,9 +407,9 @@ export default function PlacementScreen() {
     if (!source || !target || source.id === target.id || !circuitId) { setRouteNotice('Выберите две разные электроточки и группу.'); return; }
     if ([source, target].some(item => item.kind !== 'panel' && item.circuitId && item.circuitId !== circuitId)) { setRouteNotice('Точки относятся к разным группам. Сначала измените назначение группы.'); return; }
     if (source && target && source.id !== target.id && circuitId) {
-      const next = { x: target.x, y: target.y, z: Number(target.height) || 0, surface: 'device', wallRef: target.wallRef || '' };
+      const next = { ...routeAnchor(target), z: Number(target.height) || 0, surface: 'device', wallRef: target.wallRef || '' };
       const finalSurface = routeSurface;
-      const leg = finishManualRoute(routePoints, next, finalSurface, plan, wallRouteHeight);
+      const leg = finishManualRoute(routePoints, next);
       if (!leg) { setRouteNotice('Не удалось провести участок по выбранной плоскости.'); return; }
       const drawnPoints = leg;
       // Store a junction-to-panel cable in panel-to-junction direction.
@@ -423,12 +425,12 @@ export default function PlacementScreen() {
         }
         data.routes.push({ id: createId(), floor: activeFloor, circuitId,
           panelItemId: panel?.id || '', fromItemId: fromId, targetItemId: toId, auto: false,
-          purpose: 'manual', surface: finalSurface, wallHeight: wallRouteHeight, rebuildOnMove: true, points }); rebuildAutoRoutes(data, circuitId);
+          purpose: 'manual', surface: finalSurface, wallHeight: wallRouteHeight, rebuildOnMove: false, points });
       });
       setRouteNotice('Участок сохранён. Ведите кабель от этой точки дальше или нажмите пробел для завершения.');
     }
     const nextSource = target;
-    setRoutePoints([{ x: nextSource.x, y: nextSource.y, z: Number(nextSource.height) || 0, surface: 'device', wallRef: nextSource.wallRef || '' }]);
+    setRoutePoints([{ ...routeAnchor(nextSource), z: Number(nextSource.height) || 0, surface: 'device', wallRef: nextSource.wallRef || '' }]);
     setRouteStartId(nextSource.id);
     setRouteCursor(null);
   };
@@ -439,11 +441,11 @@ export default function PlacementScreen() {
       if (item.circuitId && selectedCircuitId !== item.circuitId) setSelectedCircuitId(item.circuitId);
       setRouteNotice('');
       setRouteStartId(item.id);
-      setRoutePoints([{ x: item.x, y: item.y, z: Number(item.height) || 0, surface: 'device', wallRef: item.wallRef || '' }]);
+      setRoutePoints([{ ...routeAnchor(item), z: Number(item.height) || 0, surface: 'device', wallRef: item.wallRef || '' }]);
       return;
     }
     if (item.id !== routeStartId) finishRoute(item);
-    else { setRoutePoints([{ x: item.x, y: item.y, z: Number(item.height) || 0, surface: 'device', wallRef: item.wallRef || '' }]); setRouteNotice('Начните новый участок от этой точки.'); }
+    else { setRoutePoints([{ ...routeAnchor(item), z: Number(item.height) || 0, surface: 'device', wallRef: item.wallRef || '' }]); setRouteNotice('Начните новый участок от этой точки.'); }
   };
   const pendingManualRoute = useCallback(() => {
     const source = items.find(item => item.id === routeStartId);
@@ -547,16 +549,38 @@ export default function PlacementScreen() {
   const updateRoute = (id, patch) => change(data => { const route = data.routes.find(entry => entry.id === id); if (route) { Object.assign(route, patch); if (patch.auto === false) data.electricalRouteMode = 'manual'; if (patch.auto === true) data.electricalRouteMode = 'automatic'; } });
   const replaceRouteGeometry = (route, points) => {
     if (!route || !points || linesLocked) return;
-    const geometry = points.some(point => point.surface) ? orthogonalizeSurfaceRoute(points, plan) : points;
+    const geometry = route.purpose === 'manual' ? points : points.some(point => point.surface) ? orthogonalizeSurfaceRoute(points, plan) : points;
     change(data => { const target = data.routes.find(entry => entry.id === route.id); if (target) { Object.assign(target, { auto: false, rebuildOnMove: false, points: geometry }); data.electricalRouteMode = 'manual'; } });
   };
   const setRouteSegmentSurface = (route, index, surface, height = wallRouteHeight) => {
+    if (route.purpose === 'manual') {
+      const points = route.points.map(point => ({ ...point }));
+      points[index + 1] = { ...points[index + 1], surface,
+        ...(points[index + 1].waypoint ? { z: routeSurfaceHeight(plan, surface, height) } : {}) };
+      replaceRouteGeometry(route, points);
+      setSelectedRouteSegment({ routeId: route.id, index });
+      return;
+    }
     const points = replaceRouteSurface(route.points, index, surface, plan, height);
     if (!points) return;
     replaceRouteGeometry(route, points);
     setSelectedRouteSegment({ routeId: route.id, index });
   };
   const setWholeRouteSurface = (route, surface) => {
+    if (route.purpose === 'manual') {
+      if (surface === 'wall' && route.points.some(point => point.waypoint && (nearestRouteWall(plan, point)?.projection.distance ?? Infinity) > .12)) {
+        setRouteNotice('Точки внутри комнаты останутся на месте. Для стены перенесите их на стену вручную.');
+        return;
+      }
+      change(data => {
+        const target = data.routes.find(entry => entry.id === route.id);
+        if (!target) return;
+        target.surface = surface; target.wallHeight = wallRouteHeight; target.rebuildOnMove = false;
+        target.points = route.points.map(point => point.waypoint ? { ...point, surface, z: routeSurfaceHeight(plan, surface, wallRouteHeight) } : { ...point });
+      });
+      setRouteNotice('');
+      return;
+    }
     if (surface === 'wall') {
       let cursor = route.points[0];
       for (const target of [...route.points.filter(point => point.waypoint), route.points.at(-1)]) {
@@ -572,7 +596,7 @@ export default function PlacementScreen() {
     data.electricalRouteMode = 'manual';
     target.surface = surface;
     target.wallHeight = wallRouteHeight;
-    target.rebuildOnMove = true;
+     target.rebuildOnMove = true;
     target.points = route.points.map(point => point.waypoint ? { ...point, surface } : { ...point });
     });
     setRouteNotice('');
@@ -592,17 +616,18 @@ export default function PlacementScreen() {
     route.auto = false;
     data.electricalRouteMode = 'manual';
     const previous = route.points[index];
-    const location = previous.surface === 'wall' ? nearestRouteWall(plan, point, previous.wallRef)?.projection.foot || point : gridPoint(point);
+    const location = previous.surface === 'wall' ? nearestRouteWall(plan, point, previous.wallRef)?.projection.foot || point : route.purpose === 'manual' ? point : gridPoint(point);
     route.points[index] = { ...previous, x: round(location.x), y: round(location.y) };
-    if (route.points.some(entry => entry.surface)) route.points = orthogonalizeSurfaceRoute(route.points, plan);
+    if (route.purpose !== 'manual' && route.points.some(entry => entry.surface)) route.points = orthogonalizeSurfaceRoute(route.points, plan);
   } });
   const addRouteWaypoint = route => {
     if (!route || route.points.length < 2) return;
     const before = route.points[route.points.length - 2], after = route.points.at(-1);
     change(data => { const target = data.routes.find(entry => entry.id === route.id); if (target) {
       target.auto = false; data.electricalRouteMode = 'manual'; target.points = route.points.map(point => ({ ...point }));
-      target.points.splice(target.points.length - 1, 0, { ...gridPoint({ x: (before.x + after.x) / 2, y: (before.y + after.y) / 2 }), z: round(((before.z || 0) + (after.z || 0)) / 2), ...(before.surface ? { surface: before.surface } : {}) });
-      if (target.points.some(entry => entry.surface)) target.points = orthogonalizeSurfaceRoute(target.points, plan);
+      const midpoint = { x: round((before.x + after.x) / 2), y: round((before.y + after.y) / 2) };
+      target.points.splice(target.points.length - 1, 0, { ...(route.purpose === 'manual' ? midpoint : gridPoint(midpoint)), z: round(((before.z || 0) + (after.z || 0)) / 2), ...(before.surface ? { surface: before.surface } : {}) });
+      if (route.purpose !== 'manual' && target.points.some(entry => entry.surface)) target.points = orthogonalizeSurfaceRoute(target.points, plan);
     } });
   };
   const autoRouteCircuit = () => {
@@ -621,6 +646,21 @@ export default function PlacementScreen() {
     setDrawingRoute(false); setRoutePoints([]); setRouteStartId(''); setRouteCursor(null);
     setSelectedRouteId(null); setRouteNotice('');
     setRouteSurface(placement.defaultRouteSurface || 'ceiling');
+  };
+  const beginManualRoute = () => {
+    if (routeMode !== 'manual') selectRouteMode('manual');
+    setDrawingRoute(true); setAssigningCircuit(false); setPresetId(null);
+    setRoutePoints([]); setRouteStartId(''); setRouteCursor(null);
+    setRouteNotice('Выберите любую электроточку для начала кабеля.'); setDrawingDimension(false);
+    setVisible(current => ({ ...current, electric: true }));
+  };
+  const chooseDrawingElement = entry => {
+    setPresetId(current => current === entry.id ? null : entry.id);
+    setLayer(entry.layer); setCategory('all'); setQuery('');
+    setVisible(current => ({ ...current, [entry.layer]: true }));
+    setSelectedId(null); setDrawingRoute(false); setRoutePoints([]);
+    setDrawingDimension(false); setDimensionStart(null);
+    setNetworkDrawing(false); setNetworkPoints([]);
   };
   const beginDrag = (event, item) => {
     if (elementsLocked || drawingRoute || drawingDimension || networkDrawing || assigningCircuit || (isNetworkLayer(layer) && !event.altKey)) return;
@@ -850,6 +890,11 @@ export default function PlacementScreen() {
     ? routeMode === 'manual' ? appendManualRouteWaypoint(routePoints, { position: routeCursor, surface: routeCursor.surface, wallRef: routeCursor.wallRef }, plan, wallRouteHeight) || routePoints
       : [...routePoints, routeCursor] : routePoints;
   const layerToolbar = <div className="placement-layers" role="toolbar" aria-label="Слои плана">{PLACEMENT_LAYERS.map(entry => <div className={`placement-layer-row ${layer === entry.id ? 'active' : ''}`} key={entry.id}><button className="placement-layer-select" disabled={entry.future} onClick={() => changeLayer(entry.id)}>{entry.label}{entry.future ? <small>позже</small> : null}</button>{!entry.future ? <button className="placement-eye" aria-label={`${visible[entry.id] ? 'Скрыть' : 'Показать'} ${entry.label}`} onClick={() => setVisible(old => ({ ...old, [entry.id]: !old[entry.id] }))}>{visible[entry.id] ? <Eye size={16}/> : <EyeOff size={16}/>}</button> : null}</div>)}</div>;
+  const drawingRail = <div className="placement-drawing-rail" aria-label="Инструменты на плане">
+    <nav className="placement-drawing-rail-tabs" aria-label="Инструменты рисования"><button className={sidebarTab === 'elements' ? 'active' : ''} aria-pressed={sidebarTab === 'elements'} onClick={() => setSidebarTab('elements')}>Элементы</button><button className={sidebarTab === 'routes' ? 'active' : ''} aria-pressed={sidebarTab === 'routes'} onClick={() => { setSidebarTab('routes'); setLayer('electric'); }}>Схема трасс</button></nav>
+    {sidebarTab === 'elements' ? <><select aria-label="Раздел элементов на плане" value={layer} onChange={event => changeLayer(event.target.value)}>{PLACEMENT_LAYERS.filter(entry => !entry.future).map(entry => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select><input aria-label="Поиск элементов на плане" placeholder="Найти элемент" value={query} onChange={event => setQuery(event.target.value)}/><div className="placement-drawing-rail-list">{catalogItems.map(entry => <button key={entry.id} className={presetId === entry.id ? 'active' : ''} title={entry.label} onClick={() => chooseDrawingElement(entry)}><CatalogSymbol preset={entry}/><span>{entry.label}</span></button>)}</div></> : null}
+    {sidebarTab === 'routes' ? <div className="placement-drawing-rail-routes"><label>Группа<select value={selectedCircuitId || ''} onChange={event => setSelectedCircuitId(event.target.value || null)}><option value="">Выберите группу</option>{placement.circuits.map(circuit => <option key={circuit.id} value={circuit.id}>{circuit.name}</option>)}</select></label><div className="placement-route-modes" role="group" aria-label="Режим трасс на плане"><button className={routeMode === 'automatic' ? 'active' : ''} aria-pressed={routeMode === 'automatic'} onClick={() => selectRouteMode('automatic')}>Авто</button><button className={routeMode === 'manual' ? 'active' : ''} aria-pressed={routeMode === 'manual'} onClick={beginManualRoute}>Ручной ввод</button></div>{routeMode === 'manual' && !drawingRoute ? <button className="placement-drawing-primary" onClick={beginManualRoute}>Рисовать кабель</button> : null}{drawingRoute ? <><label>Следующий участок<select value={routeSurface} onChange={event => setRouteSurface(event.target.value)}>{ROUTE_SURFACES.map(surface => <option key={surface.id} value={surface.id}>{surface.label}</option>)}</select></label><button className="placement-drawing-primary" onClick={endManualRoute}>Завершить · пробел</button><small>Нажимайте точки и углы по порядку. На стене линия прилипнет к месту щелчка.</small></> : null}{routes.length ? <div className="placement-drawing-rail-list">{routes.map((route, index) => <button key={route.id} className={selectedRouteId === route.id ? 'active' : ''} onClick={() => { setSelectedRouteId(route.id); setSelectedId(null); }}>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || `Линия ${index + 1}`} · {electricalRouteLength3d(route.points).toFixed(2)} м</button>)}</div> : null}{routeNotice ? <small role="status">{routeNotice}</small> : null}</div> : null}
+  </div>;
   return <main className={`placement-screen${fullscreen ? ` placement-fullscreen placement-fullscreen-${fullscreenPanel || 'canvas'}` : ''}${selectedRoom ? ' placement-room-focused' : ''}`}>
     <header className="placement-heading"><div><h1>Инженерия</h1></div><div className="placement-heading-actions"><button className="placement-fullscreen-exit" title="Свернуть полноэкранный план" onClick={() => setFullscreen(false)}><Minimize2 size={16}/> Свернуть</button><div className="placement-fullscreen-panel-tools" role="group" aria-label="Панели полноэкранного плана"><button className={fullscreenPanel === 'library' ? 'active' : ''} aria-pressed={fullscreenPanel === 'library'} onClick={() => setFullscreenPanel(current => current === 'library' ? null : 'library')}><Boxes size={16}/> Библиотека</button><button className={fullscreenPanel === 'properties' ? 'active' : ''} aria-pressed={fullscreenPanel === 'properties'} onClick={() => setFullscreenPanel(current => current === 'properties' ? null : 'properties')}><Wrench size={16}/> Свойства</button></div><button onClick={printWorkerSheets} title="Комплект планов и ведомостей для печати или PDF"><Printer size={17}/> Планы для рабочих / PDF</button></div></header>
     <div className="placement-workspace">
@@ -858,7 +903,7 @@ export default function PlacementScreen() {
         <div className="placement-catalog-search"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по всей библиотеке" aria-label="Поиск по библиотеке"/></div>
         <div className="placement-catalog-layout"><nav className="placement-category-rail" aria-label="Группы элементов"><button className={category === 'all' ? 'active' : ''} title="Все элементы" aria-label="Все элементы" aria-pressed={category === 'all'} onClick={() => setCategory('all')}><LayoutGrid size={20}/></button>{groups.map(group => { const Icon = groupIcons[group.id] || Droplets; return <button key={group.id} className={category === group.id ? 'active' : ''} title={group.label} aria-label={group.label} aria-pressed={category === group.id} onClick={() => setCategory(group.id)}><Icon size={20}/></button>; })}</nav><div className="placement-catalog-results">
         <div className="placement-palette-heading"><h3>{searchTerm ? 'Результаты поиска' : category === 'all' ? PLACEMENT_LAYERS.find(entry => entry.id === layer)?.label : PLACEMENT_GROUPS.find(entry => entry.id === category)?.label}</h3><small>{catalogItems.length} элементов</small></div>
-        <div className="placement-palette">{catalogItems.map(entry => <button key={entry.id} className={presetId === entry.id ? 'active' : ''} title={entry.label} onClick={() => { setPresetId(current => current === entry.id ? null : entry.id); setLayer(entry.layer); setCategory(entry.group); setQuery(''); setVisible(old => ({ ...old, [entry.layer]: true })); setSelectedId(null); setDrawingRoute(false); setRoutePoints([]); setDrawingDimension(false); setDimensionStart(null); setNetworkDrawing(false); setNetworkPoints([]); }}><CatalogSymbol preset={entry}/><span className="placement-card-copy"><strong>{entry.label}</strong><small>{Math.round(entry.width * 100)} × {Math.round(entry.depth * 100)} см{searchTerm ? ` · ${PLACEMENT_LAYERS.find(layerEntry => layerEntry.id === entry.layer)?.label}` : entry.surface === 'facade' ? ' · фасад' : ''}</small></span></button>)}</div>
+        <div className="placement-palette">{catalogItems.map(entry => <button key={entry.id} className={presetId === entry.id ? 'active' : ''} title={entry.label} onClick={() => chooseDrawingElement(entry)}><CatalogSymbol preset={entry}/><span className="placement-card-copy"><strong>{entry.label}</strong><small>{Math.round(entry.width * 100)} × {Math.round(entry.depth * 100)} см{searchTerm ? ` · ${PLACEMENT_LAYERS.find(layerEntry => layerEntry.id === entry.layer)?.label}` : entry.surface === 'facade' ? ' · фасад' : ''}</small></span></button>)}</div>
         {!catalogItems.length ? <p className="placement-catalog-empty">По этому запросу элементов нет.</p> : null}</div></div>
         {isNetworkLayer(layer) ? <PlacementNetworkPanel system={layer} floor={activeFloor} placement={placement} room={selectedRoom} notice={networkNotice} fromId={networkFromId} toId={networkToId} medium={networkMedium} onFrom={setNetworkFromId} onTo={setNetworkToId} onMedium={setNetworkMedium} onAuto={() => addNetworkRoute(true)} onPair={() => addNetworkRoute(true, true)} onBeginManual={() => { setNetworkDrawing(true); setNetworkPoints([]); setPresetId(null); setDrawingDimension(false); setDrawingRoute(false); }} onFinishManual={() => addNetworkRoute(false)} onCancelManual={() => { setNetworkDrawing(false); setNetworkPoints([]); }} drawing={networkDrawing} points={networkPoints} selectedRouteId={selectedNetworkRouteId} onSelectRoute={setSelectedNetworkRouteId} onUpdateRoute={updateNetworkRoute} onDeleteRoute={id => { change(data => { data.networks[layer] = data.networks[layer].filter(route => route.id !== id); }); setSelectedNetworkRouteId(null); }}/> : null}
         </div> : null}
@@ -876,7 +921,7 @@ export default function PlacementScreen() {
           </div>
           {sidebarTab === 'routes' ? <label className="placement-route-default">Линии внутри комнаты<select value={placement.defaultRouteSurface || 'ceiling'} onChange={event => changeDefaultRouteSurface(event.target.value)}><option value="ceiling">По потолку</option><option value="floor">По полу</option></select></label> : null}
           {sidebarTab === 'routes' && selectedCircuit ? <div className="placement-circuit-form">
-            <div className="placement-route-modes" role="group" aria-label="Способ построения трассы"><button className={routeMode === 'automatic' ? 'active' : ''} aria-pressed={routeMode === 'automatic'} onClick={() => selectRouteMode('automatic')}>Автоматически</button><button className={routeMode === 'manual' ? 'active' : ''} aria-pressed={routeMode === 'manual'} onClick={() => { if (routeMode !== 'manual') selectRouteMode('manual'); setDrawingRoute(true); setAssigningCircuit(false); setPresetId(null); setRoutePoints([]); setRouteStartId(''); setRouteCursor(null); setRouteNotice('Выберите любую электроточку для начала кабеля.'); setDrawingDimension(false); }}>Рисовать кабель вручную</button></div>
+            <div className="placement-route-modes" role="group" aria-label="Способ построения трассы"><button className={routeMode === 'automatic' ? 'active' : ''} aria-pressed={routeMode === 'automatic'} onClick={() => selectRouteMode('automatic')}>Автоматически</button><button className={routeMode === 'manual' ? 'active' : ''} aria-pressed={routeMode === 'manual'} onClick={beginManualRoute}>Рисовать кабель вручную</button></div>
             {routeMode === 'automatic' ? <div className="placement-circuit-actions"><button className="placement-auto-route" disabled={!items.some(item => item.kind === 'panel')} onClick={autoRouteCircuit}><Route size={16}/> Перестроить группу к щиту</button></div> : null}
             {drawingRoute ? <button className="placement-manual-finish" onClick={endManualRoute}><Route size={16}/> Завершить трассу · пробел</button> : null}
             {drawingRoute ? <div className="placement-route-surface-picker"><label>Следующий участок<select value={routeSurface} onChange={event => setRouteSurface(event.target.value)}>{ROUTE_SURFACES.map(surface => <option key={surface.id} value={surface.id}>{surface.label}</option>)}</select></label>{routeSurface === 'wall' ? <Field label="Высота на стене" value={wallRouteHeight ?? routeSurfaceHeight(plan, 'wall')} onChange={value => setWallRouteHeight(Math.max(0, valueOr(value, 0)))} min={0} max={routeSurfaceHeight(plan, 'ceiling')} suffix="м"/> : null}</div> : null}
@@ -895,7 +940,7 @@ export default function PlacementScreen() {
         </div> : null}
         {sidebarTab === 'bill' ? <div className="placement-sidebar-section"><div className="placement-electrical-bill"><h3>Ведомость электрики · этаж {activeFloor}</h3><p>{routeMode === 'manual' ? 'Ручная схема' : 'Автоматическая схема'}. Трассы по геометрии: {electricBill.routeMetres.toFixed(2)} м. С заданными высотами; без запаса и обходов.</p>{electricBill.byCircuit.map(circuit => <p key={circuit.id}>{circuit.name}: {circuit.routeMetres.toFixed(2)} м · {circuit.cable || 'кабель не указан'}</p>)}<ul>{electricBill.components.map(component => <li key={component.name}><span>{component.name}</span><strong>{component.quantity == null ? 'уточнить' : `${component.quantity} ${component.unit}`}</strong>{component.note ? <small>{component.note}</small> : null}</li>)}{electricBill.manualComponents.map(component => <li key={`manual-${component.name}-${component.unit}`}><span>{component.name} · по проекту</span><strong>{component.quantity} {component.unit}</strong></li>)}</ul>{electricBill.unconnected.length ? <p>Без линии к щиту: {electricBill.unconnected.length} точек.</p> : null}{electricBill.topologyIssues?.length ? <details><summary>Связи света: {electricBill.topologyIssues.length} уточнения</summary><ul>{electricBill.topologyIssues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></details> : null}<p>Ведомость не меняет смету. Сечение, защита и способ монтажа задаются по проекту.</p></div></div> : null}
       </aside>
-      <section className="placement-canvas-panel"><div className="placement-canvas-title"><div className="placement-canvas-caption"><strong>{selectedRoom ? `План этажа ${activeFloor} · навигатор` : `План этажа ${activeFloor}`}</strong><span>{selectedRoom ? `Выбрана: ${selectedRoom.name}` : drawingDimension ? dimensionStart ? 'Укажите вторую точку размера' : 'Укажите первую точку размера' : drawingRoute ? routeStartId ? 'Укажите угол или следующую электроточку; пробел завершает кабель' : 'Выберите начальный электроэлемент' : activePreset ? `Разместите: ${activePreset.label}${activePreset.surface === 'facade' ? ' у наружной стены' : ''}` : 'Выберите элемент слева или переместите существующий'}</span></div><div className="placement-viewport-tools" role="toolbar" aria-label="Масштаб и поле плана"><button className={elementsLocked ? 'placement-lock active' : 'placement-lock'} aria-pressed={elementsLocked} aria-label={elementsLocked ? 'Разблокировать элементы' : 'Заблокировать элементы'} title={elementsLocked ? 'Разблокировать элементы' : 'Заблокировать элементы от перемещения'} onClick={() => { setElementsLocked(value => !value); setDragPosition(null); dragRef.current = null; }}>{elementsLocked ? <LockKeyhole size={17}/> : <LockKeyholeOpen size={17}/>}</button><button className={linesLocked ? 'placement-lock active' : 'placement-lock'} aria-pressed={linesLocked} title={linesLocked ? 'Разблокировать линии' : 'Заблокировать линии от ручного перемещения'} onClick={() => setLinesLocked(value => !value)}><Route size={17}/> Линии</button><button onClick={undo} disabled={!canUndo} title="Отменить" aria-label="Отменить"><Undo2 size={17}/></button><button onClick={redo} disabled={!canRedo} title="Повторить" aria-label="Повторить"><Redo2 size={17}/></button><button title="Уменьшить масштаб" aria-label="Уменьшить масштаб" onClick={() => setZoom(current => clampZoom(current - 10))}><ZoomOut size={17}/></button><button className="placement-zoom-value" title="Сбросить масштаб и положение" aria-label={`Масштаб ${zoom}%. Сбросить масштаб и положение`} onClick={resetView}>{zoom}%</button><button title="Увеличить масштаб" aria-label="Увеличить масштаб" onClick={() => setZoom(current => clampZoom(current + 10))}><ZoomIn size={17}/></button><button title={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} aria-label={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} onClick={() => setFullscreen(value => !value)}>{fullscreen ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button></div></div>{layerToolbar}<div className="placement-canvas-scroll"><svg ref={svgRef} className={`placement-canvas ${activePreset || drawingRoute || drawingDimension ? 'placing' : ''}`} viewBox={viewBox} role="img" aria-label={`План этажа ${activeFloor} для расстановки мебели и инженерии`} onClick={onCanvasClick} onPointerDown={beginPan} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+      <section className="placement-canvas-panel"><div className="placement-canvas-title"><div className="placement-canvas-caption"><strong>{selectedRoom ? `План этажа ${activeFloor} · навигатор` : `План этажа ${activeFloor}`}</strong><span>{selectedRoom ? `Выбрана: ${selectedRoom.name}` : drawingDimension ? dimensionStart ? 'Укажите вторую точку размера' : 'Укажите первую точку размера' : drawingRoute ? routeStartId ? 'Укажите угол или следующую электроточку; пробел завершает кабель' : 'Выберите начальный электроэлемент' : activePreset ? `Разместите: ${activePreset.label}${activePreset.surface === 'facade' ? ' у наружной стены' : ''}` : 'Выберите элемент слева или переместите существующий'}</span></div><div className="placement-viewport-tools" role="toolbar" aria-label="Масштаб и поле плана"><button className={elementsLocked ? 'placement-lock active' : 'placement-lock'} aria-pressed={elementsLocked} aria-label={elementsLocked ? 'Разблокировать элементы' : 'Заблокировать элементы'} title={elementsLocked ? 'Разблокировать элементы' : 'Заблокировать элементы от перемещения'} onClick={() => { setElementsLocked(value => !value); setDragPosition(null); dragRef.current = null; }}>{elementsLocked ? <LockKeyhole size={17}/> : <LockKeyholeOpen size={17}/>}</button><button className={linesLocked ? 'placement-lock active' : 'placement-lock'} aria-pressed={linesLocked} title={linesLocked ? 'Разблокировать линии' : 'Заблокировать линии от ручного перемещения'} onClick={() => setLinesLocked(value => !value)}><Route size={17}/> Линии</button><button onClick={undo} disabled={!canUndo} title="Отменить" aria-label="Отменить"><Undo2 size={17}/></button><button onClick={redo} disabled={!canRedo} title="Повторить" aria-label="Повторить"><Redo2 size={17}/></button><button title="Уменьшить масштаб" aria-label="Уменьшить масштаб" onClick={() => setZoom(current => clampZoom(current - 10))}><ZoomOut size={17}/></button><button className="placement-zoom-value" title="Сбросить масштаб и положение" aria-label={`Масштаб ${zoom}%. Сбросить масштаб и положение`} onClick={resetView}>{zoom}%</button><button title="Увеличить масштаб" aria-label="Увеличить масштаб" onClick={() => setZoom(current => clampZoom(current + 10))}><ZoomIn size={17}/></button><button title={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} aria-label={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} onClick={() => setFullscreen(value => !value)}>{fullscreen ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button></div></div>{layerToolbar}<div className="placement-canvas-scroll">{drawingRail}<svg ref={svgRef} className={`placement-canvas ${activePreset || drawingRoute || drawingDimension ? 'placing' : ''}`} viewBox={viewBox} role="img" aria-label={`План этажа ${activeFloor} для расстановки мебели и инженерии`} onClick={onCanvasClick} onPointerDown={beginPan} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
         <defs><pattern id="placement-grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M 10 0 V 50 M 20 0 V 50 M 30 0 V 50 M 40 0 V 50 M 0 10 H 50 M 0 20 H 50 M 0 30 H 50 M 0 40 H 50" fill="none" stroke="#e9f0ed" strokeWidth=".5"/><path d="M 50 0 H 0 V 50" fill="none" stroke="#c5d8d2" strokeWidth="1"/></pattern><marker id="placement-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 2 L 9 5 L 0 8 z" fill="#497c7a"/></marker></defs>
         <rect x={drawingBounds.x * 100 - margin} y={drawingBounds.y * 100 - margin} width={Math.max(5, drawingBounds.w) * 100 + margin * 2} height={Math.max(5, drawingBounds.h) * 100 + margin * 2} fill="url(#placement-grid)"/>
         {(plan.platforms || []).filter(platform => platform.include !== false).map(platform => <g key={platform.id} className="placement-platform"><rect x={platform.x * 100} y={platform.y * 100} width={platform.w * 100} height={platform.h * 100}/><text x={(platform.x + platform.w / 2) * 100} y={(platform.y + platform.h / 2) * 100} textAnchor="middle">{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text></g>)}

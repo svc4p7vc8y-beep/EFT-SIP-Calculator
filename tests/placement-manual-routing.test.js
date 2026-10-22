@@ -3,32 +3,31 @@ import assert from 'node:assert/strict';
 import { createDefaultProject } from '../src/react/state/project-model.js';
 import { electricalRouteLength3d, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { appendManualRouteWaypoint, finishManualRoute, manualRouteSnap } from '../src/react/state/placement-manual-routing.js';
-import { sharedElectricalRouteLanes } from '../src/react/state/placement-schematic.js';
+import { electricalDrawingAnchors, sharedElectricalRouteLanes } from '../src/react/state/placement-schematic.js';
 import { placementWallFaces } from '../src/react/state/placement-walls.js';
 
 const plan = createDefaultProject().plan;
 
-test('manual cable clicks use a 10 cm grid and keep an orthogonal path through each click', () => {
+test('manual cable connects clicked positions in order without an invented elbow or grid snap', () => {
   const snapped = manualRouteSnap(plan, { x: 2.54, y: 10.44 }, [], 'floor');
-  assert.equal(snapped.snappedTo, 'grid');
-  assert.deepEqual(snapped.position, { x: 2.5, y: 10.4 });
+  assert.equal(snapped.snappedTo, '');
+  assert.deepEqual(snapped.position, { x: 2.54, y: 10.44 });
   const start = [{ x: 1, y: 9, z: 0, surface: 'floor' }];
-  const points = appendManualRouteWaypoint(start, { position: { x: 2.5, y: 10.4 }, surface: 'floor' }, plan);
-  assert.ok(points?.at(-1).waypoint);
-  assert.deepEqual([points.at(-1).x, points.at(-1).y], [2.5, 10.4]);
-  assert.ok(points.some(point => point.manualElbow));
-  for (let index = 1; index < points.length; index += 1) {
-    assert.ok(Math.abs(points[index].x - points[index - 1].x) < .001 || Math.abs(points[index].y - points[index - 1].y) < .001);
-  }
+  const turn = appendManualRouteWaypoint(start, snapped, plan);
+  const points = appendManualRouteWaypoint(turn, { position: { x: 3.21, y: 11.08 }, surface: 'floor' }, plan);
+  const complete = finishManualRoute(points, { x: 4.33, y: 12.09, z: 0, surface: 'device' });
+  assert.deepEqual(complete.map(({ x, y }) => [x, y]), [[1, 9], [2.54, 10.44], [3.21, 11.08], [4.33, 12.09]]);
+  assert.equal(complete.filter(point => point.waypoint).length, 2);
+  assert.equal(complete.some(point => point.manualElbow), false);
 });
 
-test('manual point sticks to existing cable and shared run renders as separate lanes', () => {
+test('manual click near existing cable stays at the clicked place; shared runs retain their lanes', () => {
   const existing = { id: 'first', circuitId: 'c1', surface: 'floor', points: [{ x: 1, y: 1, z: 0, surface: 'floor' }, { x: 4, y: 1, z: 0, surface: 'floor' }] };
   const snap = manualRouteSnap(plan, { x: 2.13, y: 1.08 }, [existing], 'floor');
-  assert.equal(snap.snappedTo, 'wire');
-  assert.deepEqual(snap.position, { x: 2.13, y: 1 });
+  assert.equal(snap.snappedTo, '');
+  assert.deepEqual(snap.position, { x: 2.13, y: 1.08 });
   const legacy = { id: 'legacy', circuitId: 'c3', auto: true, points: [{ x: 1, y: 2, z: 1.5 }, { x: 4, y: 2, z: 1.5 }] };
-  assert.deepEqual(manualRouteSnap(plan, { x: 2.1, y: 2.06 }, [legacy], 'ceiling').position, { x: 2.1, y: 2 });
+  assert.deepEqual(manualRouteSnap(plan, { x: 2.1, y: 2.06 }, [legacy], 'ceiling').position, { x: 2.1, y: 2.06 });
   const second = { id: 'second', circuitId: 'c2', surface: 'floor', points: [{ x: 2, y: 1, z: 0, surface: 'floor' }, { x: 5, y: 1, z: 0, surface: 'floor' }] };
   const original = JSON.stringify([existing, second]);
   const lanes = sharedElectricalRouteLanes([existing, second]);
@@ -38,15 +37,16 @@ test('manual point sticks to existing cable and shared run renders as separate l
   assert.equal(JSON.stringify([existing, second]), original);
 });
 
-test('wall magnet keeps the chosen ceiling surface until wall routing is selected', () => {
+test('clicking a wall selects its wall surface, while a room click remains on the chosen plane', () => {
   const face = placementWallFaces(plan)[0];
   const at = { x: (face.a.x + face.b.x) / 2, y: (face.a.y + face.b.y) / 2 };
   const ceiling = manualRouteSnap(plan, at, [], 'ceiling');
   const wall = manualRouteSnap(plan, at, [], 'wall');
   assert.equal(ceiling.snappedTo, 'wall');
-  assert.equal(ceiling.surface, 'ceiling');
+  assert.equal(ceiling.surface, 'wall');
   assert.equal(wall.surface, 'wall');
   assert.equal(wall.wallRef, face.ref);
+  assert.equal(manualRouteSnap(plan, { x: 2.54, y: 10.44 }, [], 'floor').surface, 'floor');
 });
 
 test('a second junction can be fed by the first without another panel branch', () => {
@@ -64,7 +64,7 @@ test('a second junction can be fed by the first without another panel branch', (
   assert.equal(routes.find(route => route.targetItemId === 'socket').fromItemId, 'junction-b');
 });
 
-test('manual junction-to-junction cable retains its explicit bend on reopen and endpoint move', () => {
+test('manual junction-to-junction cable keeps only user turns after reopen and endpoint move', () => {
   const start = { id: 'a', floor: 1, layer: 'electric', kind: 'junction-box', circuitId: 'c1', x: 2, y: 9, height: 0, heightKnown: true };
   const target = { id: 'b', floor: 1, layer: 'electric', kind: 'junction-box', circuitId: 'c1', x: 4, y: 10, height: 0, heightKnown: true };
   const points = appendManualRouteWaypoint([{ x: 2, y: 9, z: 0, surface: 'device' }], { position: { x: 3, y: 9 }, surface: 'floor' }, plan);
@@ -77,5 +77,22 @@ test('manual junction-to-junction cable retains its explicit bend on reopen and 
   const moved = resolvedElectricalRoutes(placement, 1, plan)[0];
   assert.deepEqual([moved.points.at(-1).x, moved.points.at(-1).y], [4.5, 10]);
   assert.ok(moved.points.some(point => point.x === 3 && point.y === 9));
-  assert.ok(moved.points.slice(1).every((point, index) => Math.abs(point.x - moved.points[index].x) < .001 || Math.abs(point.y - moved.points[index].y) < .001));
+  assert.equal(moved.points.length, 3);
+  assert.deepEqual(moved.points.map(({ x, y }) => [x, y]), [[2, 9], [3, 9], [4.5, 10]]);
+});
+
+test('manual cable ends at the displayed symbol of a tightly packed point', () => {
+  const items = [
+    { id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 1, y: 1 },
+    { id: 'switch', floor: 1, layer: 'electric', kind: 'switch', circuitId: 'c1', x: 2, y: 2, height: .9 },
+    { id: 'socket', floor: 1, layer: 'electric', kind: 'socket', circuitId: 'c1', x: 2, y: 2, height: .3 },
+  ];
+  const anchor = electricalDrawingAnchors(items, []).get('switch');
+  assert.notDeepEqual(anchor, { x: 2, y: 2 });
+  const route = { id: 'manual', floor: 1, circuitId: 'c1', fromItemId: 'panel', targetItemId: 'switch', purpose: 'manual', auto: false, rebuildOnMove: true,
+    points: [{ x: 1, y: 1, z: 0 }, { x: 1.5, y: 1.6, z: 0, waypoint: true }, { x: 2, y: 2, z: .9 }] };
+  const [resolved] = resolvedElectricalRoutes({ items, routes: [route] }, 1, { rooms: [] });
+  assert.deepEqual([resolved.points.at(-1).x, resolved.points.at(-1).y], [anchor.x, anchor.y]);
+  assert.deepEqual([resolved.points[1].x, resolved.points[1].y], [1.5, 1.6]);
+  assert.equal(resolved.points.length, 3);
 });
