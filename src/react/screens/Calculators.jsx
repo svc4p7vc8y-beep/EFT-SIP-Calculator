@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { DraftText } from './CuttingControls.jsx';
 import DeliveryVolume from '../components/DeliveryVolume.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
@@ -23,6 +23,7 @@ import {
   Toggle,
 } from "../components/ui.jsx";
 import { formatNumber } from "../utils/format.js";
+const WindowConfigurator = lazy(() => import('./WindowConfigurator.jsx'));
 import {
   addEstimateLine,
   changeEstimateLine,
@@ -1869,10 +1870,11 @@ export default function Calculators({ type, onNavigate }) {
       ) : null}
       {type === "openings" ? (
         <>
+          <Suspense fallback={<div className="empty-state">Загрузка конфигуратора окон…</div>}><WindowConfigurator /></Suspense>
           <div className="stats-row">
             <Stat
-              label="Окна"
-              value={`${floorOpenings.filter(({ opening }) => opening.type === "window").length} шт`}
+              label="Оконные изделия / проёмы без выбора"
+              value={`${(sourceProject.windowProducts||[]).filter(item=>!item.openingId||floorOpenings.some(({opening})=>opening.id===item.openingId)).reduce((sum,item)=>sum+(Number(item.quantity)||0),0)+floorOpenings.filter(({opening})=>opening.type==='window'&&!(sourceProject.windowProducts||[]).some(item=>item.openingId===opening.id)).length} шт`}
             />
             <Stat
               label="Двери"

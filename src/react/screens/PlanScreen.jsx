@@ -3343,7 +3343,7 @@ function DoorOrientationControls({ opening, onChange }) {
   );
 }
 
-function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {} }) {
+function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {}, onNavigate }) {
   const { project } = useProject();
   const get = (key) =>
     (plan[key] || []).find((item) => item.id === selected?.id);
@@ -3911,6 +3911,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           />
           {opening.windowType === "panoramic" ? <p className="inspector-note">Панорамное / витражное: изделие и монтаж ×2 к ставкам прайса. Количество считается по площади проёма.</p> : null}</>
         ) : null}
+        {opening.type === "window" ? <button type="button" className="button primary" onClick={()=>{sessionStorage.setItem('eft-window-opening-focus',opening.id);onNavigate?.('openings');}}>Выбрать окно / конфигуратор</button> : null}
         {opening.type === "door" ? (
           <>
             <SelectField
@@ -6604,6 +6605,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           ) : (
             <Inspector
               plan={plan}
+              onNavigate={onNavigate}
               mainRoof={project.settings.roof}
               selected={selected}
               setSelected={setSelected}

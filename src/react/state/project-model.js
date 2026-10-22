@@ -27,8 +27,9 @@ import { DEFAULT_TIERED_ROOF, normalizeTieredRoof } from '../calculations/tiered
 import { normalizeResidentialStandards } from './residential-standards.js';
 import { createPlacement, normalizePlacement } from './placement-model.js';
 import { normalizeEstimateFiles } from './estimate-files.js';
+import { normalizeWindowProducts, normalizeWindowPresets, normalizeWindowTariffs } from './window-products.js';
 
-export const REACT_PROJECT_VERSION = 233;
+export const REACT_PROJECT_VERSION = 234;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -525,6 +526,9 @@ export function createDefaultProject() {
     plan,
     upperFloors: [],
     placement: createPlacement(),
+    windowProducts: [],
+    windowPresets: [],
+    windowTariffs: [],
     estimateImages: [],
     estimateFiles: [],
     construction: {
@@ -1021,6 +1025,9 @@ export function migrateProject(raw) {
     plan,
     upperFloors,
     placement: normalizePlacement(raw.placement),
+    windowProducts: normalizeWindowProducts(raw.windowProducts),
+    windowPresets: normalizeWindowPresets(raw.windowPresets),
+    windowTariffs: normalizeWindowTariffs(raw.windowTariffs),
     estimateImages: normalizeEstimateImages(raw.estimateImages),
     estimateFiles: normalizeEstimateFiles(raw.estimateFiles),
     construction: Object.fromEntries(

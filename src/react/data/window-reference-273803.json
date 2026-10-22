@@ -1,0 +1,51 @@
+{
+  "schema": "eft.window-reference.v1",
+  "quoteId": "273803",
+  "currency": "RUB",
+  "priceStatus": "historical_supplier_quote",
+  "issueDate": null,
+  "validityNote": "Согласно PDF расчёт действителен 3 рабочих дня; дата не установлена",
+  "basis": {
+    "material": "PVC",
+    "profileBrand": "BRUSBOX",
+    "profileSystem": "AERO",
+    "profileInstallationDepthMm": 60,
+    "profileColor": "white",
+    "glazingFormula": "4M1-10-4M1-10-4M1",
+    "glazingThicknessMm": 32,
+    "glazingChambers": 2,
+    "sealColor": "black",
+    "glazingBead": "straight",
+    "supportProfileHeightMm": 30,
+    "view": "inside"
+  },
+  "items": [
+    {"number": 1, "qty": 1, "shape": "rectangle", "widthMm": 1120, "heightMm": 620, "sections": ["bottom_hinged_transom"], "hardware": "Vorne", "areaM2Exact": 0.6944, "areaM2Printed": 0.69, "priceRubExact": 7526.27, "priceRubPrinted": 7526},
+    {"number": 2, "qty": 1, "shape": "rectangle", "widthMm": 1120, "heightMm": 1200, "sectionWidthMmNominal": [560, 560], "sections": ["fixed", "tilt_turn"], "hardware": "Vorne", "areaM2Exact": 1.344, "areaM2Printed": 1.34, "priceRubExact": 11052.28, "priceRubPrinted": 11052},
+    {"number": 3, "qty": 1, "shape": "rectangle", "widthMm": 1120, "heightMm": 900, "sections": ["tilt_turn"], "hardware": "Roto_NX", "areaM2Exact": 1.008, "areaM2Printed": 1.01, "priceRubExact": 12628.78, "priceRubPrinted": 12629},
+    {"number": 4, "qty": 1, "shape": "rectangle", "widthMm": 600, "heightMm": 600, "sections": ["bottom_hinged_transom"], "hardware": "Vorne", "areaM2Exact": 0.36, "areaM2Printed": 0.36, "priceRubExact": 5608.47, "priceRubPrinted": 5608},
+    {"number": 5, "qty": 1, "shape": "rectangle", "widthMm": 600, "heightMm": 600, "sections": ["tilt_turn"], "hardware": "Vorne", "areaM2Exact": 0.36, "areaM2Printed": 0.36, "priceRubExact": 5336.26, "priceRubPrinted": 5336},
+    {"number": 6, "qty": 1, "shape": "rectangle", "widthMm": 1200, "heightMm": 1200, "sectionWidthMmNominal": [600, 600], "sections": ["fixed", "tilt_turn"], "hardware": "Vorne", "areaM2Exact": 1.44, "areaM2Printed": 1.44, "priceRubExact": 11468.60, "priceRubPrinted": 11469},
+    {"number": 7, "qty": 1, "shape": "rectangle", "widthMm": 900, "heightMm": 2000, "sections": ["turn"], "hardware": "Vorne", "areaM2Exact": 1.8, "areaM2Printed": 1.8, "priceRubExact": 13865.94, "priceRubPrinted": 13866},
+    {"number": 8, "qty": 1, "shape": "rectangle", "widthMm": 1800, "heightMm": 2000, "sectionWidthMmNominal": [900, 900], "sections": ["fixed", "turn"], "hardware": "Vorne", "areaM2Exact": 3.6, "areaM2Printed": 3.6, "priceRubExact": 21932.82, "priceRubPrinted": 21933},
+    {"number": 9, "qty": 1, "shape": "rectangle", "widthMm": 1800, "heightMm": 1200, "sectionWidthMmNominal": [600, 600, 600], "sections": ["fixed", "tilt_turn", "fixed"], "hardware": "Vorne", "areaM2Exact": 2.16, "areaM2Printed": 2.16, "priceRubExact": 15141.81, "priceRubPrinted": 15142},
+    {"number": 10, "qty": 1, "shape": "rectangle", "widthMm": 800, "heightMm": 1200, "sections": ["tilt_turn"], "hardware": "Vorne", "areaM2Exact": 0.96, "areaM2Printed": 0.96, "priceRubExact": 9651.26, "priceRubPrinted": 9651},
+    {"number": 11, "qty": 1, "shape": "trapezoid_sloped_top", "widthMm": 900, "leftHeightMm": 800, "rightHeightMm": 1100, "sections": ["fixed"], "hardware": null, "areaM2Exact": 0.855, "areaM2Printed": 0.85, "priceRubExact": 8966.20, "priceRubPrinted": 8966},
+    {"number": 12, "qty": 1, "shape": "triangle", "baseWidthMm": 1000, "heightMm": 866, "apexPosition": 0.5, "sections": ["fixed"], "hardware": null, "areaM2Exact": 0.433, "areaM2Printed": 0.43, "priceRubExact": 8498.25, "priceRubPrinted": 8498}
+  ],
+  "totals": {
+    "quantity": 12,
+    "precisePriceSumRub": 131676.94,
+    "orderPriceRoundedRub": 131677,
+    "printedIntegerLinePriceSumRub": 131676,
+    "preciseGeometryAreaM2": 15.0144,
+    "printedLineAreaSumM2": 15.0,
+    "averagePricePerPrintedM2Rub": 8778.466666666667
+  },
+  "notes": [
+    "Привязка сторон петель и ручек должна быть визуально сверена с рисунками в оригинальном PDF: fixture фиксирует только известный тип открывания.",
+    "Размеры отдельных импостов и стеклопакетов для производства не вычислять без профильных таблиц изготовителя.",
+    "Для № 11 геометрическая площадь рассчитана по двум высотам, для № 12 по основанию и высоте.",
+    "Суммы отличаются из-за округления исходных строк и точных цен в скобках."
+  ]
+}

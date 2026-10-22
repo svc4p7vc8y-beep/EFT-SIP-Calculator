@@ -45,6 +45,7 @@ import { platformDeckFrame, PLATFORM_FRAME_BOARD_WIDTH_MM, PLATFORM_FRAME_BOARD_
 import { withSipGableRafters } from './gable-rafter-stations.js';
 import { contourRoofOutline, contourRoofStrip, contourProjectedArea, facetedRoofArea } from './contour-roof-geometry.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
+import { windowGeometry, windowPrice } from '../state/window-products.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -2899,16 +2900,20 @@ function terraceSection(project, index, inputs) {
 function openingSection(project, index) {
   if (!project.services.openings) return { lines: [] };
   const lines = [];
+  const products = Array.isArray(project.windowProducts) ? project.windowProducts : [];
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
   const openings = [project.plan, ...(project.upperFloors || []).slice(0, floorCount - 1)]
     .flatMap((plan, floorIndex) =>
       (plan.openings || []).map((opening) => ({ ...opening, floor: floorIndex + 1 })),
     );
+  const actualOpeningIds = new Set(openings.filter(opening=>opening.type==='window').map(opening=>opening.id));
+  const configuredOpeningIds = new Set(products.map(product=>product.openingId).filter(id=>actualOpeningIds.has(id)));
   openings
     .filter((opening) => opening.includeInEstimate !== false)
     .forEach((opening, openingIndex) => {
       // Keep original indexes for saved overrides of the remaining openings.
       if (isInteriorDoor(opening)) return;
+      if (opening.type === 'window' && configuredOpeningIds.has(opening.id)) return;
       const width = Math.round((opening.width || 0.8) * 1000);
       const height = Math.round((opening.height || 2) * 1000);
       const area = round((Number(opening.width) || 0.8) * (Number(opening.height) || 2), 3);
@@ -2985,6 +2990,28 @@ function openingSection(project, index) {
           }),
         );
     });
+  const estimatedLinks = new Set();
+  for (const product of products) {
+    if (product.openingId && !actualOpeningIds.has(product.openingId)) continue;
+    if (product.openingId && estimatedLinks.has(product.openingId)) continue;
+    if (product.openingId) estimatedLinks.add(product.openingId);
+    const quantity = Number(product.quantity) || 0;
+    if (quantity <= 0) continue;
+    const price = windowPrice(product,project.windowTariffs);
+    const area = windowGeometry(product).areaM2;
+    lines.push({
+      id:`openings:window-product-${product.id}`, section:'openings',
+      catalogId:'MAT-240', name:`${product.mark||'Окно ПВХ'} · ${Math.round(Number(product.widthMm||product.baseWidthMm))}×${Math.round(Number(product.heightMm||Math.max(product.leftHeightMm||0,product.rightHeightMm||0)))} мм · ${area.toFixed(3)} м²`,
+      unit:'шт',qty:quantity,price:price.unitRub??0,kind:'material',
+      source:price.source||price.label,estimateGroup:'Оконные изделия по конфигуратору',
+      ...(price.unitRub==null?{pricePending:true}:{}),
+    });
+    // Installation and accessories remain independent opt-in rows with confirmed rates.
+    for (const option of product.extraLines||[]) {
+      if (!option?.enabled || option.priceRub==null || option.priceRub==='' || !(Number(option.priceRub)>=0) || !option.name || !option.source?.trim()) continue;
+      lines.push({id:`openings:window-${product.id}-${option.id}`,section:'openings',name:option.name,unit:option.unit||'шт',qty:Number(option.quantity)||1,price:Number(option.priceRub),kind:option.kind==='labor'?'labor':'material',source:option.source||'Тариф проекта для окон',estimateGroup:'Дополнительная комплектация окон'});
+    }
+  }
   return { lines: compact(lines) };
 }
 

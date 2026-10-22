@@ -151,7 +151,7 @@ function Screen({ active, calculation, teamProps, onNavigate, onOpenLibraryPlan,
   if (active === "team") return <TeamWorkspaceScreen {...teamProps} />;
   if (active === "mail") return <MailScreen />;
   if (active === "files") return <FilesScreen onOpenLibraryPlan={onOpenLibraryPlan} />;
-  if (active === "plan") return <PlanScreen planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
+  if (active === "plan") return <PlanScreen onNavigate={onNavigate} planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
   if (active === "placement") return <PlacementScreen />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
