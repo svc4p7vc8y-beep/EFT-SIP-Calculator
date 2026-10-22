@@ -58,6 +58,29 @@ export function routeToPanel(panel, item) {
   return routeBetweenElectricalNodes(panel, item);
 }
 
+export function reassignElectricalPoint(placement, itemId, circuitId) {
+  const item = placement.items.find(entry => entry.id === itemId && entry.layer === 'electric' && entry.kind !== 'panel');
+  if (!item) return '';
+  const previous = item.circuitId || '';
+  if (previous === circuitId) return previous;
+  item.circuitId = circuitId;
+  placement.routes = placement.routes.filter(route => route.circuitId === circuitId || (route.fromItemId !== itemId && route.targetItemId !== itemId));
+  return previous;
+}
+
+export function connectSelectedElectricalPoints(placement, floor, circuitId, fromId, targetId, createId, plan) {
+  const from = placement.items.find(item => item.id === fromId && item.floor === floor && item.layer === 'electric');
+  const target = placement.items.find(item => item.id === targetId && item.floor === floor && item.layer === 'electric');
+  if (!from || !target || from.id === target.id || !circuitId) return null;
+  placement.routes = placement.routes.filter(route => !(route.floor === floor && route.circuitId === circuitId && route.auto && route.targetItemId === targetId));
+  const route = { id: createId(), floor, circuitId,
+    panelItemId: placement.items.find(item => item.floor === floor && item.kind === 'panel')?.id || '',
+    fromItemId: fromId, targetItemId: targetId, purpose: 'selected-chain', auto: true,
+    points: routeBetweenElectricalNodes(from, target, null, plan) };
+  placement.routes.push(route);
+  return route;
+}
+
 export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId, createId, plan = null) {
   const floorItems = items.filter(item => item.floor === floor);
   const panel = floorItems.find(item => item.id === panelId && item.kind === 'panel');
