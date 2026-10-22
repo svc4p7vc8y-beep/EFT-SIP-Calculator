@@ -133,7 +133,7 @@ export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId,
 
 export function resolvedElectricalRoutes(placement, floor, plan = null) {
   const items = (placement.items || []).filter(item => item.floor === floor);
-  return (placement.routes || []).filter(route => route.floor === floor).map(route => {
+  return (placement.routes || []).filter(route => route.floor === floor && (placement.electricalRouteMode === 'manual' ? route.auto !== true : placement.electricalRouteMode === 'automatic' ? route.auto !== false : true)).map(route => {
     const panel = items.find(item => item.id === route.panelItemId);
     const from = items.find(item => item.id === route.fromItemId) || panel;
     if (!route.auto) {

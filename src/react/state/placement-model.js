@@ -178,7 +178,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 5, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], defaultRouteSurface: 'ceiling', showAutoDimensions: true, networks: normalizeNetworkRoutes() };
+  return { version: 5, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -192,6 +192,7 @@ export function normalizePlacement(value) {
     ...base,
     ...value,
     version: 5,
+    electricalRouteMode: ['automatic', 'manual'].includes(value.electricalRouteMode) ? value.electricalRouteMode : routes.some(route => route?.auto === false) ? 'manual' : 'automatic',
     defaultRouteSurface: value.defaultRouteSurface === 'floor' ? 'floor' : 'ceiling',
     showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
@@ -223,6 +224,7 @@ export function normalizePlacement(value) {
     hiddenCircuitPointIds: (Array.isArray(value.hiddenCircuitPointIds) ? value.hiddenCircuitPointIds : []).filter(id => circuits.some(circuit => circuit?.id === id)),
     routes: routes.filter(route => route && typeof route.id === 'string' && Array.isArray(route.points)).map(route => ({
       ...route,
+      ...(typeof route.auto === 'boolean' ? { auto: route.auto } : { auto: undefined }),
       floor: Math.max(1, Math.min(2, Math.round(finite(route.floor, 1)))),
       points: route.points.filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y))).map(point => ({ x: Number(point.x), y: Number(point.y), ...(Number.isFinite(Number(point?.z)) && point?.z != null ? { z: Number(point.z) } : {}), ...(['floor', 'ceiling', 'wall', 'device'].includes(point?.surface) ? { surface: point.surface } : {}), ...(typeof point?.wallRef === 'string' ? { wallRef: point.wallRef.slice(0, 100) } : {}), ...(point?.waypoint === true ? { waypoint: true } : {}) })),
     })).filter(route => route.points.length >= 2),
