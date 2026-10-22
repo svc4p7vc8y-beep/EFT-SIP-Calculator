@@ -26,6 +26,11 @@ export function insertRoutePoint(points, index, point) {
   return [...points.slice(0, index + 1).map(entry => ({ ...entry })), { ...point }, ...points.slice(index + 1).map(entry => ({ ...entry }))];
 }
 
+export function removeRoutePoint(points, index) {
+  if (!Array.isArray(points) || index <= 0 || index >= points.length - 1) return null;
+  return points.filter((_, pointIndex) => pointIndex !== index).map(point => ({ ...point }));
+}
+
 export function shiftRouteSegment(points, index, offset) {
   const a = points[index], b = points[index + 1];
   const direction = a && b && routeSegmentDirection(a, b);

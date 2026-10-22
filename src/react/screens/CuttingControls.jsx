@@ -51,9 +51,10 @@ export function ProductionProfileControls({settings,update,NumberInput}) {
 export function SurfaceLayoutControls({ surface, settings, update, NumberInput }) {
   if (!surface || surface.manual) return null;
   const layout = settings.layouts[surface.layoutKey] || {};
+  const roof = Boolean(surface.roofFaceId);
   const change = patch=>update({layouts:{...settings.layouts,[surface.layoutKey]:{...layout,...patch}}});
   return <details className="cut-layout-settings"><summary>Сетка конструкции · шаг {surface.effectiveStep} мм</summary><p>Пустое поле — настройки конструкции. Начало сетки задаётся в её координатах; для перекрытий это координаты плана. Согласование с реальными опорами выполняет технолог.</p><div className="cut-fields">
-    <label>Направление раскладки<select value={layout.direction || 'auto'} onChange={e=>change({direction:e.target.value})}><option value="auto">Автоматически, смешанная ориентация</option><option value="x">Вертикальные стены / вдоль первой оси ската</option><option value="y">Горизонтальные стены / поворот на 90°</option></select></label>
+    <label>Направление раскладки<select value={layout.direction || 'auto'} onChange={e=>change({direction:e.target.value})}>{roof?<><option value="auto">Автоматически</option><option value="x">Панели вдоль ската</option><option value="y">Панели поперёк ската (90°)</option></>:<><option value="auto">Автоматически, смешанная ориентация</option><option value="x">Вертикальные стены / вдоль первой оси ската</option><option value="y">Горизонтальные стены / поворот на 90°</option></>}</select></label>
     <NumberInput label="Шаг этой конструкции" value={layout.step ?? ''} min={100} max={2500} onChange={step=>change({step})} />
     <NumberInput label="Начало сетки X" value={layout.originX ?? ''} min={-100000} onChange={originX=>change({originX})} />
     <NumberInput label="Начало сетки Y" value={layout.originY ?? ''} min={-100000} onChange={originY=>change({originY})} />

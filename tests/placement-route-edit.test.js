@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { insertRoutePoint, pointOnRouteSegment, shiftRouteSegment } from '../src/react/state/placement-route-edit.js';
+import { insertRoutePoint, pointOnRouteSegment, removeRoutePoint, shiftRouteSegment } from '../src/react/state/placement-route-edit.js';
 
 test('clicking a route segment inserts a point on the line with interpolated height', () => {
   const source = [{ x: 1, y: 2, z: .9 }, { x: 3, y: 2, z: 2.1 }];
@@ -19,4 +19,12 @@ test('dragging horizontal and vertical segments creates orthogonal elbows and fi
   const shiftedVertical = shiftRouteSegment(vertical, 0, -.35);
   assert.deepEqual(shiftedVertical, [vertical[0], { x: 1.65, y: 1, z: 2 }, { x: 1.65, y: 3, z: 2 }, vertical[1]]);
   assert.equal(shiftRouteSegment([{ x: 0, y: 0 }, { x: 1, y: 1 }], 0, .2), null);
+});
+
+test('only an intermediate route point can be removed after selection', () => {
+  const points = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }];
+  assert.deepEqual(removeRoutePoint(points, 1), [points[0], points[2]]);
+  assert.equal(removeRoutePoint(points, 0), null);
+  assert.equal(removeRoutePoint(points, 2), null);
+  assert.deepEqual(points, [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }]);
 });

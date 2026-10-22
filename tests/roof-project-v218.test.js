@@ -30,6 +30,17 @@ test('gable true length uses continuous eaves and end cuts survive regeneration'
 test('tapered warm roof has horizontal structure, separate inclined covering and blocks unconfirmed taper',()=>{const p=fixture();Object.assign(p.settings.roof,{shape:'flat',type:'sip',flatSlopeMode:'tapered',flatSlopePercent:3});const r=run(p),s=r.surfaces.find(s=>s.roofPlacement);assert.ok(s);near(s.roofPlacement.normal[2],1);assert.ok(r.assembly.roofModel.faces[0].slopePercent>0);assert.ok(r.roofChecks.some(c=>c.code==='TAPER'&&c.status==='open'));});
 test('default end pairs and new parameters survive migration without changing project prices',()=>{const p=createDefaultProject(),c=calculateProject(p),r=run(p);assert.equal(p.settings.productionCutting.roofDesign.enabled,false);assert.equal(r.assembly.rafters.length,34);const next=migrateProject(JSON.parse(JSON.stringify(p)));assert.equal(calculateProject(next).totals.total,c.totals.total);assert.equal(next.settings.productionCutting.roofDesign.enabled,false);});
 test('warm facets use master placement, true area and stable technical IDs',()=>{const p=fixture();p.settings.roof.type='sip';const r=run(p);assert.equal(r.assembly.rafters.length,0);const s=r.surfaces.filter(s=>s.roofFaceId);assert.equal(s.length,2);assert.ok(s.every(s=>s.roofPlacement.id===s.id));const scene=productionScene(r,p);assert.ok(scene.panels.filter(p=>p.layer==='roof').length>0);});
+test('SIP roof panel orientation changes only the selected facet layout and survives reopening',()=>{
+ const p=fixture();p.settings.roof.type='sip';const baseline=run(p),facet=baseline.surfaces.find(s=>s.roofFaceId),cost=calculateProject(p).totals.total,plan=structuredClone(p.plan);
+ p.settings.productionCutting.layouts[facet.layoutKey]={direction:'x'};
+ const along=run(p),alongParts=along.parts.filter(part=>part.surfaceId===facet.id);
+ p.settings.productionCutting.layouts[facet.layoutKey]={direction:'y'};
+ const across=run(p),acrossParts=across.parts.filter(part=>part.surfaceId===facet.id);
+ assert.notDeepEqual(acrossParts.map(part=>[part.width,part.height]),alongParts.map(part=>[part.width,part.height]));
+ assert.deepEqual(across.surfaces.find(surface=>surface.id===facet.id).geometry,along.surfaces.find(surface=>surface.id===facet.id).geometry);
+ assert.deepEqual(p.plan,plan);assert.equal(calculateProject(p).totals.total,cost);
+ assert.equal(migrateProject(JSON.parse(JSON.stringify(p))).settings.productionCutting.layouts[facet.layoutKey].direction,'y');
+});
 test('invalid manual facets reject nonplanar, crossing, vertical and infinite coordinates',()=>{for(const pts of [[[0,0,0],[2000,0,0],[2000,2000,0],[0,2000,100]],[[0,0,0],[2000,2000,0],[0,2000,0],[2000,0,0]],[[0,0,0],[0,0,100],[0,100,100]],[[0,0,0],[Infinity,0,0],[0,100,100]]])assert.throws(()=>roofFacet('Р1','Скат',pts));});
 test('manual facet rejects a retraced edge but keeps a forward collinear layout point',()=>{
  const retraced=[[0,0,0],[2000,0,0],[1000,0,0],[2000,2000,0],[0,2000,0]];
