@@ -5027,7 +5027,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
 }
 
 export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
-  const { project, commit, undo, redo, canUndo, canRedo } = useProject();
+  const { project, activeTabId, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
   const [activeFloor, setActiveFloor] = useState(1);
@@ -5087,7 +5087,24 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     return () => { window.removeEventListener('eft:plan-library-synced', readLatest); window.removeEventListener('storage', onStorage); };
   }, []);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [editingLibraryId, setEditingLibraryId] = useState(null);
+  const [editingLibraryIds, setEditingLibraryIds] = useState(() => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('eft-plan-library-edit') || '{}');
+      return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+    }
+    catch { return {}; }
+  });
+  const editingLibraryId = editingLibraryIds[activeTabId] || null;
+  const setEditingLibraryId = id => setEditingLibraryIds(current => {
+    const next = { ...current };
+    if (id) next[activeTabId] = id;
+    else delete next[activeTabId];
+    return next;
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem('eft-plan-library-edit', JSON.stringify(editingLibraryIds)); }
+    catch { /* Editing remains available until this tab closes. */ }
+  }, [editingLibraryIds]);
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
   const plan =
     activeFloor === 1
@@ -6124,6 +6141,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </>
         }
       />
+      {editingLibraryId ? <div className="plan-library-edit-banner" role="status"><span>Редактируется план «{libraryPlans.find(entry => entry.id === editingLibraryId)?.name || 'из библиотеки'}»</span><button className="button primary" type="button" onClick={saveSketch}><Save />Обновить в библиотеке</button></div> : null}
       {libraryOpen ? (
         <PlanLibraryModal
           entries={planLibraryEntries}

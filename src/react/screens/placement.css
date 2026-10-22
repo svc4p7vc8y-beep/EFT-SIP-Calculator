@@ -185,9 +185,18 @@
 .placement-point-groups label span{display:block;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
 .placement-point-groups label small{color:#63867b;font-size:.71rem}
 .placement-point-room{margin:10px 0 14px;padding:9px;border:1px solid #dce9e4;border-radius:10px;background:#f8fbf9}
-.placement-point-room h4{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;color:#315e52;font-size:.79rem}
-.placement-point-room h4 span{display:grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:11px;background:#e2eee7;color:#315e52;font-size:.7rem}
+.placement-point-room summary{display:flex;align-items:center;gap:8px;cursor:pointer;color:#315e52;font-size:.79rem;list-style:none;min-height:28px}
+.placement-point-room summary::-webkit-details-marker{display:none}
+.placement-point-room summary::before{content:'';width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.placement-point-room[open] summary::before{transform:rotate(45deg)}
+.placement-point-room summary strong{flex:1;min-width:0;overflow-wrap:anywhere}
+.placement-point-room-count{display:grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:11px;background:#e2eee7;color:#315e52;font-size:.7rem}
+.placement-point-room-items{border-top:1px solid #dce9e4;margin-top:7px;padding-top:3px}
 .placement-point-room label{margin:7px 0 0}
+.placement-circuit-actions{display:grid;gap:5px;margin:0 0 12px}
+.placement-circuit-actions .placement-auto-route,.placement-circuit-actions .placement-remove-circuit{display:flex;align-items:center;justify-content:flex-start;gap:7px;width:100%;margin:0;padding:8px;font-size:.73rem}
+.placement-circuit-actions .placement-auto-route{border-color:#80b1a5;background:#e7f4ee;color:#24594b}
+.placement-circuit-actions .placement-remove-circuit{border-color:#edcfcc;background:#fff8f6;color:#a45a54}
 .placement-cluster-count{fill:#b7680b;font-size:22px;font-weight:800;pointer-events:none}
 .placement-electrical-cluster [role=button]{cursor:pointer;outline:none}
 .placement-electrical-cluster [role=button]:focus-visible>circle,.placement-electrical-cluster [role=button]:focus-visible>rect{stroke:#226b56;stroke-width:4px}

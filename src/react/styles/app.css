@@ -2375,6 +2375,10 @@ select,
   background: #fff;
 }
 .plan-library-modal h2 { margin: 0 0 5px; font-size: 22px; }
+.plan-library-edit-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 12px;border:1px solid #b7d7c1;border-radius:11px;background:#edf7ef;color:#285544;font-size:13px;font-weight:700}
+.plan-library-edit-banner .button{display:inline-flex;align-items:center;gap:7px;margin:0}
+.plan-library-edit-banner .button svg{width:16px;height:16px}
+@media(max-width:560px){.plan-library-edit-banner .button{width:100%;justify-content:center}}
 .plan-library-modal header p { max-width: 760px; margin: 0; color: #657067; font-size: 12px; line-height: 1.5; }
 .plan-library-modal > header button { padding: 8px; border: 0; border-radius: 9px; background: #edf2ea; }
 .plan-library-grid {
