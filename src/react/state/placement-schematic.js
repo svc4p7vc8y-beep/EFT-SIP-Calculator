@@ -72,3 +72,35 @@ export function panelRouteBundles(routes) {
     return { start: ray.start, end: { ...ray.start, [ray.axis]: ray.start[ray.axis] + ray.direction * length }, axis: ray.axis, circuits };
   }).filter(bundle => bundle.circuits.length > 1 && Math.abs(bundle.end[bundle.axis] - bundle.start[bundle.axis]) >= .15);
 }
+
+/** Display-only parallel lanes for every common straight run, including junction feeds. */
+export function sharedElectricalRouteLanes(routes) {
+  const groups = new Map();
+  for (const route of routes) {
+    for (let index = 0; index < (route.points?.length || 0) - 1; index += 1) {
+      const first = route.points[index], last = route.points[index + 1];
+      if (Math.abs((first.z || 0) - (last.z || 0)) > .001) continue;
+      const axis = Math.abs(first.y - last.y) < .001 ? 'x' : Math.abs(first.x - last.x) < .001 ? 'y' : null;
+      if (!axis || Math.abs(first[axis] - last[axis]) < .02) continue;
+      const fixed = axis === 'x' ? round(first.y) : round(first.x);
+      const surface = [last.surface, first.surface, route.surface].find(value => value === 'ceiling' || value === 'floor' || value === 'wall') || 'legacy';
+      const key = `${axis}:${fixed}`;
+      if (!groups.has(key)) groups.set(key, { axis, fixed, segments: [] });
+      groups.get(key).segments.push({ start: Math.min(first[axis], last[axis]), end: Math.max(first[axis], last[axis]), routeId: route.id, circuitId: route.circuitId, surface, auto: route.auto });
+    }
+  }
+  const lanes = [];
+  for (const { axis, fixed, segments } of groups.values()) {
+    const cuts = [...new Set(segments.flatMap(segment => [segment.start, segment.end]))].sort((a, b) => a - b);
+    for (let index = 0; index < cuts.length - 1; index += 1) {
+      const start = cuts[index], end = cuts[index + 1];
+      if (end - start < .02) continue;
+      const middle = (start + end) / 2;
+      const active = [...new Map(segments.filter(segment => segment.start <= middle + .001 && segment.end >= middle - .001).map(segment => [segment.routeId, segment])).values()]
+        .sort((a, b) => a.circuitId.localeCompare(b.circuitId) || a.routeId.localeCompare(b.routeId));
+      if (active.length < 2) continue;
+      lanes.push({ axis, start: axis === 'x' ? { x: start, y: fixed } : { x: fixed, y: start }, end: axis === 'x' ? { x: end, y: fixed } : { x: fixed, y: end }, routes: active });
+    }
+  }
+  return lanes;
+}

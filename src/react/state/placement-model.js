@@ -1,6 +1,7 @@
 import { resolvedElectricalRoutes } from './placement-electrical.js';
 import { normalizeNetworkRoutes } from './placement-networks.js';
 import { addMissingConnectionPorts } from './placement-connections.js';
+import { uniqueCircuitColors } from './placement-circuit-colors.js';
 
 export const PLACEMENT_LAYERS = [
   { id: 'furniture', label: 'Мебель' },
@@ -177,7 +178,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 5, items: [], circuits: [], routes: [], dimensions: [], defaultRouteSurface: 'ceiling', showAutoDimensions: true, networks: normalizeNetworkRoutes() };
+  return { version: 5, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], defaultRouteSurface: 'ceiling', showAutoDimensions: true, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -214,10 +215,12 @@ export function normalizePlacement(value) {
       anchorX: item.surface === 'facade' ? finite(item.anchorX, finite(item.x)) : undefined,
       anchorY: item.surface === 'facade' ? finite(item.anchorY, finite(item.y)) : undefined,
     })),
-    circuits: circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа'),
+    circuits: uniqueCircuitColors(circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа'),
       breakerAmps: circuit.breakerAmps === '' || circuit.breakerAmps == null || !Number.isFinite(Number(circuit.breakerAmps)) || Number(circuit.breakerAmps) <= 0 ? null : Number(circuit.breakerAmps),
       accessories: (Array.isArray(circuit.accessories) ? circuit.accessories : []).filter(entry => entry && typeof entry.name === 'string').map(entry => ({ name: entry.name.slice(0, 100), quantity: Math.max(0, finite(entry.quantity)), unit: String(entry.unit || 'шт').slice(0, 20) })),
-    })),
+    }))),
+    hiddenCircuitLineIds: (Array.isArray(value.hiddenCircuitLineIds) ? value.hiddenCircuitLineIds : []).filter(id => circuits.some(circuit => circuit?.id === id)),
+    hiddenCircuitPointIds: (Array.isArray(value.hiddenCircuitPointIds) ? value.hiddenCircuitPointIds : []).filter(id => circuits.some(circuit => circuit?.id === id)),
     routes: routes.filter(route => route && typeof route.id === 'string' && Array.isArray(route.points)).map(route => ({
       ...route,
       floor: Math.max(1, Math.min(2, Math.round(finite(route.floor, 1)))),

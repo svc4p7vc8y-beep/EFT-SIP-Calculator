@@ -1,5 +1,6 @@
 import { placementWallFaces } from './placement-walls.js';
 import { appendSurfaceWaypoint, surfaceRouteLeg } from './placement-route-surfaces.js';
+import { appendManualRouteWaypoint, finishManualRoute } from './placement-manual-routing.js';
 
 const round = value => Math.round(value * 100) / 100;
 export const routeLength = points => (points || []).slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
@@ -65,7 +66,26 @@ export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId,
   const junctions = assigned.filter(item => item.kind === 'junction-box');
   const nearestJunction = item => junctions.find(entry => entry.id === item.junctionItemId) || [...junctions].sort((a, b) => Math.hypot(item.x - a.x, item.y - a.y) - Math.hypot(item.x - b.x, item.y - b.y))[0] || null;
   const make = (from, to, purpose) => ({ id: createId(), floor, circuitId, panelItemId: panel.id, fromItemId: from.id, targetItemId: to.id, purpose, auto: true, points: routeBetweenElectricalNodes(from, to, null, plan) });
-  const result = junctions.map(junction => make(panel, junction, 'feed'));
+  // Feed the junctions as one rooted tree. A downstream junction is connected
+  // to the nearest already fed junction or the panel, never routed via the
+  // panel again merely because it is the next junction in the group.
+  const result = [];
+  const fed = [panel];
+  const pendingJunctions = [...junctions];
+  const feedLengths = new Map();
+  const feedLength = (from, to) => {
+    const key = `${from.id}:${to.id}`;
+    if (!feedLengths.has(key)) feedLengths.set(key, electricalRouteLength3d(routeBetweenElectricalNodes(from, to, null, plan)));
+    return feedLengths.get(key);
+  };
+  while (pendingJunctions.length) {
+    const candidates = pendingJunctions.flatMap(to => fed.map(from => ({ from, to, length: feedLength(from, to) })));
+    candidates.sort((a, b) => a.length - b.length || a.to.id.localeCompare(b.to.id) || a.from.id.localeCompare(b.from.id));
+    const chosen = candidates[0];
+    result.push(make(chosen.from, chosen.to, 'feed'));
+    fed.push(chosen.to);
+    pendingJunctions.splice(pendingJunctions.findIndex(item => item.id === chosen.to.id), 1);
+  }
   const routed = new Set(junctions.map(item => item.id));
   // Build one editable chain for each junction. Without junctions the chain
   // starts at the panel. Every outlet remains an explicit route endpoint.
@@ -124,14 +144,17 @@ export function resolvedElectricalRoutes(placement, floor, plan = null) {
         const end = { x: target.x, y: target.y, z: target.heightKnown ? Number(target.height) || 0 : Number(route.points.at(-1).z) || 0, surface: 'device', wallRef: target.wallRef || '' };
         let rebuilt = [start];
         for (const anchor of route.points.filter(point => point.waypoint)) {
-          const next = appendSurfaceWaypoint(rebuilt, anchor, anchor.surface || 'ceiling', plan, route.wallHeight ?? null, anchor.wallRef || '');
+          const next = route.purpose === 'manual'
+            ? appendManualRouteWaypoint(rebuilt, { position: anchor, surface: anchor.surface || 'ceiling', wallRef: anchor.wallRef || '' }, plan, route.wallHeight ?? null)
+            : appendSurfaceWaypoint(rebuilt, anchor, anchor.surface || 'ceiling', plan, route.wallHeight ?? null, anchor.wallRef || '');
           if (!next) { rebuilt = null; break; }
           rebuilt = next;
         }
         if (rebuilt) {
           const surface = route.surface || rebuilt.at(-1).surface || 'ceiling';
-          const leg = surfaceRouteLeg(rebuilt.at(-1), end, surface, plan, route.wallHeight ?? null);
-          if (leg) return { ...route, points: [...rebuilt, ...leg.slice(1)] };
+          const leg = route.purpose === 'manual' ? finishManualRoute(rebuilt, end, surface, plan, route.wallHeight ?? null)
+            : surfaceRouteLeg(rebuilt.at(-1), end, surface, plan, route.wallHeight ?? null);
+          if (leg) return { ...route, points: route.purpose === 'manual' ? leg : [...rebuilt, ...leg.slice(1)] };
         }
       }
       const points = route.points.map(point => ({ ...point }));

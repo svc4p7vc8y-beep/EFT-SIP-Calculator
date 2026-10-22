@@ -37,7 +37,7 @@ export function routeSurfaceHeight(plan, surface, wallHeight = null) {
 }
 
 /** Build a physical route through the requested surface. Every height change is vertical at a wall face. */
-export function surfaceRouteLeg(from, to, surface, plan, wallHeight = null, wallRef = '') {
+export function surfaceRouteLeg(from, to, surface, plan, wallHeight = null, wallRef = '', options = {}) {
   if (!from || !to || !ROUTE_SURFACES.some(entry => entry.id === surface)) return null;
   const level = routeSurfaceHeight(plan, surface, wallHeight);
   const result = [point(from, Number(from.z) || 0, from.surface || 'device', from.wallRef)];
@@ -48,7 +48,8 @@ export function surfaceRouteLeg(from, to, surface, plan, wallHeight = null, wall
     const wall = wallAt(to, wallRef);
     if (!wall) return null;
     const previousFace = from.surface === 'wall' && from.wallRef ? placementWallFaces(plan).find(face => face.ref === from.wallRef) : null;
-    const previousWall = previousFace && previousFace.ref !== wall.face.ref ? previousFace : wall.face;
+    const previousWall = options.wallStartNearest ? previousFace || wallAt(from, from.wallRef)?.face || wall.face
+      : previousFace && previousFace.ref !== wall.face.ref ? previousFace : wall.face;
     const first = projectToWallFace(previousWall, from);
     append(point(first.foot, from.z || 0, 'wall', previousWall.ref));
     append(point(first.foot, level, 'wall', previousWall.ref));
@@ -81,14 +82,14 @@ export function surfaceRouteLeg(from, to, surface, plan, wallHeight = null, wall
   return result;
 }
 
-export function appendSurfaceWaypoint(points, at, surface, plan, wallHeight = null, wallRef = '') {
+export function appendSurfaceWaypoint(points, at, surface, plan, wallHeight = null, wallRef = '', options = {}) {
   if (!points?.length) return null;
   const level = routeSurfaceHeight(plan, surface, wallHeight);
   const wall = surface === 'wall' ? nearestRouteWall(plan, at, wallRef) : null;
   if (surface === 'wall' && !wall) return null;
   const targetAt = wall ? wall.projection.foot : at;
   const target = point({ ...targetAt, waypoint: true }, level, surface, wall?.face.ref);
-  const leg = surfaceRouteLeg(points.at(-1), target, surface, plan, wallHeight, wall?.face.ref);
+  const leg = surfaceRouteLeg(points.at(-1), target, surface, plan, wallHeight, wall?.face.ref, options);
   return leg ? [...points, ...leg.slice(1)] : null;
 }
 

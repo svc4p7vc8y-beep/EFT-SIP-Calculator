@@ -1,5 +1,6 @@
 import { roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from './placement-geometry.js';
+import { validCircuitColor } from './placement-circuit-colors.js';
 
 const wallSwitchKinds = new Set(['switch', 'double-switch', 'two-way-switch', 'dimmer']);
 
@@ -110,7 +111,7 @@ const circuitColors = ['#b84b36', '#326fb4', '#16806c', '#9860a9', '#aa6a16', '#
 export function electricalGroupColor(circuitId, circuits = []) {
   if (!circuitId) return '#64748b';
   const index = circuits.findIndex(circuit => circuit.id === circuitId);
-  if (index >= 0) return index < circuitColors.length ? circuitColors[index] : `hsl(${Math.round(index * 137.508) % 360} 62% 40%)`;
+  if (index >= 0) return validCircuitColor(circuits[index].color) || (index < circuitColors.length ? circuitColors[index] : `hsl(${Math.round(index * 137.508) % 360} 62% 40%)`);
   const hash = [...String(circuitId)].reduce((value, char) => value * 31 + char.charCodeAt(0), 0);
   return circuitColors[Math.abs(hash) % circuitColors.length];
 }
