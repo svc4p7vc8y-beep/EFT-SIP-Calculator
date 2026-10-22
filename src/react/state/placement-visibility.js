@@ -14,14 +14,31 @@ const edgeDistance = (point, a, b) => {
   return Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy);
 };
 
-export function roomNameForPlacement(item, rooms) {
+function roomForPlacement(item, rooms) {
   const point = { x: Number(item.x), y: Number(item.y) };
-  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return 'Вне комнат';
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
   const polygons = rooms.map(room => ({ room, points: roomPoints(room) })).filter(entry => entry.points.length > 1);
   const containing = polygons.find(({ points }) => pointInPolygon(point, points));
-  if (containing) return containing.room.name || 'Комната';
+  if (containing) return containing.room;
   const nearest = polygons.map(({ room, points }) => ({ room, distance: points.reduce((best, a, index) => Math.min(best, edgeDistance(point, a, points[(index + 1) % points.length])), Infinity) })).sort((a, b) => a.distance - b.distance)[0];
-  return nearest?.distance <= .35 ? nearest.room.name || 'Комната' : 'Вне комнат';
+  return nearest?.distance <= .35 ? nearest.room : null;
+}
+
+export function roomNameForPlacement(item, rooms) {
+  const room = roomForPlacement(item, rooms);
+  return room ? room.name || 'Комната' : 'Вне комнат';
+}
+
+export function electricalPointsByRoom(items, rooms) {
+  const grouped = new Map();
+  for (const item of items) {
+    if (item.layer !== 'electric' || item.kind === 'panel') continue;
+    const room = roomForPlacement(item, rooms);
+    const key = room ? `room:${room.id || rooms.indexOf(room)}` : 'outside';
+    if (!grouped.has(key)) grouped.set(key, { key, name: room ? room.name || 'Комната' : 'Вне комнат', items: [], order: room ? rooms.indexOf(room) : rooms.length });
+    grouped.get(key).items.push(item);
+  }
+  return [...grouped.values()].sort((a, b) => a.order - b.order);
 }
 
 export function electricalPlacementClusters(items, rooms) {

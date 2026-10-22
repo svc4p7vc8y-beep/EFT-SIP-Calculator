@@ -184,6 +184,10 @@
 .placement-inspector label,.placement-inspector p{overflow-wrap:anywhere}
 .placement-point-groups label span{display:block;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
 .placement-point-groups label small{color:#63867b;font-size:.71rem}
+.placement-point-room{margin:10px 0 14px;padding:9px;border:1px solid #dce9e4;border-radius:10px;background:#f8fbf9}
+.placement-point-room h4{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;color:#315e52;font-size:.79rem}
+.placement-point-room h4 span{display:grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:11px;background:#e2eee7;color:#315e52;font-size:.7rem}
+.placement-point-room label{margin:7px 0 0}
 .placement-cluster-count{fill:#b7680b;font-size:22px;font-weight:800;pointer-events:none}
 .placement-electrical-cluster [role=button]{cursor:pointer;outline:none}
 .placement-electrical-cluster [role=button]:focus-visible>circle,.placement-electrical-cluster [role=button]:focus-visible>rect{stroke:#226b56;stroke-width:4px}

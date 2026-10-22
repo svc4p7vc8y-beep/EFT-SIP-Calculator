@@ -111,7 +111,24 @@ test('concave room unfolds each true edge without changing its length or putting
   const reopened = normalizePlacement({ items: [{ id: 'old', layer: 'electric', kind: 'socket', x: .12, y: 2 }, { id: 'manual', layer: 'electric', kind: 'socket', x: .12, y: 2, displayPlane: 'floor' }] });
   assert.deepEqual(reopened.items.map(item => item.displayPlane), ['auto', 'floor']);
 });
-import { electricalGroupColor, electricalPlacementClusters, linkedWallSwitch, roomNameForPlacement, wallPointDisplayOrder } from '../src/react/state/placement-visibility.js';
+import { electricalGroupColor, electricalPlacementClusters, electricalPointsByRoom, linkedWallSwitch, roomNameForPlacement, wallPointDisplayOrder } from '../src/react/state/placement-visibility.js';
+
+test('electrical assignment is grouped by room identity and leaves unassigned points available', () => {
+  const rooms = [
+    { id: 'bed-a', name: 'Спальня', points: [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 2 }, { x: 0, y: 2 }] },
+    { id: 'bed-b', name: 'Спальня', points: [{ x: 3, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 2 }, { x: 3, y: 2 }] },
+  ];
+  const items = [
+    { id: 'second', layer: 'electric', kind: 'socket', x: 4, y: 1, circuitId: '' },
+    { id: 'outside', layer: 'electric', kind: 'light', x: 8, y: 8, circuitId: 'c1' },
+    { id: 'first', layer: 'electric', kind: 'switch', x: 1, y: 1, circuitId: 'c1' },
+    { id: 'panel', layer: 'electric', kind: 'panel', x: 1, y: 1 },
+  ];
+  const groups = electricalPointsByRoom(items, rooms);
+  assert.deepEqual(groups.map(group => group.items.map(item => item.id)), [['first'], ['second'], ['outside']]);
+  assert.deepEqual(groups.map(group => group.name), ['Спальня', 'Спальня', 'Вне комнат']);
+  assert.equal(groups[1].items[0].circuitId, '');
+});
 
 test('electrical points on one vertical axis form a wall-perpendicular row without changing coordinates', () => {
   const rooms = createDefaultProject().plan.rooms;
