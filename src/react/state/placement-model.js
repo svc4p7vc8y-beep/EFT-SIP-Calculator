@@ -220,7 +220,7 @@ export function normalizePlacement(value) {
     routes: routes.filter(route => route && typeof route.id === 'string' && Array.isArray(route.points)).map(route => ({
       ...route,
       floor: Math.max(1, Math.min(2, Math.round(finite(route.floor, 1)))),
-      points: route.points.filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y))).map(point => ({ x: Number(point.x), y: Number(point.y), ...(Number.isFinite(Number(point?.z)) && point?.z != null ? { z: Number(point.z) } : {}) })),
+      points: route.points.filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y))).map(point => ({ x: Number(point.x), y: Number(point.y), ...(Number.isFinite(Number(point?.z)) && point?.z != null ? { z: Number(point.z) } : {}), ...(['floor', 'ceiling', 'wall', 'device'].includes(point?.surface) ? { surface: point.surface } : {}), ...(typeof point?.wallRef === 'string' ? { wallRef: point.wallRef.slice(0, 100) } : {}), ...(point?.waypoint === true ? { waypoint: true } : {}) })),
     })).filter(route => route.points.length >= 2),
     dimensions: dimensions.filter(dimension => dimension && typeof dimension.id === 'string' && Array.isArray(dimension.points) && dimension.points.length === 2).map(dimension => ({
       ...dimension,
