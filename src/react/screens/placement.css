@@ -314,8 +314,8 @@
 .placement-route-list>div{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px}
 .placement-route-list select{max-width:93px;min-width:0;padding:5px 2px;border:1px solid #cbded3;border-radius:6px;background:#fff;font-size:.71rem}
 .placement-route-point{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:4px;align-items:center;margin:3px 0}
-.placement-route-point>button:first-child{min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.placement-route-point>button:last-child{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid #e2d2cb;border-radius:6px;background:#fff;color:#98503c}
+.placement-route-point>button:first-child{grid-column:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.placement-route-point>button:last-child{grid-column:2;display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid #e2d2cb;border-radius:6px;background:#fff;color:#98503c}
 .placement-electric-point-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.7fr) 30px 30px;align-items:center;gap:3px;white-space:nowrap}
 .placement-electric-point-row strong,.placement-electric-point-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .placement-electric-point-row strong{font-size:.76rem}
