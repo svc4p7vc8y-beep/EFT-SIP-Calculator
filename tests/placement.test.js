@@ -12,6 +12,53 @@ import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
 import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
 import { alignLightToNeighbors, junctionWallMount, panelRouteBundles, schematicPosition } from '../src/react/state/placement-schematic.js';
+import { appendSurfaceWaypoint, routeSurfaceAtPoint, sharedRouteWallCorner, surfaceRouteLeg } from '../src/react/state/placement-route-surfaces.js';
+
+test('interior route default survives old projects and floor override', () => {
+  assert.equal(normalizePlacement({}).defaultRouteSurface, 'ceiling');
+  assert.equal(normalizePlacement({ defaultRouteSurface: 'floor' }).defaultRouteSurface, 'floor');
+  const project = createDefaultProject();
+  project.placement = normalizePlacement({ defaultRouteSurface: 'floor', routes: [{ id: 'manual', floor: 1, auto: false, surface: 'floor', rebuildOnMove: true,
+    points: [{ x: 1, y: 1, z: 0, surface: 'device' }, { x: 2, y: 2, z: 0, surface: 'floor', waypoint: true }] }] });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.placement.defaultRouteSurface, 'floor');
+  assert.equal(reopened.placement.routes[0].rebuildOnMove, true);
+  assert.equal(reopened.placement.routes[0].points[1].waypoint, true);
+});
+
+test('a manual wall route follows adjacent faces through their shared corner', () => {
+  const plan = createDefaultProject().plan;
+  const faces = placementWallFaces(plan);
+  const first = faces[0], second = faces[1];
+  const corner = sharedRouteWallCorner(first, second);
+  assert.ok(corner);
+  const from = { x: first.b.x - .5, y: first.b.y, z: 2.3, surface: 'wall', wallRef: first.ref };
+  const to = { x: second.a.x, y: second.a.y + .5, z: 2.3, surface: 'wall', wallRef: second.ref };
+  const leg = surfaceRouteLeg(from, to, 'wall', plan, 2.3, second.ref);
+  assert.ok(leg);
+  assert.ok(leg.some(point => point.wallRef === first.ref && Math.hypot(point.x - corner.a.x, point.y - corner.a.y) < .002));
+  assert.ok(leg.some(point => point.wallRef === second.ref && Math.hypot(point.x - corner.b.x, point.y - corner.b.y) < .002));
+  assert.equal(routeSurfaceAtPoint(plan, { x: first.b.x - .5, y: first.b.y + .08 }, 'floor').surface, 'wall');
+  assert.equal(routeSurfaceAtPoint(plan, { x: 2.5, y: 10.5 }, 'floor').surface, 'floor');
+});
+
+test('user route with waypoint rebuilds from moved electrical endpoint', () => {
+  const plan = createDefaultProject().plan;
+  const items = [
+    { id: 'panel', floor: 1, x: 1, y: 1, height: 1.5, heightKnown: true, kind: 'panel' },
+    { id: 'socket', floor: 1, x: 4, y: 4, height: .3, heightKnown: true, kind: 'socket' },
+  ];
+  const start = { x: 1, y: 1, z: 1.5, surface: 'device' };
+  const anchored = appendSurfaceWaypoint([start], { x: 2, y: 3 }, 'ceiling', plan);
+  const points = [...anchored, ...surfaceRouteLeg(anchored.at(-1), { x: 4, y: 4, z: .3, surface: 'device' }, 'ceiling', plan).slice(1)];
+  const placement = { items, routes: [{ id: 'route', floor: 1, fromItemId: 'panel', targetItemId: 'socket', auto: false, rebuildOnMove: true, surface: 'ceiling', points }] };
+  const before = resolvedElectricalRoutes(placement, 1, plan)[0].points;
+  items[1].x = 5;
+  const after = resolvedElectricalRoutes(placement, 1, plan)[0].points;
+  assert.equal(after.at(-1).x, 5);
+  assert.notDeepEqual(after.slice(-3), before.slice(-3));
+  assert.ok(after.some(point => point.waypoint && point.x === 2 && point.y === 3));
+});
 
 test('light alignment guides snap to nearby lights on both axes', () => {
   const room = { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }, { x: 0, y: 5 }] };

@@ -1273,6 +1273,12 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             number="09"
             title="Инженерия и отделка"
           >
+            <div className="parameters-route-default"><label>Новые электрические трассы через комнату
+              <select value={project.placement?.defaultRouteSurface || 'ceiling'} onChange={event => commit(next => {
+                next.placement = { ...(next.placement || {}), defaultRouteSurface: event.target.value === 'floor' ? 'floor' : 'ceiling' };
+                return next;
+              })}><option value="ceiling">По потолку</option><option value="floor">По полу</option></select>
+            </label><small>Для отдельных линий и участков плоскость можно изменить на плане. Существующие трассы сохраняют свой путь.</small></div>
             <LinkedGroup
               title="Инженерия из плана"
               group="engineering"

@@ -1,4 +1,5 @@
 import { placementWallFaces } from './placement-walls.js';
+import { appendSurfaceWaypoint, surfaceRouteLeg } from './placement-route-surfaces.js';
 
 const round = value => Math.round(value * 100) / 100;
 export const routeLength = points => (points || []).slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
@@ -118,6 +119,21 @@ export function resolvedElectricalRoutes(placement, floor, plan = null) {
     if (!route.auto) {
       const target = items.find(item => item.id === route.targetItemId);
       if (!from || route.points.length < 2) return route;
+      if (route.rebuildOnMove && target && plan) {
+        const start = { x: from.x, y: from.y, z: from.heightKnown ? Number(from.height) || 0 : Number(route.points[0].z) || 0, surface: 'device', wallRef: from.wallRef || '' };
+        const end = { x: target.x, y: target.y, z: target.heightKnown ? Number(target.height) || 0 : Number(route.points.at(-1).z) || 0, surface: 'device', wallRef: target.wallRef || '' };
+        let rebuilt = [start];
+        for (const anchor of route.points.filter(point => point.waypoint)) {
+          const next = appendSurfaceWaypoint(rebuilt, anchor, anchor.surface || 'ceiling', plan, route.wallHeight ?? null, anchor.wallRef || '');
+          if (!next) { rebuilt = null; break; }
+          rebuilt = next;
+        }
+        if (rebuilt) {
+          const surface = route.surface || rebuilt.at(-1).surface || 'ceiling';
+          const leg = surfaceRouteLeg(rebuilt.at(-1), end, surface, plan, route.wallHeight ?? null);
+          if (leg) return { ...route, points: [...rebuilt, ...leg.slice(1)] };
+        }
+      }
       const points = route.points.map(point => ({ ...point }));
       points[0] = { ...points[0], x: from.x, y: from.y, ...(from.heightKnown ? { z: Number(from.height) || 0 } : {}) };
       if (target) points[points.length - 1] = { ...points[points.length - 1], x: target.x, y: target.y, ...(target.heightKnown ? { z: Number(target.height) || 0 } : {}) };

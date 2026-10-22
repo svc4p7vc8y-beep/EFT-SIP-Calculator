@@ -19,7 +19,7 @@ const svgPosition = (svg, event) => {
   return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
 };
 
-export default function PlacementRoomUnfolding({ room, plan, items, routes = [], draftPoints = [], draftSystem = '', draftCircuitId = '', visible = {}, onToggleLayer, elementsLocked, onToggleLock, circuitColor, activePreset, selectedId, selectedRouteId, selectedRoutePointIndex, routeMode, onPlace, onMove, onSelect, onPickNode, onRoutePoint, onSelectRoute, onSelectRoutePoint, onInsertRoutePoint, onShiftRouteSegment }) {
+export default function PlacementRoomUnfolding({ room, plan, items, routes = [], draftPoints = [], draftSystem = '', draftCircuitId = '', visible = {}, onToggleLayer, elementsLocked, linesLocked, onToggleLock, onToggleLinesLock, onUndo, onRedo, canUndo, canRedo, circuitColor, activePreset, selectedId, selectedRouteId, selectedRoutePointIndex, routeMode, onPlace, onMove, onSelect, onPickNode, onRoutePoint, onSelectRoute, onSelectRoutePoint, onInsertRoutePoint, onShiftRouteSegment }) {
   const drag = useRef(null);
   const skipClick = useRef(false);
   const [routePreview, setRoutePreview] = useState(null);
@@ -87,7 +87,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
     return target ? { x: target.position.x, y: target.position.y, z: target.elevation } : null;
   };
   const handleRouteDown = (event, route, segmentIndex, edgeIndex) => {
-    if (elementsLocked || routeMode || activePreset || route.system !== 'electric') return;
+    if (linesLocked || routeMode || activePreset || route.system !== 'electric') return;
     const svg = event.currentTarget.ownerSVGElement;
     const start = svgPosition(svg, event);
     if (!start) return;
@@ -168,7 +168,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
       drag.current = null;
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       const travelled = Math.hypot(event.clientX - current.clientX, event.clientY - current.clientY);
-      if (event.type !== 'pointercancel' && !elementsLocked) {
+      if (event.type !== 'pointercancel' && !linesLocked) {
         if (travelled > 5 && current.preview) onShiftRouteSegment?.(current.route, current.preview);
         else if (travelled <= 5) {
           const local = svgPosition(event.currentTarget, event);
@@ -223,7 +223,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
         {roomRoutes.filter(route => route.points.length > 1 && route.points.every(point => roomWallDisplayPoint(room, index, point, point.z || 0, height)?.distance < .22)).map(route => {
           const points = routePreview?.id === route.id ? routePreview.points : route.points;
           return <g key={route.id} data-route-id={route.id}><path d={points.map((point, pointIndex) => { const position = roomWallDisplayPoint(room, index, point, point.z || 0, height); return `${pointIndex ? 'L' : 'M'} ${position.x * 100} ${position.y * 100}`; }).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>
-            {route.system === 'electric' && route.id === selectedRouteId && !routeMode && !elementsLocked ? route.points.slice(0, -1).map((point, segmentIndex) => { const a = roomWallDisplayPoint(room, index, point, point.z || 0, height); const b = roomWallDisplayPoint(room, index, route.points[segmentIndex + 1], route.points[segmentIndex + 1].z || 0, height); return a && b ? <line key={segmentIndex} className="placement-route-segment-target" x1={a.x * 100} y1={a.y * 100} x2={b.x * 100} y2={b.y * 100} onPointerDown={event => handleRouteDown(event, route, segmentIndex, index)}><title>Нажмите для новой точки или перетащите участок</title></line> : null; }) : null}
+            {route.system === 'electric' && route.id === selectedRouteId && !routeMode && !linesLocked ? route.points.slice(0, -1).map((point, segmentIndex) => { const a = roomWallDisplayPoint(room, index, point, point.z || 0, height); const b = roomWallDisplayPoint(room, index, route.points[segmentIndex + 1], route.points[segmentIndex + 1].z || 0, height); return a && b ? <line key={segmentIndex} className="placement-route-segment-target" x1={a.x * 100} y1={a.y * 100} x2={b.x * 100} y2={b.y * 100} onPointerDown={event => handleRouteDown(event, route, segmentIndex, index)}><title>Нажмите для новой точки или перетащите участок</title></line> : null; }) : null}
             {route.system === 'electric' && route.id === selectedRouteId && !routeMode ? route.points.slice(1, -1).map((point, pointIndex) => { const at = roomWallDisplayPoint(room, index, point, point.z || 0, height); return at ? <circle key={pointIndex} data-route-point={pointIndex + 1} cx={at.x * 100} cy={at.y * 100} r="16" className={`placement-route-waypoint${selectedRoutePointIndex === pointIndex + 1 ? ' selected' : ''}`} onClick={event => { event.stopPropagation(); onSelectRoutePoint?.(route, pointIndex + 1); }}><title>Точка {pointIndex + 1} · выбрать для удаления</title></circle> : null; }) : null}
           </g>;
         })}
@@ -231,7 +231,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
       </svg>
     </div>;
   };
-  return <section className="placement-room-unfolding"><header><div><strong>Развёртка комнаты: {room.name}</strong><span>Пол в центре, стены по сторонам. Длина каждой стены взята из грани пола.</span></div><div className="placement-room-heading-actions"><span>{roomItems.length} элементов · {roomRoutes.length} трасс</span><button type="button" className={elementsLocked ? "active" : ""} aria-pressed={elementsLocked} onClick={onToggleLock}>{elementsLocked ? "🔒 Элементы заблокированы" : "🔓 Заблокировать элементы"}</button></div></header>
+  return <section className="placement-room-unfolding"><header><div><strong>Развёртка комнаты: {room.name}</strong><span>Пол в центре, стены по сторонам. Длина каждой стены взята из грани пола.</span></div><div className="placement-room-heading-actions"><span>{roomItems.length} элементов · {roomRoutes.length} трасс</span><button type="button" className={elementsLocked ? "active" : ""} aria-pressed={elementsLocked} onClick={onToggleLock}>{elementsLocked ? "🔒 Элементы" : "🔓 Элементы"}</button><button type="button" className={linesLocked ? "active" : ""} aria-pressed={linesLocked} onClick={onToggleLinesLock}>{linesLocked ? "🔒 Линии" : "🔓 Линии"}</button><button type="button" onClick={onUndo} disabled={!canUndo} title="Отменить">↶</button><button type="button" onClick={onRedo} disabled={!canRedo} title="Повторить">↷</button></div></header>
     <div className="placement-room-layer-switches" role="group" aria-label="Слои развёртки">{PLACEMENT_LAYERS.filter(entry => !entry.future).map(entry => <button key={entry.id} className={visible[entry.id] === false ? 'muted' : 'active'} aria-pressed={visible[entry.id] !== false} onClick={() => onToggleLayer?.(entry.id)}>{entry.label}</button>)}</div>
     <div className="placement-room-unfold-scroll"><div className="placement-room-unfold-grid" style={{ width: `${layout.width * SCALE}px`, height: `${layout.height * SCALE}px` }}>
       {edges.map(wall)}
@@ -244,7 +244,7 @@ export default function PlacementRoomUnfolding({ room, plan, items, routes = [],
           {roomRoutes.map(route => {
             const points = routePreview?.id === route.id ? routePreview.points : route.points;
             return <g key={route.id} data-route-id={route.id}><path d={points.map((point, index) => `${index ? 'L' : 'M'} ${(point.x - box.x) * 100} ${(point.y - box.y) * 100}`).join(' ')} fill="none" stroke={routeColor(route, circuitColor)} strokeWidth="4" strokeDasharray={route.auto ? '7 5' : undefined} vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); onSelectRoute(route); }}><title>{route.system} · трасса</title></path>
-              {route.system === 'electric' && route.id === selectedRouteId && !routeMode && !elementsLocked ? route.points.slice(0, -1).map((point, segmentIndex) => <line key={segmentIndex} className="placement-route-segment-target" x1={(point.x - box.x) * 100} y1={(point.y - box.y) * 100} x2={(route.points[segmentIndex + 1].x - box.x) * 100} y2={(route.points[segmentIndex + 1].y - box.y) * 100} onPointerDown={event => handleRouteDown(event, route, segmentIndex, -1)}><title>Нажмите для новой точки или перетащите участок</title></line>) : null}
+              {route.system === 'electric' && route.id === selectedRouteId && !routeMode && !linesLocked ? route.points.slice(0, -1).map((point, segmentIndex) => <line key={segmentIndex} className="placement-route-segment-target" x1={(point.x - box.x) * 100} y1={(point.y - box.y) * 100} x2={(route.points[segmentIndex + 1].x - box.x) * 100} y2={(route.points[segmentIndex + 1].y - box.y) * 100} onPointerDown={event => handleRouteDown(event, route, segmentIndex, -1)}><title>Нажмите для новой точки или перетащите участок</title></line>) : null}
               {route.system === 'electric' && route.id === selectedRouteId && !routeMode ? route.points.slice(1, -1).map((point, pointIndex) => <circle key={pointIndex} data-route-point={pointIndex + 1} cx={(point.x - box.x) * 100} cy={(point.y - box.y) * 100} r="16" className={`placement-route-waypoint${selectedRoutePointIndex === pointIndex + 1 ? ' selected' : ''}`} onClick={event => { event.stopPropagation(); onSelectRoutePoint?.(route, pointIndex + 1); }}><title>Точка {pointIndex + 1} · выбрать для удаления</title></circle>) : null}
             </g>;
           })}

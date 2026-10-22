@@ -289,3 +289,41 @@
 @media(max-width:1150px) and (min-width:901px){.placement-room-focused .placement-workspace{grid-template-columns:minmax(220px,255px) minmax(0,1fr);grid-template-rows:auto auto auto}.placement-room-focused .placement-sidebar{grid-column:1;grid-row:1/4}.placement-room-focused .placement-room-unfolding{grid-column:2;grid-row:1/4}.placement-room-focused .placement-inspector{grid-column:1;grid-row:2}.placement-room-focused .placement-canvas-panel{grid-column:1;grid-row:3}}
 @media(max-width:900px){.placement-room-focused .placement-workspace{display:flex;flex-direction:column}.placement-room-focused .placement-room-unfolding{order:0}.placement-room-focused .placement-canvas-panel{order:1}.placement-room-focused .placement-sidebar{order:2}.placement-room-focused .placement-inspector{order:3}.placement-room-focused .placement-canvas-scroll{height:210px}}
 @media(max-width:700px){.placement-room-unfolding{padding:9px}.placement-room-unfold-grid{margin:9px 0}.placement-room-unfold-scroll{max-height:70vh}}
+
+/* A short, three-tab library keeps route work close to the drawing. */
+.placement-workspace{grid-template-columns:minmax(350px,377px) minmax(0,1fr) minmax(220px,245px)}
+.placement-room-focused .placement-workspace{grid-template-columns:minmax(350px,377px) minmax(0,1fr) minmax(220px,245px)}
+.placement-fullscreen .placement-workspace{grid-template-columns:clamp(315px,26vw,385px) minmax(0,1fr) clamp(215px,17vw,250px)}
+.placement-sidebar-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;position:sticky;top:0;z-index:5;padding:0 0 9px;background:#fff}
+.placement-sidebar-tabs button,.placement-route-modes button{min-width:0;padding:8px 5px;border:1px solid #cbded3;border-radius:8px;background:#f8fbf9;color:#33584d;font-size:.74rem;white-space:nowrap}
+.placement-sidebar-tabs button.active,.placement-route-modes button.active{background:#e2f2e8;border-color:#448b78;color:#1e614e}
+.placement-route-modes{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:8px 0}
+.placement-route-modes button{white-space:normal;min-height:36px}
+.placement-route-default{display:grid;gap:4px;margin:8px 0;font-size:.73rem;color:#45645a}
+.placement-route-default select{padding:7px;border:1px solid #cbded3;border-radius:7px;background:#fff}
+.placement-circuit-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;margin:5px 0}
+.placement-circuit-row>button:first-child{min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.placement-circuit-row>button:last-child{padding:6px;border:1px solid #d6e2da;border-radius:7px;background:#fff;color:#6a5446;font-size:.68rem}
+.placement-canvas-panel>.placement-layers{display:flex;gap:4px;overflow-x:auto;position:sticky;top:0;z-index:6;margin:0 8px 5px;padding:5px 0;background:#fff;box-shadow:none}
+.placement-canvas-panel>.placement-layers .placement-layer-row{flex:none;border:1px solid #d8e6dd}
+.placement-canvas-panel>.placement-layers .placement-layer-select{padding:5px 7px;font-size:.71rem;white-space:nowrap}
+.placement-canvas-panel>.placement-layers .placement-eye{padding:4px}
+.placement-room-focused .placement-canvas-panel>.placement-layers{display:none}
+.placement-viewport-tools{flex-wrap:wrap}
+.placement-viewport-tools>button{min-width:29px}
+.placement-route-list>div{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px}
+.placement-route-list select{max-width:93px;min-width:0;padding:5px 2px;border:1px solid #cbded3;border-radius:6px;background:#fff;font-size:.71rem}
+.placement-route-point{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:4px;align-items:center;margin:3px 0}
+.placement-route-point>button:first-child{min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.placement-route-point>button:last-child{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid #e2d2cb;border-radius:6px;background:#fff;color:#98503c}
+.placement-electric-point-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.7fr) 30px 30px;align-items:center;gap:3px;white-space:nowrap}
+.placement-electric-point-row strong,.placement-electric-point-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.placement-electric-point-row strong{font-size:.76rem}
+.placement-electric-point-row small{font-size:.66rem;color:#58766a}
+.placement-electric-point-row button{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid #d5e4dc;border-radius:7px;background:#fff;color:#345d50}
+.placement-electric-point-row button:last-child{color:#9a493a}
+.placement-electric-inspector>.placement-inspector-fields{margin-top:10px}
+.placement-inspector.compact-electric>.placement-control-links,.placement-inspector.compact-electric>.placement-wall-station,.placement-inspector.compact-electric>.placement-annotation-settings{display:none}
+@media(max-width:1150px) and (min-width:901px){.placement-workspace,.placement-room-focused .placement-workspace{grid-template-columns:minmax(300px,330px) minmax(0,1fr)}.placement-room-focused .placement-sidebar{grid-column:1;grid-row:1/4}.placement-room-focused .placement-room-unfolding{grid-column:2;grid-row:1/4}}
+@media(max-width:1150px){.placement-room-focused .placement-room-unfolding>header{display:grid;grid-template-columns:minmax(0,1fr)}.placement-room-heading-actions{justify-content:flex-start}.placement-room-heading-actions>span{width:100%}}
+@media(max-width:900px){.placement-workspace{display:flex;flex-direction:column}.placement-sidebar,.placement-canvas-panel,.placement-inspector{width:100%;box-sizing:border-box}}

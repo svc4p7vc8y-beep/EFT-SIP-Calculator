@@ -16,6 +16,19 @@ export function nearestRouteWall(plan, at, wallRef = '') {
   return (projected.find(entry => entry.face.ref === wallRef) || projected.sort((a, b) => a.projection.distance - b.projection.distance)[0]) || null;
 }
 
+export function routeSurfaceAtPoint(plan, at, interiorSurface = 'ceiling', tolerance = .28) {
+  const wall = nearestRouteWall(plan, at);
+  return wall?.projection.distance <= tolerance
+    ? { position: wall.projection.foot, surface: 'wall', wallRef: wall.face.ref }
+    : { position: at, surface: interiorSurface === 'floor' ? 'floor' : 'ceiling', wallRef: '' };
+}
+
+export function sharedRouteWallCorner(first, second, tolerance = .3) {
+  if (!first || !second) return null;
+  const candidates = [first.a, first.b].flatMap(a => [second.a, second.b].map(b => ({ a, b, distance: Math.hypot(a.x - b.x, a.y - b.y) })));
+  return candidates.sort((a, b) => a.distance - b.distance)[0]?.distance <= tolerance ? candidates[0] : null;
+}
+
 export function routeSurfaceHeight(plan, surface, wallHeight = null) {
   const ceiling = Math.max(0, Number(plan?.wallHeight) || 2.5);
   if (surface === 'floor') return 0;
@@ -34,9 +47,17 @@ export function surfaceRouteLeg(from, to, surface, plan, wallHeight = null, wall
   if (surface === 'wall') {
     const wall = wallAt(to, wallRef);
     if (!wall) return null;
-    const first = projectToWallFace(wall.face, from);
-    append(point(first.foot, from.z || 0, 'wall', wall.face.ref));
-    append(point(first.foot, level, 'wall', wall.face.ref));
+    const previousFace = from.surface === 'wall' && from.wallRef ? placementWallFaces(plan).find(face => face.ref === from.wallRef) : null;
+    const previousWall = previousFace && previousFace.ref !== wall.face.ref ? previousFace : wall.face;
+    const first = projectToWallFace(previousWall, from);
+    append(point(first.foot, from.z || 0, 'wall', previousWall.ref));
+    append(point(first.foot, level, 'wall', previousWall.ref));
+    if (previousWall.ref !== wall.face.ref) {
+      const corner = sharedRouteWallCorner(previousWall, wall.face);
+      if (!corner) return null;
+      append(point(corner.a, level, 'wall', previousWall.ref));
+      append(point(corner.b, level, 'wall', wall.face.ref));
+    }
     append(point(wall.projection.foot, level, 'wall', wall.face.ref));
     append(point(wall.projection.foot, to.z || 0, 'wall', wall.face.ref));
     append(point(to, to.z || 0, 'wall', wall.face.ref));
@@ -60,10 +81,10 @@ export function surfaceRouteLeg(from, to, surface, plan, wallHeight = null, wall
   return result;
 }
 
-export function appendSurfaceWaypoint(points, at, surface, plan, wallHeight = null) {
+export function appendSurfaceWaypoint(points, at, surface, plan, wallHeight = null, wallRef = '') {
   if (!points?.length) return null;
   const level = routeSurfaceHeight(plan, surface, wallHeight);
-  const wall = surface === 'wall' ? nearestRouteWall(plan, at) : null;
+  const wall = surface === 'wall' ? nearestRouteWall(plan, at, wallRef) : null;
   if (surface === 'wall' && !wall) return null;
   const targetAt = wall ? wall.projection.foot : at;
   const target = point({ ...targetAt, waypoint: true }, level, surface, wall?.face.ref);
