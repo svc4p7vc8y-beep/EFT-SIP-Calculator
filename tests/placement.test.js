@@ -17,16 +17,21 @@ import { appendSurfaceWaypoint, routeSurfaceAtPoint, sharedRouteWallCorner, surf
 test('point height and point or line labels survive project reopen', () => {
   const project = createDefaultProject();
   project.placement = normalizePlacement({
-    items: [{ id: 'point-1', floor: 1, layer: 'electric', kind: 'socket', x: 2, y: 2, width: .18, depth: .12, height: 1.25, heightKnown: true, showHeight: true, showName: true }],
-    routes: [{ id: 'cable-1', floor: 1, auto: false, showName: true, points: [{ x: 2, y: 2 }, { x: 3, y: 2 }] }],
-    networks: { plumbing: [{ id: 'pipe-1', floor: 1, medium: 'cold', showName: true, points: [{ x: 2, y: 2 }, { x: 3, y: 2 }] }] },
+    items: [{ id: 'point-1', floor: 1, layer: 'electric', kind: 'socket', x: 2, y: 2, width: .18, depth: .12, height: 1.25, heightKnown: true, showHeight: true, showName: true, annotationText: 'Котёл', heightOffsetX: .7, heightOffsetY: .3 }],
+    routes: [{ id: 'cable-1', floor: 1, auto: false, showName: true, annotationText: 'Котёл', labelOffsetX: .5, labelOffsetY: -.2, points: [{ x: 2, y: 2 }, { x: 3, y: 2 }] }],
+    networks: { plumbing: [{ id: 'pipe-1', floor: 1, medium: 'cold', showName: true, annotationText: 'ХВС', labelOffsetX: .2, points: [{ x: 2, y: 2 }, { x: 3, y: 2 }] }] },
   });
   const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
   assert.equal(reopened.placement.items[0].height, 1.25);
   assert.equal(reopened.placement.items[0].showHeight, true);
   assert.equal(reopened.placement.items[0].showName, true);
+  assert.equal(reopened.placement.items[0].annotationText, 'Котёл');
+  assert.equal(reopened.placement.items[0].heightOffsetX, .7);
   assert.equal(reopened.placement.routes[0].showName, true);
+  assert.equal(reopened.placement.routes[0].labelOffsetX, .5);
+  assert.equal(reopened.placement.routes[0].annotationText, 'Котёл');
   assert.equal(reopened.placement.networks.plumbing[0].showName, true);
+  assert.equal(reopened.placement.networks.plumbing[0].annotationText, 'ХВС');
   assert.equal(normalizePlacement({ routes: [{ id: 'old-route', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }] }).routes[0].showName, false);
 });
 
@@ -581,6 +586,18 @@ test('worker sheets separate disciplines per floor and number saved positions', 
   assert.equal(sheets[0].items[0].item.id, 'bed-1');
   assert.equal(sheets[1].items[0].item.id, 'socket-1');
   assert.equal(sheets[2].items[0].item.id, 'boiler-1');
+});
+
+test('electrical wall unfolding is available as a separate printable sheet', () => {
+  const project = createDefaultProject();
+  const wall = placementWallFaces(project.plan)[0];
+  const point = wallFacePoint(wall, 1);
+  project.placement.items.push({ id: 'wall-socket', floor: 1, layer: 'electric', kind: 'socket', label: 'Котёл', x: point.x, y: point.y, wallRef: wall.ref, width: .18, depth: .12, height: .3 });
+  const sheets = buildPlacementSheets(project);
+  const unfolding = sheets.find(sheet => sheet.discipline === 'electric' && sheet.wall?.ref === wall.ref);
+  assert.ok(unfolding);
+  assert.equal(unfolding.items[0].item.id, 'wall-socket');
+  assert.equal(unfolding.floor, 1);
 });
 
 test('electrical wall snap and left/right datum use finished faces without moving the plan', () => {

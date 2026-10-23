@@ -27,6 +27,14 @@ export function buildPlacementSheets(project) {
         dimensions: ['layout', 'electric'].includes(discipline) ? (placement.dimensions || []).filter(dimension => dimension.floor === floor) : [],
         circuits: discipline === 'electric' ? (placement.circuits || []).filter(circuit => circuitIds.has(circuit.id)) : [],
       });
+      if (discipline === 'electric') {
+        const refs = new Set([...list.map(item => item.wallRef), ...routes.flatMap(route => route.points?.map(point => point.wallRef) || [])].filter(Boolean));
+        for (const wall of placementWallFaces(plan).filter(face => refs.has(face.ref))) {
+          const wallItems = list.map((item, index) => ({ item, mark: `${prefix}-${String(index + 1).padStart(2, '0')}` })).filter(entry => entry.item.wallRef === wall.ref);
+          const wallRoutes = routes.filter(route => route.points?.some(point => point.wallRef === wall.ref) || [route.fromItemId, route.targetItemId].some(id => wallItems.some(entry => entry.item.id === id)));
+          sheets.push({ id: `${floor}-electric-${wall.ref}`, floor, discipline, title: `Электрика · ${wall.label} · развёртка`, plan, wall, items: wallItems, routes: wallRoutes, dimensions: [], circuits: (placement.circuits || []).filter(circuit => circuitIds.has(circuit.id)), electricalBill: null, networkBill: null });
+        }
+      }
       if (NETWORK_SYSTEMS[discipline]) {
         const refs = new Set([...list.map(item => item.wallRef), ...routes.map(route => route.wallRef)].filter(Boolean));
         for (const wall of placementWallFaces(plan).filter(face => refs.has(face.ref))) {
