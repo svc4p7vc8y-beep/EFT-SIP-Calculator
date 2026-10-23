@@ -4448,6 +4448,10 @@ select,
   gap: 8px;
   margin-top: 14px;
 }
+.estimate-print-dialog{width:min(430px,100%)}
+.estimate-print-dialog p{font-size:13px}
+.estimate-print-dialog footer{flex-wrap:wrap}
+@media(max-width:430px){.estimate-print-dialog footer .button{width:100%}}
 .brief-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

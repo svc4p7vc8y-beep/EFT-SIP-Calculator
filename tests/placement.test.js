@@ -14,6 +14,22 @@ import { projectToRoomEdge, roomDimensionEnd, roomEdgeDisplay, roomEdgePosition,
 import { alignLightToNeighbors, junctionWallMount, panelRouteBundles, schematicPosition } from '../src/react/state/placement-schematic.js';
 import { appendSurfaceWaypoint, routeSurfaceAtPoint, sharedRouteWallCorner, surfaceRouteLeg } from '../src/react/state/placement-route-surfaces.js';
 
+test('point height and point or line labels survive project reopen', () => {
+  const project = createDefaultProject();
+  project.placement = normalizePlacement({
+    items: [{ id: 'point-1', floor: 1, layer: 'electric', kind: 'socket', x: 2, y: 2, width: .18, depth: .12, height: 1.25, heightKnown: true, showHeight: true, showName: true }],
+    routes: [{ id: 'cable-1', floor: 1, auto: false, showName: true, points: [{ x: 2, y: 2 }, { x: 3, y: 2 }] }],
+    networks: { plumbing: [{ id: 'pipe-1', floor: 1, medium: 'cold', showName: true, points: [{ x: 2, y: 2 }, { x: 3, y: 2 }] }] },
+  });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.placement.items[0].height, 1.25);
+  assert.equal(reopened.placement.items[0].showHeight, true);
+  assert.equal(reopened.placement.items[0].showName, true);
+  assert.equal(reopened.placement.routes[0].showName, true);
+  assert.equal(reopened.placement.networks.plumbing[0].showName, true);
+  assert.equal(normalizePlacement({ routes: [{ id: 'old-route', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }] }).routes[0].showName, false);
+});
+
 test('interior route default survives old projects and floor override', () => {
   assert.equal(normalizePlacement({}).defaultRouteSurface, 'ceiling');
   assert.equal(normalizePlacement({ defaultRouteSurface: 'floor' }).defaultRouteSurface, 'floor');

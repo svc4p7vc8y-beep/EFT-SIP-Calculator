@@ -16,6 +16,7 @@ export function normalizeNetworkRoutes(value) {
   return Object.fromEntries(Object.keys(NETWORK_SYSTEMS).map(system => [system,
     (Array.isArray(source[system]) ? source[system] : []).filter(route => route && typeof route.id === 'string' && Array.isArray(route.points)).map(route => ({
       ...route,
+      showName: route.showName === true,
       floor: Math.max(1, Math.min(2, Math.round(finite(route.floor, 1)))),
       medium: NETWORK_SYSTEMS[system].media.some(entry => entry.id === route.medium) ? route.medium : NETWORK_SYSTEMS[system].media[0].id,
       fromId: typeof route.fromId === 'string' ? route.fromId : '',
