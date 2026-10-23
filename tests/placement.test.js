@@ -10,7 +10,7 @@ import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDi
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
-import { projectToRoomEdge, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
+import { projectToRoomEdge, roomDimensionEnd, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
 import { alignLightToNeighbors, junctionWallMount, panelRouteBundles, schematicPosition } from '../src/react/state/placement-schematic.js';
 import { appendSurfaceWaypoint, routeSurfaceAtPoint, sharedRouteWallCorner, surfaceRouteLeg } from '../src/react/state/placement-route-surfaces.js';
 
@@ -260,7 +260,7 @@ test('existing appliances receive editable network ports once without changing t
   project.placement.items.push({ id: 'sink-1', floor: 1, layer: 'furniture', kind: 'kitchen-sink', label: 'Мойка', x: 2, y: 2, width: .8, depth: .6, height: 0 });
   const migrated = migrateProject(project);
   const ports = migrated.placement.items.filter(item => item.linkedApplianceId === 'sink-1');
-  assert.equal(migrated.placement.version, 6);
+  assert.equal(migrated.placement.version, 7);
   assert.deepEqual(ports.map(item => [item.layer, item.connectionMedium]), [['plumbing', 'cold'], ['plumbing', 'hot'], ['sewer', 'waste']]);
   assert.equal(ports.every(item => item.heightKnown === false && item.followsAppliance), true);
   assert.equal(calculateProject(migrated).totals.total, before);
@@ -307,7 +307,7 @@ test('network routes preserve wall station, heights and independent sheets after
   );
   project.placement.networks.plumbing.push({ id: 'water-route', floor: 1, medium: 'cold', fromId: 'water-in', toId: 'water-out', auto: true, wallRef: wall.ref, routeLevel: 2, diameterMm: 20, material: 'Труба проекта', accessories: [{ name: 'Кран', quantity: 2, unit: 'шт' }], points: [{ ...first, z: 1 }, { ...second, z: .5 }] });
   const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
-  assert.equal(reopened.placement.version, 6);
+  assert.equal(reopened.placement.version, 7);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).totalLength, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).pipeRows[0].metres, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).components.find(entry => entry.name === 'Кран').quantity, 2);
@@ -490,6 +490,18 @@ test('facade points snap outside the contour and dimensions survive import', () 
   assert.equal(reopened.placement.showAutoDimensions, true);
   assert.equal(reopened.placement.dimensions[0].label, 'Проход');
   assert.equal(dimensionMetres(reopened.placement.dimensions[0].points), 2);
+});
+
+test('room dimensions keep their plane and measuring mode after reopening', () => {
+  const project = createDefaultProject();
+  const originalEstimate = calculateProject(project).totals;
+  const roomId = project.plan.rooms[0].id;
+  project.placement.dimensions.push({ id: 'wall-width', floor: 1, roomId, edgeIndex: 0, mode: 'horizontal', points: [{ x: .25, y: .4 }, { x: 2.25, y: .4 }], label: 'Розетки' });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.deepEqual(reopened.placement.dimensions[0], project.placement.dimensions[0]);
+  assert.deepEqual(roomDimensionEnd({ x: .25, y: .4 }, { x: 2.25, y: 1.1 }, 'horizontal'), { x: 2.25, y: .4 });
+  assert.deepEqual(roomDimensionEnd({ x: .25, y: .4 }, { x: 2.25, y: 1.1 }, 'vertical'), { x: .25, y: 1.1 });
+  assert.deepEqual(calculateProject(reopened).totals, originalEstimate);
 });
 
 test('automatic placement dimensions use the exterior datum and object centres', () => {

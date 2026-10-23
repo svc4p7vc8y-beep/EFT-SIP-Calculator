@@ -4,6 +4,12 @@ import { pointInPolygon } from './placement-geometry.js';
 const round = value => Math.round(value * 100) / 100;
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
+export function roomDimensionEnd(start, end, mode = 'free') {
+  if (mode === 'horizontal') return { x: round(end.x), y: round(start.y) };
+  if (mode === 'vertical') return { x: round(start.x), y: round(end.y) };
+  return { x: round(end.x), y: round(end.y) };
+}
+
 export function roomEdgePosition(room, edgeIndex, station, inset = .08) {
   const vertices = roomPoints(room);
   const a = vertices[edgeIndex], b = vertices[(edgeIndex + 1) % vertices.length];

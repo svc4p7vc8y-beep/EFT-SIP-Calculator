@@ -373,6 +373,21 @@
 .placement-fullscreen.placement-room-focused .placement-room-unfolding{grid-column:2;grid-row:1/3;min-height:0;height:100%;overflow-y:auto;overscroll-behavior:contain}
 .placement-room-unfolding>header .placement-room-heading-actions{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:6px}
 .placement-fullscreen.placement-room-focused .placement-room-unfold-scroll{max-height:none}
+.placement-room-tools{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:10px}
+.placement-room-tools button,.placement-room-dimension-list button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;border:1px solid #b9d3c4;border-radius:7px;background:#fff;color:#315547;padding:5px 9px;font:inherit;font-size:.73rem;cursor:pointer}
+.placement-room-tools button.active{border-color:#277f70;background:#e4f2eb;color:#185a4d}
+.placement-room-zoom{display:flex;gap:3px;margin-left:auto}
+.placement-room-zoom-frame{position:relative;flex:none}
+.placement-room-unfolding .placement-room-unfold-grid{margin:0}
+.placement-room-unfolding .placement-room-unfold-scroll{margin-top:10px}
+.placement-room-dimension{stroke:#176d63;stroke-width:1.5;fill:#176d63;vector-effect:non-scaling-stroke}
+.placement-room-dimension text{stroke:none;fill:#174d43;font-size:12px;font-weight:700;paint-order:stroke;stroke-width:3px}
+.placement-room-dimension.preview{opacity:.6;stroke-dasharray:5 3}
+.placement-room-tool-hint{color:#315f58!important}
+.placement-room-dimension-list{display:grid;gap:6px;margin-top:10px;padding:8px;border:1px solid #d6e3da;border-radius:8px;background:#fff}
+.placement-room-dimension-list>div{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:.75rem}
+.placement-room-dimension-list input{min-width:110px;flex:1;border:1px solid #c8d8d1;border-radius:6px;padding:6px;color:#25443a}
+@media(max-width:700px){.placement-room-zoom{margin-left:0}.placement-room-heading-actions button{min-height:36px}}
 .placement-fullscreen.placement-room-focused .placement-inspector{grid-column:3;grid-row:1}
 .placement-fullscreen.placement-room-focused .placement-canvas-panel{grid-column:3;grid-row:2;height:100%;min-height:0}
 @media(max-width:1150px){

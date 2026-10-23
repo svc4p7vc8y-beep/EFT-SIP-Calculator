@@ -178,7 +178,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 6, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
+  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -191,7 +191,7 @@ export function normalizePlacement(value) {
   const normalized = {
     ...base,
     ...value,
-    version: 6,
+    version: 7,
     activeLayer: PLACEMENT_LAYERS.some(layer => layer.id === value.activeLayer && !layer.future) ? value.activeLayer : base.activeLayer,
     visibleLayers: Object.fromEntries(Object.entries(base.visibleLayers).map(([key, fallback]) => [key, typeof value.visibleLayers?.[key] === 'boolean' ? value.visibleLayers[key] : fallback])),
     electricalRouteMode: ['automatic', 'manual'].includes(value.electricalRouteMode) ? value.electricalRouteMode : routes.some(route => route?.auto === false) ? 'manual' : 'automatic',
@@ -235,6 +235,9 @@ export function normalizePlacement(value) {
       floor: Math.max(1, Math.min(2, Math.round(finite(dimension.floor, 1)))),
       points: dimension.points.map(point => ({ x: finite(point?.x), y: finite(point?.y) })),
       label: typeof dimension.label === 'string' ? dimension.label.slice(0, 80) : '',
+      roomId: typeof dimension.roomId === 'string' ? dimension.roomId.slice(0, 100) : '',
+      edgeIndex: typeof dimension.roomId === 'string' && dimension.roomId ? Math.max(-1, Math.round(finite(dimension.edgeIndex, -1))) : -1,
+      mode: ['free', 'horizontal', 'vertical'].includes(dimension.mode) ? dimension.mode : 'free',
     })),
     networks: normalizeNetworkRoutes(value.networks),
   };
