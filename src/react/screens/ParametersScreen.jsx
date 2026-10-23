@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
+import OpeningMiniPlan from '../components/OpeningMiniPlan.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
 import { Building2, CheckCircle2, ChevronDown, CircleAlert, DoorOpen, Home, HousePlus, Layers3, LayoutGrid, ListChecks, PanelsTopLeft, Truck, Wrench } from "lucide-react";
 import { calculateTerraceRoof, resolveTerracePlatform } from "../../calculations/terrace-model.js";
@@ -166,6 +167,7 @@ function AutoLink({ label, checked, onChange, hint }) {
 }
 
 export default function ParametersScreen({ embedded = false, suppliedCalculation = null }) {
+  const [focusedOpeningId, setFocusedOpeningId] = useState('');
   const { project, commit, checkpoint } = useProject();
   const [presetOpen, setPresetOpen] = useState(false);
   const calculation = useMemo(() => suppliedCalculation || calculateProject(project), [project, suppliedCalculation]);
@@ -1251,12 +1253,14 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           >
             {floorOpenings.length ? (
               <div className="parameter-opening-list">
+                <OpeningMiniPlan plans={floorPlans} selectedId={focusedOpeningId} onSelect={opening => { setFocusedOpeningId(opening.id); document.getElementById(`opening-card-${opening.id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }} />
                 {floorOpenings.map(({ opening, floor }, index) => (
                   <OpeningEditor
                     key={`${floor}-${opening.id}`}
                     opening={opening}
                     index={index}
                     floor={floor}
+                    focused={focusedOpeningId === opening.id}
                     commit={commit}
                     update={updateEntity}
                   />
@@ -1654,7 +1658,7 @@ function PlatformEditor({ platform, index, project, update }) {
   );
 }
 
-function OpeningEditor({ opening, index, floor, commit, update }) {
+function OpeningEditor({ opening, index, floor, commit, update, focused }) {
   const kind =
     opening.type === "window" ? "window" : opening.doorType || "entrance";
   const changeKind = (value) =>
@@ -1671,7 +1675,7 @@ function OpeningEditor({ opening, index, floor, commit, update }) {
       return next;
     });
   return (
-    <article>
+    <article id={`opening-card-${opening.id}`} className={focused ? 'opening-card-focused' : ''}>
       <header>
         <strong>
           {index + 1}.{" "}

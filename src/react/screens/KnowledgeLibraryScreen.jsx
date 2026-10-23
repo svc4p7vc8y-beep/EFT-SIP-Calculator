@@ -1,9 +1,11 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BookOpen, Download, FileText, ImagePlus, Pencil, Plus, Printer, RotateCcw,
+  BookOpen, Download, FileText, ImagePlus, Pencil, Plus, Printer, RotateCcw, Share2,
   Search, Trash2, Upload, X,
 } from 'lucide-react';
 import { ScreenHeader } from '../components/ui.jsx';
+import { ENGINEERING_LEGEND_GROUPS } from '../data/engineering-legend.js';
+import { CatalogSymbol } from './PlacementClassicSymbol.jsx';
 import {
   BUILTIN_KNOWLEDGE_ARTICLES, KNOWLEDGE_CATEGORIES, categoryLabel,
 } from '../data/knowledge-library.js';
@@ -32,17 +34,30 @@ function KnowledgeSections({ sections }) {
 }
 
 function KnowledgeReader({ article, onClose, onEdit, onDelete }) {
+  const [shareNotice, setShareNotice] = useState('');
   if (!article) return null;
+  const share = async () => {
+    const legend = article.id === 'builtin-engineering-symbols' ? ENGINEERING_LEGEND_GROUPS.map(group => `${group.label}: ${group.items.map(item => `${item.label} — ${item.description}`).join('; ')}`).join('\n') : '';
+    const sections = (article.sections || []).map(section => [section.title, ...(section.content || []), ...(section.steps || []).map((step, index) => `${index + 1}. ${step}`)].join('\n')).join('\n\n');
+    const table = article.table?.rows?.length ? [article.table.headers.join(' · '), ...article.table.rows.map(row => row.join(' · '))].join('\n') : '';
+    const text = [article.title, article.summary, ...(article.content || []), sections, table, legend].filter(Boolean).join('\n\n');
+    try {
+      if (navigator.share) await navigator.share({ title: article.title, text });
+      else { await navigator.clipboard.writeText(text); setShareNotice('Текст карточки скопирован для отправки.'); }
+    } catch (error) { if (error.name !== 'AbortError') setShareNotice('Не удалось отправить карточку. Попробуйте ещё раз.'); }
+  };
   return <div className="knowledge-reader-backdrop" role="presentation" onMouseDown={onClose}>
     <article className="knowledge-reader" role="dialog" aria-modal="true" aria-labelledby="knowledge-reader-title" onMouseDown={event => event.stopPropagation()}>
-      <header className="knowledge-reader-toolbar no-print"><span>{categoryLabel(article.category)}</span><div><button className="button secondary" onClick={() => window.print()}><Printer />Печать / PDF</button><button className="icon-button" onClick={onEdit} aria-label="Редактировать материал"><Pencil /></button><button className="icon-button danger" onClick={onDelete} aria-label="Удалить материал"><Trash2 /></button><button className="icon-button" onClick={onClose} aria-label="Закрыть"><X /></button></div></header>
+      <header className="knowledge-reader-toolbar no-print"><span>{categoryLabel(article.category)}</span><div><button className="button secondary" onClick={() => window.print()}><Printer />Печать / PDF</button><button className="button secondary" onClick={share}><Share2 />Отправить</button><button className="icon-button" onClick={onEdit} aria-label="Редактировать материал"><Pencil /></button><button className="icon-button danger" onClick={onDelete} aria-label="Удалить материал"><Trash2 /></button><button className="icon-button" onClick={onClose} aria-label="Закрыть"><X /></button></div></header>
       <div className="knowledge-reader-body">
+        {shareNotice ? <p role="status" className="knowledge-share-notice no-print">{shareNotice}</p> : null}
         <div className="knowledge-print-brand"><img src="./icons/eft-logo.png" alt="ЭФТ"/><span>ЭнергоЭффективные Технологии</span></div>
         <p className="knowledge-reader-category">{categoryLabel(article.category)}{article.builtIn ? ' · справочник ЭФТ' : ' · пользовательский материал'}</p>
         <h1 id="knowledge-reader-title">{article.title}</h1>
         {article.summary ? <p className="knowledge-reader-lead">{article.summary}</p> : null}
         {article.image ? <img className="knowledge-reader-image" src={article.image} alt={article.title}/> : null}
         <div className="knowledge-copy">{article.content.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
+        {article.id === 'builtin-engineering-symbols' ? <div className="knowledge-engineering-legend">{ENGINEERING_LEGEND_GROUPS.map(group => <section key={group.id}><h2>{group.label}</h2><div>{group.items.map(item => <div className="knowledge-engineering-item" key={item.id}><CatalogSymbol preset={item}/><span><strong>{item.label}</strong><small>{item.description}</small></span></div>)}</div></section>)}</div> : null}
         <KnowledgeSections sections={article.sections}/>
         <KnowledgeTable table={article.table}/>
         {article.tags?.length ? <div className="knowledge-tags">{article.tags.map(tag => <span key={tag}>{tag}</span>)}</div> : null}

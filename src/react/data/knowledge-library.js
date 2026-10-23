@@ -13,6 +13,13 @@ const currentFormulaNote = 'Стартовая расчётная норма п�
 
 export const BUILTIN_KNOWLEDGE_ARTICLES = [
   {
+    id: 'builtin-engineering-symbols', builtIn: true, category: 'engineering',
+    title: 'Условные обозначения инженерии на плане',
+    summary: 'Все элементы инженерных слоёв на одной карточке: значок, название и расшифровка.',
+    content: ['Справочник показывает обозначения из актуального каталога редактора плана. Фактическое оборудование, кабели, диаметры, высоты и способ монтажа уточняются в проекте.'],
+    tags: ['инженерия', 'условные обозначения', 'электрика', 'водоснабжение', 'отопление', 'канализация', 'вентиляция'],
+  },
+  {
     id: 'builtin-project-saving-guide',
     builtIn: true,
     category: 'checklists',

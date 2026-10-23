@@ -1,12 +1,13 @@
 import { lazy, Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { AlertTriangle, FileSpreadsheet, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus, Box, FolderOpen, FileText } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, FileDown, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus, Box, FolderOpen, FileText } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
 import { buildClientEstimate, isEstimateCutting, unpricedClientLines } from '../calculations/client-estimate.js';
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
 import { estimatePdfTitle } from '../export/estimate-pdf-title.js';
+import { downloadEstimatePdf } from '../export/download-estimate-pdf.js';
 import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../components/ui.jsx';
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
 import { ProposalOverview } from '../components/ProposalOverview.jsx';
@@ -57,6 +58,8 @@ export default function EstimateScreen() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [printReady, setPrintReady] = useState(false);
   const [printPreparing, setPrintPreparing] = useState(false);
+  const [pdfPreparing, setPdfPreparing] = useState(false);
+  const [pdfError, setPdfError] = useState('');
   const estimateImages = project.estimateImages || [];
   const estimateFiles = project.estimateFiles || [];
   const appendImages = async (files, caption = '') => {
@@ -159,12 +162,23 @@ export default function EstimateScreen() {
     if (project.sharedPriceCatalog && pendingClientPrices.length) { window.alert('Заполните недостающие цены в общем прайс-листе перед выгрузкой сметы.'); return; }
     downloadEstimateWorkbook(project, calculation);
   });
+  const preparePdf = useCurrentPriceAction(async () => {
+    if (pendingClientPrices.length) { window.alert(`Заполните цены в прайс-листе: ${pendingClientPrices.map(line => line.name).join(' · ')}`); return; }
+    await downloadEstimatePdf(document.querySelector('.estimate-screen .print-sheet'), pdfTitle);
+  });
+  const downloadPdf = async () => {
+    if (pdfPreparing) return;
+    setPdfPreparing(true); setPdfError('');
+    try { await preparePdf(); } catch (error) { setPdfError(error?.message || 'Не удалось сохранить PDF.'); }
+    finally { setPdfPreparing(false); }
+  };
   const planLayers = [
     ['showContour', 'Контур дома'], ['showRooms', 'Комнаты и перегородки'],
     ['showOpenings', 'Окна и двери'], ['showPlatforms', 'Терраса и крыльцо'],
     ['showPiles', 'Сваи'], ['showBinding', 'Обвязка'], ['showDimensions', 'Размеры'],
   ];
-  return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent} disabled={printPreparing}><Printer />{printPreparing ? 'Подготовка…' : 'Печать / PDF'}</button></>} />
+  return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent} disabled={printPreparing}><Printer />{printPreparing ? 'Подготовка…' : 'Печать'}</button><button className="button primary no-print estimate-download-pdf" onClick={downloadPdf} disabled={pdfPreparing}><FileDown />{pdfPreparing ? 'Создаю PDF…' : 'PDF ↓'}</button></>} />
+    {pdfError ? <p className="estimate-pdf-error no-print" role="alert">{pdfError}</p> : null}
     <label className="super-compact-option no-print"><input type="checkbox" checked={printOptions.superCompact === true} onChange={event => setPrintOption('superCompact', event.target.checked)} /><span><strong>Суперкомпактное предложение</strong><small>Шапка, стоимость, схемы и состав комплектации. Без перечня номенклатуры.</small></span></label>
     {pendingClientPrices.length ? <div className="estimate-price-warning no-print"><AlertTriangle /><div><strong>В предложении есть позиции без цены</strong><span>{pendingClientPrices.map((line) => line.name).join(' · ')}. Укажите цену своей позиции в смете, либо выберите позицию общего прайса, либо исключите строку из предложения.</span></div></div> : null}
     <section className="print-diagram-options no-print" aria-label="Настройки предложения"><div><strong>Смета для клиента</strong></div><div className="print-option-group"><label className="maximum-compact-option"><input type="checkbox" checked={printOptions.maximumCompact === true} onChange={(event) => setPrintOption('maximumCompact', event.target.checked)} />Максимально компактная смета</label><label><input type="checkbox" checked={printOptions.includeLabor !== false} onChange={(event) => setPrintOption('includeLabor', event.target.checked)} />Включить работы</label><label><input type="checkbox" checked={printOptions.includeAccessories !== false} onChange={(event) => setPrintOption('includeAccessories', event.target.checked)} />Включить крепёж и сопутствующие товары</label><label><input type="checkbox" checked={printOptions.compactAccessories !== false} onChange={(event) => setPrintOption('compactAccessories', event.target.checked)} />Сгруппировать их в монтажные комплекты</label></div><div><strong>Планы из редактора дома</strong><small>Планы этажей формируются из текущего проекта и обновляются вместе с ним.</small></div><div className="print-option-group"><label><input type="checkbox" checked={printOptions.includePlan !== false} onChange={(event) => setPrintOption('includePlan', event.target.checked)} />Планы этажей в смете</label><label><input type="checkbox" checked={printOptions.separatePlanSheets !== false} disabled={printOptions.includePlan === false} onChange={(event) => setPrintOption('separatePlanSheets', event.target.checked)} />Каждый этаж отдельным листом</label><label><input type="checkbox" checked={printOptions.includeRoof === true} onChange={(event) => setPrintOption('includeRoof', event.target.checked)} />Крыша на контуре дома</label><label><input type="checkbox" checked={printOptions.separatePileSheet === true} onChange={(event) => setPrintOption('separatePileSheet', event.target.checked)} />Свайное поле отдельным листом</label><label><input type="checkbox" checked={printOptions.separateRoofSheet !== false} disabled={printOptions.includeRoof !== true} onChange={(event) => setPrintOption('separateRoofSheet', event.target.checked)} />Крыша отдельным листом</label></div>{printOptions.includePlan !== false ? <div className="print-option-group plan-layers"><span>Слои плана:</span>{planLayers.map(([key, label]) => <label key={key}><input type="checkbox" checked={printOptions[key] !== false} onChange={(event) => setPrintOption(key, event.target.checked)} />{label}</label>)}</div> : null}</section>

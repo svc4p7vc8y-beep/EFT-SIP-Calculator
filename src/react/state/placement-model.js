@@ -178,7 +178,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
+  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -194,6 +194,8 @@ export function normalizePlacement(value) {
     version: 7,
     activeLayer: PLACEMENT_LAYERS.some(layer => layer.id === value.activeLayer && !layer.future) ? value.activeLayer : base.activeLayer,
     visibleLayers: Object.fromEntries(Object.entries(base.visibleLayers).map(([key, fallback]) => [key, typeof value.visibleLayers?.[key] === 'boolean' ? value.visibleLayers[key] : fallback])),
+    billOverrides: value.billOverrides && typeof value.billOverrides === 'object' && !Array.isArray(value.billOverrides) ? value.billOverrides : {},
+    billCustomRows: Array.isArray(value.billCustomRows) ? value.billCustomRows.filter(row => row && typeof row.id === 'string' && [1, 2].includes(row.floor)).map(row => ({ id: row.id, floor: row.floor, name: String(row.name || '').slice(0, 120), quantity: Math.max(0, finite(row.quantity)), unit: String(row.unit || 'шт').slice(0, 20), note: String(row.note || '').slice(0, 240) })) : [],
     electricalRouteMode: ['automatic', 'manual'].includes(value.electricalRouteMode) ? value.electricalRouteMode : routes.some(route => route?.auto === false) ? 'manual' : 'automatic',
     defaultRouteSurface: value.defaultRouteSurface === 'floor' ? 'floor' : 'ceiling',
     showAutoDimensions: value.showAutoDimensions !== false,
