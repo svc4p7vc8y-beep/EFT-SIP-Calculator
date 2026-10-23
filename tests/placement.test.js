@@ -5,7 +5,7 @@ import { createDefaultProject, migrateProject } from '../src/react/state/project
 import { applianceSupplyKind, normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
-import { buildPlacementSheets } from '../src/react/export/placement-sheets.js';
+import { buildPlacementSheets, buildPrintablePlacementSheets } from '../src/react/export/placement-sheets.js';
 import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../src/react/state/placement-walls.js';
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
@@ -586,6 +586,19 @@ test('worker sheets separate disciplines per floor and number saved positions', 
   assert.equal(sheets[0].items[0].item.id, 'bed-1');
   assert.equal(sheets[1].items[0].item.id, 'socket-1');
   assert.equal(sheets[2].items[0].item.id, 'boiler-1');
+});
+
+test('print selection contains only each floor plan and its room unfoldings', () => {
+  const project = createDefaultProject();
+  project.placement.items.push({ id: 'bed-print', floor: 1, layer: 'furniture', kind: 'bed', x: 2, y: 2, width: 2, depth: 1.6 });
+  const sheets = buildPrintablePlacementSheets(project);
+  assert.equal(sheets.length, 1 + project.plan.rooms.filter(room => room.include !== false).length);
+  assert.equal(sheets.filter(sheet => sheet.kind === 'plan').length, 1);
+  assert(sheets.every(sheet => sheet.kind === 'plan' || sheet.kind === 'room'));
+  assert(sheets.every(sheet => sheet.plan === project.plan));
+  assert.equal(sheets[0].items.some(entry => entry.item.id === 'bed-print'), true);
+  project.placement.visibleLayers.furniture = false;
+  assert.equal(buildPrintablePlacementSheets(project)[0].items.some(entry => entry.item.id === 'bed-print'), false);
 });
 
 test('ceiling rise, project reserve and endpoint allowance give a traceable cable purchase length', () => {

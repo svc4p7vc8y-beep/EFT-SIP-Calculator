@@ -4,7 +4,8 @@ import { Eye, EyeOff, Plus, RotateCw, Route, Trash2, Undo2, Redo2, X, Ruler, Sea
 import { createPortal } from 'react-dom';
 import { suggestedProjectFilename } from '../export/project-file-name.js';
 import PlacementWorkerSheets from './PlacementWorkerSheets.jsx';
-import { buildPlacementSheets } from '../export/placement-sheets.js';
+import PlacementPrintDialog from './PlacementPrintDialog.jsx';
+import { buildPrintablePlacementSheets } from '../export/placement-sheets.js';
 import PlacementElectricalBill from './PlacementElectricalBill.jsx';
 import { useProject } from '../state/ProjectContext.jsx';
 import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js';
@@ -80,7 +81,7 @@ function DimensionLine({ points, label, preview = false }) {
   </g>;
 }
 
-export default function PlacementScreen() {
+export default function PlacementScreen({ onNavigate }) {
   const { project, commit, undo, redo, canUndo, canRedo } = useProject();
   const placement = project.placement || createPlacement();
   const floorCount = Math.max(1, Math.min(2, Number(project.meta?.floors) || 1));
@@ -140,10 +141,9 @@ export default function PlacementScreen() {
   const [dragLabel, setDragLabel] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printSections, setPrintSections] = useState({ positions: true, wallRoutes: true, circuits: true, components: true, networks: true, panel: true });
+  const [printShowInfo, setPrintShowInfo] = useState(true);
   const [printSelection, setPrintSelection] = useState(null);
   const [printRouteSelection, setPrintRouteSelection] = useState([]);
-  const [roomPickerOpen, setRoomPickerOpen] = useState(false);
   const [snapshot, setSnapshot] = useState(null);
   const [snapshotBusy, setSnapshotBusy] = useState(false);
   const [snapshotError, setSnapshotError] = useState('');
@@ -276,7 +276,7 @@ export default function PlacementScreen() {
   const selectedWaypoint = selectedRoutePoint && selectedRoute && selectedRoutePoint.routeId === selectedRoute.id && selectedRoutePoint.index > 0 && selectedRoutePoint.index < selectedRoute.points.length - 1 ? selectedRoutePoint : null;
   const activeRouteSegment = selectedRouteSegment && selectedRoute && selectedRouteSegment.routeId === selectedRoute.id && selectedRouteSegment.index < selectedRoute.points.length - 1 ? selectedRouteSegment : null;
   const activePreset = findPlacementPreset(presetId);
-  const printSheets = useMemo(() => buildPlacementSheets(project), [project]);
+  const printSheets = useMemo(() => buildPrintablePlacementSheets(project), [project]);
   const printRouteDescription = route => {
     const from = placement.items.find(item => item.id === (route.fromItemId || route.fromId || route.panelItemId));
     const to = placement.items.find(item => item.id === (route.targetItemId || route.toId));
@@ -1093,9 +1093,8 @@ export default function PlacementScreen() {
   const resetView = () => { setZoom(100); setPan({ x: 0, y: 0 }); };
 
   const printWorkerSheets = () => {
-    const sheets = buildPlacementSheets(project);
-    setPrintSelection(sheets.filter(sheet => sheet.discipline === 'electric' && sheet.floor === activeFloor).map(sheet => sheet.id));
-    setPrintRouteSelection([...new Set(sheets.flatMap(sheet => sheet.routes.map(route => route.id)))]);
+    setPrintSelection([selectedRoom ? `${activeFloor}-room-${selectedRoom.id}` : `${activeFloor}-plan`]);
+    setPrintRouteSelection([...new Set(printSheets.flatMap(sheet => sheet.routes.map(route => route.id)))]);
     setPrintDialogOpen(true);
   };
   const confirmPrint = () => {
@@ -1246,7 +1245,7 @@ export default function PlacementScreen() {
     <button type="button" aria-label="Сохранить план в JPEG" title="Сохранить видимые слои в JPEG высокого разрешения" disabled={snapshotBusy} onClick={savePlanJpeg}><ImageDown size={20}/></button>
   </div>;
   return <main className={`placement-screen${fullscreen ? ` placement-fullscreen placement-fullscreen-${fullscreenPanel || 'canvas'}` : ''}${selectedRoom ? ' placement-room-focused' : ''}`}>
-    <header className="placement-heading"><div><h1>Инженерия</h1></div><div className="placement-heading-actions"><button className="placement-fullscreen-exit" title="Свернуть полноэкранный план" onClick={leaveFullscreen}><Minimize2 size={16}/> Свернуть</button><div className="placement-fullscreen-panel-tools" role="group" aria-label="Панели полноэкранного плана"><button className={fullscreenPanel === 'library' ? 'active' : ''} aria-pressed={fullscreenPanel === 'library'} onClick={() => setFullscreenPanel(current => current === 'library' ? null : 'library')}><Boxes size={16}/> Библиотека</button><button className={fullscreenPanel === 'properties' ? 'active' : ''} aria-pressed={fullscreenPanel === 'properties'} onClick={() => setFullscreenPanel(current => current === 'properties' ? null : 'properties')}><Wrench size={16}/> Свойства</button></div><button onClick={printWorkerSheets} title="Комплект планов и ведомостей для печати или PDF"><Printer size={17}/> Планы для рабочих / PDF</button></div></header>
+    <header className="placement-heading"><div><h1>Инженерия</h1></div><div className="placement-heading-actions"><button className="placement-back-to-plan" onClick={() => onNavigate?.('plan')}>← План дома</button><button className="placement-fullscreen-exit" title="Свернуть полноэкранный план" onClick={leaveFullscreen}><Minimize2 size={16}/> Свернуть</button><div className="placement-fullscreen-panel-tools" role="group" aria-label="Панели полноэкранного плана"><button className={fullscreenPanel === 'library' ? 'active' : ''} aria-pressed={fullscreenPanel === 'library'} onClick={() => setFullscreenPanel(current => current === 'library' ? null : 'library')}><Boxes size={16}/> Библиотека</button><button className={fullscreenPanel === 'properties' ? 'active' : ''} aria-pressed={fullscreenPanel === 'properties'} onClick={() => setFullscreenPanel(current => current === 'properties' ? null : 'properties')}><Wrench size={16}/> Свойства</button></div><button onClick={printWorkerSheets} title="Комплект планов и ведомостей для печати или PDF"><Printer size={17}/> Планы для рабочих / PDF</button></div></header>
     <div className="placement-workspace">
       <aside className="placement-sidebar"><nav className="placement-sidebar-tabs" aria-label="Разделы инженерии">{[['elements', 'Элементы'], ['groups', 'Группы'], ['rooms', 'Комнаты'], ['bill', 'Ведомость']].map(([id, label]) => <button key={id} className={sidebarTab === id ? 'active' : ''} aria-pressed={sidebarTab === id} onClick={() => { setSidebarTab(id); if (id !== 'elements') setLayer('electric'); }}>{label}</button>)}</nav>
         {sidebarTab === 'elements' ? <div className="placement-sidebar-section"><h2>Библиотека элементов</h2>
@@ -1392,7 +1391,7 @@ export default function PlacementScreen() {
     </div>
     <div className="placement-toolbar">
       <div className="placement-floor-tabs" aria-label="Этаж">{Array.from({ length: floorCount }, (_, index) => <button key={index} className={activeFloor === index + 1 ? 'active' : ''} onClick={() => { setFloor(index + 1); setSelectedRoomId(''); setSelectedWallRef(''); setSelectedId(null); setRoutePoints([]); setDimensionStart(null); }}>Этаж {index + 1}</button>)}</div>
-      <div className="placement-room-chooser"><button type="button" aria-expanded={roomPickerOpen} aria-haspopup="dialog" onClick={() => setRoomPickerOpen(open => !open)}>План: <strong>{selectedRoom?.name || `весь этаж ${activeFloor}`}</strong> ▴</button>{roomPickerOpen ? <div className="placement-room-menu" role="dialog" aria-label="Выбор комнаты"><strong>Что показать на рабочем поле</strong><button type="button" className={!selectedRoom ? 'active' : ''} onClick={() => { setSelectedRoomId(''); setSelectedWallRef(''); resetView(); setRoomPickerOpen(false); }}>Весь план этажа {activeFloor}</button>{rooms.map(room => <button type="button" key={room.id} className={selectedRoom?.id === room.id ? 'active' : ''} onClick={() => { setSelectedRoomId(room.id); setSelectedWallRef(''); resetView(); setRoomPickerOpen(false); }}>{room.name}</button>)}</div> : null}</div>
+      <div className="placement-room-choices" role="group" aria-label="План этажа или развёртка комнаты"><button type="button" className={!selectedRoom ? 'active' : ''} aria-pressed={!selectedRoom} onClick={() => { setSelectedRoomId(''); setSelectedWallRef(''); resetView(); }}>Весь этаж</button>{rooms.map(room => <button type="button" key={room.id} className={selectedRoom?.id === room.id ? 'active' : ''} aria-pressed={selectedRoom?.id === room.id} title={room.name} onClick={() => { setSelectedRoomId(room.id); setSelectedWallRef(''); resetView(); }}>{room.name}</button>)}</div>
       <div className="placement-measure-tools"><button className={placement.showAutoDimensions ? 'active' : ''} onClick={() => change(data => { data.showAutoDimensions = !data.showAutoDimensions; })}><Ruler size={16}/> Авторазмеры электрики</button><button className={drawingDimension ? 'active' : ''} onClick={() => { setAnnotationTool(null); setDrawingDimension(current => !current); setDimensionStart(null); setDrawingRoute(false); setRoutePoints([]); setPresetId(null); }}><Plus size={16}/> Размер вручную</button></div>
     </div>
     {heightEditId ? createPortal(<div className="placement-height-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setHeightEditId(null); }}>
@@ -1412,18 +1411,8 @@ export default function PlacementScreen() {
         <footer><button type="button" onClick={() => { change(data => { const list = annotationEditor.type === 'item' ? data.items : annotationEditor.system === 'electric' ? data.routes : data.networks?.[annotationEditor.system]; const entry = list?.find(item => item.id === annotationEditor.id); if (entry) entry.showName = false; }); setAnnotationEditor(null); }}>Скрыть подпись</button><button type="submit" disabled={!annotationDraft.trim()}>Сохранить</button></footer>
       </form>
     </div>, document.body) : null}
-    {printDialogOpen ? createPortal(<div className="placement-height-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setPrintDialogOpen(false); }}>
-      <section className="placement-print-dialog" role="dialog" aria-modal="true" aria-label="Выбор листов для печати" onKeyDown={event => { if (event.key === 'Escape') setPrintDialogOpen(false); }}>
-        <header><div><strong>Печать рабочих листов</strong><p>Выберите планы, развёртки и ведомости. Затем сохраните PDF через окно печати устройства.</p></div><button type="button" aria-label="Закрыть выбор листов" onClick={() => setPrintDialogOpen(false)}><X size={18}/></button></header>
-        <div className="placement-print-presets"><button type="button" onClick={() => setPrintSelection(printSheets.filter(sheet => sheet.discipline === 'electric').map(sheet => sheet.id))}>Вся электрика</button><button type="button" onClick={() => setPrintSelection(printSheets.map(sheet => sheet.id))}>Все листы</button><button type="button" onClick={() => setPrintSelection([])}>Снять выбор</button></div>
-        <div className="placement-print-list">{printSheets.map(sheet => <label key={sheet.id}><input type="checkbox" checked={printSelection?.includes(sheet.id) || false} onChange={event => setPrintSelection(current => event.target.checked ? [...(current || []), sheet.id] : (current || []).filter(id => id !== sheet.id))}/><span>Этаж {sheet.floor} · {sheet.title}</span><small>{sheet.wall ? 'Развёртка' : 'План'}</small></label>)}</div>
-        <div className="placement-print-route-head"><strong>Линии на выбранных листах</strong><div><button type="button" onClick={() => setPrintRouteSelection([...new Set(printSheets.flatMap(sheet => sheet.routes.map(route => route.id)))] )}>Все линии</button><button type="button" onClick={() => setPrintRouteSelection([])}>Без линий</button></div></div>
-        <div className="placement-print-list placement-print-routes">{[...new Map(printSheets.filter(sheet => printSelection?.includes(sheet.id)).flatMap(sheet => sheet.routes.map(route => [route.id, { route, sheet }]))).values()].map(({ route, sheet }) => <label key={route.id}><input type="checkbox" checked={printRouteSelection.includes(route.id)} onChange={event => setPrintRouteSelection(current => event.target.checked ? [...current, route.id] : current.filter(id => id !== route.id))}/><span>{sheet.discipline === 'electric' ? sheet.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Линия электрики' : NETWORK_SYSTEMS[sheet.discipline]?.label || 'Линия'} · {printRouteDescription(route)}</span><small>Этаж {sheet.floor}</small></label>)}{!printSheets.some(sheet => printSelection?.includes(sheet.id) && sheet.routes.length) ? <p>На выбранных листах пока нет линий.</p> : null}</div>
-        <strong>Ведомости на выбранных листах</strong><div className="placement-print-sections">{[['positions', 'Позиции и привязки'], ['wallRoutes', 'Трассы по стенам'], ['circuits', 'Группы щита и трассы'], ['components', 'Комплектующие электрики'], ['networks', 'Линии и материалы сетей'], ['panel', 'Схема автоматов']].map(([key, label]) => <label key={key}><input type="checkbox" checked={printSections[key]} onChange={event => setPrintSections(current => ({ ...current, [key]: event.target.checked }))}/>{label}</label>)}</div><small className="placement-print-note">В ведомости количество точек остаётся по всему этажу, а длины трасс считаются только по отмеченным линиям.</small>
-        <footer><span>Выбрано листов: {printSelection?.length || 0}</span><button type="button" disabled={!printSelection?.length} onClick={confirmPrint}><Printer size={17}/> Печать / сохранить PDF</button></footer>
-      </section>
-    </div>, document.body) : null}
-    {snapshotError && !snapshot ? createPortal(<p className="placement-snapshot-toast" role="status">{snapshotError}<button type="button" aria-label="Закрыть сообщение" onClick={() => setSnapshotError('')}><X size={16}/></button></p>, document.body) : null}
+    {printDialogOpen ? createPortal(<div className="placement-height-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setPrintDialogOpen(false); }}><PlacementPrintDialog sheets={printSheets} selection={printSelection} onSelection={setPrintSelection} routeSelection={printRouteSelection} onRouteSelection={setPrintRouteSelection} showInfo={printShowInfo} onShowInfo={setPrintShowInfo} onClose={() => setPrintDialogOpen(false)} onPrint={confirmPrint} routeDescription={printRouteDescription}/></div>, document.body) : null}
+        {snapshotError && !snapshot ? createPortal(<p className="placement-snapshot-toast" role="status">{snapshotError}<button type="button" aria-label="Закрыть сообщение" onClick={() => setSnapshotError('')}><X size={16}/></button></p>, document.body) : null}
     {snapshot ? createPortal(<div className="placement-snapshot-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setSnapshot(null); }} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setSnapshot(null); } }}>
       <section className="placement-snapshot-dialog" role="dialog" aria-modal="true" aria-label="Снимок рабочего поля">
         <header><strong>Снимок рабочего поля</strong><button type="button" aria-label="Закрыть снимок" onClick={() => setSnapshot(null)}><X size={18}/></button></header>
@@ -1451,6 +1440,6 @@ export default function PlacementScreen() {
         <div className="placement-circuit-color-picker"><strong>Цвет группы</strong><div className="placement-circuit-swatches">{CIRCUIT_COLORS.map(color => { const occupied = placement.circuits.some(circuit => circuit.id !== settingsCircuit.id && electricalGroupColor(circuit.id, placement.circuits).toLowerCase() === color); return <button key={color} type="button" style={{ backgroundColor: color }} className={settingsCircuit.color === color ? 'active' : ''} disabled={occupied} aria-label={`${color}${occupied ? ' · занят' : ''}`} title={occupied ? 'Цвет занят другой группой' : color} onClick={() => updateCircuitColor(settingsCircuit.id, color)}/>; })}</div><label>Свой цвет<input type="color" value={validCircuitColor(settingsCircuit.color) || CIRCUIT_COLORS[0]} onChange={event => updateCircuitColor(settingsCircuit.id, event.target.value)}/></label>{circuitColorError ? <small role="alert">{circuitColorError}</small> : null}</div>
       </section>
     </div>, document.body) : null}
-    {printing ? createPortal(<PlacementWorkerSheets project={project} selection={{ sheetIds: printSelection, routeIds: printRouteSelection, sections: printSections }}/>, document.body) : null}
+    {printing ? createPortal(<PlacementWorkerSheets project={project} selection={{ sheetIds: printSelection, routeIds: printRouteSelection, showInfo: printShowInfo }}/>, document.body) : null}
   </main>;
 }

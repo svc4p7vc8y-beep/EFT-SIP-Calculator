@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eft-calculator-react-current-build';
+const CACHE_NAME = 'eft-calculator-react-v288';
 const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
 
 self.addEventListener('install', (event) => {
@@ -8,7 +8,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('eft-calculator-react-') && key !== CACHE_NAME).map((key) => caches.delete(key))))
   );
   self.clients.claim();
 });
@@ -16,7 +16,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin || url.pathname.includes('/api/') || url.searchParams.has('build-check')) return;
+  if (url.origin !== self.location.origin || url.pathname.includes('/api/') || url.searchParams.has('build-check') || url.searchParams.has('recovery')) return;
   event.respondWith(
     fetch(event.request, event.request.mode === 'navigate' ? { cache: 'no-store' } : undefined)
       .then((response) => {

@@ -164,7 +164,7 @@ function Screen({ active, calculation, teamProps, onNavigate, onOpenLibraryPlan,
   if (active === "mail") return <MailScreen />;
   if (active === "files") return <FilesScreen onOpenLibraryPlan={onOpenLibraryPlan} />;
   if (active === "plan") return <PlanScreen onNavigate={onNavigate} planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
-  if (active === "placement") return <PlacementScreen />;
+  if (active === "placement") return <PlacementScreen onNavigate={onNavigate} />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
   if (active === "request") return <RequestScreen />;
@@ -646,7 +646,7 @@ export function App() {
         <button className="project-tab-add" onClick={newProject} title="Новый проект в отдельной вкладке" aria-label="Новая вкладка проекта"><Plus /><span>Новый проект</span></button>
         {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
       </div>
-      <div className={`app-layout${['plan', 'placement'].includes(active) ? ' plan-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      <div className={`app-layout${['plan', 'placement'].includes(active) ? ' plan-app-layout' : ''}${active === 'placement' ? ' placement-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <button className="sidebar-desktop-toggle" onClick={() => setSidebarCollapsed(value => !value)} title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <ChevronRight/> : <ChevronLeft/>}<span>{sidebarCollapsed ? 'Развернуть' : 'Свернуть'}</span></button>
           <div className="sidebar-mobile-head">
