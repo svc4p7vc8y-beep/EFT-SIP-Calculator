@@ -667,11 +667,8 @@ export function App() {
               <X />
             </button>
           </div>
-          <nav className="sidebar-mobile-view-nav" aria-label="Разделы для просмотра">
-            {[['plan', 'План дома', Home], ['placement', 'Мебель и инженерия', Layers3], ['estimate', 'Смета', Calculator], ['knowledge', 'Библиотека знаний', LibraryBig]].map(([id, label, Icon]) => <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMenuOpen(false); }}><Icon/><span>{label}</span></button>)}
-          </nav>
           <details className="sidebar-mobile-more"><summary>Остальные разделы</summary><nav aria-label="Остальные разделы калькулятора">
-            {NAV_ITEMS.filter(item => !['plan', 'placement', 'estimate', 'knowledge'].includes(item.id)).map(({ id, label, icon: Icon }) => <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMenuOpen(false); }}><Icon/><span>{label}</span></button>)}
+            {NAV_ITEMS.filter(item => !['plan', 'placement', 'estimate'].includes(item.id)).map(({ id, label, icon: Icon }) => <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMenuOpen(false); }}><Icon/><span>{label}</span></button>)}
           </nav></details>
           <details className="sidebar-mobile-more"><summary>Файлы и создание</summary><div className="sidebar-mobile-project-actions">
             <button onClick={newProject}><FilePlus2/>Новый проект</button>
