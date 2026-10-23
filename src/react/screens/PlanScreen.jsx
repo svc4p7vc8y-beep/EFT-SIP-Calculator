@@ -5028,7 +5028,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
 }
 
 export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
-  const { project, activeTabId, commit, undo, redo, canUndo, canRedo } = useProject();
+  const { project, activeTabId, openTab, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
   const [mobilePlanEditing, setMobilePlanEditing] = useState(false);
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
@@ -5475,28 +5475,15 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   };
   const openLibraryPlan = (entry, editAfterOpen = false) => {
     if (!entry) return;
-    if (
-      !window.confirm(
-        `Открыть «${entry.name}»? Текущий проект можно вернуть кнопкой «Отменить».`,
-      )
-    )
-      return;
-    commit((next) => {
-      if (entry.preset) {
-        next.plan = structuredClone(entry.plan);
-        ensureProjectFloorCount(next, 1);
-        releasePlanLinkedQuantityOverrides(next);
-        return next;
-      }
-      return restorePlanLibraryEntry(next, entry);
-    });
-    setEditingLibraryId(editAfterOpen && !entry.preset ? entry.id : null);
+    const nextProject = restorePlanLibraryEntry(project, entry);
+    const nextTabId = openTab(nextProject, null, entry.name, 0, entry.id);
+    if (editAfterOpen && !entry.preset) setEditingLibraryIds(current => ({ ...current, [nextTabId]: entry.id }));
     setActiveFloor(1);
     setLibraryOpen(false);
     setSelected(null);
     setTool("select");
     setPolygonDraft([]);
-    setTransferStatus(editAfterOpen ? `Открыт для изменения: ${entry.name}. После правок нажмите «Обновить в библиотеке».` : `Открыт сохранённый проект: ${entry.name}`);
+    setTransferStatus(editAfterOpen ? `Проект «${entry.name}» открыт в новой вкладке для изменения.` : `Проект «${entry.name}» открыт в новой вкладке.`);
   };
   const newPlan = () => {
     if (!window.confirm("Создать новый чистый план? Текущую геометрию можно вернуть кнопкой «Отменить»."))

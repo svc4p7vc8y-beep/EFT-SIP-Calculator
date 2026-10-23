@@ -26,6 +26,7 @@ import {
   Plus,
   Ruler,
   Save,
+  Share2,
   Settings2,
   Sun,
   Tags,
@@ -52,6 +53,7 @@ import {
 } from "../state/project-model.js";
 import { validateImportedProject } from "../state/project-import.js";
 import { reserveLocalProjectNumber } from "../storage/project-number.js";
+import { createPlanLibraryEntry, readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
 import { formatMoney } from "../utils/format.js";
 import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
 import ProjectSchemePreview from "../components/ProjectSchemePreview.jsx";
@@ -131,17 +133,24 @@ const NAV_ITEMS = [
   { id: "estimate", label: "Смета", icon: Calculator, group: "data" },
 ];
 
-async function downloadProject(project, requestedName) {
+function createProjectFile(project, requestedName) {
   const payload = {
     ...project,
     savedAt: new Date().toISOString(),
     appVersion: REACT_PROJECT_VERSION,
     schemaVersion: 4,
   };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+  const contents = JSON.stringify(payload, null, 2);
+  const filename = normalizedProjectFilename(requestedName, project.meta);
+  return new File([contents], filename, { type: "application/json" });
+}
+
+async function downloadProject(project, requestedName) {
+  const file = createProjectFile(project, requestedName);
+  const blob = new Blob([file], {
     type: "application/json;charset=utf-8",
   });
-  const filename = normalizedProjectFilename(requestedName, project.meta);
+  const filename = file.name;
   if (typeof window.showSaveFilePicker === 'function') {
     const handle = await window.showSaveFilePicker({
       suggestedName: filename,
@@ -193,6 +202,7 @@ export function App() {
     activeTabId,
     openTab,
     activateTab,
+    getTabProject,
     closeTab,
     replaceTab,
     attachServer,
@@ -212,6 +222,9 @@ export function App() {
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [saveFileName, setSaveFileName] = useState('');
   const [saveFileOpen, setSaveFileOpen] = useState(false);
+  const [closingTabId, setClosingTabId] = useState(null);
+  const [closingTabBusy, setClosingTabBusy] = useState(false);
+  const [closingTabError, setClosingTabError] = useState('');
   const [saveFileBusy, setSaveFileBusy] = useState(false);
   const [applyProjectBusy, setApplyProjectBusy] = useState(false);
   const [saveFileError, setSaveFileError] = useState('');
@@ -261,16 +274,39 @@ export function App() {
     setNotice(`Открыта вкладка проекта № ${tab.meta?.projectNum || '—'}`);
   };
 
-  const closeProjectTab = async (id) => {
+  const closeProjectTab = (id) => {
     if (tabs.length < 2) return;
-    if (id === activeTabId) await saveBeforeSwitch();
-    const index = tabs.findIndex((tab) => tab.id === id);
-    const next = tabs.filter((tab) => tab.id !== id)[Math.min(index, tabs.length - 2)];
-    if (!closeTab(id)) { setNotice('Вкладка не закрыта: не удалось создать резервную копию'); return; }
-    if (id === activeTabId && next) {
-      team.activateProjectSession(next.serverId, next.serverRevision, next.serverName);
-      setActive('plan');
-    }
+    setClosingTabError('');
+    setClosingTabId(id);
+  };
+
+  const confirmCloseProjectTab = async (saveToLibrary) => {
+    const id = closingTabId;
+    const tab = tabs.find((item) => item.id === id);
+    const tabProject = getTabProject(id);
+    if (!tab || !tabProject) return;
+    setClosingTabBusy(true);
+    setClosingTabError('');
+    try {
+      if (saveToLibrary) {
+        const entries = readPlanLibrary();
+        const existing = entries.find(entry => entry.id === tab.libraryId);
+        const name = existing?.name || tab.serverName || tab.meta?.projectName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`;
+        const calculationForTab = calculateProject(tabProject, { nodeTypeRules: team.nodeTypeRules });
+        const saved = createPlanLibraryEntry(tabProject, name, calculationForTab, existing);
+        writePlanLibrary(existing ? entries.map(entry => entry.id === existing.id ? saved : entry) : [saved, ...entries]);
+      }
+      const index = tabs.findIndex((item) => item.id === id);
+      const next = tabs.filter((item) => item.id !== id)[Math.min(index, tabs.length - 2)];
+      if (!closeTab(id)) throw new Error('Не удалось создать резервную копию вкладки.');
+      if (id === activeTabId && next) {
+        team.activateProjectSession(next.serverId, next.serverRevision, next.serverName);
+        setActive('plan');
+      }
+      setClosingTabId(null);
+      setNotice(saveToLibrary ? 'Проект сохранён в библиотеке, вкладка закрыта.' : 'Вкладка закрыта; локальная резервная копия сохранена.');
+    } catch (error) { setClosingTabError(error.message || 'Не удалось закрыть вкладку.'); }
+    finally { setClosingTabBusy(false); }
   };
 
   useEffect(() => {
@@ -442,6 +478,21 @@ export function App() {
     }
   };
 
+  const shareProject = async () => {
+    const file = createProjectFile(project, suggestedProjectFilename(project.meta));
+    try {
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        await navigator.share({ files: [file], title: file.name });
+        setNotice('Файл проекта передан для отправки.');
+      } else {
+        await downloadProject(project, file.name);
+        setNotice('Файл проекта сохранён. Его можно отправить из выбранной папки.');
+      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') setNotice(`Не удалось поделиться файлом: ${error.message}`);
+    }
+  };
+
   const openTeamProject = async (id, destination = 'plan') => {
     try {
       const existing = tabs.find((tab) => tab.serverId === id);
@@ -595,6 +646,7 @@ export function App() {
           >
             <Save />
           </button>
+          <button className="icon-button" onClick={shareProject} aria-label="Поделиться файлом проекта" title="Поделиться файлом проекта"><Share2 /></button>
           <button
             className="icon-button"
             onClick={() => fileRef.current?.click()}
@@ -673,6 +725,7 @@ export function App() {
           <details className="sidebar-mobile-more"><summary>Файлы и создание</summary><div className="sidebar-mobile-project-actions">
             <button onClick={newProject}><FilePlus2/>Новый проект</button>
             <button onClick={saveProject}><Save/>Сохранить файл проекта</button>
+            <button onClick={() => { setMenuOpen(false); shareProject(); }}><Share2/>Поделиться файлом проекта</button>
             <button onClick={() => {fileRef.current?.click();setMenuOpen(false);}}><FileUp/>Открыть файл проекта</button>
             <button onClick={() => setBackupOpen(true)}><History/>Резервные копии</button>
           </div></details>
@@ -820,6 +873,14 @@ export function App() {
           {saveFileError ? <p role="alert">{saveFileError}</p> : null}
           <footer><button type="button" className="button secondary" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}>Отмена</button><button type="submit" className="button" disabled={saveFileBusy}>{saveFileBusy ? 'Сохранение…' : 'Выбрать место и сохранить'}</button></footer>
         </form>
+      </div> : null}
+      {closingTabId ? <div className="modal-backdrop project-save-backdrop">
+        <section className="modal project-save-dialog" role="dialog" aria-modal="true" aria-labelledby="close-project-tab-title">
+          <header><div><h2 id="close-project-tab-title">Закрыть вкладку проекта?</h2><p>Сохранить проект в библиотеке планов перед закрытием? При закрытии также создаётся локальная резервная копия.</p></div><button type="button" className="icon-button" aria-label="Отмена" onClick={() => setClosingTabId(null)} disabled={closingTabBusy}><X/></button></header>
+          <p><strong>{tabs.find(tab => tab.id === closingTabId)?.serverName || tabs.find(tab => tab.id === closingTabId)?.meta?.projectName || `Проект № ${tabs.find(tab => tab.id === closingTabId)?.meta?.projectNum || '—'}`}</strong></p>
+          {closingTabError ? <p role="alert">{closingTabError}</p> : null}
+          <footer><button type="button" className="button secondary" onClick={() => setClosingTabId(null)} disabled={closingTabBusy}>Отмена</button><button type="button" className="button secondary" onClick={() => confirmCloseProjectTab(false)} disabled={closingTabBusy}>Без сохранения в библиотеку</button><button type="button" className="button primary" onClick={() => confirmCloseProjectTab(true)} disabled={closingTabBusy}>{closingTabBusy ? 'Сохранение…' : 'Сохранить в библиотеку и закрыть'}</button></footer>
+        </section>
       </div> : null}
       {newProjectOpen ? (
         <NewProjectDialog

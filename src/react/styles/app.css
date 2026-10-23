@@ -1941,14 +1941,7 @@ select,
   user-select: none;
   -webkit-user-select: none;
 }
-/* The global project summary already carries the room list. Keep the canvas wide
-   until an object is selected and needs its exact inspector. */
-.planner-shell:has(.planner-inspector .room-summary) {
-  grid-template-columns: 82px minmax(0, 1fr);
-}
-.planner-inspector:has(.room-summary) {
-  display: none;
-}
+/* Keep the house parameters available beside the canvas on desktop. */
 .planner-inspector input,
 .planner-inspector select {
   user-select: text;

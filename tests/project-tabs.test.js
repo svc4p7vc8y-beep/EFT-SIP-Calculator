@@ -38,3 +38,19 @@ test('closing a tab selects a neighbor and saved tabs restore project data', () 
   assert.equal(state.tabs.length, 1);
   assert.equal(projectWorkspaceReducer(state, { type: 'close-tab', id: 'first' }), state);
 });
+
+test('a library project keeps one dedicated tab through save and reload', () => {
+  const first = createDefaultProject();
+  const libraryProject = createDefaultProject();
+  libraryProject.meta.projectName = 'Дом из библиотеки';
+  let state = createProjectWorkspace(first, 'first');
+  state = projectWorkspaceReducer(state, { type: 'open-tab', id: 'library', project: libraryProject, libraryId: 'plan-42', serverName: 'Дом из библиотеки' });
+  state = projectWorkspaceReducer(state, { type: 'commit', update: project => { project.meta.customer = 'Заказчик'; return project; } });
+  state = projectWorkspaceReducer(state, { type: 'open-tab', id: 'duplicate', project: libraryProject, libraryId: 'plan-42' });
+  assert.equal(state.tabs.length, 2);
+  assert.equal(state.activeId, 'library');
+  const restored = restoreProjectWorkspace(serializeProjectWorkspace(state, 'local'), first);
+  assert.equal(restored.tabs[1].libraryId, 'plan-42');
+  assert.equal(restored.tabs[1].history.present.meta.customer, 'Заказчик');
+  assert.equal(restored.tabs[0].history.present.meta.customer, first.meta.customer);
+});

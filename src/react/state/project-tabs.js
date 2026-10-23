@@ -15,6 +15,7 @@ export function restoreProjectWorkspace(saved, fallback) {
   const tabs = saved.tabs.filter((tab) => tab?.id && tab.project).map((tab) => ({
     id: String(tab.id),
     serverId: tab.serverId || null,
+    libraryId: tab.libraryId || null,
     serverName: String(tab.serverName || ''),
     serverRevision: Number(tab.serverRevision) || 0,
     history: makeHistory(tab.project),
@@ -27,8 +28,8 @@ export function serializeProjectWorkspace(state, owner) {
   return {
     owner,
     activeId: state.activeId,
-    tabs: state.tabs.map(({ id, serverId, serverName, serverRevision, history }) => ({
-      id, serverId, serverName, serverRevision, project: history.present,
+    tabs: state.tabs.map(({ id, serverId, libraryId, serverName, serverRevision, history }) => ({
+      id, serverId, libraryId, serverName, serverRevision, project: history.present,
     })),
   };
 }
@@ -52,12 +53,12 @@ function reduceHistory(history, action) {
 export function projectWorkspaceReducer(state, action) {
   if (action.type === 'hydrate') return restoreProjectWorkspace(action.saved, action.fallback);
   if (action.type === 'open-tab') {
-    const existing = action.serverId && state.tabs.find((tab) => tab.serverId === action.serverId);
+    const existing = state.tabs.find((tab) => (action.serverId && tab.serverId === action.serverId) || (action.libraryId && tab.libraryId === action.libraryId));
     if (existing) return { ...state, activeId: existing.id };
     return {
       activeId: action.id,
       tabs: [...state.tabs, {
-        id: action.id, serverId: action.serverId || null, serverName: action.serverName || '', serverRevision: action.serverRevision || 0,
+        id: action.id, serverId: action.serverId || null, libraryId: action.libraryId || null, serverName: action.serverName || '', serverRevision: action.serverRevision || 0,
         history: makeHistory(action.project),
       }],
     };

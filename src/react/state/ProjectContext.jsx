@@ -101,12 +101,15 @@ export function ProjectProvider({ children }) {
   );
   const undo = useCallback(() => dispatch({ type: "undo", tabId: workspace.activeId }), [workspace.activeId]);
   const redo = useCallback(() => dispatch({ type: "redo", tabId: workspace.activeId }), [workspace.activeId]);
-  const openTab = useCallback((nextProject, serverId = null, serverName = '', serverRevision = 0) => {
+  const openTab = useCallback((nextProject, serverId = null, serverName = '', serverRevision = 0, libraryId = null) => {
+    const existing = workspace.tabs.find(tab => (serverId && tab.serverId === serverId) || (libraryId && tab.libraryId === libraryId));
+    if (existing) { dispatch({ type: 'activate-tab', id: existing.id }); return existing.id; }
     const id = globalThis.crypto?.randomUUID?.() || `tab-${Date.now()}-${Math.random()}`;
-    dispatch({ type: 'open-tab', id, project: nextProject, serverId, serverName, serverRevision });
+    dispatch({ type: 'open-tab', id, project: nextProject, serverId, libraryId, serverName, serverRevision });
     return id;
-  }, []);
+  }, [workspace.tabs]);
   const activateTab = useCallback((id) => dispatch({ type: 'activate-tab', id }), []);
+  const getTabProject = useCallback((id) => workspace.tabs.find((tab) => tab.id === id)?.history.present || null, [workspace.tabs]);
   const closeTab = useCallback((id) => {
     if (workspace.tabs.length < 2) return false;
     const tab = workspace.tabs.find((item) => item.id === id);
@@ -158,11 +161,12 @@ export function ProjectProvider({ children }) {
       replace,
       openTab,
       activateTab,
+      getTabProject,
       closeTab,
       replaceTab,
       attachServer,
       hydrated,
-      tabs: workspace.tabs.map(({ id, serverId, serverName, serverRevision, history: tabHistory }) => ({ id, serverId, serverName, serverRevision, meta: tabHistory.present.meta, plan: tabHistory.present.plan })),
+      tabs: workspace.tabs.map(({ id, serverId, libraryId, serverName, serverRevision, history: tabHistory }) => ({ id, serverId, libraryId, serverName, serverRevision, meta: tabHistory.present.meta, plan: tabHistory.present.plan })),
       activeTabId: workspace.activeId,
       undo,
       redo,
@@ -171,7 +175,7 @@ export function ProjectProvider({ children }) {
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
     }),
-    [workspace, history, project, commit, recordMarks, replace, openTab, activateTab, closeTab, replaceTab, attachServer, hydrated, undo, redo, checkpoint, saveState],
+    [workspace, history, project, commit, recordMarks, replace, openTab, activateTab, getTabProject, closeTab, replaceTab, attachServer, hydrated, undo, redo, checkpoint, saveState],
   );
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>
