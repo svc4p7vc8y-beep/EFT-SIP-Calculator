@@ -178,7 +178,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 5, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, networks: normalizeNetworkRoutes() };
+  return { version: 6, items: [], circuits: [], routes: [], dimensions: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -191,7 +191,9 @@ export function normalizePlacement(value) {
   const normalized = {
     ...base,
     ...value,
-    version: 5,
+    version: 6,
+    activeLayer: PLACEMENT_LAYERS.some(layer => layer.id === value.activeLayer && !layer.future) ? value.activeLayer : base.activeLayer,
+    visibleLayers: Object.fromEntries(Object.entries(base.visibleLayers).map(([key, fallback]) => [key, typeof value.visibleLayers?.[key] === 'boolean' ? value.visibleLayers[key] : fallback])),
     electricalRouteMode: ['automatic', 'manual'].includes(value.electricalRouteMode) ? value.electricalRouteMode : routes.some(route => route?.auto === false) ? 'manual' : 'automatic',
     defaultRouteSurface: value.defaultRouteSurface === 'floor' ? 'floor' : 'ceiling',
     showAutoDimensions: value.showAutoDimensions !== false,

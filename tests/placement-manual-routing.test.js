@@ -2,11 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDefaultProject } from '../src/react/state/project-model.js';
 import { electricalRouteLength3d, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
-import { appendManualRouteWaypoint, finishManualRoute, manualRouteSnap } from '../src/react/state/placement-manual-routing.js';
+import { appendManualRouteWaypoint, finishManualRoute, manualRouteSnap, nearestRouteNode } from '../src/react/state/placement-manual-routing.js';
 import { electricalDrawingAnchors, sharedElectricalRouteLanes } from '../src/react/state/placement-schematic.js';
 import { placementWallFaces } from '../src/react/state/placement-walls.js';
 
 const plan = createDefaultProject().plan;
+
+test('electrical point near a wall takes precedence over wall snapping', () => {
+  const face = placementWallFaces(plan)[0];
+  const anchor = { x: (face.a.x + face.b.x) / 2 + face.normal.x * .08, y: (face.a.y + face.b.y) / 2 + face.normal.y * .08 };
+  const clicked = { x: anchor.x + .04, y: anchor.y + .03 };
+  assert.equal(nearestRouteNode(clicked, [{ item: { id: 'socket' }, anchor }], .12)?.item.id, 'socket');
+  const snapped = manualRouteSnap(plan, clicked, [], 'floor', .12, [anchor]);
+  assert.deepEqual(snapped.position, { x: Math.round(anchor.x * 100) / 100, y: Math.round(anchor.y * 100) / 100 });
+  assert.equal(snapped.snappedTo, 'point');
+});
 
 test('manual cable follows explicit horizontal and vertical turns without an invented elbow', () => {
   const snapped = manualRouteSnap(plan, { x: 2.54, y: 10.44 }, [], 'floor');

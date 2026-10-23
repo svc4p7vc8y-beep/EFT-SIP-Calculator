@@ -4,8 +4,21 @@ import { placementWallFaces, projectToWallFace } from './placement-walls.js';
 const round = value => Math.round(value * 100) / 100;
 const same = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0)) < .001;
 
+export function nearestRouteNode(at, nodes, tolerance) {
+  if (!at || !Number.isFinite(tolerance) || tolerance <= 0) return null;
+  return (nodes || []).reduce((nearest, node) => {
+    const anchor = node?.anchor;
+    if (!Number.isFinite(anchor?.x) || !Number.isFinite(anchor?.y)) return nearest;
+    const distance = Math.hypot(anchor.x - at.x, anchor.y - at.y);
+    return distance <= tolerance && (!nearest || distance < nearest.distance) ? { ...node, distance } : nearest;
+  }, null);
+}
+
 /** Only a wall that the user actually points at is magnetic. */
 export function manualRouteSnap(plan, at, _routes, surface, tolerance = .12, anchors = []) {
+  const point = nearestRouteNode(at, anchors.map(anchor => ({ anchor })), tolerance);
+  if (point && surface !== 'wall')
+    return { position: { x: round(point.anchor.x), y: round(point.anchor.y) }, surface, wallRef: '', snappedTo: 'point', guides: [] };
   const wall = nearestRouteWall(plan, at);
   if (wall?.projection.distance <= tolerance) {
     return { position: { x: round(wall.projection.foot.x), y: round(wall.projection.foot.y) }, surface: 'wall', wallRef: wall.face.ref, snappedTo: 'wall' };

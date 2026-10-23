@@ -688,6 +688,7 @@ export function App() {
           />
         ) : null}
         <main className="workspace">
+          {team.projectSaveConflict && team.current ? <div className="notice no-print" role="alert">{team.projectSaveConflict} <button className="button secondary" onClick={saveProject}>Скачать копию проекта</button><button className="button secondary" onClick={() => { setTeamFocus('projects'); setActive('team'); }}>Открыть общие проекты</button></div> : null}
           {team.user && team.priceCatalog.status !== 'ready' ? <div className="notice no-print" role="alert">Не удалось подтвердить актуальные цены: {team.priceCatalog.error}. Планы доступны; смета станет доступна после обновления прайса. <button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Обновить прайс</button></div> : null}
           {appUpdateReady ? <div className="notice no-print" role="status">Доступна новая версия калькулятора. Сохраните проект, затем обновите страницу. <button className="button secondary" onClick={() => { const url = new URL(window.location.href); url.searchParams.set('refresh', String(Date.now())); window.location.assign(url.href); }}>Обновить версию</button></div> : null}
           {team.refreshError || team.mailError ? <div className="notice no-print" role="alert">

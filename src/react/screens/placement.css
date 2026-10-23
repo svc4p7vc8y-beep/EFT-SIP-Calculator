@@ -349,6 +349,7 @@
 .placement-room-focused .placement-canvas-panel>.placement-layers{display:none}
 .placement-viewport-tools{flex-wrap:wrap}
 .placement-viewport-tools>button{min-width:29px}
+@media(max-width:700px){.placement-viewport-tools{width:100%;min-width:0}}
 .placement-route-list>div{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px}
 .placement-route-list select{max-width:93px;min-width:0;padding:5px 2px;border:1px solid #cbded3;border-radius:6px;background:#fff;font-size:.71rem}
 .placement-route-point{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:4px;align-items:center;margin:3px 0}

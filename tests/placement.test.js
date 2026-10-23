@@ -237,6 +237,22 @@ test('old projects receive an empty placement layer without changing the estimat
   assert.equal(calculateProject(migrated).totals.total, before);
 });
 
+test('layer selection and visibility survive project reopen with safe defaults for old projects', () => {
+  const project = createDefaultProject();
+  project.placement.activeLayer = 'electric';
+  project.placement.visibleLayers.furniture = false;
+  project.placement.visibleLayers.plumbing = false;
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.placement.activeLayer, 'electric');
+  assert.equal(reopened.placement.visibleLayers.furniture, false);
+  assert.equal(reopened.placement.visibleLayers.plumbing, false);
+  delete project.placement.activeLayer;
+  delete project.placement.visibleLayers;
+  const old = migrateProject(project);
+  assert.equal(old.placement.activeLayer, 'furniture');
+  assert.equal(old.placement.visibleLayers.electric, true);
+});
+
 test('existing appliances receive editable network ports once without changing the estimate', () => {
   const project = createDefaultProject();
   const before = calculateProject(project).totals.total;
@@ -244,7 +260,7 @@ test('existing appliances receive editable network ports once without changing t
   project.placement.items.push({ id: 'sink-1', floor: 1, layer: 'furniture', kind: 'kitchen-sink', label: 'Мойка', x: 2, y: 2, width: .8, depth: .6, height: 0 });
   const migrated = migrateProject(project);
   const ports = migrated.placement.items.filter(item => item.linkedApplianceId === 'sink-1');
-  assert.equal(migrated.placement.version, 5);
+  assert.equal(migrated.placement.version, 6);
   assert.deepEqual(ports.map(item => [item.layer, item.connectionMedium]), [['plumbing', 'cold'], ['plumbing', 'hot'], ['sewer', 'waste']]);
   assert.equal(ports.every(item => item.heightKnown === false && item.followsAppliance), true);
   assert.equal(calculateProject(migrated).totals.total, before);
@@ -291,7 +307,7 @@ test('network routes preserve wall station, heights and independent sheets after
   );
   project.placement.networks.plumbing.push({ id: 'water-route', floor: 1, medium: 'cold', fromId: 'water-in', toId: 'water-out', auto: true, wallRef: wall.ref, routeLevel: 2, diameterMm: 20, material: 'Труба проекта', accessories: [{ name: 'Кран', quantity: 2, unit: 'шт' }], points: [{ ...first, z: 1 }, { ...second, z: .5 }] });
   const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
-  assert.equal(reopened.placement.version, 5);
+  assert.equal(reopened.placement.version, 6);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).totalLength, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).pipeRows[0].metres, 4.5);
   assert.equal(networkBill(reopened.placement, 'plumbing', 1).components.find(entry => entry.name === 'Кран').quantity, 2);

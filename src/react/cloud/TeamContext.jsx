@@ -16,6 +16,7 @@ import { readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
 import { mergeLibraryEntries } from "./library-sync.js";
 import { normalizeNodeTypeRules } from "./node-type-rules.js";
 import { getSavedProjectVersion, restoreSavedProjectVersion } from "./project-versions.js";
+import { describeProjectSaveConflict } from "./save-conflict.js";
 import { useSharedPriceCatalog } from './useSharedPriceCatalog.js';
 
 const TeamContext = createContext(null);
@@ -51,6 +52,7 @@ export function TeamProvider({ children }) {
     status: "local",
     message: "Локальное сохранение",
   });
+  const [projectSaveConflict, setProjectSaveConflict] = useState(null);
   const syncingLibraries = useRef(false);
   const libraryRevisions = useRef({
     "plan-library": 0,
@@ -321,6 +323,7 @@ export function TeamProvider({ children }) {
     currentRef.current = null;
     projectSessions.current.clear();
     setCurrent(null);
+    setProjectSaveConflict(null);
     nodeRulesRevision.current = 0;
     setNodeTypeRules({});
   }, [session.csrf]);
@@ -339,6 +342,7 @@ export function TeamProvider({ children }) {
       };
       projectSessions.current.set(result.project.id, currentRef.current);
       setCurrent(currentRef.current);
+      setProjectSaveConflict(null);
       setSyncState({ status: "saved", message: "Общий проект создан" });
       try { await refresh(); }
       catch (error) {
@@ -371,6 +375,7 @@ export function TeamProvider({ children }) {
     };
     projectSessions.current.set(result.project.id, currentRef.current);
     setCurrent(currentRef.current);
+    setProjectSaveConflict(null);
     setSyncState({
       status: "saved",
       message: `Открыт общий проект · ревизия ${result.project.revision}`,
@@ -381,6 +386,7 @@ export function TeamProvider({ children }) {
     if (!id) {
       currentRef.current = null;
       setCurrent(null);
+      setProjectSaveConflict(null);
       setSyncState({ status: 'local', message: 'Локальный проект' });
       return;
     }
@@ -391,6 +397,7 @@ export function TeamProvider({ children }) {
     }
     currentRef.current = target;
     setCurrent({ ...target });
+    setProjectSaveConflict(null);
     setSyncState({ status: 'saved', message: `Общий проект · ревизия ${target.revision}` });
   }, []);
   const listProjectVersions = useCallback(async (id) => {
@@ -430,6 +437,7 @@ export function TeamProvider({ children }) {
           Object.assign(target, { revision: result.revision, name: result.name });
           if (currentRef.current === target) {
             setCurrent({ ...target });
+            setProjectSaveConflict(null);
             setSyncState({
               status: "saved",
               message: `Общая база · ревизия ${result.revision}`,
@@ -437,12 +445,15 @@ export function TeamProvider({ children }) {
           }
           return result;
         } catch (error) {
+          if (currentRef.current === target && error.code === "revision_conflict")
+            setProjectSaveConflict(describeProjectSaveConflict(target, error));
           if (currentRef.current === target) setSyncState({
             status: "error",
             message:
               error.code === "revision_conflict"
-                ? "Конфликт: проект изменён другим сотрудником"
+                ? describeProjectSaveConflict(target, error)
                 : error.message,
+            code: error.code,
           });
           throw error;
         }
@@ -510,6 +521,7 @@ export function TeamProvider({ children }) {
   const detachProject = useCallback(() => {
     currentRef.current = null;
     setCurrent(null);
+    setProjectSaveConflict(null);
     setSyncState({
       status: "local",
       message: "Новый локальный проект — добавьте его в общие проекты",
@@ -551,6 +563,7 @@ export function TeamProvider({ children }) {
       saveNodeTypeRule,
       current,
       syncState,
+      projectSaveConflict,
       login,
       logout,
       refresh,
@@ -587,6 +600,7 @@ export function TeamProvider({ children }) {
       saveNodeTypeRule,
       current,
       syncState,
+      projectSaveConflict,
       login,
       logout,
       refresh,
