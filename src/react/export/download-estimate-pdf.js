@@ -1,5 +1,17 @@
 // Capture the same proposal sections shown in print, then save an A4 PDF directly.
 // Rendering one section at a time avoids browser canvas height limits on long estimates.
+export function inlineEstimateSvgPaint(root) {
+  for (const svg of root.querySelectorAll('svg')) {
+    for (const node of [svg, ...svg.querySelectorAll('*')]) {
+      const computed = getComputedStyle(node);
+      for (const property of ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'opacity', 'paint-order', 'font-family', 'font-size', 'font-weight', 'text-anchor', 'vector-effect']) {
+        const value = computed.getPropertyValue(property);
+        if (value) node.style.setProperty(property, value);
+      }
+    }
+  }
+}
+
 export async function downloadEstimatePdf(source, filename) {
   if (!source) throw new Error('Не найден лист сметы для PDF.');
   const [{ jsPDF }, { toCanvas }] = await Promise.all([import('jspdf'), import('html-to-image')]);
@@ -14,6 +26,9 @@ export async function downloadEstimatePdf(source, filename) {
     for (const child of source.children) {
       if (child.classList.contains('no-print') || child.classList.contains('estimate-source-ledger')) continue;
       sheet.replaceChildren(child.cloneNode(true));
+      // html-to-image serializes nested SVGs inside a foreignObject. Without
+      // explicit paint values, Chromium can turn CSS-styled plan polygons black.
+      inlineEstimateSvgPaint(sheet);
       const canvas = await toCanvas(sheet, { pixelRatio: 1.5, backgroundColor: '#fff', cacheBust: true, skipFonts: true });
       const mmHeight = canvas.height / canvas.width * contentWidth;
       if (mmHeight <= 0) continue;

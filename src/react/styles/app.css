@@ -7299,6 +7299,7 @@ select,
 .team-project-glyph{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:8px;background:var(--surface);color:var(--green-dark)}
 .team-project-glyph svg{width:17px;height:17px}
 .team-project-row-diagram{display:block;flex:none;width:56px;height:46px;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:var(--surface)}
+.team-apply-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:8px 12px;border:1px solid #bdd4b7;border-radius:9px;background:#f1f8ed;color:#315d27;font-size:12px;font-weight:700}.team-apply-bar .button{min-height:34px;white-space:nowrap}@media(max-width:500px){.team-apply-bar{flex-wrap:wrap}.team-apply-bar .button{width:100%}}
 .team-project-row-diagram .project-scheme-preview,.team-project-row-diagram .project-scheme-empty{width:100%;height:100%;border:0;border-radius:0}
 .team-project-diagram-loading{display:grid;place-items:center;width:100%;height:100%;color:var(--muted)}
 .team-project-diagram-loading svg{width:18px;height:18px}

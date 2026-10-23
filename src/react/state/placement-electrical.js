@@ -19,7 +19,7 @@ export const cableCoreCount = cable => {
   return count >= 2 && count <= 12 ? count : null;
 };
 
-const electricalBillOptions = placement => ({ cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', junctionConnectors: true, lightConnectors: true, ...(placement.electricalBillSettings || {}) });
+const electricalBillOptions = placement => ({ cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true, ...(placement.electricalBillSettings || {}) });
 const routePurchaseLength = (route, settings) => electricalRouteLength3d(route.points) * (1 + Math.max(0, Number(settings.cableReservePercent) || 0) / 100) + 2 * Math.max(0, Number(settings.endAllowanceM) || 0);
 const routeVerticalLength = points => (points || []).slice(1).reduce((sum, point, index) => sum + (Math.hypot(point.x - points[index].x, point.y - points[index].y) < .001 ? Math.abs((point.z || 0) - (points[index].z || 0)) : 0), 0);
 
@@ -248,15 +248,28 @@ export function electricalBill(placement, floor, plan = null) {
       const incident = routeEnds.get(`${item.id}:${circuit.id}`) || [];
       if (!incident.length || item.kind === 'junction-box' && incident.length < 2) continue;
       const cores = cableCoreCount(circuit.cable);
-      const ports = item.kind === 'junction-box' ? incident.length : 2;
+      const ports = item.kind === 'junction-box' ? (incident.length === 4 ? 5 : incident.length) : 2;
       const quantity = cores && ports <= 5 ? cores : null;
       const detail = { itemId: item.id, label: item.label || item.kind, circuit: circuit.name, cables: incident.length, conductorEnds: cores ? cores * incident.length : null, ports, quantity };
       connectionNodes.push(detail);
       if (quantity == null) { terminalIssues.push(`${detail.label}: укажите кабель или схему соединения для ${ports} вводов`); continue; }
-      const row = connectorRows.get(ports) || { name: `Клеммы соединительные · ${ports} ввода`, quantity: 0, unit: 'шт', note: `${settings.connectorModel || 'Модель не выбрана'}; минимум по числу жил; схему соединений проверить`, ready: Boolean(settings.connectorModel) };
+      const model = settings.connectorModels?.[ports] || settings.connectorModel || '';
+      const row = connectorRows.get(ports) || { name: `WAGO ${model || 'модель не выбрана'} · ${ports} ${ports === 5 ? 'вводов' : 'ввода'}`, quantity: 0, unit: 'шт', note: 'Быстросъёмные рычажные клеммы; минимум по числу жил; схему соединений проверить', ready: Boolean(model) };
       row.quantity += quantity;
       connectorRows.set(ports, row);
     }
+  }
+  if (settings.powerConnectors) {
+    const model = settings.connectorModels?.[2] || settings.connectorModel || '';
+    const row = connectorRows.get(2) || { name: `WAGO ${model || 'модель не выбрана'} · 2 ввода`, quantity: 0, unit: 'шт', note: 'Быстросъёмные рычажные клеммы; проверить схему подключения', ready: Boolean(model) };
+    for (const item of items.filter(entry => outlets.has(entry.kind))) {
+      const circuit = circuits.find(entry => entry.id === item.circuitId);
+      const incident = routeEnds.get(`${item.id}:${item.circuitId || ''}`) || [];
+      connectionNodes.push({ itemId: item.id, label: item.label || item.kind, circuit: circuit?.name || 'Группа не выбрана', cables: incident.length, conductorEnds: cableCoreCount(circuit?.cable) ? cableCoreCount(circuit.cable) * incident.length : null, ports: 2, quantity: 1 });
+      row.quantity += 1;
+    }
+    if (row.quantity) row.note = 'Свет: по числу жил; силовые точки: по 1 шт; соединения проверить по схеме';
+    if (row.quantity) connectorRows.set(2, row);
   }
   const fastenerLabels = { clip: 'Клипсы для трассы', clamp: 'Кабельные хомуты', tie: 'Стяжки для трассы' };
   const spacing = Number(settings.fastenerSpacingM);

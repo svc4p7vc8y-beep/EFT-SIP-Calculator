@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import { createDefaultProject, migrateProject, REACT_PROJECT_VERSION } from '../src/react/state/project-model.js';
 import { addCatalogItem, addCustomRequestItem, normalizeRequest, requestFileName, requestTotals, switchRequestType } from '../src/react/state/request-model.js';
 
+test('legacy blank request fields inherit customer and address from opened project', () => {
+  const request = normalizeRequest({ customer: '', address: '' }, { customer: 'Иванов', address: 'Москва' });
+  assert.equal(request.customer, 'Иванов');
+  assert.equal(request.address, 'Москва');
+});
+
+test('customer contacts survive project reopen', () => {
+  const project = createDefaultProject();
+  project.meta.customer = 'Иванов';
+  project.meta.phone = '+7 900 000-00-00';
+  project.meta.email = 'client@example.com';
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.meta.customer, 'Иванов');
+  assert.equal(reopened.meta.phone, '+7 900 000-00-00');
+  assert.equal(reopened.meta.email, 'client@example.com');
+});
+
 test('document type changes only its automatic number and preserves custom numbers', () => {
   const commercial = { documentType: 'commercial', number: 'КП-0123' };
   assert.equal(switchRequestType(commercial, 'internal', '0123').number, 'З-0123');

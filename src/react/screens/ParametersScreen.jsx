@@ -491,6 +491,12 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   }
                 />
               </Field>
+              <Field label="Телефон заказчика">
+                <input type="tel" value={project.meta.phone || ''} onChange={(event) => write("meta.phone", event.target.value)} />
+              </Field>
+              <Field label="Почта заказчика">
+                <input type="email" value={project.meta.email || ''} onChange={(event) => write("meta.email", event.target.value)} />
+              </Field>
               <SelectField
                 label="Тип строения"
                 value={project.meta.buildingType || "Жилой дом"}

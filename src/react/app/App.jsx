@@ -213,6 +213,7 @@ export function App() {
   const [saveFileName, setSaveFileName] = useState('');
   const [saveFileOpen, setSaveFileOpen] = useState(false);
   const [saveFileBusy, setSaveFileBusy] = useState(false);
+  const [applyProjectBusy, setApplyProjectBusy] = useState(false);
   const [saveFileError, setSaveFileError] = useState('');
   const [briefPreview, setBriefPreview] = useState(null);
   const [teamFocus, setTeamFocus] = useState("projects");
@@ -413,6 +414,17 @@ export function App() {
     setSaveFileError('');
     setSaveFileOpen(true);
     setMenuOpen(false);
+  };
+  const applyTeamProjectChanges = async () => {
+    if (applyProjectBusy || !selectedTab?.serverId || team.current?.id !== selectedTab.serverId) return;
+    setApplyProjectBusy(true);
+    try {
+      const result = await team.saveProject(project, true);
+      checkpoint();
+      await team.refresh().catch(() => {});
+      setNotice(`Изменения применены в общем проекте · ревизия ${result.revision}`);
+    } catch (error) { setNotice(`Не удалось применить изменения: ${error.message}`); }
+    finally { setApplyProjectBusy(false); }
   };
   const confirmSaveProject = async () => {
     if (saveFileBusy) return;
@@ -726,6 +738,7 @@ export function App() {
           />
         ) : null}
         <main className="workspace">
+          {selectedTab?.serverId && team.user?.role !== 'viewer' ? <div className="team-apply-bar no-print"><span>Общий проект · {selectedTab.serverName || project.meta.customer || `№ ${project.meta.projectNum}`}</span><button className="button primary" onClick={applyTeamProjectChanges} disabled={applyProjectBusy || team.current?.id !== selectedTab.serverId}>{applyProjectBusy ? 'Применяю…' : 'Применить изменения'}</button></div> : null}
           {team.projectSaveConflict && team.current ? <div className="notice no-print" role="alert">{team.projectSaveConflict} <button className="button secondary" onClick={saveProject}>Скачать копию проекта</button><button className="button secondary" onClick={() => { setTeamFocus('projects'); setActive('team'); }}>Открыть общие проекты</button></div> : null}
           {team.user && team.priceCatalog.status !== 'ready' ? <div className="notice no-print" role="alert">Не удалось подтвердить актуальные цены: {team.priceCatalog.error}. Планы доступны; смета станет доступна после обновления прайса. <button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Обновить прайс</button></div> : null}
           {appUpdateReady ? <div className="notice no-print" role="status">Доступна новая версия калькулятора. Сохраните проект, затем обновите страницу. <button className="button secondary" onClick={() => { const url = new URL(window.location.href); url.searchParams.set('refresh', String(Date.now())); window.location.assign(url.href); }}>Обновить версию</button></div> : null}

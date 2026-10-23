@@ -178,7 +178,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', junctionConnectors: true, lightConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
+  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -205,8 +205,10 @@ export function normalizePlacement(value) {
       fastenerSpec: String(value.electricalBillSettings?.fastenerSpec || '').slice(0, 80),
       fastenerSpacingM: Number(value.electricalBillSettings?.fastenerSpacingM) > 0 ? Math.min(5, Math.max(.05, Number(value.electricalBillSettings.fastenerSpacingM))) : null,
       connectorModel: String(value.electricalBillSettings?.connectorModel || '').slice(0, 80),
+      connectorModels: Object.fromEntries([2, 3, 5].map(ports => [ports, String(value.electricalBillSettings?.connectorModels?.[ports] ?? (value.electricalBillSettings?.connectorModel || base.electricalBillSettings.connectorModels[ports])).slice(0, 80)])),
       junctionConnectors: value.electricalBillSettings?.junctionConnectors !== false,
       lightConnectors: value.electricalBillSettings?.lightConnectors !== false,
+      powerConnectors: value.electricalBillSettings?.powerConnectors !== false,
     },
     electricalRouteMode: ['automatic', 'manual'].includes(value.electricalRouteMode) ? value.electricalRouteMode : routes.some(route => route?.auto === false) ? 'manual' : 'automatic',
     defaultRouteSurface: value.defaultRouteSurface === 'floor' ? 'floor' : 'ceiling',

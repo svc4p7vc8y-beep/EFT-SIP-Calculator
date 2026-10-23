@@ -77,7 +77,7 @@ export default function TeamWorkspaceScreen({
     if (!team.user || !id || diagramsRef.current.has(id) || diagramRequests.current.has(id)) return;
     diagramRequests.current.add(id);
     eftApi('project', { query: { id } }).then((result) => {
-      const diagram = { plan: result.project?.payload?.plan || null, upperPlan: result.project?.payload?.upperFloors?.[0] || null };
+      const diagram = { plan: result.project?.payload?.plan || null, upperPlan: result.project?.payload?.upperFloors?.[0] || null, meta: result.project?.payload?.meta || {} };
       diagramsRef.current.set(id, diagram);
       setDiagrams((current) => ({ ...current, [id]: diagram }));
     }).catch(() => {
@@ -290,6 +290,9 @@ export default function TeamWorkspaceScreen({
                 </div>
                 <dl>
                   <div><dt>Номер</dt><dd>{selectedProject.summary?.number || '—'}</dd></div>
+                  <div><dt>Заказчик</dt><dd>{diagrams[selectedProject.id]?.meta?.customer || selectedProject.summary?.customer || '—'}</dd></div>
+                  <div><dt>Телефон</dt><dd>{diagrams[selectedProject.id]?.meta?.phone || '—'}</dd></div>
+                  <div><dt>Почта</dt><dd>{diagrams[selectedProject.id]?.meta?.email || '—'}</dd></div>
                   <div><dt>Здание</dt><dd>{selectedProject.summary?.buildingType || '—'}</dd></div>
                   <div><dt>Этажей</dt><dd>{selectedProject.summary?.floors || '—'}</dd></div>
                   <div><dt>Площадь</dt><dd>{selectedProject.summary?.area ? `${selectedProject.summary.area} м²` : '—'}</dd></div>

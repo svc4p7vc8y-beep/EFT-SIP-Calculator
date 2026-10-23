@@ -8,6 +8,7 @@ import { perimeterPlacementDimensions } from '../src/react/state/placement-dimen
 import { buildPlacementSheets, buildPrintablePlacementSheets } from '../src/react/export/placement-sheets.js';
 import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../src/react/state/placement-walls.js';
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
+import { blankElectricalBillRows } from '../src/react/state/electrical-bill-form.js';
 import { networkBill, resolvedNetworkRoutes } from '../src/react/state/placement-networks.js';
 import { connectionPortsFor } from '../src/react/state/placement-connections.js';
 import { projectToRoomEdge, roomDimensionEnd, roomEdgeDisplay, roomEdgePosition, roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint, roomWallPlanPoint } from '../src/react/state/placement-room.js';
@@ -626,13 +627,32 @@ test('junction and light terminals, fasteners and selected breakers stay editabl
   });
   const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
   const bill = electricalBill(reopened.placement, 1);
-  assert.equal(bill.components.find(row => row.name === 'Клеммы соединительные · 3 ввода').quantity, 3);
-  assert.equal(bill.components.find(row => row.name === 'Клеммы соединительные · 2 ввода').quantity, 3);
+  assert.equal(bill.components.find(row => row.name === 'WAGO По проекту · 3 ввода').quantity, 3);
+  assert.equal(bill.components.find(row => row.name === 'WAGO По проекту · 2 ввода').quantity, 4);
   assert.equal(bill.connectionNodes.find(row => row.itemId === 'box').conductorEnds, 9);
   assert.equal(bill.components.find(row => row.name === 'Клипсы для трассы').quantity, 15);
   assert.equal(bill.components.find(row => row.name.includes('Автомат 10 А')).quantity, 2);
   assert.equal(reopened.placement.circuits[0].breakerModel, 'Модель проекта');
   assert.equal(reopened.placement.electricalBillSettings.fastenerSpacingM, .5);
+});
+
+test('lever WAGO counts light conductor ends and one two-port connector per power point', () => {
+  const placement = normalizePlacement({
+    items: [{ id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0 },
+      { id: 'light', floor: 1, layer: 'electric', kind: 'light', x: 2, y: 0, circuitId: 'c' },
+      { id: 'power', floor: 1, layer: 'electric', kind: 'power', x: 3, y: 0, circuitId: 'c' },
+      { id: 'socket', floor: 1, layer: 'electric', kind: 'socket', x: 4, y: 0, circuitId: 'c' }],
+    circuits: [{ id: 'c', name: 'Электрика', cable: '3×2,5' }],
+    routes: [{ id: 'light-route', floor: 1, circuitId: 'c', fromItemId: 'panel', targetItemId: 'light', auto: false, points: [{ x: 0, y: 0 }, { x: 2, y: 0 }] }],
+  });
+  const bill = electricalBill(placement, 1);
+  assert.equal(bill.components.find(row => row.name === 'WAGO 221-412 · 2 ввода').quantity, 5);
+  assert.equal(bill.connectionNodes.find(row => row.itemId === 'light').quantity, 3);
+  assert.equal(bill.connectionNodes.find(row => row.itemId === 'power').quantity, 1);
+  const blank = blankElectricalBillRows(bill, [{ name: 'Дополнительная позиция', unit: 'шт' }]);
+  assert(blank.some(row => row.name === 'WAGO 221-415 · 5 вводов'));
+  assert(blank.some(row => row.name === 'Дополнительная позиция'));
+  assert(blank.every(row => row.quantity === ''));
 });
 
 test('electrical wall unfolding is available as a separate printable sheet', () => {

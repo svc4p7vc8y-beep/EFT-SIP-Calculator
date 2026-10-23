@@ -517,6 +517,8 @@ export function createDefaultProject() {
       projectNum: "0001",
       projectName: "",
       customer: "",
+      phone: "",
+      email: "",
       buildingType: "Жилой дом",
       address: "",
       author: "",
