@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { useProject } from "../state/ProjectContext.jsx";
 import { APP_VERSION } from '../data/app-version.js';
+import { normalizedProjectFilename, suggestedProjectFilename } from '../export/project-file-name.js';
 import { priceCatalogFingerprint, showLocalPriceChangeNotice } from '../state/price-change-notice.js';
 import { isPriceEditorUnlocked, verifyPricePasscode, setPriceEditorUnlocked } from '../security/price-access.js';
 import { calculateProject } from "../calculations/estimate-engine.js";
@@ -130,7 +131,7 @@ const NAV_ITEMS = [
   { id: "estimate", label: "Смета", icon: Calculator, group: "data" },
 ];
 
-function downloadProject(project) {
+async function downloadProject(project, requestedName) {
   const payload = {
     ...project,
     savedAt: new Date().toISOString(),
@@ -140,9 +141,20 @@ function downloadProject(project) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json;charset=utf-8",
   });
+  const filename = normalizedProjectFilename(requestedName, project.meta);
+  if (typeof window.showSaveFilePicker === 'function') {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [{ description: 'Проект EFT', accept: { 'application/json': ['.json'] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return;
+  }
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `Проект_ЭФТ_${project.meta.projectNum || "без_номера"}_${project.meta.date}.eft.json`;
+  link.download = filename;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 0);
 }
@@ -198,6 +210,10 @@ export function App() {
   const runPlanCommand = (kind, details = {}) => { setActive('plan'); setMenuOpen(false); setPlanCommand({kind,...details,id:Date.now()}); };
   const [backupOpen, setBackupOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [saveFileName, setSaveFileName] = useState('');
+  const [saveFileOpen, setSaveFileOpen] = useState(false);
+  const [saveFileBusy, setSaveFileBusy] = useState(false);
+  const [saveFileError, setSaveFileError] = useState('');
   const [briefPreview, setBriefPreview] = useState(null);
   const [teamFocus, setTeamFocus] = useState("projects");
   const [notice, setNotice] = useState("Готово");
@@ -393,9 +409,25 @@ export function App() {
   };
 
   const saveProject = () => {
-    checkpoint();
-    downloadProject(project);
-    setNotice("Проект сохранён на компьютер и в резервные копии");
+    setSaveFileName(suggestedProjectFilename(project.meta));
+    setSaveFileError('');
+    setSaveFileOpen(true);
+    setMenuOpen(false);
+  };
+  const confirmSaveProject = async () => {
+    if (saveFileBusy) return;
+    setSaveFileBusy(true);
+    setSaveFileError('');
+    try {
+      await downloadProject(project, saveFileName);
+      checkpoint();
+      setSaveFileOpen(false);
+      setNotice('Файл проекта сохранён; резервная копия обновлена.');
+    } catch (error) {
+      if (error?.name !== 'AbortError') setSaveFileError('Не удалось сохранить файл. Проверьте доступ к выбранной папке и повторите попытку.');
+    } finally {
+      setSaveFileBusy(false);
+    }
   };
 
   const openTeamProject = async (id, destination = 'plan') => {
@@ -618,17 +650,23 @@ export function App() {
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <button className="sidebar-desktop-toggle" onClick={() => setSidebarCollapsed(value => !value)} title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <ChevronRight/> : <ChevronLeft/>}<span>{sidebarCollapsed ? 'Развернуть' : 'Свернуть'}</span></button>
           <div className="sidebar-mobile-head">
-            <strong>Разделы</strong>
+            <strong>Просмотр проекта</strong>
             <button onClick={() => setMenuOpen(false)}>
               <X />
             </button>
           </div>
-          <div className="sidebar-mobile-project-actions">
+          <nav className="sidebar-mobile-view-nav" aria-label="Разделы для просмотра">
+            {[['plan', 'План дома', Home], ['placement', 'Мебель и инженерия', Layers3], ['estimate', 'Смета', Calculator], ['knowledge', 'Библиотека знаний', LibraryBig]].map(([id, label, Icon]) => <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMenuOpen(false); }}><Icon/><span>{label}</span></button>)}
+          </nav>
+          <details className="sidebar-mobile-more"><summary>Остальные разделы</summary><nav aria-label="Остальные разделы калькулятора">
+            {NAV_ITEMS.filter(item => !['plan', 'placement', 'estimate', 'knowledge'].includes(item.id)).map(({ id, label, icon: Icon }) => <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMenuOpen(false); }}><Icon/><span>{label}</span></button>)}
+          </nav></details>
+          <details className="sidebar-mobile-more"><summary>Файлы и создание</summary><div className="sidebar-mobile-project-actions">
             <button onClick={newProject}><FilePlus2/>Новый проект</button>
             <button onClick={saveProject}><Save/>Сохранить файл проекта</button>
             <button onClick={() => {fileRef.current?.click();setMenuOpen(false);}}><FileUp/>Открыть файл проекта</button>
             <button onClick={() => setBackupOpen(true)}><History/>Резервные копии</button>
-          </div>
+          </div></details>
           <nav aria-label="Разделы калькулятора">
             {NAV_ITEMS.map(({ id, label, icon: Icon, group }, index) => (
               <div
@@ -762,9 +800,17 @@ export function App() {
       </div>
       <nav className="mobile-bottom-nav" aria-label="Основные разделы">
         {[
-          ['menu','Меню',Menu],['plan','План дома',Home],['parameters','Параметры',Settings2],['cutting','Раскрой',Ruler],['estimate','Смета',Calculator],
+          ['plan','План',Home],['placement','Инженерия',Layers3],['estimate','Смета',Calculator],['menu','Разделы',Menu],
         ].map(([id,label,Icon])=><button key={id} className={active===id?'active':''} aria-label={label} aria-current={active===id?'page':undefined} onClick={()=>id==='menu'?setMenuOpen(true):(setActive(id),setMenuOpen(false))}><Icon/><span>{label}</span></button>)}
       </nav>
+      {saveFileOpen ? <div className="modal-backdrop project-save-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saveFileBusy) setSaveFileOpen(false); }}>
+        <form className="modal project-save-dialog" role="dialog" aria-modal="true" aria-label="Сохранить проект как" onSubmit={event => { event.preventDefault(); confirmSaveProject(); }}>
+          <header><div><h2>Сохранить проект как</h2><p>Укажите имя файла. В поддерживаемом браузере затем выберите папку сохранения.</p></div><button type="button" className="icon-button" aria-label="Закрыть" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}><X/></button></header>
+          <label>Название файла<input autoFocus value={saveFileName} onChange={event => setSaveFileName(event.target.value)} aria-label="Название файла проекта"/></label>
+          {saveFileError ? <p role="alert">{saveFileError}</p> : null}
+          <footer><button type="button" className="button secondary" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}>Отмена</button><button type="submit" className="button" disabled={saveFileBusy}>{saveFileBusy ? 'Сохранение…' : 'Выбрать место и сохранить'}</button></footer>
+        </form>
+      </div> : null}
       {newProjectOpen ? (
         <NewProjectDialog
           onClose={() => setNewProjectOpen(false)}

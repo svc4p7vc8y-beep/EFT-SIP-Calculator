@@ -6981,6 +6981,39 @@ select,
 @media (max-width:400px){.mobile-quick-actions button{font-size:10px}.mobile-quick-actions svg{width:14px;height:14px}}
 @media (max-width:360px){.brand img{width:74px;height:54px}}
 @media print{.mobile-bottom-nav,.mobile-quick-actions{display:none!important}}
+.sidebar-mobile-view-nav,.sidebar-mobile-more{display:none}
+.project-save-backdrop{z-index:12000}
+.project-save-dialog label{display:grid;gap:7px;margin:14px 0;font-weight:750}
+.project-save-dialog input{width:100%;box-sizing:border-box;padding:11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font:inherit}
+.project-save-dialog p[role="alert"]{color:#9b3027;font-size:13px}
+.mobile-plan-edit-toggle{display:none}
+@media(max-width:820px){
+  .app-header{min-height:62px}
+  .brand img{width:72px;height:46px}
+  .brand>.version-badge{display:none!important}
+  .mobile-quick-actions{display:none!important}
+  .project-tab-add{display:none}
+  .mobile-bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .sidebar>nav[aria-label="Разделы калькулятора"]{display:none}
+  .sidebar-mobile-view-nav{display:grid;gap:5px;margin-bottom:12px}
+  .sidebar-mobile-view-nav button,.sidebar-mobile-more nav button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:10px;border:0;border-radius:9px;background:transparent;color:var(--ink);text-align:left;font:inherit;font-weight:700}
+  .sidebar-mobile-view-nav button.active,.sidebar-mobile-more nav button.active{background:var(--green-soft);color:var(--green-dark)}
+  .sidebar-mobile-view-nav svg,.sidebar-mobile-more nav svg{width:20px;height:20px;flex:none}
+  .sidebar-mobile-more{display:block;border-top:1px solid var(--line);padding:10px 0}
+  .sidebar-mobile-more summary{padding:8px 4px;cursor:pointer;font-weight:800;color:var(--ink)}
+  .sidebar-mobile-more nav{display:grid;gap:2px;margin-top:6px}
+  .sidebar-mobile-project-actions{display:grid;margin:6px 0 0;padding-bottom:0;border-bottom:0}
+}
+@media(max-width:700px){
+  .mobile-plan-edit-toggle{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0 0 10px;padding:8px 13px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--green-dark);font:inherit;font-weight:800}
+  .plan-screen-v2:not(.mobile-plan-editing) .screen-actions,
+  .plan-screen-v2:not(.mobile-plan-editing) .planner-tools,
+  .plan-screen-v2:not(.mobile-plan-editing) .planner-inspector,
+  .plan-screen-v2:not(.mobile-plan-editing) .roof-rotate-button{display:none!important}
+  .plan-screen-v2:not(.mobile-plan-editing) .planner-shell:not(.is-fullscreen),
+  .plan-screen-v2:not(.mobile-plan-editing) .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary){display:block;height:620px;min-height:0;overflow:hidden}
+  .plan-screen-v2:not(.mobile-plan-editing) .planner-canvas{height:100%}
+}
 
 /* One-screen plan workspace: editor, live 3D and house settings share the canvas. */
 .app-layout.plan-app-layout { grid-template-columns: 254px minmax(0, 1fr); }

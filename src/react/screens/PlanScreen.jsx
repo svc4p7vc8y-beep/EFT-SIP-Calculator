@@ -5030,6 +5030,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
 export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
   const { project, activeTabId, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
+  const [mobilePlanEditing, setMobilePlanEditing] = useState(false);
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
   const [activeFloor, setActiveFloor] = useState(1);
   const [activeLayer, setActiveLayer] = useState("plan");
@@ -6102,7 +6103,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     </div>
   );
   return (
-    <div className="desktop-plan-editor screen plan-screen-v2">
+    <div className={`desktop-plan-editor screen plan-screen-v2${mobilePlanEditing ? ' mobile-plan-editing' : ''}`}>
       <ScreenHeader
         title="План дома"
         actions={
@@ -6142,6 +6143,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </>
         }
       />
+      <button type="button" className="mobile-plan-edit-toggle" aria-pressed={mobilePlanEditing} onClick={() => { setMobilePlanEditing(value => !value); setTool('select'); setSelected(null); }}>
+        {mobilePlanEditing ? 'Готово · смотреть план' : 'Редактировать план'}
+      </button>
       {editingLibraryId ? <div className="plan-library-edit-banner" role="status"><span>Редактируется план «{libraryPlans.find(entry => entry.id === editingLibraryId)?.name || 'из библиотеки'}»</span><button className="button primary" type="button" onClick={saveSketch}><Save />Обновить в библиотеке</button></div> : null}
       {libraryOpen ? (
         <PlanLibraryModal
