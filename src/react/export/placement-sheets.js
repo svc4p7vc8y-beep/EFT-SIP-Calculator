@@ -107,10 +107,48 @@ export function expandPrintablePlanTiles(sheets, tileCount = 1) {
 }
 
 export function buildWorkerPrintPages(sheets, tileCount = 1) {
-  return sheets.flatMap(sheet => [
-    ...expandPrintablePlanTiles([sheet], tileCount),
-    ...(sheet.items.length ? [{ ...sheet, id: `${sheet.id}-points`, kind: 'point-list', title: `Перечень точек · ${sheet.title}` }] : []),
-  ]);
+  const rowsPerPage = 40;
+  return sheets.flatMap(sheet => {
+    const parts = Math.ceil(sheet.items.length / rowsPerPage);
+    return [
+      ...expandPrintablePlanTiles([sheet], tileCount),
+      ...Array.from({ length: parts }, (_, index) => ({
+        ...sheet, id: `${sheet.id}-points-${index + 1}`, kind: 'point-list',
+        title: `Перечень точек · ${sheet.title}${parts > 1 ? ` · ${index + 1}/${parts}` : ''}`,
+        items: sheet.items.slice(index * rowsPerPage, (index + 1) * rowsPerPage),
+        pointListTotal: sheet.items.length,
+      })),
+    ];
+  });
+}
+
+// Locate print numbers independently of the symbol: close numbers stay next to
+// their points, while crowded numbers move into free space and get a leader.
+export function placeFloorPointLabels(entries, view) {
+  const [left, top, width, height] = view;
+  const occupied = [];
+  const anchors = entries.map(({ item }) => ({ x: item.x * 100, y: item.y * 100 }));
+  const grid = [];
+  for (let y = top + 18; y <= top + height - 18; y += 31) {
+    for (let x = left + 30; x <= left + width - 30; x += 56) grid.push({ x, y });
+  }
+  return entries.map(({ item, mark }, index) => {
+    const anchor = anchors[index];
+    const choices = [];
+    for (const radius of [32, 55, 82, 112, 150, 195, 250, 320]) {
+      for (const [dx, dy] of [[1, -1], [-1, -1], [1, 1], [-1, 1], [1, 0], [-1, 0], [0, -1], [0, 1]]) {
+        choices.push({ x: anchor.x + dx * radius, y: anchor.y + dy * radius });
+      }
+    }
+    const fits = ({ x, y }) => {
+      if (x < left + 28 || x > left + width - 28 || y < top + 16 || y > top + height - 16) return false;
+      if (occupied.some(label => Math.abs(label.x - x) < 52 && Math.abs(label.y - y) < 27)) return false;
+      return !anchors.some((point, pointIndex) => pointIndex !== index && Math.abs(point.x - x) < 33 && Math.abs(point.y - y) < 25);
+    };
+    const position = choices.find(fits) || [...grid].sort((a, b) => Math.hypot(a.x - anchor.x, a.y - anchor.y) - Math.hypot(b.x - anchor.x, b.y - anchor.y)).find(fits) || anchor;
+    occupied.push(position);
+    return { id: item.id, mark, x: position.x, y: position.y, anchorX: anchor.x, anchorY: anchor.y, leader: Math.hypot(position.x - anchor.x, position.y - anchor.y) > 45 };
+  });
 }
 
 export function pointLegendRows(sheet) {

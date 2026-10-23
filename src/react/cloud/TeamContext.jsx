@@ -306,10 +306,16 @@ export function TeamProvider({ children }) {
   }, [session.user, saveSharedLibrary]);
 
   const login = useCallback(async (username, password) => {
-    const result = await eftApi("login", {
-      method: "POST",
-      body: { username, password },
-    });
+    let result;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        result = await eftApi("login", { method: "POST", body: { username, password } });
+        break;
+      } catch (error) {
+        if (error.code !== 'database_unavailable' || attempt === 2) throw error;
+        await new Promise(resolve => window.setTimeout(resolve, (attempt + 1) * 1000));
+      }
+    }
     setSession({
       ready: true,
       user: result.user,

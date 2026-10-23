@@ -25,6 +25,10 @@ test('knowledge library contains client-ready engineering, SIP and checklist mat
   assert.match(heating.content.join(' '), /опрессован/);
   assert.ok(heating.steps.length >= 5);
   await access(new URL('../public/knowledge/heating-layout-plan.svg', import.meta.url));
+  const twoWay = BUILTIN_KNOWLEDGE_ARTICLES.find(article => article.id === 'builtin-two-way-switch-wiring');
+  assert.equal(twoWay.category, 'engineering');
+  assert.match(twoWay.content.join(' '), /общий контакт C/);
+  await access(new URL('../public/knowledge/two-way-switch-wiring.svg', import.meta.url));
 
   const managerGuide = BUILTIN_KNOWLEDGE_ARTICLES.find(article => article.id === 'builtin-manager-guide');
   assert.equal(managerGuide.title, 'Полная инструкция менеджера');

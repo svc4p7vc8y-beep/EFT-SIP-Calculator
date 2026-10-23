@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="480" viewBox="0 0 1100 480" role="img" aria-labelledby="title description">
+  <title id="title">Схема управления светильником из двух мест</title>
+  <desc id="description">Фаза проходит через общий контакт первого переключателя, две перекидные жилы и общий контакт второго к светильнику. Нейтраль и защитный проводник идут к светильнику напрямую.</desc>
+  <rect width="1100" height="480" rx="24" fill="#fff"/>
+  <text x="44" y="54" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="#16291e">Проходной выключатель · управление из двух мест</text>
+  <g font-family="Arial,sans-serif" font-size="20" fill="#172820" stroke-linecap="round" stroke-linejoin="round">
+    <text x="50" y="150" font-weight="700">L</text><text x="50" y="355" font-weight="700">N</text><text x="50" y="410" font-weight="700">PE</text>
+    <path d="M82 143H214" stroke="#a23f35" stroke-width="5"/>
+    <path d="M82 348H855" stroke="#325b9a" stroke-width="5"/>
+    <path d="M82 402H855" stroke="#487d48" stroke-width="5"/>
+    <rect x="215" y="106" width="200" height="218" rx="16" fill="#f4f8f2" stroke="#7b9b82" stroke-width="2"/>
+    <rect x="565" y="106" width="200" height="218" rx="16" fill="#f4f8f2" stroke="#7b9b82" stroke-width="2"/>
+    <text x="240" y="90" font-size="18" font-weight="700">Переключатель 1</text>
+    <text x="590" y="90" font-size="18" font-weight="700">Переключатель 2</text>
+    <circle cx="242" cy="143" r="6" fill="#222"/><circle cx="385" cy="177" r="6" fill="#222"/><circle cx="385" cy="263" r="6" fill="#222"/>
+    <path d="M242 143L385 177" stroke="#222" stroke-width="4"/>
+    <text x="250" y="170" font-size="16">C / COM</text><text x="324" y="166" font-size="16">L1</text><text x="324" y="289" font-size="16">L2</text>
+    <path d="M391 177H590M391 263H590" stroke="#79539a" stroke-width="4"/>
+    <circle cx="590" cy="177" r="6" fill="#222"/><circle cx="590" cy="263" r="6" fill="#222"/><circle cx="740" cy="143" r="6" fill="#222"/>
+    <path d="M590 177L740 143" stroke="#222" stroke-width="4"/>
+    <text x="601" y="166" font-size="16">L1</text><text x="601" y="289" font-size="16">L2</text><text x="674" y="170" font-size="16">C / COM</text>
+    <path d="M766 143H855" stroke="#a23f35" stroke-width="5"/>
+    <rect x="855" y="119" width="195" height="303" rx="16" fill="#f8f7ed" stroke="#9a987d" stroke-width="2"/>
+    <text x="878" y="90" font-size="18" font-weight="700">Светильник</text>
+    <text x="878" y="150">L</text><text x="878" y="355">N</text><text x="878" y="410">PE</text>
+    <circle cx="970" cy="240" r="38" fill="#fff" stroke="#403d2d" stroke-width="3"/>
+    <path d="M944 214L996 266M996 214L944 266" stroke="#403d2d" stroke-width="3"/>
+    <text x="421" y="203" font-size="15" fill="#65427f">Перекидная жила 1</text>
+    <text x="421" y="251" font-size="15" fill="#65427f">Перекидная жила 2</text>
+    <text x="225" y="458" font-size="16" fill="#53635a">Схема принципиальная · обозначения контактов сверяйте с корпусом переключателя</text>
+  </g>
+</svg>

@@ -5,6 +5,9 @@
 .worker-route{fill:none;stroke:#171717;stroke-width:2.7;vector-effect:non-scaling-stroke}
 .worker-line-sample{flex:none;width:38px;height:12px}.worker-line-sample line{stroke:#171717;stroke-width:2.2;vector-effect:non-scaling-stroke}
 .worker-item-mark{font-size:18px;font-weight:750;fill:#1c382a;paint-order:stroke;stroke:#fff;stroke-width:4px}
+.worker-point-callout line{stroke:#111;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.worker-point-callout rect{fill:#fff;stroke:#111;stroke-width:1.2;vector-effect:non-scaling-stroke}
+.worker-point-callout text{font-size:18px;font-weight:750;fill:#111}
 .worker-item-annotation{font-size:14px;fill:#1d382c;paint-order:stroke;stroke:#fff;stroke-width:4px}
 .worker-platform rect{fill:#f4f2e8;stroke:#a4a390;stroke-dasharray:5 4}.worker-platform text{font-size:15px;fill:#596157}
 .worker-manual-dimension path{fill:none;stroke:#27766d;stroke-width:1.6;vector-effect:non-scaling-stroke}.worker-manual-dimension text{font-size:17px;font-weight:700;fill:#1f5f58;paint-order:stroke;stroke:#fff;stroke-width:3px}
@@ -24,7 +27,7 @@
   .placement-worker-sheet.no-info .worker-sheet-body{grid-template-columns:minmax(0,1fr)}
   .placement-worker-sheet.worker-tiled-sheet .worker-sheet-plan{border:1px solid #bbb}
   .worker-sheet-plan{display:flex;min-width:0;min-height:0;align-items:center;justify-content:center;overflow:hidden}
-  .worker-points-area{flex:1;min-height:0;overflow:hidden}
+  .worker-points-area{flex:1;min-height:0;overflow:visible}
   .worker-points-grid{display:grid;gap:3mm;align-items:start;width:100%;font-size:8.5pt;line-height:1.22}
   .worker-points-grid ol{list-style:none;margin:0;padding:0;min-width:0}
   .worker-points-grid li{display:grid;grid-template-columns:7mm minmax(0,1fr);gap:1.4mm;padding:1.2mm 1mm;border-bottom:1px solid #d5d5d5;break-inside:avoid;overflow-wrap:anywhere}

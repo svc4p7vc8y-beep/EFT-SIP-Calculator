@@ -1,6 +1,5 @@
-import { useLayoutEffect, useRef } from 'react';
 import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js';
-import { buildPrintablePlacementSheets, buildWorkerPrintPages, planTileViewBox, pointLegendRows } from '../export/placement-sheets.js';
+import { buildPrintablePlacementSheets, buildWorkerPrintPages, placeFloorPointLabels, planTileViewBox, pointLegendRows } from '../export/placement-sheets.js';
 import { dimensionMetres } from '../state/placement-geometry.js';
 import { roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint } from '../state/placement-room.js';
 import { circuitLineDash } from '../state/placement-line-styles.js';
@@ -16,10 +15,10 @@ const networkDashes = { plumbing: undefined, heating: '10 6', sewer: '12 5 2 5',
 const routeDash = (route, circuits) => route.system === 'electric' ? circuitLineDash(route.circuitId, circuits) : networkDashes[route.system];
 const selectedRoutes = (sheet, routeIds) => !routeIds ? sheet.routes : sheet.routes.filter(route => routeIds.includes(route.id));
 
-function ItemMark({ item, mark, x, y, size = 42 }) {
+function ItemMark({ item, mark, x, y, size = 42, showMark = true }) {
   return <g transform={`translate(${x} ${y}) rotate(${item.rotation || 0})`}>
     <svg x={-size / 2} y={-size / 2} width={size} height={size} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"><PlacementSymbol kind={item.kind} system={item.layer} medium={item.connectionMedium}/></svg>
-    <text className="worker-item-mark" x={size / 2 + 4} y={-size / 2 - 3}>{mark}</text>
+    {showMark ? <text className="worker-item-mark" x={size / 2 + 4} y={-size / 2 - 3}>{mark}</text> : null}
   </g>;
 }
 
@@ -38,8 +37,13 @@ function FloorArtwork({ sheet, routeIds }) {
   const box = boundsOf([...contour, ...rooms.flatMap(roomPoints), ...platforms.flatMap(platform => [{ x: platform.x, y: platform.y }, { x: platform.x + platform.w, y: platform.y + platform.h }])]);
   const margin = 115;
   const fullView = [box.x * 100 - margin, box.y * 100 - margin, Math.max(5, box.w) * 100 + margin * 2, Math.max(5, box.h) * 100 + margin * 2];
-  const viewBox = planTileViewBox(fullView, sheet.tile).join(' ');
+  const tileView = planTileViewBox(fullView, sheet.tile);
+  const viewBox = tileView.join(' ');
+  const labeledItems = sheet.tile ? sheet.items.filter(({ item }) => item.x * 100 >= tileView[0] && item.x * 100 <= tileView[0] + tileView[2] && item.y * 100 >= tileView[1] && item.y * 100 <= tileView[1] + tileView[3]) : sheet.items;
+  const labels = placeFloorPointLabels(labeledItems, tileView);
+  const markerId = `worker-point-arrow-${sheet.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
   return <svg className="worker-plan" viewBox={viewBox} role="img" aria-label={sheet.title}>
+    <defs><marker id={markerId} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0 0L7 3.5 0 7Z" fill="#111"/></marker></defs>
     {platforms.map(platform => <g key={platform.id} className="worker-platform"><rect x={platform.x * 100} y={platform.y * 100} width={platform.w * 100} height={platform.h * 100}/><text x={(platform.x + platform.w / 2) * 100} y={(platform.y + platform.h / 2) * 100} textAnchor="middle">{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text></g>)}
     <path d={pathData(contour)} fill="#fff"/>
     {rooms.map(room => { const bounds = boundsOf(roomPoints(room)); return <g key={room.id}><path d={pathData(roomPoints(room))} className="worker-room"/><text className="worker-room-name" x={(bounds.x + bounds.w / 2) * 100} y={(bounds.y + bounds.h / 2) * 100} textAnchor="middle">{room.name}</text></g>; })}
@@ -47,7 +51,12 @@ function FloorArtwork({ sheet, routeIds }) {
     {sheet.showAutoDimensions && sheet.items.some(({ item }) => item.layer === 'electric') ? <PlacementWallDimensions plan={sheet.plan} items={sheet.items.filter(({ item }) => item.layer === 'electric').map(({ item }) => item)}/> : null}
     {sheet.dimensions.map(dimension => <Dimension key={dimension.id} dimension={dimension}/>)}
     {selectedRoutes(sheet, routeIds).map(route => <g key={route.id}><path d={routeData(route.points)} className="worker-route" strokeDasharray={routeDash(route, sheet.circuits)}/><title>{route.annotationText || route.system}</title></g>)}
-    {sheet.items.map(({ item, mark }) => <g key={item.id}><ItemMark item={item} mark={mark} x={item.x * 100} y={item.y * 100} size={item.layer === 'electric' ? 42 : Math.max(38, Math.min(95, Number(item.width || .4) * 100))}/>{item.showName ? <text className="worker-item-annotation" x={(item.x + (item.labelOffsetX ?? .5)) * 100} y={(item.y + (item.labelOffsetY ?? -.35)) * 100}>{item.annotationText || item.label}</text> : null}{item.showHeight ? <text className="worker-item-annotation" x={(item.x + (item.heightOffsetX ?? .3)) * 100} y={(item.y + (item.heightOffsetY ?? .4)) * 100}>h={metres(item.height)}</text> : null}</g>)}
+    {sheet.items.map(({ item }) => <g key={item.id}><ItemMark item={item} x={item.x * 100} y={item.y * 100} size={item.layer === 'electric' ? 42 : Math.max(38, Math.min(95, Number(item.width || .4) * 100))} showMark={false}/>{item.showName ? <text className="worker-item-annotation" x={(item.x + (item.labelOffsetX ?? .5)) * 100} y={(item.y + (item.labelOffsetY ?? -.35)) * 100}>{item.annotationText || item.label}</text> : null}{item.showHeight ? <text className="worker-item-annotation" x={(item.x + (item.heightOffsetX ?? .3)) * 100} y={(item.y + (item.heightOffsetY ?? .4)) * 100}>h={metres(item.height)}</text> : null}</g>)}
+    {labels.map(label => <g key={`label-${label.id}`} className="worker-point-callout">
+      {label.leader ? <line x1={label.x} y1={label.y} x2={label.anchorX} y2={label.anchorY} markerEnd={`url(#${markerId})`}/> : null}
+      <rect x={label.x - 24} y={label.y - 14} width="48" height="26" rx="4"/>
+      <text x={label.x} y={label.y + 6} textAnchor="middle">{label.mark}</text>
+    </g>)}
   </svg>;
 }
 
@@ -90,29 +99,10 @@ export function PlacementSheetInfo({ sheet, routeIds }) {
 
 function PointListArtwork({ sheet }) {
   const rows = pointLegendRows(sheet);
-  const area = useRef(null);
-  const list = useRef(null);
-  const longRows = rows.filter(row => `${row.name} ${row.details.join(' · ')}`.length > 105).length;
-  const targetRows = longRows > rows.length / 3 ? 25 : 34;
-  const columns = Math.min(6, Math.max(2, Math.ceil(rows.length / targetRows)));
+  const columns = Math.min(4, Math.max(1, Math.ceil(rows.length / 10)));
   const perColumn = Math.ceil(rows.length / columns);
-  useLayoutEffect(() => {
-    const fit = () => {
-      if (!area.current || !list.current || area.current.clientHeight < 100) return;
-      const grid = list.current;
-      grid.style.zoom = '1';
-      let scale = 1;
-      while (grid.getBoundingClientRect().height > area.current.getBoundingClientRect().height - 2 && scale > .55) {
-        scale = Math.max(.55, scale - .05);
-        grid.style.zoom = String(scale);
-      }
-    };
-    fit();
-    window.addEventListener('beforeprint', fit);
-    return () => window.removeEventListener('beforeprint', fit);
-  }, [sheet.id, rows.length]);
-  return <div className="worker-points-area" ref={area}>
-    <div className="worker-points-grid" ref={list} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+  return <div className="worker-points-area">
+    <div className="worker-points-grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
       {Array.from({ length: columns }, (_, column) => <ol key={column} start={column * perColumn + 1}>
         {rows.slice(column * perColumn, (column + 1) * perColumn).map(row => <li key={row.id}><b>{row.mark}</b><span><strong>{row.name}</strong><small>{row.details.join(' · ')}</small></span></li>)}
       </ol>)}
@@ -127,6 +117,6 @@ export default function PlacementWorkerSheets({ project, selection }) {
   return <div className="placement-worker-print">{sheets.map((sheet, index) => <article className={`placement-worker-sheet${selection?.showInfo === false || sheet.tile ? ' no-info' : ''}${sheet.tile ? ' worker-tiled-sheet' : ''}${sheet.kind === 'point-list' ? ' worker-point-list-sheet' : ''}`} key={sheet.id}>
     <header className="worker-sheet-head"><div><span>ЭФТ · {project.meta?.projectNum || 'Проект'} · этаж {sheet.floor}</span><h1>{sheet.title}</h1></div><span>Лист {index + 1} / {sheets.length} · {date}</span></header>
     {sheet.kind === 'point-list' ? <PointListArtwork sheet={sheet}/> : <div className="worker-sheet-body"><div className="worker-sheet-plan"><PlacementSheetArtwork sheet={sheet} routeIds={selection?.routeIds}/></div>{selection?.showInfo === false || sheet.tile ? null : <PlacementSheetInfo sheet={sheet} routeIds={selection?.routeIds}/>}</div>}
-    <footer className="worker-sheet-footer">{sheet.kind === 'point-list' ? `${sheet.items.length} точек и элементов. Номера совпадают с обозначениями на предыдущем плане.` : sheet.tile ? `Часть ${sheet.tile.index}/${sheet.tile.count} · совмещайте рисунок по перекрывающимся краям; печатайте все части в одном масштабе.` : 'План и размеры взяты из проекта. Монтажные решения проверить по рабочему проекту.'}</footer>
+    <footer className="worker-sheet-footer">{sheet.kind === 'point-list' ? `${sheet.pointListTotal} точек и элементов. Номера совпадают с обозначениями на плане.` : sheet.tile ? `Часть ${sheet.tile.index}/${sheet.tile.count} · совмещайте рисунок по перекрывающимся краям; печатайте все части в одном масштабе.` : 'План и размеры взяты из проекта. Монтажные решения проверить по рабочему проекту.'}</footer>
   </article>)}</div>;
 }

@@ -5,7 +5,7 @@ import { createDefaultProject, migrateProject } from '../src/react/state/project
 import { applianceSupplyKind, normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
-import { buildPlacementSheets, buildPrintablePlacementSheets, buildWorkerPrintPages, expandPrintablePlanTiles, planTileViewBox, pointLegendRows } from '../src/react/export/placement-sheets.js';
+import { buildPlacementSheets, buildPrintablePlacementSheets, buildWorkerPrintPages, expandPrintablePlanTiles, placeFloorPointLabels, planTileViewBox, pointLegendRows } from '../src/react/export/placement-sheets.js';
 import { circuitLineDash } from '../src/react/state/placement-line-styles.js';
 import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../src/react/state/placement-walls.js';
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
@@ -648,15 +648,27 @@ test('each selected drawing is followed by a complete numbered point description
   });
   const drawing = buildPrintablePlacementSheets(project).find(sheet => sheet.kind === 'plan');
   const pages = buildWorkerPrintPages([drawing], 4);
-  assert.deepEqual(pages.map(page => page.kind), ['plan', 'plan', 'plan', 'plan', 'point-list']);
-  assert.equal(pages.at(-1).items.length, 150);
-  const rows = pointLegendRows(pages.at(-1));
+  assert.deepEqual(pages.map(page => page.kind), ['plan', 'plan', 'plan', 'plan', 'point-list', 'point-list', 'point-list', 'point-list']);
+  assert.deepEqual(pages.slice(4).map(page => page.items.length), [40, 40, 40, 30]);
+  const rows = pages.slice(4).flatMap(pointLegendRows);
   assert.equal(rows.length, 150);
   assert.equal(rows[0].mark, '01');
   assert.equal(rows.at(-1).mark, '150');
   assert.equal(rows.at(-1).name, 'Светильник 150');
   assert(rows.at(-1).details.includes('Группа: Освещение'));
   assert(rows.at(-1).details.includes('h 2,40 м'));
+});
+
+test('crowded floor numbers keep their item identity and use leaders when moved', () => {
+  const entries = Array.from({ length: 36 }, (_, index) => ({ item: { id: `dense-${index}`, x: 2 + index % 6 * .12, y: 2 + Math.floor(index / 6) * .12 }, mark: String(index + 1).padStart(2, '0') }));
+  const labels = placeFloorPointLabels(entries, [0, 0, 700, 700]);
+  assert.equal(labels.length, entries.length);
+  assert.deepEqual(labels.map(label => label.mark), entries.map(entry => entry.mark));
+  assert(labels.some(label => label.leader));
+  assert.equal(new Set(labels.map(label => label.id)).size, entries.length);
+  for (const [index, label] of labels.entries()) {
+    assert(labels.slice(index + 1).every(other => Math.abs(label.x - other.x) >= 48 || Math.abs(label.y - other.y) >= 26));
+  }
 });
 
 test('ceiling rise, project reserve and endpoint allowance give a traceable cable purchase length', () => {
