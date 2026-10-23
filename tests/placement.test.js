@@ -5,7 +5,8 @@ import { createDefaultProject, migrateProject } from '../src/react/state/project
 import { applianceSupplyKind, normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
-import { buildPlacementSheets, buildPrintablePlacementSheets } from '../src/react/export/placement-sheets.js';
+import { buildPlacementSheets, buildPrintablePlacementSheets, expandPrintablePlanTiles, planTileViewBox } from '../src/react/export/placement-sheets.js';
+import { circuitLineDash } from '../src/react/state/placement-line-styles.js';
 import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../src/react/state/placement-walls.js';
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { blankElectricalBillRows } from '../src/react/state/electrical-bill-form.js';
@@ -600,6 +601,43 @@ test('print selection contains only each floor plan and its room unfoldings', ()
   assert.equal(sheets[0].items.some(entry => entry.item.id === 'bed-print'), true);
   project.placement.visibleLayers.furniture = false;
   assert.equal(buildPrintablePlacementSheets(project)[0].items.some(entry => entry.item.id === 'bed-print'), false);
+});
+
+test('each electric group gets one selectable monochrome line layer sheet and a saved dash style', () => {
+  const project = createDefaultProject();
+  project.placement = normalizePlacement({
+    circuits: [{ id: 'lights', name: 'Свет' }, { id: 'power', name: 'Сила', lineStyle: 'dash-dot' }],
+    items: [{ id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 1, y: 1 },
+      { id: 'light', floor: 1, layer: 'electric', kind: 'light', x: 3, y: 2, circuitId: 'lights' },
+      { id: 'socket', floor: 1, layer: 'electric', kind: 'socket', x: 5, y: 2, circuitId: 'power' }],
+    routes: [{ id: 'r-light', floor: 1, circuitId: 'lights', fromItemId: 'panel', targetItemId: 'light', auto: false, points: [{ x: 1, y: 1 }, { x: 3, y: 2 }] },
+      { id: 'r-power', floor: 1, circuitId: 'power', fromItemId: 'panel', targetItemId: 'socket', auto: false, points: [{ x: 1, y: 1 }, { x: 5, y: 2 }] }],
+  });
+  const sheets = buildPrintablePlacementSheets(project);
+  const layers = sheets.filter(sheet => sheet.kind === 'line-layer');
+  assert.deepEqual(layers.map(sheet => sheet.routes.map(route => route.id)), [['r-light'], ['r-power']]);
+  assert.deepEqual(layers.map(sheet => sheet.items.map(entry => entry.item.id)), [['panel', 'light'], ['panel', 'socket']]);
+  assert.equal(sheets.find(sheet => sheet.kind === 'plan').routes.length, 2);
+  assert.equal(circuitLineDash('lights', project.placement.circuits), undefined);
+  assert.equal(circuitLineDash('power', project.placement.circuits), '12 5 2 5');
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.placement.circuits[1].lineStyle, 'dash-dot');
+});
+
+test('overall plan expands to two or four ordered overlapping print pages', () => {
+  const project = createDefaultProject();
+  const sheets = buildPrintablePlacementSheets(project);
+  const chosen = [sheets[0], sheets[1]];
+  const two = expandPrintablePlanTiles(chosen, 2);
+  const four = expandPrintablePlanTiles(chosen, 4);
+  assert.equal(two.length, 3);
+  assert.equal(four.length, 5);
+  assert.equal(two[2].kind, 'room');
+  assert.deepEqual(four.slice(0, 4).map(sheet => sheet.tile.index), [1, 2, 3, 4]);
+  const first = planTileViewBox([0, 0, 100, 80], four[0].tile);
+  const second = planTileViewBox([0, 0, 100, 80], four[1].tile);
+  assert(first[0] + first[2] > second[0]);
+  assert.equal(planTileViewBox([0, 0, 100, 80], null).join(','), '0,0,100,80');
 });
 
 test('ceiling rise, project reserve and endpoint allowance give a traceable cable purchase length', () => {

@@ -487,6 +487,7 @@
 .placement-print-dialog header{flex:none}.placement-print-dialog footer{flex:none}
 .placement-print-presets{align-items:center;flex:none}
 .placement-print-presets label{display:flex;align-items:center;gap:6px;margin-left:auto;color:#355747;font-size:.82rem}
+.placement-print-tiles{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:.81rem;font-weight:700;color:#355747}.placement-print-tiles select{padding:7px;border:1px solid #c7d8ce;border-radius:7px;background:#fff}.placement-print-tiles small{font-weight:400;color:#60786a}.placement-line-style-preview{display:block;width:180px;height:20px;margin:-4px 0 8px}
 .placement-print-sheet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-height:0;overflow:auto;padding:2px 3px 8px}
 .placement-print-sheet-card{min-width:0;padding:7px;border:2px solid #d4e1d8;border-radius:11px;background:#fff;color:#2d4635;text-align:left;cursor:pointer}
 .placement-print-sheet-card.selected{border-color:#277957;background:#f1f9f3;box-shadow:0 0 0 2px #27795722}

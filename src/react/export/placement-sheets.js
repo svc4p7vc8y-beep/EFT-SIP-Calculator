@@ -54,9 +54,8 @@ export function buildPlacementSheets(project) {
   return sheets;
 }
 
-// Printable pages mirror the two editable drawing surfaces: the whole floor
-// plan and each room unfolding. Discipline-specific extracts remain available
-// to legacy consumers of buildPlacementSheets, but do not add print pages.
+// Printable pages use the current floor plan and room unfoldings. A group
+// line sheet is a filtered copy of that floor plan, never a separate drawing.
 export function buildPrintablePlacementSheets(project) {
   const placement = project.placement || {};
   const visible = placement.visibleLayers || {};
@@ -71,6 +70,14 @@ export function buildPrintablePlacementSheets(project) {
     const marks = items.map((item, index) => ({ item, mark: String(index + 1).padStart(2, '0') }));
     const dimensions = (placement.dimensions || []).filter(dimension => dimension.floor === floor);
     result.push({ id: `${floor}-plan`, kind: 'plan', floor, title: `План этажа ${floor}`, plan, items: marks, routes, dimensions: dimensions.filter(dimension => !dimension.roomId), circuits: placement.circuits || [], showAutoDimensions: placement.showAutoDimensions !== false });
+    for (const circuit of placement.circuits || []) {
+      const layerRoutes = electricRoutes.filter(route => route.circuitId === circuit.id);
+      if (!layerRoutes.length) continue;
+      const connectedIds = new Set(layerRoutes.flatMap(route => [route.fromItemId, route.panelItemId, route.targetItemId]).filter(Boolean));
+      result.push({ id: `${floor}-lines-${circuit.id}`, kind: 'line-layer', floor, title: `Линии · ${circuit.name}`, plan,
+        items: marks.filter(({ item }) => item.layer === 'electric' && (item.circuitId === circuit.id || connectedIds.has(item.id))),
+        routes: layerRoutes, dimensions: dimensions.filter(dimension => !dimension.roomId), circuits: [circuit], showAutoDimensions: placement.showAutoDimensions !== false });
+    }
     for (const room of (plan.rooms || []).filter(entry => entry.include !== false)) {
       const polygon = roomPoints(room);
       const roomItems = marks.filter(({ item }) => pointInPolygon(item, polygon) || item.linkedApplianceId && items.some(parent => parent.id === item.linkedApplianceId && pointInPolygon(parent, polygon)));
@@ -80,4 +87,31 @@ export function buildPrintablePlacementSheets(project) {
     }
   }
   return result;
+}
+
+export function expandPrintablePlanTiles(sheets, tileCount = 1) {
+  if (![2, 4].includes(tileCount)) return sheets;
+  return sheets.flatMap(sheet => {
+    if (sheet.kind !== 'plan') return [sheet];
+    const wide = Number(sheet.plan.house?.w) >= Number(sheet.plan.house?.h);
+    const cols = tileCount === 4 || wide ? 2 : 1;
+    const rows = tileCount / cols;
+    return Array.from({ length: tileCount }, (_, index) => {
+      const row = Math.floor(index / cols), col = index % cols;
+      return { ...sheet, id: `${sheet.id}-tile-${index + 1}`, title: `${sheet.title} · часть ${index + 1}/${tileCount}`,
+        tile: { cols, rows, col, row, index: index + 1, count: tileCount } };
+    });
+  });
+}
+
+export function planTileViewBox(full, tile) {
+  if (!tile) return full;
+  const [x, y, width, height] = full;
+  const partWidth = width / tile.cols, partHeight = height / tile.rows;
+  const overlapX = partWidth * .025, overlapY = partHeight * .025;
+  const left = Math.max(x, x + tile.col * partWidth - overlapX);
+  const top = Math.max(y, y + tile.row * partHeight - overlapY);
+  const right = Math.min(x + width, x + (tile.col + 1) * partWidth + overlapX);
+  const bottom = Math.min(y + height, y + (tile.row + 1) * partHeight + overlapY);
+  return [left, top, right - left, bottom - top];
 }

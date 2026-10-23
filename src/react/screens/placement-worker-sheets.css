@@ -1,8 +1,9 @@
 .placement-worker-print{display:none}
-.worker-plan{display:block;width:100%;height:100%}
+.worker-plan{display:block;width:100%;height:100%;filter:grayscale(1)}
 .worker-room{fill:none;stroke:#9aa9a0;stroke-width:1.4;vector-effect:non-scaling-stroke}
 .worker-room-name{font-size:18px;fill:#485c51}
-.worker-route{fill:none;stroke-width:2.7;stroke-dasharray:7 4;vector-effect:non-scaling-stroke}
+.worker-route{fill:none;stroke:#171717;stroke-width:2.7;vector-effect:non-scaling-stroke}
+.worker-line-sample{flex:none;width:38px;height:12px}.worker-line-sample line{stroke:#171717;stroke-width:2.2;vector-effect:non-scaling-stroke}
 .worker-item-mark{font-size:18px;font-weight:750;fill:#1c382a;paint-order:stroke;stroke:#fff;stroke-width:4px}
 .worker-item-annotation{font-size:14px;fill:#1d382c;paint-order:stroke;stroke:#fff;stroke-width:4px}
 .worker-platform rect{fill:#f4f2e8;stroke:#a4a390;stroke-dasharray:5 4}.worker-platform text{font-size:15px;fill:#596157}
@@ -21,6 +22,7 @@
   .worker-sheet-head span{font-size:8pt;color:#617164}.worker-sheet-head h1{font-size:14pt;line-height:1.1;margin:1mm 0 0}
   .worker-sheet-body{display:grid;grid-template-columns:minmax(0,1fr) 57mm;gap:4mm;min-height:0;flex:1}
   .placement-worker-sheet.no-info .worker-sheet-body{grid-template-columns:minmax(0,1fr)}
+  .placement-worker-sheet.worker-tiled-sheet .worker-sheet-plan{border:1px solid #bbb}
   .worker-sheet-plan{display:flex;min-width:0;min-height:0;align-items:center;justify-content:center;overflow:hidden}
   .worker-sheet-footer{padding-top:2mm;border-top:1px solid #c3d0c6;font-size:7pt;color:#677569}
 }

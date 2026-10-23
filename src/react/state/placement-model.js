@@ -2,6 +2,7 @@ import { resolvedElectricalRoutes } from './placement-electrical.js';
 import { normalizeNetworkRoutes } from './placement-networks.js';
 import { addMissingConnectionPorts } from './placement-connections.js';
 import { uniqueCircuitColors } from './placement-circuit-colors.js';
+import { normalizeCircuitLineStyle } from './placement-line-styles.js';
 
 export const PLACEMENT_LAYERS = [
   { id: 'furniture', label: 'Мебель' },
@@ -237,7 +238,8 @@ export function normalizePlacement(value) {
       anchorX: item.surface === 'facade' ? finite(item.anchorX, finite(item.x)) : undefined,
       anchorY: item.surface === 'facade' ? finite(item.anchorY, finite(item.y)) : undefined,
     })),
-    circuits: uniqueCircuitColors(circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа'),
+    circuits: uniqueCircuitColors(circuits.filter(circuit => circuit && typeof circuit.id === 'string').map((circuit, index) => ({ ...circuit, name: String(circuit.name || 'Группа'),
+      lineStyle: normalizeCircuitLineStyle(circuit.lineStyle, index),
       protectionDevice: circuit.protectionDevice === 'RCBO' ? 'RCBO' : 'MCB',
       breakerAmps: circuit.breakerAmps === '' || circuit.breakerAmps == null || !Number.isFinite(Number(circuit.breakerAmps)) || Number(circuit.breakerAmps) <= 0 ? null : Number(circuit.breakerAmps),
       breakerPoles: [1, 2, 3, 4].includes(Number(circuit.breakerPoles)) ? Number(circuit.breakerPoles) : null,

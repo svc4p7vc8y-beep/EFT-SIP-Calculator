@@ -1,8 +1,8 @@
 import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js';
-import { buildPrintablePlacementSheets } from '../export/placement-sheets.js';
+import { buildPrintablePlacementSheets, expandPrintablePlanTiles, planTileViewBox } from '../export/placement-sheets.js';
 import { dimensionMetres } from '../state/placement-geometry.js';
 import { roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint } from '../state/placement-room.js';
-import { electricalGroupColor } from '../state/placement-visibility.js';
+import { circuitLineDash } from '../state/placement-line-styles.js';
 import PlacementWallDimensions from './PlacementWallDimensions.jsx';
 import PlacementWalls from './PlacementWalls.jsx';
 import { PlacementSymbol } from './PlacementClassicSymbol.jsx';
@@ -11,8 +11,8 @@ import './placement-worker-sheets.css';
 const pathData = points => (points || []).map((point, index) => `${index ? 'L' : 'M'} ${point.x * 100} ${point.y * 100}`).join(' ') + ' Z';
 const routeData = points => (points || []).map((point, index) => `${index ? 'L' : 'M'} ${point.x * 100} ${point.y * 100}`).join(' ');
 const metres = value => `${Number(value || 0).toFixed(2).replace('.', ',')} м`;
-const routeColors = { plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' };
-const routeColor = (route, circuits) => route.system === 'electric' ? electricalGroupColor(route.circuitId, circuits) : routeColors[route.system] || '#657b6d';
+const networkDashes = { plumbing: undefined, heating: '10 6', sewer: '12 5 2 5', ventilation: '2 5' };
+const routeDash = (route, circuits) => route.system === 'electric' ? circuitLineDash(route.circuitId, circuits) : networkDashes[route.system];
 const selectedRoutes = (sheet, routeIds) => !routeIds ? sheet.routes : sheet.routes.filter(route => routeIds.includes(route.id));
 
 function ItemMark({ item, mark, x, y, size = 42 }) {
@@ -36,7 +36,8 @@ function FloorArtwork({ sheet, routeIds }) {
   const platforms = (sheet.plan.platforms || []).filter(platform => platform.include !== false);
   const box = boundsOf([...contour, ...rooms.flatMap(roomPoints), ...platforms.flatMap(platform => [{ x: platform.x, y: platform.y }, { x: platform.x + platform.w, y: platform.y + platform.h }])]);
   const margin = 115;
-  const viewBox = `${box.x * 100 - margin} ${box.y * 100 - margin} ${Math.max(5, box.w) * 100 + margin * 2} ${Math.max(5, box.h) * 100 + margin * 2}`;
+  const fullView = [box.x * 100 - margin, box.y * 100 - margin, Math.max(5, box.w) * 100 + margin * 2, Math.max(5, box.h) * 100 + margin * 2];
+  const viewBox = planTileViewBox(fullView, sheet.tile).join(' ');
   return <svg className="worker-plan" viewBox={viewBox} role="img" aria-label={sheet.title}>
     {platforms.map(platform => <g key={platform.id} className="worker-platform"><rect x={platform.x * 100} y={platform.y * 100} width={platform.w * 100} height={platform.h * 100}/><text x={(platform.x + platform.w / 2) * 100} y={(platform.y + platform.h / 2) * 100} textAnchor="middle">{platform.kind === 'porch' ? 'Крыльцо' : 'Терраса'}</text></g>)}
     <path d={pathData(contour)} fill="#fff"/>
@@ -44,7 +45,7 @@ function FloorArtwork({ sheet, routeIds }) {
     <PlacementWalls plan={sheet.plan} idPrefix={`print-${sheet.id}`}/>
     {sheet.showAutoDimensions && sheet.items.some(({ item }) => item.layer === 'electric') ? <PlacementWallDimensions plan={sheet.plan} items={sheet.items.filter(({ item }) => item.layer === 'electric').map(({ item }) => item)}/> : null}
     {sheet.dimensions.map(dimension => <Dimension key={dimension.id} dimension={dimension}/>)}
-    {selectedRoutes(sheet, routeIds).map(route => <g key={route.id}><path d={routeData(route.points)} className="worker-route" stroke={routeColor(route, sheet.circuits)}/><title>{route.annotationText || route.system}</title></g>)}
+    {selectedRoutes(sheet, routeIds).map(route => <g key={route.id}><path d={routeData(route.points)} className="worker-route" strokeDasharray={routeDash(route, sheet.circuits)}/><title>{route.annotationText || route.system}</title></g>)}
     {sheet.items.map(({ item, mark }) => <g key={item.id}><ItemMark item={item} mark={mark} x={item.x * 100} y={item.y * 100} size={item.layer === 'electric' ? 42 : Math.max(38, Math.min(95, Number(item.width || .4) * 100))}/>{item.showName ? <text className="worker-item-annotation" x={(item.x + (item.labelOffsetX ?? .5)) * 100} y={(item.y + (item.labelOffsetY ?? -.35)) * 100}>{item.annotationText || item.label}</text> : null}{item.showHeight ? <text className="worker-item-annotation" x={(item.x + (item.heightOffsetX ?? .3)) * 100} y={(item.y + (item.heightOffsetY ?? .4)) * 100}>h={metres(item.height)}</text> : null}</g>)}
   </svg>;
 }
@@ -82,16 +83,17 @@ export function PlacementSheetInfo({ sheet, routeIds }) {
   const bounds = sheet.room ? boundsOf(roomPoints(sheet.room)) : boundsOf(houseContourPoints(sheet.plan));
   return <aside className="worker-sheet-info"><h2>О листе</h2><dl><div><dt>Этаж</dt><dd>{sheet.floor}</dd></div><div><dt>Область</dt><dd>{sheet.room?.name || 'Весь план'}</dd></div><div><dt>Габарит</dt><dd>{metres(bounds.w)} × {metres(bounds.h)}</dd></div><div><dt>Высота стен</dt><dd>{metres(height)}</dd></div><div><dt>Точки</dt><dd>{sheet.items.length}</dd></div><div><dt>Линии</dt><dd>{routes.length}</dd></div></dl>
     {sheet.items.length ? <section><h3>Элементы</h3><ol>{sheet.items.slice(0, 14).map(({ item, mark }) => <li key={item.id}><b>{mark}</b><span>{item.annotationText || item.label || item.kind}{item.heightKnown ? ` · h ${metres(item.height)}` : ''}</span></li>)}</ol>{sheet.items.length > 14 ? <small>Ещё {sheet.items.length - 14} элементов на плане</small> : null}</section> : null}
-    {routes.length ? <section><h3>Линии</h3><ol>{routes.slice(0, 8).map(route => <li key={route.id}><i style={{ background: routeColor(route, sheet.circuits) }}/><span>{route.annotationText || sheet.circuits.find(circuit => circuit.id === route.circuitId)?.name || route.system}</span></li>)}</ol>{routes.length > 8 ? <small>Ещё {routes.length - 8} линий на плане</small> : null}</section> : null}
+    {routes.length ? <section><h3>Линии</h3><ol>{routes.slice(0, 8).map(route => <li key={route.id}><svg className="worker-line-sample" viewBox="0 0 38 12" aria-hidden="true"><line x1="1" y1="6" x2="37" y2="6" strokeDasharray={routeDash(route, sheet.circuits)}/></svg><span>{route.annotationText || sheet.circuits.find(circuit => circuit.id === route.circuitId)?.name || route.system}</span></li>)}</ol>{routes.length > 8 ? <small>Ещё {routes.length - 8} линий на плане</small> : null}</section> : null}
   </aside>;
 }
 
 export default function PlacementWorkerSheets({ project, selection }) {
-  const sheets = buildPrintablePlacementSheets(project).filter(sheet => !selection?.sheetIds || selection.sheetIds.includes(sheet.id));
+  const selectedSheets = buildPrintablePlacementSheets(project).filter(sheet => !selection?.sheetIds || selection.sheetIds.includes(sheet.id));
+  const sheets = expandPrintablePlanTiles(selectedSheets, selection?.planTiles);
   const date = new Date().toLocaleDateString('ru-RU');
-  return <div className="placement-worker-print">{sheets.map((sheet, index) => <article className={`placement-worker-sheet${selection?.showInfo === false ? ' no-info' : ''}`} key={sheet.id}>
+  return <div className="placement-worker-print">{sheets.map((sheet, index) => <article className={`placement-worker-sheet${selection?.showInfo === false || sheet.tile ? ' no-info' : ''}${sheet.tile ? ' worker-tiled-sheet' : ''}`} key={sheet.id}>
     <header className="worker-sheet-head"><div><span>ЭФТ · {project.meta?.projectNum || 'Проект'} · этаж {sheet.floor}</span><h1>{sheet.title}</h1></div><span>Лист {index + 1} / {sheets.length} · {date}</span></header>
-    <div className="worker-sheet-body"><div className="worker-sheet-plan"><PlacementSheetArtwork sheet={sheet} routeIds={selection?.routeIds}/></div>{selection?.showInfo === false ? null : <PlacementSheetInfo sheet={sheet} routeIds={selection?.routeIds}/>}</div>
-    <footer className="worker-sheet-footer">План и размеры взяты из проекта. Монтажные решения проверить по рабочему проекту.</footer>
+    <div className="worker-sheet-body"><div className="worker-sheet-plan"><PlacementSheetArtwork sheet={sheet} routeIds={selection?.routeIds}/></div>{selection?.showInfo === false || sheet.tile ? null : <PlacementSheetInfo sheet={sheet} routeIds={selection?.routeIds}/>}</div>
+    <footer className="worker-sheet-footer">{sheet.tile ? `Часть ${sheet.tile.index}/${sheet.tile.count} · совмещайте рисунок по перекрывающимся краям; печатайте все части в одном масштабе.` : 'План и размеры взяты из проекта. Монтажные решения проверить по рабочему проекту.'}</footer>
   </article>)}</div>;
 }
