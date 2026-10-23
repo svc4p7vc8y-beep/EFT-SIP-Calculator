@@ -588,6 +588,40 @@ test('worker sheets separate disciplines per floor and number saved positions', 
   assert.equal(sheets[2].items[0].item.id, 'boiler-1');
 });
 
+test('ceiling rise, project reserve and endpoint allowance give a traceable cable purchase length', () => {
+  const project = createDefaultProject();
+  const totalBefore = calculateProject(project).totals.total;
+  project.placement = normalizePlacement({ defaultRouteSurface: 'ceiling', electricalBillSettings: { cableReservePercent: 10, endAllowanceM: .2 },
+    items: [{ id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 1, y: 1, height: 1.5, heightKnown: true }, { id: 'light', floor: 1, layer: 'electric', kind: 'light', x: 5, y: 1, height: 2.2, heightKnown: true, circuitId: 'lights' }],
+    circuits: [{ id: 'lights', name: 'Свет', cable: '3×1,5' }],
+    routes: [{ id: 'feed', floor: 1, circuitId: 'lights', fromItemId: 'panel', targetItemId: 'light', auto: true, points: [{ x: 1, y: 1 }, { x: 5, y: 1 }] }],
+  });
+  const bill = electricalBill(project.placement, 1, project.plan);
+  assert.equal(bill.routeMetres, 5.3); // 4 м по плану + 1 м подъём + 0,3 м спуск.
+  assert.equal(bill.verticalMetres, 1.3);
+  assert.equal(bill.purchaseMetres, 6.23); // 5,3 × 1,10 + 0,2 × 2.
+  assert.equal(bill.components.find(row => row.name === 'Кабель · 3×1,5').quantity, 6.23);
+  assert.equal(calculateProject(project).totals.total, totalBefore);
+});
+
+test('junction and light terminals, fasteners and selected breakers stay editable after reopen', () => {
+  const project = createDefaultProject();
+  project.placement = normalizePlacement({ electricalBillSettings: { cableReservePercent: 10, fastenerType: 'clip', fastenerSpec: 'Ø20', fastenerSpacingM: .5, connectorModel: 'По проекту' },
+    items: [{ id: 'panel', floor: 1, layer: 'electric', kind: 'panel', x: 0, y: 0 }, { id: 'box', floor: 1, layer: 'electric', kind: 'junction-box', label: 'Распайка', x: 1, y: 0, circuitId: 'c' }, { id: 'socket', floor: 1, layer: 'electric', kind: 'socket', x: 3, y: 0, circuitId: 'c' }, { id: 'light', floor: 1, layer: 'electric', kind: 'light', x: 1, y: 3, circuitId: 'c' }],
+    circuits: [{ id: 'c', name: 'Свет', cable: '3×1,5', breakerAmps: 10, breaker: 'B', breakerPoles: 1, breakerKa: 6, breakerModel: 'Модель проекта', breakerQuantity: 2 }],
+    routes: [{ id: 'a', floor: 1, circuitId: 'c', fromItemId: 'panel', targetItemId: 'box', auto: false, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }, { id: 'b', floor: 1, circuitId: 'c', fromItemId: 'box', targetItemId: 'socket', auto: false, points: [{ x: 1, y: 0 }, { x: 3, y: 0 }] }, { id: 'd', floor: 1, circuitId: 'c', fromItemId: 'box', targetItemId: 'light', auto: false, points: [{ x: 1, y: 0 }, { x: 1, y: 3 }] }],
+  });
+  const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+  const bill = electricalBill(reopened.placement, 1);
+  assert.equal(bill.components.find(row => row.name === 'Клеммы соединительные · 3 ввода').quantity, 3);
+  assert.equal(bill.components.find(row => row.name === 'Клеммы соединительные · 2 ввода').quantity, 3);
+  assert.equal(bill.connectionNodes.find(row => row.itemId === 'box').conductorEnds, 9);
+  assert.equal(bill.components.find(row => row.name === 'Клипсы для трассы').quantity, 15);
+  assert.equal(bill.components.find(row => row.name.includes('Автомат 10 А')).quantity, 2);
+  assert.equal(reopened.placement.circuits[0].breakerModel, 'Модель проекта');
+  assert.equal(reopened.placement.electricalBillSettings.fastenerSpacingM, .5);
+});
+
 test('electrical wall unfolding is available as a separate printable sheet', () => {
   const project = createDefaultProject();
   const wall = placementWallFaces(project.plan)[0];

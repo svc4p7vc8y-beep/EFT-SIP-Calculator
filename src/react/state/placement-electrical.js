@@ -14,6 +14,14 @@ const lights = new Set(['light', 'spotlight', 'pendant-light', 'wall-light', 'le
 const outlets = new Set(['socket', 'double-socket', 'power', 'facade-socket']);
 export const ELECTRICAL_CABLE_CHOICES = ['3×1,5', '3×2,5', '3×4', '3×6', '5×2,5', '5×4', '5×6'];
 export const breakerDescription = circuit => [circuit.breakerAmps ? `${circuit.breakerAmps} А` : '', circuit.breaker || ''].filter(Boolean).join(' · ') || 'Не указана';
+export const cableCoreCount = cable => {
+  const count = Number(String(cable || '').match(/(?:^|\D)(\d+)\s*[×xXх]\s*\d/)?.[1]);
+  return count >= 2 && count <= 12 ? count : null;
+};
+
+const electricalBillOptions = placement => ({ cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', junctionConnectors: true, lightConnectors: true, ...(placement.electricalBillSettings || {}) });
+const routePurchaseLength = (route, settings) => electricalRouteLength3d(route.points) * (1 + Math.max(0, Number(settings.cableReservePercent) || 0) / 100) + 2 * Math.max(0, Number(settings.endAllowanceM) || 0);
+const routeVerticalLength = points => (points || []).slice(1).reduce((sum, point, index) => sum + (Math.hypot(point.x - points[index].x, point.y - points[index].y) < .001 ? Math.abs((point.z || 0) - (points[index].z || 0)) : 0), 0);
 
 const crosses = (a, b, c, d) => {
   const orient = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
@@ -43,7 +51,7 @@ export function orthogonalElectricalPath(from, to, plan) {
 }
 
 export function routeBetweenElectricalNodes(from, to, routeLevel = null, plan = null) {
-  const hasHeight = Number.isFinite(Number(from.height)) && Number.isFinite(Number(to.height)) && (from.heightKnown === true || to.heightKnown === true || Number(from.height) > 0 || Number(to.height) > 0);
+  const hasHeight = routeLevel != null || Number.isFinite(Number(from.height)) && Number.isFinite(Number(to.height)) && (from.heightKnown === true || to.heightKnown === true || Number(from.height) > 0 || Number(to.height) > 0);
   const level = routeLevel == null ? Number(from.height) || 0 : Number(routeLevel) || 0;
   const at = (item, z) => ({ x: item.x, y: item.y, ...(hasHeight ? { z } : {}) });
   const points = [at(from, Number(from.height) || 0)];
@@ -53,6 +61,8 @@ export function routeBetweenElectricalNodes(from, to, routeLevel = null, plan = 
   if (hasHeight && Math.abs((Number(to.height) || 0) - level) > .001) points.push(at(to, Number(to.height) || 0));
   return points.filter((p, i) => i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y, (p.z || 0) - (points[i - 1].z || 0)) > .001);
 }
+
+const ceilingRouteLevel = plan => Number(plan?.wallHeight) > 0 ? Number(plan.wallHeight) : null;
 
 export function routeToPanel(panel, item) {
   return routeBetweenElectricalNodes(panel, item);
@@ -81,14 +91,15 @@ export function connectSelectedElectricalPoints(placement, floor, circuitId, fro
   return route;
 }
 
-export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId, createId, plan = null) {
+export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId, createId, plan = null, surface = 'ceiling') {
   const floorItems = items.filter(item => item.floor === floor);
   const panel = floorItems.find(item => item.id === panelId && item.kind === 'panel');
   if (!panel) return [];
   const assigned = floorItems.filter(item => item.circuitId === circuitId && item.kind !== 'panel');
   const junctions = assigned.filter(item => item.kind === 'junction-box');
   const nearestJunction = item => junctions.find(entry => entry.id === item.junctionItemId) || [...junctions].sort((a, b) => Math.hypot(item.x - a.x, item.y - a.y) - Math.hypot(item.x - b.x, item.y - b.y))[0] || null;
-  const make = (from, to, purpose) => ({ id: createId(), floor, circuitId, panelItemId: panel.id, fromItemId: from.id, targetItemId: to.id, purpose, auto: true, points: routeBetweenElectricalNodes(from, to, null, plan) });
+  const level = surface === 'floor' ? 0 : ceilingRouteLevel(plan);
+  const make = (from, to, purpose) => ({ id: createId(), floor, circuitId, panelItemId: panel.id, fromItemId: from.id, targetItemId: to.id, purpose, auto: true, points: routeBetweenElectricalNodes(from, to, level, plan) });
   // Feed the junctions as one rooted tree. A downstream junction is connected
   // to the nearest already fed junction or the panel, never routed via the
   // panel again merely because it is the next junction in the group.
@@ -98,7 +109,7 @@ export function proposeElectricalCircuitRoutes(items, floor, circuitId, panelId,
   const feedLengths = new Map();
   const feedLength = (from, to) => {
     const key = `${from.id}:${to.id}`;
-    if (!feedLengths.has(key)) feedLengths.set(key, electricalRouteLength3d(routeBetweenElectricalNodes(from, to, null, plan)));
+    if (!feedLengths.has(key)) feedLengths.set(key, electricalRouteLength3d(routeBetweenElectricalNodes(from, to, level, plan)));
     return feedLengths.get(key);
   };
   while (pendingJunctions.length) {
@@ -188,33 +199,85 @@ export function resolvedElectricalRoutes(placement, floor, plan = null) {
       return { ...route, points };
     }
     const target = items.find(item => item.id === route.targetItemId);
-    return from && target ? { ...route, points: routeBetweenElectricalNodes(from, target, route.routeLevel, plan) } : null;
+    const level = route.routeLevel ?? (route.surface === 'floor' || placement.defaultRouteSurface === 'floor' ? 0 : ceilingRouteLevel(plan));
+    return from && target ? { ...route, points: routeBetweenElectricalNodes(from, target, level, plan) } : null;
   }).filter(Boolean);
 }
 
 export function electricalBill(placement, floor, plan = null) {
   const items = (placement.items || []).filter(item => item.floor === floor && item.layer === 'electric');
   const routes = resolvedElectricalRoutes(placement, floor, plan);
+  const settings = electricalBillOptions(placement);
   const circuits = (placement.circuits || []).filter(circuit => items.some(item => item.circuitId === circuit.id) || routes.some(route => route.circuitId === circuit.id));
   const routeMetres = round(routes.reduce((sum, route) => sum + electricalRouteLength3d(route.points), 0));
-  const byCircuit = circuits.map(circuit => ({ ...circuit, routeMetres: round(routes.filter(route => route.circuitId === circuit.id).reduce((sum, route) => sum + electricalRouteLength3d(route.points), 0)) }));
+  const verticalMetres = round(routes.reduce((sum, route) => sum + routeVerticalLength(route.points), 0));
+  const purchaseMetres = round(routes.reduce((sum, route) => sum + routePurchaseLength(route, settings), 0));
+  const byCircuit = circuits.map(circuit => ({ ...circuit,
+    routeMetres: round(routes.filter(route => route.circuitId === circuit.id).reduce((sum, route) => sum + electricalRouteLength3d(route.points), 0)),
+    purchaseMetres: round(routes.filter(route => route.circuitId === circuit.id).reduce((sum, route) => sum + routePurchaseLength(route, settings), 0)),
+  }));
   const count = kinds => items.filter(item => kinds.includes(item.kind)).length;
   const outletCount = count(['socket', 'double-socket', 'power', 'facade-socket']);
   const switchCount = count(['switch', 'double-switch', 'two-way-switch', 'dimmer']);
   const lightCount = count(['light', 'spotlight', 'pendant-light', 'wall-light', 'led-strip', 'facade-light', 'facade-spotlight']);
+  const cableRows = new Map();
+  for (const route of routes) {
+    const circuit = circuits.find(entry => entry.id === route.circuitId);
+    const cable = circuit?.cable?.trim() || 'тип не указан';
+    cableRows.set(cable, (cableRows.get(cable) || 0) + routePurchaseLength(route, settings));
+  }
+  const breakerRows = new Map();
+  for (const circuit of circuits) {
+    const name = `${circuit.protectionDevice === 'RCBO' ? 'Дифавтомат' : 'Автомат'} ${circuit.breakerAmps ? `${circuit.breakerAmps} А` : 'номинал не указан'} · ${circuit.breaker || 'кривая не указана'} · ${circuit.breakerPoles ? `${circuit.breakerPoles}P` : 'полюса не указаны'}${circuit.breakerKa ? ` · ${circuit.breakerKa} кА` : ''}${circuit.protectionDevice === 'RCBO' ? ` · ${circuit.residualMa || '?'} мА` : ''}${circuit.breakerModel ? ` · ${circuit.breakerModel}` : ''}`;
+    const row = breakerRows.get(name) || { name, quantity: 0, unit: 'шт', note: '', ready: Boolean(circuit.breakerAmps && circuit.breaker && circuit.breakerPoles && circuit.breakerKa && circuit.breakerModel && (circuit.protectionDevice !== 'RCBO' || circuit.residualMa)) };
+    row.quantity += Math.max(1, Number(circuit.breakerQuantity) || 1);
+    row.note = [row.note, circuit.name].filter(Boolean).join('; ');
+    breakerRows.set(name, row);
+  }
+  const connectorRows = new Map();
+  const connectionNodes = [];
+  const terminalIssues = [];
+  const routeEnds = new Map();
+  for (const route of routes) for (const id of [route.fromItemId || route.panelItemId, route.targetItemId]) {
+    if (!id) continue;
+    const key = `${id}:${route.circuitId || ''}`;
+    routeEnds.set(key, [...(routeEnds.get(key) || []), route]);
+  }
+  for (const item of items.filter(entry => entry.kind === 'junction-box' && settings.junctionConnectors || lights.has(entry.kind) && settings.lightConnectors)) {
+    for (const circuit of circuits) {
+      const incident = routeEnds.get(`${item.id}:${circuit.id}`) || [];
+      if (!incident.length || item.kind === 'junction-box' && incident.length < 2) continue;
+      const cores = cableCoreCount(circuit.cable);
+      const ports = item.kind === 'junction-box' ? incident.length : 2;
+      const quantity = cores && ports <= 5 ? cores : null;
+      const detail = { itemId: item.id, label: item.label || item.kind, circuit: circuit.name, cables: incident.length, conductorEnds: cores ? cores * incident.length : null, ports, quantity };
+      connectionNodes.push(detail);
+      if (quantity == null) { terminalIssues.push(`${detail.label}: укажите кабель или схему соединения для ${ports} вводов`); continue; }
+      const row = connectorRows.get(ports) || { name: `Клеммы соединительные · ${ports} ввода`, quantity: 0, unit: 'шт', note: `${settings.connectorModel || 'Модель не выбрана'}; минимум по числу жил; схему соединений проверить`, ready: Boolean(settings.connectorModel) };
+      row.quantity += quantity;
+      connectorRows.set(ports, row);
+    }
+  }
+  const fastenerLabels = { clip: 'Клипсы для трассы', clamp: 'Кабельные хомуты', tie: 'Стяжки для трассы' };
+  const spacing = Number(settings.fastenerSpacingM);
+  const fastenerQuantity = settings.fastenerType && spacing > 0 ? routes.reduce((sum, route) => { const length = electricalRouteLength3d(route.points); return sum + (length > .001 ? Math.ceil(length / spacing) + 1 : 0); }, 0) : null;
+  const protectionLabel = settings.protection === 'corrugated' ? 'Гофра' : settings.protection === 'channel' ? 'Кабель-канал' : 'Гофра / кабель-канал';
   const components = [
     { name: 'Электрощит', quantity: count(['panel']), unit: 'шт' },
     { name: 'Розетки и силовые точки', quantity: outletCount, unit: 'шт' },
     { name: 'Выключатели и диммеры', quantity: switchCount, unit: 'шт' },
     { name: 'Светильники и световые точки', quantity: lightCount, unit: 'шт' },
     { name: 'Подрозетники', quantity: outletCount + switchCount, unit: 'шт', note: 'По одной монтажной коробке на размещённый прибор; блоки уточнить' },
-    { name: 'Кабельные трассы по геометрии', quantity: routeMetres, unit: 'м', note: 'С заданными высотами; без запаса и обходов' },
-    { name: 'Гофра / кабель-канал', quantity: routeMetres, unit: 'м', note: 'Если предусмотрены проектом; без запаса' },
-    { name: 'Группы защиты', quantity: circuits.length, unit: 'групп', note: 'Номиналы и аппараты задаются проектом' },
+    ...[...cableRows].map(([cable, quantity]) => ({ name: `Кабель · ${cable}`, quantity: round(quantity), unit: 'м', note: `3D + запас ${settings.cableReservePercent}% + ${settings.endAllowanceM} м на конец`, ready: cable !== 'тип не указан' })),
+    { name: protectionLabel, quantity: settings.protection === 'none' ? null : purchaseMetres, unit: 'м', note: settings.protectionSpec || 'Тип и размер по проекту', ready: settings.protection !== 'none' && Boolean(settings.protectionSpec) },
+    ...breakerRows.values(),
+    { name: 'УЗО и дополнительные аппараты щита', quantity: null, unit: 'шт', note: 'Тип, ток утечки, номинал и количество задать по схеме щита', ready: false },
+    { name: 'Шины N/PE и комплектующие щита', quantity: null, unit: 'компл', note: 'Состав по выбранному щиту и схеме', ready: false },
     { name: 'Распределительные коробки', quantity: count(['junction-box']), unit: 'шт', note: 'Поставленные на план коробки' },
-    { name: 'Клеммы / соединители', quantity: null, unit: 'шт', note: 'Подобрать по схеме соединений' },
-    { name: 'Крепёж трасс', quantity: null, unit: 'шт', note: 'Шаг крепления задать по способу монтажа' },
-    { name: 'Маркировка и расходные материалы', quantity: null, unit: 'компл', note: 'Состав уточнить по рабочему проекту' },
+    ...connectorRows.values(),
+    { name: 'Наконечники и гильзы', quantity: null, unit: 'шт', note: 'Тип и количество по сечениям жил и схеме подключения', ready: false },
+    { name: fastenerLabels[settings.fastenerType] || 'Крепёж трасс', quantity: fastenerQuantity, unit: 'шт', note: spacing > 0 ? `${settings.fastenerSpec || 'Размер не выбран'}; шаг ${spacing} м; по каждой линии с креплением на концах` : 'Выберите тип и шаг в настройках ведомости', ready: fastenerQuantity != null && Boolean(settings.fastenerSpec) },
+    { name: 'Маркировка и расходные материалы', quantity: null, unit: 'компл', note: 'Указать состав и количество вручную', ready: false },
   ];
   const manualComponents = [];
   circuits.flatMap(circuit => circuit.accessories || []).filter(entry => entry.name?.trim()).forEach(entry => {
@@ -245,5 +308,6 @@ export function electricalBill(placement, floor, plan = null) {
       if (connectedToPanel.has(toId) && !connectedToPanel.has(fromId)) { connectedToPanel.add(fromId); changed = true; }
     }
   }
-  return { routes, byCircuit, components, manualComponents, routeMetres, topologyIssues, unconnected: items.filter(item => item.kind !== 'panel' && !connectedToPanel.has(item.id)) };
+  const missingHeights = plan && placement.defaultRouteSurface !== 'floor' ? items.filter(item => item.kind !== 'panel' && !item.heightKnown && routes.some(route => route.targetItemId === item.id || route.fromItemId === item.id)).map(item => item.label || item.kind) : [];
+  return { routes, byCircuit, components, manualComponents, routeMetres, verticalMetres, purchaseMetres, settings, connectionNodes, terminalIssues, missingHeights, topologyIssues, unconnected: items.filter(item => item.kind !== 'panel' && !connectedToPanel.has(item.id)) };
 }

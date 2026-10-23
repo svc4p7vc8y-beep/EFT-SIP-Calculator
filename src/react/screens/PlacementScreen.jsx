@@ -152,6 +152,14 @@ export default function PlacementScreen() {
   const [viewport, setViewport] = useState({ width: 1, height: 1 });
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [fullscreen, setFullscreen] = useState(false);
+  const [compactViewport, setCompactViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 700px)');
+    const update = () => setCompactViewport(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const mobileViewer = fullscreen && compactViewport;
   const [fullscreenPanel, setFullscreenPanel] = useState('library');
   const leaveFullscreen = () => {
     setFullscreen(false);
@@ -163,15 +171,29 @@ export default function PlacementScreen() {
   };
   const toggleFullscreen = () => {
     if (fullscreen) { leaveFullscreen(); return; }
-    fullscreenLocks.current = { elements: elementsLocked, lines: linesLocked };
-    setElementsLocked(true);
-    setLinesLocked(true);
-    setFullscreenPanel(null);
-    setSelectedId(null);
-    setSelectedRouteId(null);
-    setSelectedRoutePoint(null);
+    if (compactViewport) {
+      fullscreenLocks.current = { elements: elementsLocked, lines: linesLocked };
+      setElementsLocked(true);
+      setLinesLocked(true);
+      setFullscreenPanel(null);
+      setSelectedId(null);
+      setSelectedRouteId(null);
+      setSelectedRoutePoint(null);
+    }
     setFullscreen(true);
   };
+  useEffect(() => {
+    if (!fullscreen) return;
+    if (compactViewport && !fullscreenLocks.current) {
+      fullscreenLocks.current = { elements: elementsLocked, lines: linesLocked };
+      setElementsLocked(true);
+      setLinesLocked(true);
+    } else if (!compactViewport && fullscreenLocks.current) {
+      setElementsLocked(fullscreenLocks.current.elements);
+      setLinesLocked(fullscreenLocks.current.lines);
+      fullscreenLocks.current = null;
+    }
+  }, [fullscreen, compactViewport]);
   const svgRef = useRef(null);
   const dragRef = useRef(null);
   const panRef = useRef(null);
@@ -317,7 +339,7 @@ export default function PlacementScreen() {
     const namedRoutes = new Map(data.routes.filter(route => route.floor === targetFloor && route.circuitId === circuitId && route.auto && route.showName).map(route => [route.targetItemId, { showName: true, label: route.label, annotationText: route.annotationText, labelOffsetX: route.labelOffsetX, labelOffsetY: route.labelOffsetY }]));
     data.routes = data.routes.filter(route => !(route.floor === targetFloor && route.circuitId === circuitId && route.auto && route.purpose !== 'selected-chain'));
     const routePlan = targetFloor === 1 ? project.plan : project.upperFloors?.[targetFloor - 2] || project.plan;
-    data.routes.push(...proposeElectricalCircuitRoutes(data.items, targetFloor, circuitId, panel.id, createId, routePlan).filter(route => !chosenTargets.has(route.targetItemId)).map(route => ({ ...route, ...(namedRoutes.get(route.targetItemId) || {}) })));
+    data.routes.push(...proposeElectricalCircuitRoutes(data.items, targetFloor, circuitId, panel.id, createId, routePlan, data.defaultRouteSurface).filter(route => !chosenTargets.has(route.targetItemId)).map(route => ({ ...route, ...(namedRoutes.get(route.targetItemId) || {}) })));
   };
   const updateItem = patch => {
     if (!selected) return;
@@ -414,7 +436,7 @@ export default function PlacementScreen() {
     addPlacementItem(activePreset, { x: round(facePoint.x + normal.x * half), y: round(facePoint.y + normal.y * half) }, round(height), selectedWall.ref);
   };
   const onCanvasClick = event => {
-    if (fullscreen) return;
+    if (mobileViewer) return;
     if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     if (annotationTool) { setPlacementNotice(annotationTool === 'name' ? 'Нажмите на точку или линию.' : 'Нажмите на точку для указания высоты.'); return; }
     const point = pointFromEvent(event);
@@ -468,7 +490,7 @@ export default function PlacementScreen() {
   const updateNetworkRoute = (id, patch) => change(data => { const route = data.networks[layer]?.find(entry => entry.id === id); if (route) Object.assign(route, patch); });
   const addCircuit = () => {
     const id = createId();
-    change(data => data.circuits.push({ id, name: `Группа ${data.circuits.length + 1}`, color: nextCircuitColor(data.circuits), cable: '', breaker: '', breakerAmps: null, note: '', accessories: [] }));
+    change(data => data.circuits.push({ id, name: `Группа ${data.circuits.length + 1}`, color: nextCircuitColor(data.circuits), cable: '', protectionDevice: 'MCB', breaker: '', breakerAmps: null, breakerPoles: null, breakerKa: null, breakerModel: '', breakerQuantity: 1, note: '', accessories: [] }));
     setSelectedCircuitId(id);
     setLayer('electric');
   };
@@ -656,7 +678,7 @@ export default function PlacementScreen() {
     setHeightEditId(null);
   };
   const pickCanvasItem = item => {
-    if (fullscreen) return;
+    if (mobileViewer) return;
     if (annotationTool === 'name') { openAnnotationEditor('item', item); return; }
     if (annotationTool === 'height') {
       setHeightEditId(item.id); setHeightDraft(String(item.height ?? 0));
@@ -857,7 +879,7 @@ export default function PlacementScreen() {
     setNetworkDrawing(false); setNetworkPoints([]);
   };
   const beginDrag = (event, item) => {
-    if (fullscreen || annotationTool || elementsLocked || drawingRoute || drawingDimension || networkDrawing || assigningCircuit || (isNetworkLayer(layer) && !event.altKey)) return;
+    if (mobileViewer || annotationTool || elementsLocked || drawingRoute || drawingDimension || networkDrawing || assigningCircuit || (isNetworkLayer(layer) && !event.altKey)) return;
     const point = pointFromEvent(event);
     if (!point) return;
     event.preventDefault();
@@ -869,7 +891,7 @@ export default function PlacementScreen() {
     setPresetId(null);
   };
   const beginRouteSegmentDrag = (event, route, segmentIndex) => {
-    if (fullscreen || linesLocked || drawingRoute || networkDrawing || activePreset) return;
+    if (mobileViewer || linesLocked || drawingRoute || networkDrawing || activePreset) return;
     setSelectedRouteSegment({ routeId: route.id, index: segmentIndex });
     const start = pointFromEvent(event);
     if (!start) return;
@@ -878,7 +900,7 @@ export default function PlacementScreen() {
     dragRef.current = { routeId: route.id, segmentIndex, points: route.points, pointerId: event.pointerId, start, origin: start, last: start, clientX: event.clientX, clientY: event.clientY, delta: 0 };
   };
   const beginLabelDrag = (event, item, labelKind = 'name') => {
-    if (fullscreen) return;
+    if (mobileViewer) return;
     const point = pointFromEvent(event);
     if (!point) return;
     event.preventDefault(); event.stopPropagation();
@@ -889,7 +911,7 @@ export default function PlacementScreen() {
     setSelectedId(item.id);
   };
   const beginRouteLabelDrag = (event, route, system = 'electric') => {
-    if (fullscreen) return;
+    if (mobileViewer) return;
     const point = pointFromEvent(event), midpoint = routeLabelPosition(route.points);
     if (!point || !midpoint) return;
     event.preventDefault(); event.stopPropagation();
@@ -1053,7 +1075,7 @@ export default function PlacementScreen() {
     if (isNetworkLayer(nextLayer)) setNetworkMedium(NETWORK_SYSTEMS[nextLayer].media[0].id);
   };
   const beginPan = event => {
-    const touch = event.pointerType === 'touch' && (fullscreen || !activePreset && !drawingDimension && !drawingRoute && !networkDrawing);
+    const touch = event.pointerType === 'touch' && (mobileViewer || !activePreset && !drawingDimension && !drawingRoute && !networkDrawing);
     if (!touch && event.button !== 1 && !event.shiftKey) return;
     event.preventDefault();
     svgRef.current?.setPointerCapture(event.pointerId);
@@ -1243,7 +1265,7 @@ export default function PlacementScreen() {
               {editingCircuitNameId === circuit.id ? <input autoFocus aria-label={`Название группы ${circuit.name}`} value={circuit.name} onChange={event => updateCircuitById(circuit.id, { name: event.target.value })} onBlur={() => { setEditingCircuitNameId(null); setArmedCircuitNameId(null); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur(); }}/> : <button type="button" className="placement-circuit-name" aria-label={`Выбрать группу ${circuit.name}`} title={armedCircuitNameId === circuit.id ? 'Нажмите ещё раз, чтобы изменить название' : 'Выбрать группу'} onClick={() => { if (armedCircuitNameId === circuit.id) setEditingCircuitNameId(circuit.id); else { selectRouteCircuit(circuit.id); setArmedCircuitNameId(circuit.id); setPresetId(null); } }}>{circuit.name}</button>}
               <button type="button" className={hiddenCircuitLines.has(circuit.id) ? 'is-hidden' : ''} aria-pressed={!hiddenCircuitLines.has(circuit.id)} aria-label={`${hiddenCircuitLines.has(circuit.id) ? 'Показать' : 'Скрыть'} линии группы ${circuit.name}`} title={`${hiddenCircuitLines.has(circuit.id) ? 'Показать' : 'Скрыть'} линии группы`} onClick={() => toggleCircuitVisibility(circuit.id, 'hiddenCircuitLineIds')}><Route size={16}/></button>
               <button type="button" className={hiddenCircuitPoints.has(circuit.id) ? 'is-hidden' : ''} aria-pressed={!hiddenCircuitPoints.has(circuit.id)} aria-label={`${hiddenCircuitPoints.has(circuit.id) ? 'Показать' : 'Скрыть'} точки группы ${circuit.name}`} title={`${hiddenCircuitPoints.has(circuit.id) ? 'Показать' : 'Скрыть'} точки группы`} onClick={() => toggleCircuitVisibility(circuit.id, 'hiddenCircuitPointIds')}><PlugZap size={16}/></button>
-              <button type="button" aria-label={`Настройки группы ${circuit.name}`} title="Кабель, автомат и цвет" onClick={() => { if (fullscreen) leaveFullscreen(); setSettingsCircuitId(circuit.id); setSelectedCircuitId(circuit.id); setArmedCircuitNameId(null); setCircuitColorError(''); }}><Wrench size={16}/></button>
+              <button type="button" aria-label={`Настройки группы ${circuit.name}`} title="Кабель, автомат и цвет" onClick={() => { if (mobileViewer) leaveFullscreen(); setSettingsCircuitId(circuit.id); setSelectedCircuitId(circuit.id); setArmedCircuitNameId(null); setCircuitColorError(''); }}><Wrench size={16}/></button>
               <button type="button" className="placement-circuit-clear" title={`Очистить связи группы ${circuit.name}`} aria-label={`Очистить группу ${circuit.name}`} onClick={() => clearCircuit(circuit.id)}><Unlink2 size={16}/></button>
             </div>) : <p>Добавьте группу для розеток и света.</p>}</div>
           </div> : null}
@@ -1277,9 +1299,9 @@ export default function PlacementScreen() {
         {rooms.map(room => { const points = roomPoints(room); const box = boundsOf(points); return <g key={room.id}><path d={pathData(points)} fill="rgba(219,233,230,.22)" stroke="none"/><text x={(box.x + box.w / 2) * 100} y={(box.y + box.h / 2) * 100} textAnchor="middle" className="placement-room-label">{room.name}</text></g>; })}
         {selectedRoom ? <path d={pathData(roomPoints(selectedRoom))} className="placement-room-mini-highlight" pointerEvents="none"/> : null}
         <PlacementWalls plan={plan} idPrefix={`placement-floor-${activeFloor}`}/>
-        {wallFaces.map(face => <g key={face.ref} onClick={event => { if (fullscreen || annotationTool || activePreset || drawingRoute || drawingDimension || networkDrawing) return; event.stopPropagation(); openWallRoom(face); }}><line x1={face.a.x * 100} y1={face.a.y * 100} x2={face.b.x * 100} y2={face.b.y * 100} stroke={selectedWallRef === face.ref ? '#278b78' : 'transparent'} strokeWidth={selectedWallRef === face.ref ? 5 : 18} vectorEffect="non-scaling-stroke" className="placement-wall-face-target"><title>{face.label} · открыть комнату и её развёртку</title></line></g>)}
+        {wallFaces.map(face => <g key={face.ref} onClick={event => { if (mobileViewer || annotationTool || activePreset || drawingRoute || drawingDimension || networkDrawing) return; event.stopPropagation(); openWallRoom(face); }}><line x1={face.a.x * 100} y1={face.a.y * 100} x2={face.b.x * 100} y2={face.b.y * 100} stroke={selectedWallRef === face.ref ? '#278b78' : 'transparent'} strokeWidth={selectedWallRef === face.ref ? 5 : 18} vectorEffect="non-scaling-stroke" className="placement-wall-face-target"><title>{face.label} · открыть комнату и её развёртку</title></line></g>)}
         {placement.showAutoDimensions && visible.electric ? <PlacementWallDimensions plan={plan} items={displayedItems.filter(item => item.layer === 'electric')}/> : null}
-        {visible.electric ? displayedRoutes.map(route => { const shown = dragPosition?.routeId === route.id && dragPosition.segmentIndex != null && dragPosition.points ? dragPosition.points : route.points; const color = electricalGroupColor(route.circuitId, placement.circuits); return <g key={route.id} data-route-id={route.id} className={selectedCircuitId === route.circuitId ? 'placement-route-group-active' : ''} onClick={event => { if (fullscreen || drawingRoute) return; event.stopPropagation(); if (annotationTool === 'name') { openAnnotationEditor('route', route); return; } if (annotationTool) return; setSelectedRouteId(route.id); setSelectedId(null); setLayer('electric'); }}>{shown.slice(0, -1).map((start, index) => { const end = shown[index + 1]; const vertical = Math.hypot(end.x - start.x, end.y - start.y) < .001 && Math.abs((end.z || 0) - (start.z || 0)) > .001; return vertical ? <circle key={index} cx={end.x * 100} cy={end.y * 100} r="8" fill="#fff" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke"><title>Подъём или спуск у стены · {Math.abs((end.z || 0) - (start.z || 0)).toFixed(2)} м</title></circle> : <line key={index} x1={start.x * 100} y1={start.y * 100} x2={end.x * 100} y2={end.y * 100} stroke={color} strokeWidth={selectedRouteId === route.id ? 3.5 : selectedCircuitId === route.circuitId ? 3 : 2.5} strokeLinecap="round" strokeDasharray={end.surface === 'wall' ? '2 5' : '5 4'} vectorEffect="non-scaling-stroke"/>; })}<path d={routeData(shown)} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" vectorEffect="non-scaling-stroke"/><title>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'} · {electricalRouteLength3d(route.points).toFixed(2)} м</title></g>; }) : null}
+        {visible.electric ? displayedRoutes.map(route => { const shown = dragPosition?.routeId === route.id && dragPosition.segmentIndex != null && dragPosition.points ? dragPosition.points : route.points; const color = electricalGroupColor(route.circuitId, placement.circuits); return <g key={route.id} data-route-id={route.id} className={selectedCircuitId === route.circuitId ? 'placement-route-group-active' : ''} onClick={event => { if (mobileViewer || drawingRoute) return; event.stopPropagation(); if (annotationTool === 'name') { openAnnotationEditor('route', route); return; } if (annotationTool) return; setSelectedRouteId(route.id); setSelectedId(null); setLayer('electric'); }}>{shown.slice(0, -1).map((start, index) => { const end = shown[index + 1]; const vertical = Math.hypot(end.x - start.x, end.y - start.y) < .001 && Math.abs((end.z || 0) - (start.z || 0)) > .001; return vertical ? <circle key={index} cx={end.x * 100} cy={end.y * 100} r="8" fill="#fff" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke"><title>Подъём или спуск у стены · {Math.abs((end.z || 0) - (start.z || 0)).toFixed(2)} м</title></circle> : <line key={index} x1={start.x * 100} y1={start.y * 100} x2={end.x * 100} y2={end.y * 100} stroke={color} strokeWidth={selectedRouteId === route.id ? 3.5 : selectedCircuitId === route.circuitId ? 3 : 2.5} strokeLinecap="round" strokeDasharray={end.surface === 'wall' ? '2 5' : '5 4'} vectorEffect="non-scaling-stroke"/>; })}<path d={routeData(shown)} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" vectorEffect="non-scaling-stroke"/><title>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'} · {electricalRouteLength3d(route.points).toFixed(2)} м</title></g>; }) : null}
         {visible.electric ? routeBundles.map((bundle, index) => <g key={`bundle-${index}`} className="placement-route-bundle" pointerEvents="none">
           <line x1={bundle.start.x * 100} y1={bundle.start.y * 100} x2={bundle.end.x * 100} y2={bundle.end.y * 100} stroke="#fff" strokeWidth={bundle.routes.length * 9 + 7} strokeLinecap="round"/>
           {bundle.routes.map((route, lane) => { const offset = (lane - (bundle.routes.length - 1) / 2) * 9; const dx = bundle.axis === 'y' ? offset : 0, dy = bundle.axis === 'x' ? offset : 0; return <g key={route.routeId} stroke={electricalGroupColor(route.circuitId, placement.circuits)} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={route.surface === 'wall' ? '2 5' : '5 4'}><line x1={bundle.start.x * 100 + dx} y1={bundle.start.y * 100 + dy} x2={bundle.end.x * 100 + dx} y2={bundle.end.y * 100 + dy}/><line x1={bundle.start.x * 100} y1={bundle.start.y * 100} x2={bundle.start.x * 100 + dx} y2={bundle.start.y * 100 + dy}/><line x1={bundle.end.x * 100 + dx} y1={bundle.end.y * 100 + dy} x2={bundle.end.x * 100} y2={bundle.end.y * 100}/></g>; })}
@@ -1289,11 +1311,11 @@ export default function PlacementScreen() {
         {dragPosition?.guides?.map((guide, index) => <g key={`guide-${index}`} className="placement-alignment-guide" pointerEvents="none"><line x1={guide.from.x * 100} y1={guide.from.y * 100} x2={dragPosition.x * 100} y2={dragPosition.y * 100} stroke="#138dba" strokeWidth="2" strokeDasharray="6 4"/><circle cx={guide.from.x * 100} cy={guide.from.y * 100} r="5" fill="#138dba"/><circle cx={dragPosition.x * 100} cy={dragPosition.y * 100} r="5" fill="#138dba"/></g>)}
         {selectedLightGuides.map((guide, index) => <line key={`selected-guide-${index}`} className="placement-alignment-guide" x1={guide.from.x * 100} y1={guide.from.y * 100} x2={selected.x * 100} y2={selected.y * 100} stroke="#138dba" strokeOpacity=".65" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/>)}
         {visible.electric && selectedRoute && !drawingRoute ? selectedRoute.points.slice(0, -1).map((point, index) => <line key={`segment-${index}`} data-route-segment={index} className="placement-route-segment-target" x1={point.x * 100} y1={point.y * 100} x2={selectedRoute.points[index + 1].x * 100} y2={selectedRoute.points[index + 1].y * 100} onPointerDown={event => beginRouteSegmentDrag(event, selectedRoute, index)}><title>{routeSegmentDirection(point, selectedRoute.points[index + 1]) ? 'Нажмите для выбора участка; Shift + нажмите для добавления точки; потяните поперёк для сдвига' : 'Нажмите для выбора участка; Shift + нажмите для добавления точки'}</title></line>) : null}
-        {visible.electric && selectedRoute && !drawingRoute ? selectedRoute.points.slice(1, -1).map((point, index) => { const location = dragPosition?.routeId === selectedRoute.id && dragPosition.index === index + 1 ? dragPosition : point; return <circle key={`${selectedRoute.id}-${index}`} data-route-point={index + 1} cx={location.x * 100} cy={location.y * 100} r="16" className={`placement-route-handle${selectedWaypoint?.index === index + 1 ? ' selected' : ''}`} onPointerDown={event => { if (fullscreen) return; event.preventDefault(); event.stopPropagation(); setSelectedRoutePoint({ routeId: selectedRoute.id, index: index + 1 }); if (linesLocked) return; svgRef.current?.setPointerCapture(event.pointerId); dragRef.current = { routeId: selectedRoute.id, index: index + 1, pointerId: event.pointerId, start: pointFromEvent(event), origin: point, last: point }; }}><title>Точка {index + 1} · выбрать или перетащить</title></circle>; }) : null}
+        {visible.electric && selectedRoute && !drawingRoute ? selectedRoute.points.slice(1, -1).map((point, index) => { const location = dragPosition?.routeId === selectedRoute.id && dragPosition.index === index + 1 ? dragPosition : point; return <circle key={`${selectedRoute.id}-${index}`} data-route-point={index + 1} cx={location.x * 100} cy={location.y * 100} r="16" className={`placement-route-handle${selectedWaypoint?.index === index + 1 ? ' selected' : ''}`} onPointerDown={event => { if (mobileViewer) return; event.preventDefault(); event.stopPropagation(); setSelectedRoutePoint({ routeId: selectedRoute.id, index: index + 1 }); if (linesLocked) return; svgRef.current?.setPointerCapture(event.pointerId); dragRef.current = { routeId: selectedRoute.id, index: index + 1, pointerId: event.pointerId, start: pointFromEvent(event), origin: point, last: point }; }}><title>Точка {index + 1} · выбрать или перетащить</title></circle>; }) : null}
         {drawingRoute && routePoints.length ? <path d={routeData(routePreview)} fill="none" stroke={electricalGroupColor(selectedCircuitId || items.find(item => item.id === routeStartId)?.circuitId, placement.circuits)} strokeWidth="2" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
         <NeighborGuide guide={drawingRoute ? routeCursor?.neighborGuide : null}/>
         {drawingRoute && routeCursor ? <g className="placement-route-cursor" pointerEvents="none">{routeCursor.guides?.map((guide, index) => <line key={index} className="placement-manual-alignment-guide" x1={(guide.axis === 'x' ? guide.from.x : drawingBounds.x) * 100 - (guide.axis === 'y' ? margin : 0)} y1={(guide.axis === 'y' ? guide.from.y : drawingBounds.y) * 100 - (guide.axis === 'x' ? margin : 0)} x2={(guide.axis === 'x' ? guide.from.x : drawingBounds.x + drawingBounds.w) * 100 + (guide.axis === 'y' ? margin : 0)} y2={(guide.axis === 'y' ? guide.from.y : drawingBounds.y + drawingBounds.h) * 100 + (guide.axis === 'x' ? margin : 0)}/>)}<line x1={drawingBounds.x * 100 - margin} y1={routeCursor.y * 100} x2={(drawingBounds.x + drawingBounds.w) * 100 + margin} y2={routeCursor.y * 100}/><line x1={routeCursor.x * 100} y1={drawingBounds.y * 100 - margin} x2={routeCursor.x * 100} y2={(drawingBounds.y + drawingBounds.h) * 100 + margin}/><circle cx={routeCursor.x * 100} cy={routeCursor.y * 100} r="6"/><text x={routeCursor.x * 100 + 22} y={routeCursor.y * 100 - 14}>{routeCursor.x.toFixed(2)} · {routeCursor.y.toFixed(2)} м{routeCursor.snappedTo ? ` · ${routeCursor.snappedTo === 'wall' ? 'стена' : routeCursor.snappedTo === 'point' ? 'электроточка' : 'направляющая'}` : ''}</text></g> : null}
-        {networkRoutes.filter(route => visible[route.system]).map(route => <g key={route.id} onClick={event => { if (fullscreen) return; event.stopPropagation(); if (annotationTool === 'name') { openAnnotationEditor('route', route, route.system); return; } if (annotationTool) return; setLayer(route.system); setSelectedNetworkRouteId(route.id); setPresetId(null); }}><path d={routeData(route.points)} fill="none" stroke={networkColors[route.system]} strokeWidth={selectedNetworkRouteId === route.id ? 6 : 4} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.auto ? '8 5' : undefined} vectorEffect="non-scaling-stroke"/><path d={routeData(route.points)} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" vectorEffect="non-scaling-stroke"/><title>{NETWORK_SYSTEMS[route.system].label} · {route.medium} · {networkLength3d(route.points).toFixed(2)} м</title></g>)}
+        {networkRoutes.filter(route => visible[route.system]).map(route => <g key={route.id} onClick={event => { if (mobileViewer) return; event.stopPropagation(); if (annotationTool === 'name') { openAnnotationEditor('route', route, route.system); return; } if (annotationTool) return; setLayer(route.system); setSelectedNetworkRouteId(route.id); setPresetId(null); }}><path d={routeData(route.points)} fill="none" stroke={networkColors[route.system]} strokeWidth={selectedNetworkRouteId === route.id ? 6 : 4} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.auto ? '8 5' : undefined} vectorEffect="non-scaling-stroke"/><path d={routeData(route.points)} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" vectorEffect="non-scaling-stroke"/><title>{NETWORK_SYSTEMS[route.system].label} · {route.medium} · {networkLength3d(route.points).toFixed(2)} м</title></g>)}
         {displayedRoutes.filter(route => route.showName).map(route => { const at = routeLabelPosition(route.points); const x = dragLabel?.routeId === route.id ? dragLabel.x * 100 : at?.x + (route.labelOffsetX ?? 0) * 100; const y = dragLabel?.routeId === route.id ? dragLabel.y * 100 : at?.y + (route.labelOffsetY ?? -.1) * 100; return at ? <g key={`route-label-${route.id}`} className="placement-route-callout" onPointerDown={event => beginRouteLabelDrag(event, route)}><line x1={at.x} y1={at.y} x2={x} y2={y}/><text className="placement-route-name" x={x} y={y} textAnchor="middle">{routeAnnotation(route)}</text><title>Перетащить подпись линии или нажать для редактирования</title></g> : null; })}
         {networkRoutes.filter(route => route.showName && visible[route.system]).map(route => { const at = routeLabelPosition(route.points); const x = dragLabel?.routeId === route.id ? dragLabel.x * 100 : at?.x + (route.labelOffsetX ?? 0) * 100; const y = dragLabel?.routeId === route.id ? dragLabel.y * 100 : at?.y + (route.labelOffsetY ?? -.1) * 100; return at ? <g key={`network-label-${route.system}-${route.id}`} className="placement-route-callout" onPointerDown={event => beginRouteLabelDrag(event, route, route.system)}><line x1={at.x} y1={at.y} x2={x} y2={y}/><text className="placement-route-name" x={x} y={y} textAnchor="middle">{routeAnnotation(route, route.system)}</text><title>Перетащить подпись линии или нажать для редактирования</title></g> : null; })}
         {networkDrawing && networkPoints.length ? <path d={routeData(networkPoints)} fill="none" stroke={networkColors[layer] || '#d48a21'} strokeWidth="4" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
@@ -1415,8 +1437,14 @@ export default function PlacementScreen() {
         <header><div><small>Настройки группы</small><h2>{settingsCircuit.name}</h2></div><button type="button" aria-label="Закрыть настройки группы" onClick={() => setSettingsCircuitId(null)}><X size={18}/></button></header>
         <label>Кабель по проекту<select value={customCable ? 'custom' : settingsCircuit.cable || ''} onChange={event => { if (event.target.value === 'custom') setCustomCableCircuitId(settingsCircuit.id); else { setCustomCableCircuitId(null); updateCircuitById(settingsCircuit.id, { cable: event.target.value }); } }}><option value="">Не указан</option>{ELECTRICAL_CABLE_CHOICES.map(cable => <option key={cable} value={cable}>{cable}</option>)}<option value="custom">Другой · вручную</option></select></label>
         {customCable ? <label>Свой кабель<input value={settingsCircuit.cable || ''} onChange={event => updateCircuitById(settingsCircuit.id, { cable: event.target.value })} placeholder="Обозначение по проекту"/></label> : null}
+        <label>Аппарат защиты<select value={settingsCircuit.protectionDevice || 'MCB'} onChange={event => updateCircuitById(settingsCircuit.id, { protectionDevice: event.target.value })}><option value="MCB">Автомат</option><option value="RCBO">Дифавтомат</option></select></label>
         <label>Номинал автомата<select value={customBreakerAmpsCircuitId === settingsCircuit.id || (settingsCircuit.breakerAmps && !breakerNominals.some(([amps]) => amps === settingsCircuit.breakerAmps)) ? 'custom' : settingsCircuit.breakerAmps ?? ''} onChange={event => { if (event.target.value === 'custom') setCustomBreakerAmpsCircuitId(settingsCircuit.id); else { setCustomBreakerAmpsCircuitId(null); updateCircuitById(settingsCircuit.id, { breakerAmps: event.target.value ? Number(event.target.value) : null }); } }}><option value="">Не указан</option>{breakerNominals.map(([amps, purpose]) => <option value={amps} key={amps}>{amps} А · {purpose}</option>)}<option value="custom">Другой · вручную по проекту</option></select></label>
         {customBreakerAmpsCircuitId === settingsCircuit.id || (settingsCircuit.breakerAmps && !breakerNominals.some(([amps]) => amps === settingsCircuit.breakerAmps)) ? <label>Свой номинал, А<input type="number" min="1" step="any" value={settingsCircuit.breakerAmps ?? ''} onChange={event => updateCircuitById(settingsCircuit.id, { breakerAmps: event.target.value ? Number(event.target.value) : null })} placeholder="По проекту"/></label> : null}
+        <label>Полюсов у автомата<select value={settingsCircuit.breakerPoles || ''} onChange={event => updateCircuitById(settingsCircuit.id, { breakerPoles: event.target.value ? Number(event.target.value) : null })}><option value="">Не указано</option>{[1, 2, 3, 4].map(count => <option key={count} value={count}>{count}P</option>)}</select></label>
+        <label>Отключающая способность, кА<input type="number" min="0" step="0.5" value={settingsCircuit.breakerKa ?? ''} onChange={event => updateCircuitById(settingsCircuit.id, { breakerKa: event.target.value ? Number(event.target.value) : null })} placeholder="По проекту"/></label>
+        {settingsCircuit.protectionDevice === 'RCBO' ? <label>Ток утечки, мА<input type="number" min="1" step="1" value={settingsCircuit.residualMa ?? ''} onChange={event => updateCircuitById(settingsCircuit.id, { residualMa: event.target.value ? Number(event.target.value) : null })} placeholder="По проекту"/></label> : null}
+        <label>Модель / артикул<input value={settingsCircuit.breakerModel || ''} maxLength={100} onChange={event => updateCircuitById(settingsCircuit.id, { breakerModel: event.target.value })} placeholder="Выбранный аппарат"/></label>
+        <label>Количество, шт<input type="number" min="1" max="20" step="1" value={settingsCircuit.breakerQuantity || 1} onChange={event => updateCircuitById(settingsCircuit.id, { breakerQuantity: Math.max(1, Math.min(20, Math.round(Number(event.target.value) || 1))) })}/></label>
         <label>Характеристика автомата<select value={customBreakerCircuitId === settingsCircuit.id || (settingsCircuit.breaker && !['A', 'B', 'C'].includes(settingsCircuit.breaker)) ? 'custom' : settingsCircuit.breaker || ''} onChange={event => { if (event.target.value === 'custom') setCustomBreakerCircuitId(settingsCircuit.id); else { setCustomBreakerCircuitId(null); updateCircuitById(settingsCircuit.id, { breaker: event.target.value }); } }}><option value="">Не указана</option><option value="A">A · только по паспорту аппарата</option><option value="B">B · малый пусковой ток</option><option value="C">C · умеренный пусковой ток</option><option value="custom">Другая / тип защиты · вручную</option></select></label>
         {customBreakerCircuitId === settingsCircuit.id || (settingsCircuit.breaker && !['A', 'B', 'C'].includes(settingsCircuit.breaker)) ? <label>Обозначение по проекту<input value={settingsCircuit.breaker || ''} onChange={event => updateCircuitById(settingsCircuit.id, { breaker: event.target.value })} placeholder="Характеристика или аппарат"/></label> : null}
         <p className="placement-breaker-note">Подсказки не назначают защиту: номинал и кривая зависят от кабеля, нагрузки и условий сети. B/C — типовые кривые модульных автоматов; A применяйте только с паспортом конкретного аппарата. <a href="https://www.se.com/au/en/faqs/FA290880/" target="_blank" rel="noreferrer">Справка Schneider Electric</a>.</p>

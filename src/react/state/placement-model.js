@@ -178,7 +178,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
+  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', junctionConnectors: true, lightConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -195,7 +195,19 @@ export function normalizePlacement(value) {
     activeLayer: PLACEMENT_LAYERS.some(layer => layer.id === value.activeLayer && !layer.future) ? value.activeLayer : base.activeLayer,
     visibleLayers: Object.fromEntries(Object.entries(base.visibleLayers).map(([key, fallback]) => [key, typeof value.visibleLayers?.[key] === 'boolean' ? value.visibleLayers[key] : fallback])),
     billOverrides: value.billOverrides && typeof value.billOverrides === 'object' && !Array.isArray(value.billOverrides) ? value.billOverrides : {},
-    billCustomRows: Array.isArray(value.billCustomRows) ? value.billCustomRows.filter(row => row && typeof row.id === 'string' && [1, 2].includes(row.floor)).map(row => ({ id: row.id, floor: row.floor, name: String(row.name || '').slice(0, 120), quantity: Math.max(0, finite(row.quantity)), unit: String(row.unit || 'шт').slice(0, 20), note: String(row.note || '').slice(0, 240) })) : [],
+    billCustomRows: Array.isArray(value.billCustomRows) ? value.billCustomRows.filter(row => row && typeof row.id === 'string' && [1, 2].includes(row.floor)).map(row => ({ id: row.id, floor: row.floor, name: String(row.name || '').slice(0, 120), quantity: Math.max(0, finite(row.quantity)), unit: String(row.unit || 'шт').slice(0, 20), note: String(row.note || '').slice(0, 240), includeInPurchase: row.includeInPurchase !== false })) : [],
+    electricalBillSettings: { ...base.electricalBillSettings,
+      cableReservePercent: Math.min(50, Math.max(0, finite(value.electricalBillSettings?.cableReservePercent, 10))),
+      endAllowanceM: Math.min(5, Math.max(0, finite(value.electricalBillSettings?.endAllowanceM))),
+      protection: ['none', 'corrugated', 'channel'].includes(value.electricalBillSettings?.protection) ? value.electricalBillSettings.protection : 'none',
+      protectionSpec: String(value.electricalBillSettings?.protectionSpec || '').slice(0, 80),
+      fastenerType: ['clip', 'clamp', 'tie'].includes(value.electricalBillSettings?.fastenerType) ? value.electricalBillSettings.fastenerType : '',
+      fastenerSpec: String(value.electricalBillSettings?.fastenerSpec || '').slice(0, 80),
+      fastenerSpacingM: Number(value.electricalBillSettings?.fastenerSpacingM) > 0 ? Math.min(5, Math.max(.05, Number(value.electricalBillSettings.fastenerSpacingM))) : null,
+      connectorModel: String(value.electricalBillSettings?.connectorModel || '').slice(0, 80),
+      junctionConnectors: value.electricalBillSettings?.junctionConnectors !== false,
+      lightConnectors: value.electricalBillSettings?.lightConnectors !== false,
+    },
     electricalRouteMode: ['automatic', 'manual'].includes(value.electricalRouteMode) ? value.electricalRouteMode : routes.some(route => route?.auto === false) ? 'manual' : 'automatic',
     defaultRouteSurface: value.defaultRouteSurface === 'floor' ? 'floor' : 'ceiling',
     showAutoDimensions: value.showAutoDimensions !== false,
@@ -224,7 +236,13 @@ export function normalizePlacement(value) {
       anchorY: item.surface === 'facade' ? finite(item.anchorY, finite(item.y)) : undefined,
     })),
     circuits: uniqueCircuitColors(circuits.filter(circuit => circuit && typeof circuit.id === 'string').map(circuit => ({ ...circuit, name: String(circuit.name || 'Группа'),
+      protectionDevice: circuit.protectionDevice === 'RCBO' ? 'RCBO' : 'MCB',
       breakerAmps: circuit.breakerAmps === '' || circuit.breakerAmps == null || !Number.isFinite(Number(circuit.breakerAmps)) || Number(circuit.breakerAmps) <= 0 ? null : Number(circuit.breakerAmps),
+      breakerPoles: [1, 2, 3, 4].includes(Number(circuit.breakerPoles)) ? Number(circuit.breakerPoles) : null,
+      breakerKa: Number(circuit.breakerKa) > 0 ? Number(circuit.breakerKa) : null,
+      residualMa: Number(circuit.residualMa) > 0 ? Number(circuit.residualMa) : null,
+      breakerModel: String(circuit.breakerModel || '').slice(0, 100),
+      breakerQuantity: Math.max(1, Math.min(20, Math.round(finite(circuit.breakerQuantity, 1)))),
       accessories: (Array.isArray(circuit.accessories) ? circuit.accessories : []).filter(entry => entry && typeof entry.name === 'string').map(entry => ({ name: entry.name.slice(0, 100), quantity: Math.max(0, finite(entry.quantity)), unit: String(entry.unit || 'шт').slice(0, 20) })),
     }))),
     hiddenCircuitLineIds: (Array.isArray(value.hiddenCircuitLineIds) ? value.hiddenCircuitLineIds : []).filter(id => circuits.some(circuit => circuit?.id === id)),

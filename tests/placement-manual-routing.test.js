@@ -109,7 +109,7 @@ test('a second junction can be fed by the first without another panel branch', (
   const routes = proposeElectricalCircuitRoutes(items, 1, 'c1', 'panel', () => `route-${++id}`, plan);
   const feeds = routes.filter(route => route.purpose === 'feed');
   assert.deepEqual(feeds.map(route => [route.fromItemId, route.targetItemId]), [['panel', 'junction-a'], ['junction-a', 'junction-b']]);
-  assert.equal(feeds.reduce((total, route) => total + electricalRouteLength3d(route.points), 0), 2.5);
+  assert.equal(feeds.reduce((total, route) => total + electricalRouteLength3d(route.points), 0), 12.5); // 2.5 m in plan plus four 2.5 m ceiling rises
   assert.equal(routes.find(route => route.targetItemId === 'socket').fromItemId, 'junction-b');
 });
 
