@@ -1,16 +1,17 @@
 import { Printer, X } from 'lucide-react';
 import { NETWORK_SYSTEMS } from '../state/placement-networks.js';
 import { circuitLineDash } from '../state/placement-line-styles.js';
+import { buildWorkerPrintPages } from '../export/placement-sheets.js';
 import { PlacementSheetArtwork, PlacementSheetInfo } from './PlacementWorkerSheets.jsx';
 
 export default function PlacementPrintDialog({ sheets, selection, onSelection, routeSelection, onRouteSelection, showInfo, onShowInfo, planTiles, onPlanTiles, onClose, onPrint, routeDescription }) {
   const chosen = new Set(selection || []);
   const chosenPlanRoutes = [...new Map(sheets.filter(sheet => chosen.has(sheet.id) && sheet.kind !== 'room').flatMap(sheet => sheet.routes.map(route => [route.id, { route, sheet }]))).values()];
   const selectedPlanCount = sheets.filter(sheet => chosen.has(sheet.id) && sheet.kind === 'plan').length;
-  const pageCount = (selection?.length || 0) + selectedPlanCount * (planTiles - 1);
+  const pageCount = buildWorkerPrintPages(sheets.filter(sheet => chosen.has(sheet.id)), planTiles).length;
   const allRouteIds = () => [...new Set(sheets.flatMap(sheet => sheet.routes.map(route => route.id)))];
   return <section className="placement-print-dialog" role="dialog" aria-modal="true" aria-label="Выбор листов для печати" onKeyDown={event => { if (event.key === 'Escape') onClose(); }}>
-    <header><div><strong>Печатные листы · чёрно-белая печать</strong><p>Выберите планы, развёртки и листы с одной группой линий. Штрихи групп видны на миниатюрах и бумаге.</p></div><button type="button" aria-label="Закрыть выбор листов" onClick={onClose}><X size={18}/></button></header>
+    <header><div><strong>Печатные листы · чёрно-белая печать</strong><p>Выберите планы, развёртки и листы линий. За каждым рисунком с точками автоматически идёт отдельный лист с полным перечнем номеров и описаний.</p></div><button type="button" aria-label="Закрыть выбор листов" onClick={onClose}><X size={18}/></button></header>
     <div className="placement-print-presets">
       <button type="button" onClick={() => onSelection(sheets.filter(sheet => sheet.kind === 'plan').map(sheet => sheet.id))}>Все планы</button>
       <button type="button" onClick={() => onSelection(sheets.filter(sheet => sheet.kind === 'room').map(sheet => sheet.id))}>Все развёртки</button>
@@ -24,7 +25,7 @@ export default function PlacementPrintDialog({ sheets, selection, onSelection, r
       const selected = chosen.has(sheet.id);
       return <button type="button" key={sheet.id} className={`placement-print-sheet-card${selected ? ' selected' : ''}`} aria-pressed={selected} aria-label={`${selected ? 'Убрать' : 'Добавить'} лист ${sheet.title}`} onClick={() => onSelection(current => selected ? (current || []).filter(id => id !== sheet.id) : [...(current || []), sheet.id])}>
         <div className={`placement-print-sheet-preview${showInfo ? '' : ' no-info'}`}><div><PlacementSheetArtwork sheet={sheet} routeIds={routeSelection}/></div>{showInfo ? <PlacementSheetInfo sheet={sheet} routeIds={routeSelection}/> : null}</div>
-        <span className="placement-print-sheet-caption"><b>{sheet.title}</b><small>Этаж {sheet.floor} · {sheet.kind === 'room' ? 'Развёртка комнаты' : sheet.kind === 'line-layer' ? `1 слой · ${sheet.routes.length} линий` : `Общий план${planTiles > 1 ? ` · ${planTiles} листа` : ''}`} · {sheet.items.length} точек</small><i aria-hidden="true">{selected ? '✓' : '+'}</i></span>
+        <span className="placement-print-sheet-caption"><b>{sheet.title}</b><small>Этаж {sheet.floor} · {sheet.kind === 'room' ? 'Развёртка комнаты' : sheet.kind === 'line-layer' ? `1 слой · ${sheet.routes.length} линий` : `Общий план${planTiles > 1 ? ` · ${planTiles} листа` : ''}`} · {sheet.items.length} точек{sheet.items.length ? ' + лист описания' : ''}</small><i aria-hidden="true">{selected ? '✓' : '+'}</i></span>
       </button>;
     })}</div>
     <details className="placement-print-lines"><summary>Линии на выбранных листах · {routeSelection.length} выбрано</summary>

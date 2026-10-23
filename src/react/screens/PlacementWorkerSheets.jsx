@@ -1,5 +1,6 @@
+import { useLayoutEffect, useRef } from 'react';
 import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js';
-import { buildPrintablePlacementSheets, expandPrintablePlanTiles, planTileViewBox } from '../export/placement-sheets.js';
+import { buildPrintablePlacementSheets, buildWorkerPrintPages, planTileViewBox, pointLegendRows } from '../export/placement-sheets.js';
 import { dimensionMetres } from '../state/placement-geometry.js';
 import { roomItemPlane, roomOpeningOnEdge, roomUnfoldLayout, roomWallDisplayPoint } from '../state/placement-room.js';
 import { circuitLineDash } from '../state/placement-line-styles.js';
@@ -87,13 +88,45 @@ export function PlacementSheetInfo({ sheet, routeIds }) {
   </aside>;
 }
 
+function PointListArtwork({ sheet }) {
+  const rows = pointLegendRows(sheet);
+  const area = useRef(null);
+  const list = useRef(null);
+  const longRows = rows.filter(row => `${row.name} ${row.details.join(' · ')}`.length > 105).length;
+  const targetRows = longRows > rows.length / 3 ? 25 : 34;
+  const columns = Math.min(6, Math.max(2, Math.ceil(rows.length / targetRows)));
+  const perColumn = Math.ceil(rows.length / columns);
+  useLayoutEffect(() => {
+    const fit = () => {
+      if (!area.current || !list.current || area.current.clientHeight < 100) return;
+      const grid = list.current;
+      grid.style.zoom = '1';
+      let scale = 1;
+      while (grid.getBoundingClientRect().height > area.current.getBoundingClientRect().height - 2 && scale > .55) {
+        scale = Math.max(.55, scale - .05);
+        grid.style.zoom = String(scale);
+      }
+    };
+    fit();
+    window.addEventListener('beforeprint', fit);
+    return () => window.removeEventListener('beforeprint', fit);
+  }, [sheet.id, rows.length]);
+  return <div className="worker-points-area" ref={area}>
+    <div className="worker-points-grid" ref={list} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+      {Array.from({ length: columns }, (_, column) => <ol key={column} start={column * perColumn + 1}>
+        {rows.slice(column * perColumn, (column + 1) * perColumn).map(row => <li key={row.id}><b>{row.mark}</b><span><strong>{row.name}</strong><small>{row.details.join(' · ')}</small></span></li>)}
+      </ol>)}
+    </div>
+  </div>;
+}
+
 export default function PlacementWorkerSheets({ project, selection }) {
   const selectedSheets = buildPrintablePlacementSheets(project).filter(sheet => !selection?.sheetIds || selection.sheetIds.includes(sheet.id));
-  const sheets = expandPrintablePlanTiles(selectedSheets, selection?.planTiles);
+  const sheets = buildWorkerPrintPages(selectedSheets, selection?.planTiles);
   const date = new Date().toLocaleDateString('ru-RU');
-  return <div className="placement-worker-print">{sheets.map((sheet, index) => <article className={`placement-worker-sheet${selection?.showInfo === false || sheet.tile ? ' no-info' : ''}${sheet.tile ? ' worker-tiled-sheet' : ''}`} key={sheet.id}>
+  return <div className="placement-worker-print">{sheets.map((sheet, index) => <article className={`placement-worker-sheet${selection?.showInfo === false || sheet.tile ? ' no-info' : ''}${sheet.tile ? ' worker-tiled-sheet' : ''}${sheet.kind === 'point-list' ? ' worker-point-list-sheet' : ''}`} key={sheet.id}>
     <header className="worker-sheet-head"><div><span>ЭФТ · {project.meta?.projectNum || 'Проект'} · этаж {sheet.floor}</span><h1>{sheet.title}</h1></div><span>Лист {index + 1} / {sheets.length} · {date}</span></header>
-    <div className="worker-sheet-body"><div className="worker-sheet-plan"><PlacementSheetArtwork sheet={sheet} routeIds={selection?.routeIds}/></div>{selection?.showInfo === false || sheet.tile ? null : <PlacementSheetInfo sheet={sheet} routeIds={selection?.routeIds}/>}</div>
-    <footer className="worker-sheet-footer">{sheet.tile ? `Часть ${sheet.tile.index}/${sheet.tile.count} · совмещайте рисунок по перекрывающимся краям; печатайте все части в одном масштабе.` : 'План и размеры взяты из проекта. Монтажные решения проверить по рабочему проекту.'}</footer>
+    {sheet.kind === 'point-list' ? <PointListArtwork sheet={sheet}/> : <div className="worker-sheet-body"><div className="worker-sheet-plan"><PlacementSheetArtwork sheet={sheet} routeIds={selection?.routeIds}/></div>{selection?.showInfo === false || sheet.tile ? null : <PlacementSheetInfo sheet={sheet} routeIds={selection?.routeIds}/>}</div>}
+    <footer className="worker-sheet-footer">{sheet.kind === 'point-list' ? `${sheet.items.length} точек и элементов. Номера совпадают с обозначениями на предыдущем плане.` : sheet.tile ? `Часть ${sheet.tile.index}/${sheet.tile.count} · совмещайте рисунок по перекрывающимся краям; печатайте все части в одном масштабе.` : 'План и размеры взяты из проекта. Монтажные решения проверить по рабочему проекту.'}</footer>
   </article>)}</div>;
 }

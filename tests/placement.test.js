@@ -5,7 +5,7 @@ import { createDefaultProject, migrateProject } from '../src/react/state/project
 import { applianceSupplyKind, normalizePlacement, placementSummary, PLACEMENT_GROUPS, PLACEMENT_PRESETS } from '../src/react/state/placement-model.js';
 import { dimensionMetres, snapToFacade } from '../src/react/state/placement-geometry.js';
 import { perimeterPlacementDimensions } from '../src/react/state/placement-dimensions.js';
-import { buildPlacementSheets, buildPrintablePlacementSheets, expandPrintablePlanTiles, planTileViewBox } from '../src/react/export/placement-sheets.js';
+import { buildPlacementSheets, buildPrintablePlacementSheets, buildWorkerPrintPages, expandPrintablePlanTiles, planTileViewBox, pointLegendRows } from '../src/react/export/placement-sheets.js';
 import { circuitLineDash } from '../src/react/state/placement-line-styles.js';
 import { electricalSettingOutDimension, nearestPlacementDimension, nearestWallDimension, placementWallBands, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../src/react/state/placement-walls.js';
 import { electricalBill, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
@@ -638,6 +638,25 @@ test('overall plan expands to two or four ordered overlapping print pages', () =
   const second = planTileViewBox([0, 0, 100, 80], four[1].tile);
   assert(first[0] + first[2] > second[0]);
   assert.equal(planTileViewBox([0, 0, 100, 80], null).join(','), '0,0,100,80');
+});
+
+test('each selected drawing is followed by a complete numbered point description sheet', () => {
+  const project = createDefaultProject();
+  project.placement = normalizePlacement({
+    circuits: [{ id: 'lights', name: 'Освещение' }],
+    items: Array.from({ length: 150 }, (_, index) => ({ id: `point-${index}`, floor: 1, layer: 'electric', kind: 'light', circuitId: 'lights', x: 1 + index % 10 * .2, y: 1 + Math.floor(index / 10) * .2, annotationText: `Светильник ${index + 1}`, height: 2.4 })),
+  });
+  const drawing = buildPrintablePlacementSheets(project).find(sheet => sheet.kind === 'plan');
+  const pages = buildWorkerPrintPages([drawing], 4);
+  assert.deepEqual(pages.map(page => page.kind), ['plan', 'plan', 'plan', 'plan', 'point-list']);
+  assert.equal(pages.at(-1).items.length, 150);
+  const rows = pointLegendRows(pages.at(-1));
+  assert.equal(rows.length, 150);
+  assert.equal(rows[0].mark, '01');
+  assert.equal(rows.at(-1).mark, '150');
+  assert.equal(rows.at(-1).name, 'Светильник 150');
+  assert(rows.at(-1).details.includes('Группа: Освещение'));
+  assert(rows.at(-1).details.includes('h 2,40 м'));
 });
 
 test('ceiling rise, project reserve and endpoint allowance give a traceable cable purchase length', () => {

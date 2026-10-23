@@ -24,5 +24,12 @@
   .placement-worker-sheet.no-info .worker-sheet-body{grid-template-columns:minmax(0,1fr)}
   .placement-worker-sheet.worker-tiled-sheet .worker-sheet-plan{border:1px solid #bbb}
   .worker-sheet-plan{display:flex;min-width:0;min-height:0;align-items:center;justify-content:center;overflow:hidden}
+  .worker-points-area{flex:1;min-height:0;overflow:hidden}
+  .worker-points-grid{display:grid;gap:3mm;align-items:start;width:100%;font-size:8.5pt;line-height:1.22}
+  .worker-points-grid ol{list-style:none;margin:0;padding:0;min-width:0}
+  .worker-points-grid li{display:grid;grid-template-columns:7mm minmax(0,1fr);gap:1.4mm;padding:1.2mm 1mm;border-bottom:1px solid #d5d5d5;break-inside:avoid;overflow-wrap:anywhere}
+  .worker-points-grid li b{font-size:9pt}
+  .worker-points-grid li strong,.worker-points-grid li small{display:block;font-size:inherit}
+  .worker-points-grid li small{margin-top:.5mm;color:#555;font-size:7.5pt}
   .worker-sheet-footer{padding-top:2mm;border-top:1px solid #c3d0c6;font-size:7pt;color:#677569}
 }

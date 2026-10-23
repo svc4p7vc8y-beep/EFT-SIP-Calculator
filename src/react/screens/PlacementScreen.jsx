@@ -1102,8 +1102,8 @@ export default function PlacementScreen({ onNavigate }) {
   };
   const confirmPrint = () => {
     if (!printSelection.length) return;
-    flushSync(() => { setPrinting(true); setPrintDialogOpen(false); });
     document.body.classList.add('print-placement');
+    flushSync(() => { setPrinting(true); setPrintDialogOpen(false); });
     const originalTitle = document.title;
     document.title = `ЭФТ ${project.meta?.projectNum || 'проект'} — планы для рабочих — ${new Date().toLocaleDateString('ru-RU')}`;
     const restore = () => {

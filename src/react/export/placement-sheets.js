@@ -3,6 +3,8 @@ import { NETWORK_SYSTEMS, networkBill, resolvedNetworkRoutes } from '../state/pl
 import { placementWallFaces } from '../state/placement-walls.js';
 import { roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from '../state/placement-geometry.js';
+import { findPlacementPreset, PLACEMENT_LAYERS } from '../state/placement-model.js';
+import { roomNameForPlacement } from '../state/placement-visibility.js';
 
 export function buildPlacementSheets(project) {
   const placement = project.placement || { items: [], routes: [], dimensions: [], circuits: [] };
@@ -101,6 +103,30 @@ export function expandPrintablePlanTiles(sheets, tileCount = 1) {
       return { ...sheet, id: `${sheet.id}-tile-${index + 1}`, title: `${sheet.title} · часть ${index + 1}/${tileCount}`,
         tile: { cols, rows, col, row, index: index + 1, count: tileCount } };
     });
+  });
+}
+
+export function buildWorkerPrintPages(sheets, tileCount = 1) {
+  return sheets.flatMap(sheet => [
+    ...expandPrintablePlanTiles([sheet], tileCount),
+    ...(sheet.items.length ? [{ ...sheet, id: `${sheet.id}-points`, kind: 'point-list', title: `Перечень точек · ${sheet.title}` }] : []),
+  ]);
+}
+
+export function pointLegendRows(sheet) {
+  const rooms = (sheet.plan.rooms || []).filter(room => room.include !== false);
+  return sheet.items.map(({ item, mark }) => {
+    const type = findPlacementPreset(item.kind)?.label || item.label || item.kind;
+    const name = item.annotationText?.trim() || item.label?.trim() || type;
+    const details = [];
+    if (name !== type) details.push(type);
+    details.push(PLACEMENT_LAYERS.find(layer => layer.id === item.layer)?.label || item.layer);
+    details.push(sheet.room?.name || roomNameForPlacement(item, rooms));
+    const circuit = sheet.circuits.find(entry => entry.id === item.circuitId);
+    if (circuit) details.push(`Группа: ${circuit.name}`);
+    if (item.heightKnown) details.push(`h ${Number(item.height).toFixed(2).replace('.', ',')} м`);
+    if (item.surface === 'facade') details.push('Фасад');
+    return { id: item.id, mark, name, details };
   });
 }
 
