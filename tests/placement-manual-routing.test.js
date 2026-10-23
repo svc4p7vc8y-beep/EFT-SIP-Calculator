@@ -3,10 +3,26 @@ import assert from 'node:assert/strict';
 import { createDefaultProject } from '../src/react/state/project-model.js';
 import { electricalRouteLength3d, proposeElectricalCircuitRoutes, resolvedElectricalRoutes } from '../src/react/state/placement-electrical.js';
 import { appendManualRouteWaypoint, finishManualRoute, manualRouteSnap, nearestRouteNode } from '../src/react/state/placement-manual-routing.js';
-import { electricalDrawingAnchors, sharedElectricalRouteLanes } from '../src/react/state/placement-schematic.js';
+import { electricalDrawingAnchors, nearestPointGuide, sharedElectricalRouteLanes } from '../src/react/state/placement-schematic.js';
 import { placementWallFaces } from '../src/react/state/placement-walls.js';
 
 const plan = createDefaultProject().plan;
+
+test('moving an electrical point shows the nearest other point even across a long room', () => {
+  const position = { x: 1, y: 1 };
+  const anchors = [{ id: 'moving', x: 1, y: 1 }, { id: 'far', x: 8, y: 9 }, { id: 'farther', x: 14, y: 14 }];
+  const guide = nearestPointGuide(position, anchors, 'moving');
+  assert.deepEqual(guide.from, { x: 8, y: 9 });
+  assert.deepEqual(guide.to, position);
+  assert.ok(guide.distance > 10);
+  assert.deepEqual(position, { x: 1, y: 1 });
+  assert.deepEqual(anchors[1], { id: 'far', x: 8, y: 9 });
+});
+
+test('manual route cursor skips its own point and guides to another electrical point', () => {
+  const guide = nearestPointGuide({ x: 2, y: 2 }, [{ x: 2, y: 2 }, { x: 5, y: 2 }]);
+  assert.deepEqual(guide?.from, { x: 5, y: 2 });
+});
 
 test('electrical point near a wall takes precedence over wall snapping', () => {
   const face = placementWallFaces(plan)[0];

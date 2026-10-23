@@ -21,6 +21,19 @@ export function electricalDrawingAnchors(items, rooms = []) {
   return anchors;
 }
 
+/** A visual guide to the nearest other point; it never changes saved geometry. */
+export function nearestPointGuide(position, anchors, excludedId = '') {
+  if (!Number.isFinite(position?.x) || !Number.isFinite(position?.y)) return null;
+  let nearest = null;
+  for (const entry of anchors || []) {
+    if (!entry || entry.id === excludedId || !Number.isFinite(entry.x) || !Number.isFinite(entry.y)) continue;
+    const distance = Math.hypot(entry.x - position.x, entry.y - position.y);
+    if (distance < .01 || (nearest && distance >= nearest.distance)) continue;
+    nearest = { from: { x: entry.x, y: entry.y }, to: { x: position.x, y: position.y }, distance };
+  }
+  return nearest;
+}
+
 export function junctionWallMount(plan, position, preferredRoom = null) {
   const rooms = (plan.rooms || []).filter(room => room.include !== false);
   const room = preferredRoom && pointInPolygon(position, roomPoints(preferredRoom)) ? preferredRoom
