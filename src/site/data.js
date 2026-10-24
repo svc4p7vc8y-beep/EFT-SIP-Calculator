@@ -3,12 +3,14 @@ import { referenceProjects } from './referenceProjects.js';
 import { cabinProjects } from './cabinProjects.js';
 import { showcaseProjects } from './showcaseProjects.js';
 import { featuredProjects } from './featuredProjects.js';
+import { quotedResidentialProjects, quotedBathProjects } from './quotedProjects.js';
 
 export const projectCategories = [
   {
     id: 'projects', number: '01', eyebrow: 'Коллекция проектов', title: 'Жилые дома', accent: 'Для вашей истории.',
     description: 'Продуманные пространства для постоянной жизни — от компактного дома до семейной резиденции.',
     projects: [
+      ...quotedResidentialProjects,
       ...featuredProjects,
       ...cabinProjects,
       ...referenceProjects,
@@ -24,6 +26,7 @@ export const projectCategories = [
     id: 'garages', number: '02', eyebrow: 'Коллекция проектов', title: 'Гаражи и хозпостройки', accent: 'Место для дела.',
     description: 'Практичные постройки для автомобиля, мастерской, хранения и организации участка.',
     projects: [
+      ...quotedBathProjects,
       { id: 'garage', name: 'Гараж «Классика»', image: 'garage.webp', mood: 'Автомобиль и хранение', description: 'Лаконичный отдельно стоящий гараж с удобной зоной хранения. Размер и количество машиномест настраиваются под участок.', rooms: ['Машиноместо', 'Хранение', 'Техзона', 'Входная зона', 'Навес'], type: 'garage', tag: 'Гараж', meta: ['1 этаж', '1–2 машиноместа', 'Размер по проекту'] },
       { id: 'workshop', name: 'Мастерская', image: 'workshop.webp', mood: 'Работа и порядок', description: 'Тёплая хозяйственная постройка для мастерской, садовой техники или сезонного хранения.', rooms: ['Рабочая зона', 'Хранение', 'Техзона', 'Входная зона', 'Навес'], type: 'outbuilding', tag: 'Хозпостройка', meta: ['1 этаж', 'Гибкое зонирование', 'Стоимость по запросу'] },
       { id: 'carport', name: 'Навес «Линия»', image: 'carport.webp', mood: 'Лёгкая защита', description: 'Открытый навес на два автомобиля с закрытым хозяйственным отсеком и спокойной архитектурой.', rooms: ['Навес', 'Машиноместо', 'Машиноместо', 'Хранение', 'Проход'], type: 'garage', tag: 'Навес', meta: ['1 этаж', 'До 2 автомобилей', 'Размер по проекту'] },

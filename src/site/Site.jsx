@@ -41,8 +41,11 @@ function projectCountLabel(count) {
 }
 
 function ProjectCard({ project, onOpen, index = 0 }) {
+  const hasQuote = Number.isFinite(project.kitPrice) && Number.isFinite(project.assembledPrice);
   const hasPrice = typeof project.price === 'number' && Number.isFinite(project.price) && project.price > 0;
-  const priceLabel = hasPrice ? `${projectPriceFormat.format(project.price)} ₽` : 'Узнать цену';
+  const priceLabel = hasQuote
+    ? `Домокомплект от ${projectPriceFormat.format(project.kitPrice)} ₽, со сборкой от ${projectPriceFormat.format(project.assembledPrice)} ₽`
+    : hasPrice ? `${projectPriceFormat.format(project.price)} ₽` : 'Узнать цену';
   return (
     <button
       className="house-card motion-card"
@@ -79,19 +82,31 @@ function ProjectCard({ project, onOpen, index = 0 }) {
         ))}
       </div>
       {project.description ? <p className="house-summary">{project.description}</p> : null}
-      {project.highlights?.length ? <span className="house-feature">{project.highlights[0]}</span> : null}
-      <div className="house-card-bottom">
-        <span className="house-price-caption">Стоимость проекта</span>
-        <strong className={hasPrice ? 'house-price' : 'house-price house-price-inquiry'}>{priceLabel}</strong>
-        <span className="house-card-action">Подробнее <ArrowUpRight size={16} /></span>
-      </div>
+      {project.included ? <p className="house-included"><strong>Что входит:</strong> {project.included}</p> : project.highlights?.length ? <span className="house-feature">{project.highlights[0]}</span> : null}
+      {hasQuote ? (
+        <div className="house-card-bottom house-card-bottom-quoted">
+          <div className="house-price-lines">
+            <div><span>Домокомплект</span><strong>от {projectPriceFormat.format(project.kitPrice)} ₽</strong></div>
+            <div><span>Домокомплект со сборкой</span><strong>от {projectPriceFormat.format(project.assembledPrice)} ₽</strong></div>
+          </div>
+          <small>Смета от {project.quoteDate}. Итог уточняется по проекту.</small>
+          <span className="house-card-action">Подробнее <ArrowUpRight size={16} /></span>
+        </div>
+      ) : (
+        <div className="house-card-bottom">
+          <span className="house-price-caption">Стоимость проекта</span>
+          <strong className={hasPrice ? 'house-price' : 'house-price house-price-inquiry'}>{priceLabel}</strong>
+          <span className="house-card-action">Подробнее <ArrowUpRight size={16} /></span>
+        </div>
+      )}
     </button>
   );
 }
 
 function ProjectCollection({ category, expanded, onOpen, onToggle }) {
-  const firstProjects = category.projects.slice(0, 2);
-  const moreProjects = category.projects.slice(2);
+  const visibleCount = category.id === 'projects' ? 3 : 2;
+  const firstProjects = category.projects.slice(0, visibleCount);
+  const moreProjects = category.projects.slice(visibleCount);
   const extraId = `${category.id}-more`;
   return (
     <section
@@ -119,20 +134,6 @@ function ProjectCollection({ category, expanded, onOpen, onToggle }) {
         <span className="collection-count">
           {projectCountLabel(category.projects.length)}
         </span>
-        <button
-          className="collection-open"
-          aria-expanded={expanded}
-          aria-controls={extraId}
-          onClick={() => onToggle(category.id)}
-        >
-          <span>{expanded ? "Свернуть каталог" : "Показать весь каталог"}</span>
-          {!expanded ? <small>{projectCountLabel(category.projects.length).replace(' в подборке', '')}</small> : null}
-          {expanded ? (
-            <ArrowDown className="turn-up" size={17} />
-          ) : (
-            <ArrowUpRight size={17} />
-          )}
-        </button>
       </div>
       <div className="houses-grid">
         {firstProjects.map((project, index) => (
@@ -155,21 +156,22 @@ function ProjectCollection({ category, expanded, onOpen, onToggle }) {
             <ProjectCard
               key={project.id}
               project={project}
-              index={index + 2}
+              index={index + visibleCount}
               onOpen={(item) => onOpen({ ...item, category: category.title })}
             />
           ))}
         </div>
       </div>
-      {expanded ? (
-        <button
-          className="collection-close-bottom"
-          onClick={() => onToggle(category.id)}
-        >
-          <ArrowDown className="turn-up" size={18} />
-          Свернуть проекты
-        </button>
-      ) : null}
+      <button
+        className="collection-open collection-open-bottom"
+        aria-expanded={expanded}
+        aria-controls={extraId}
+        onClick={() => onToggle(category.id)}
+      >
+        <span>{expanded ? "Свернуть раздел" : "Показать весь раздел"}</span>
+        {!expanded ? <small>{projectCountLabel(category.projects.length).replace(' в подборке', '')}</small> : null}
+        {expanded ? <ArrowDown className="turn-up" size={17} /> : <ArrowUpRight size={17} />}
+      </button>
       <p className="catalog-note">
         Демонстрационные эскизы: размеры, состав и стоимость уточняются после
         обсуждения задачи.
