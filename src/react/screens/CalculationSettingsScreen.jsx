@@ -65,10 +65,10 @@ const FORMULA_GROUPS = [
   ]]
 ];
 
-export default function CalculationSettingsScreen() {
+export default function CalculationSettingsScreen({ embedded = false, suppliedCalculation = null }) {
   const { project, commit } = useProject();
-  const calculation = useMemo(() => calculateProject(project), [project]);
-  const flows = useMemo(() => calculationFlowRows(project, calculation), [project, calculation]);
+  const calculation = useMemo(() => suppliedCalculation || calculateProject(project), [project, suppliedCalculation]);
+  const flows = useMemo(() => embedded ? [] : calculationFlowRows(project, calculation), [project, calculation, embedded]);
   const priced = calculation.lines.filter((line) => line.catalogId && line.price > 0);
   const missing = calculation.lines.filter((line) => !line.catalogId || line.price <= 0);
   const priceAdjustments = normalizePriceAdjustments(project.settings.priceAdjustments);
@@ -87,6 +87,19 @@ export default function CalculationSettingsScreen() {
   });
   const resetFormulas = () => commit((next) => { next.settings.formulas = structuredClone(DEFAULT_FORMULAS); return next; });
   const resetPriceAdjustments = () => commit((next) => { next.settings.priceAdjustments = createDefaultPriceAdjustments(); return next; });
+  if (embedded) return <div className="calculation-settings-embedded" aria-label="Расчётные параметры проекта">
+    <p className="inspector-note">Изменения этих значений влияют на расчёт проекта. Сохранённые ручные переопределения и общий прайс не заменяются.</p>
+    <details className="parameter-subgroup"><summary>Автоматические связи с планом</summary>
+      {LINK_FIELDS.map(([key, label, hint]) => <Toggle key={key} label={label} hint={hint} checked={project.settings.links[key]} onChange={value => updateLink(key, value)} />)}
+    </details>
+    <details className="parameter-subgroup"><summary>Скидка и наценка по разделам</summary>
+      <p className="inspector-note">Влияет на верхнюю плашку «Изменённая цена». Базовая смета и прайс сохраняются.</p>
+      <div className="price-adjustment-grid">{PRICE_ADJUSTMENT_GROUPS.map(({ key, label }) => <article key={key}><strong>{label}</strong><NumberField label="Материалы" value={priceAdjustments[key].materials} min={-100} max={500} step={1} suffix="%" onChange={value => updatePriceAdjustment(key, 'materials', value)} /><NumberField label="Работы" value={priceAdjustments[key].labor} min={-100} max={500} step={1} suffix="%" onChange={value => updatePriceAdjustment(key, 'labor', value)} /></article>)}</div>
+      <button type="button" className="button secondary" onClick={resetPriceAdjustments}>Обнулить скидку и наценку</button>
+    </details>
+    {FORMULA_GROUPS.map(([group, definitions]) => <details key={group} className="parameter-subgroup"><summary>{group}</summary><div className="form-grid formula-grid">{definitions.map(([key, label, unit]) => <NumberField key={key} label={label} value={project.settings.formulas[key]} suffix={unit} min={0} step={project.settings.formulas[key] < 0.1 ? .001 : .1} onChange={value => updateFormula(key, value)} />)}</div></details>)}
+    <button type="button" className="button secondary" onClick={resetFormulas}>Восстановить исходные коэффициенты</button>
+  </div>;
   return <div className="screen calculation-settings-screen"><ScreenHeader title="Настройки расчёта" actions={<button className="button secondary" onClick={resetFormulas}><RotateCcw />Исходные коэффициенты</button>} />
     <div className="stats-row"><Stat label="Автоматические связи" value={`${Object.values(calculation.inputs.links).filter(Boolean).length} из ${LINK_FIELDS.length}`} tone="accent" /><Stat label="Расчётных строк" value={`${calculation.lines.length} шт`} /><Stat label="Связано с прайсом" value={`${priced.length} шт`} /><Stat label="Требует цены" value={`${missing.length} шт`} tone={missing.length ? 'danger' : ''} /><Stat label="Итого сметы" value={formatMoney(calculation.totals.total)} /></div>
     <Panel className="price-adjustment-panel" title="Скрытая скидка и наценка" description="Настройка влияет только на верхнюю плашку «Изменённая цена». Прайс-лист, строки сметы, печать, коммерческое предложение и экспорт сохраняют базовые цены.">

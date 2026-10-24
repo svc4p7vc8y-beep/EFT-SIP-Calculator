@@ -7158,6 +7158,8 @@ select,
 .parameter-section-chevron { width:16px; height:16px; flex:0 0 auto; transition:transform .16s ease; }
 .parameter-section[open] .parameter-section-chevron { transform:rotate(180deg); }
 .parameters-embedded { min-width:0; padding:0; background:transparent; }
+.parameter-section-jump { display:grid; gap:5px; margin-bottom:9px; color:#3d4e91; font-size:11px; font-weight:800; }
+.parameter-section-jump select { width:100%; min-height:37px; padding:6px 8px; border:1px solid #cbd2f2; border-radius:8px; background:#fff; color:var(--text); font:inherit; }
 .parameters-embedded .parameters-master-layout { display:block; }
 .parameters-embedded .parameter-section { margin-bottom:8px; border-radius:9px; box-shadow:none; }
 .parameters-embedded .parameter-section > summary { min-height:50px; padding:8px 10px; gap:8px; }
@@ -7174,6 +7176,18 @@ select,
 .parameters-embedded .parameter-platform-list > article > header .toggle-row { min-width:0; }
 .parameters-embedded .parameter-readouts { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .parameters-embedded .exterior-editor .form-grid, .parameters-embedded .exterior-editor .form-grid.three, .parameters-embedded .exterior-editor .form-grid.four { grid-template-columns:minmax(0,1fr); }
+.plan-right-calculation-settings { margin:0 0 9px; border:1px solid #cbd2f2; border-radius:8px; background:#f7f8ff; }
+.plan-right-calculation-settings > summary { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:11px; color:#3d4e91; font-size:12px; font-weight:800; cursor:pointer; }
+.plan-right-calculation-settings > summary svg { width:16px; height:16px; flex:none; }
+.plan-right-calculation-settings[open] > summary svg { transform:rotate(180deg); }
+.calculation-settings-embedded { padding:0 9px 10px; min-width:0; }
+.calculation-settings-embedded .parameter-subgroup { margin-top:8px; padding:9px; background:#fff; }
+.calculation-settings-embedded .parameter-subgroup > summary, .parameters-embedded details.parameter-subgroup > summary { cursor:pointer; font-weight:800; line-height:1.4; }
+.calculation-settings-embedded .parameter-subgroup[open] > summary, .parameters-embedded details.parameter-subgroup[open] > summary { margin-bottom:10px; }
+.calculation-settings-embedded .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.calculation-settings-embedded .price-adjustment-grid article { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.calculation-settings-embedded .price-adjustment-grid article > strong { grid-column:1/-1; }
+.calculation-settings-embedded .field, .calculation-settings-embedded .field input { min-width:0; }
 .parameter-preset-button { display:flex; align-items:center; gap:7px; width:100%; margin:0 0 9px; padding:9px 11px; border:1px solid #cbd2f2; border-radius:8px; background:#f0f2ff; color:#4e5da5; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
 .parameter-preset-button svg { width:16px; height:16px; }
 .plan-right-house { display:block; }

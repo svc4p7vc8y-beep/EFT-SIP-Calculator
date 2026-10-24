@@ -102,6 +102,7 @@ import { useProject } from "../state/ProjectContext.jsx";
 import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
 const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
+const CalculationSettingsPanel=lazy(()=>import('./CalculationSettingsScreen.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
 import {
   applyPlanTransfer,
@@ -5059,6 +5060,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [showPlan3D,setShowPlan3D]=useState(true);
   const [plan3DPlacement,setPlan3DPlacement]=useState('dock');
   const [inspectorTab,setInspectorTab]=useState('house');
+  const [calculationParametersOpen,setCalculationParametersOpen]=useState(false);
   const [showFullscreenInspector,setShowFullscreenInspector]=useState(true);
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
   const [foundationDraft, setFoundationDraft] = useState(() => ({
@@ -6557,6 +6559,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           ) : null}
         </div>
         </details>
+              <details className="plan-right-calculation-settings" onToggle={event => setCalculationParametersOpen(event.currentTarget.open)}>
+                <summary>Расчётные нормы, связи и наценки <ChevronDown aria-hidden="true" /></summary>
+                {calculationParametersOpen ? <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю расчётные параметры…</p>}><CalculationSettingsPanel embedded suppliedCalculation={projectCalculation} /></Suspense> : null}
+              </details>
               <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю параметры дома…</p>}>
                 <ParametersPanel embedded suppliedCalculation={projectCalculation} />
               </Suspense>

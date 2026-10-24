@@ -8,6 +8,7 @@ import { calculateProject } from "../calculations/estimate-engine.js";
 import { roofRafterControlValues } from "../calculations/roof-control-values.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
+import DeliveryVolume from '../components/DeliveryVolume.jsx';
 import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
 import { useProject } from "../state/ProjectContext.jsx";
 import {
@@ -21,6 +22,7 @@ import {
 import { formatNumber } from "../utils/format.js";
 import { resizeProjectHouse } from "../planner/geometry.js";
 import { ensureProjectFloorCount } from "../state/project-model.js";
+import { normalizeProductionCutting } from '../state/production-cutting.js';
 import { applyResidentialStandard } from '../state/residential-preset.js';
 import {
   releasePlanLinkedQuantityOverrides,
@@ -99,6 +101,7 @@ const sectionAppearance = {
   openings: { icon: DoorOpen, color: 'sky' },
   engineering: { icon: Wrench, color: 'blue' },
   delivery: { icon: Truck, color: 'olive' },
+  production: { icon: PanelsTopLeft, color: 'teal' },
 };
 
 function Section({ id, number, title, description, children }) {
@@ -275,6 +278,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
         target = target[key];
       });
       target[keys.at(-1)] = value;
+      if (path.startsWith('settings.productionCutting.')) next.settings.productionCutting = normalizeProductionCutting(next.settings.productionCutting);
       if (path === "settings.roof.includeCovering") {
         next.settings.roof.showRoofCover = value;
         next.settings.roof.showLath = value;
@@ -439,10 +443,23 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
         ? `${formatNumber(project.settings.delivery.distance)} км · ${project.settings.delivery.trips} рейс.`
         : "отключено",
     },
+    { id: 'production', title: 'Производство и раскрой', ready: true, note: 'Глобальные параметры деталировки' },
   ];
 
   return (
     <div className={`screen parameters-master-screen${embedded ? ' parameters-embedded' : ''}`}>
+      {embedded ? <label className="parameter-section-jump">Раздел параметров
+        <select defaultValue="" onChange={event => {
+          const section = document.getElementById(`parameter-${event.target.value}`);
+          if (section) {
+            section.open = true;
+            const scroller = section.closest('.planner-inspector-detail');
+            if (scroller) scroller.scrollTo({ top: scroller.scrollTop + section.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 8, behavior: 'smooth' });
+            else section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          event.target.value = '';
+        }}><option value="" disabled>Выберите раздел…</option>{checklist.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
+      </label> : null}
       {embedded ? <button type="button" className="parameter-preset-button" onClick={() => setPresetOpen(true)}><Home aria-hidden="true" /> Стандарт жилого дома</button> : <ScreenHeader
         title="Параметры проекта"
         description="Главный опросный лист: пройдите его сверху вниз, и данные перейдут в план, калькуляторы, смету и печать"
@@ -703,6 +720,21 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           >
             {!project.services.foundation ? <p className="inspector-note">Бетонное основание считается готовым. Комплект лежачего бруса 100×150, отсечную гидроизоляцию, анкеры и монтаж настройте в разделе «Сваи → Готовое бетонное основание». Свайные работы не добавляются.</p> : null}
             {fields([
+              { path: 'settings.piles.pileType', label: 'Тип основания', type: 'select', options: [
+                { value: 'screw', label: 'Винтовые сваи 108 мм' },
+                { value: 'reinforcedConcrete', label: 'Забивные ЖБ сваи' },
+                { value: 'concreteBlock', label: 'Бетонные блоки' },
+              ] },
+              { path: 'settings.piles.bindingType', label: 'Конструкция обвязки', type: 'select', options: [
+                { value: 'boards', label: 'Пакет досок' }, { value: 'timber', label: 'Цельный брус 150×150' },
+              ] },
+            ])}
+            {project.settings.piles.pileType === 'concreteBlock' ? <div className="parameter-subgroup"><strong>Габариты бетонного блока · подтвердить по проекту</strong>{fields([
+              { path: 'settings.piles.blockDimensions.widthMm', label: 'Ширина блока', suffix: 'мм', min: 1, step: 1 },
+              { path: 'settings.piles.blockDimensions.lengthMm', label: 'Длина блока', suffix: 'мм', min: 1, step: 1 },
+              { path: 'settings.piles.blockDimensions.heightMm', label: 'Высота блока', suffix: 'мм', min: 1, step: 1 },
+            ])}</div> : null}
+            {fields([
               {
                 path: "settings.piles.spacing",
                 label: "Предельный шаг свай",
@@ -738,9 +770,28 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 suffix: "м",
                 value: 6,
                 disabled: true,
-                hint: "Стандарт закупки ЭФТ",
+                hint: "Расчётная модель обвязки сейчас использует доску 6 м",
               },
             ])}
+            <div className="parameter-subgroup"><strong>Автоматическая схема свай</strong><p className="inspector-note">Эти настройки применяются к геометрии после команды «Перестроить» в инструменте свай. Сохранённые точки сами не перемещаются.</p>{fields([
+              { path: 'settings.piles.autoLayoutMode', label: 'Расположение', type: 'select', options: [
+                { value: 'nodes', label: 'По узлам стен' }, { value: 'uniform', label: 'Равномерная сетка' }, { value: 'contour', label: 'По контуру' },
+              ] },
+              project.settings.piles.autoLayoutMode === 'uniform' && { path: 'settings.piles.autoRowSpacing', label: 'Шаг рядов', suffix: 'м', min: 0.5, max: 6 },
+            ])}
+              <Toggle label="Опоры под внутренними стенами" checked={project.settings.piles.autoIncludeInteriorWalls !== false} onChange={value => write('settings.piles.autoIncludeInteriorWalls', value)} />
+              <Toggle label="Учитывать террасы и крыльца" checked={project.settings.piles.includePlatforms !== false} onChange={value => write('settings.piles.includePlatforms', value)} />
+              <Toggle label="Обвязка следует за свайными рядами" checked={project.settings.piles.autoSyncBinding !== false} onChange={value => write('settings.piles.autoSyncBinding', value)} />
+            </div>
+            <div className="parameter-subgroup"><strong>Готовое бетонное основание</strong>
+              <Toggle label="Добавить комплект по бетону" checked={project.settings.piles.concreteBase?.enabled !== false} onChange={value => write('settings.piles.concreteBase.enabled', value)} />
+              {fields([
+                { path: 'settings.piles.concreteBase.length', label: 'Длина обвязки по бетону', suffix: 'м', min: 0, value: project.settings.piles.concreteBase?.length ?? calculation.foundation.concreteBase.perimeter },
+                { path: 'settings.piles.concreteBase.anchorSpacingM', label: 'Шаг анкеров', suffix: 'м', min: 0.3, max: 3 },
+                { path: 'settings.piles.concreteBase.anchorCount', label: 'Анкеров вручную', suffix: 'шт', min: 0, step: 1, integer: true, value: project.settings.piles.concreteBase?.anchorCount ?? calculation.foundation.concreteBase.anchorCount },
+              ])}
+              <button type="button" className="button secondary" onClick={() => commit(next => { next.settings.piles.concreteBase.length = null; next.settings.piles.concreteBase.anchorCount = null; return next; })}>Длину и анкеры считать по плану</button>
+            </div>
             <div className="parameter-readouts">
               <div className="readout">
                 <span>Сваи</span>
@@ -855,6 +906,9 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "50x150", label: "50×150 мм" },
                 ],
               },
+              project.settings.sip.partitionType !== 'sip' && { path: 'settings.sip.partitionCalculationMode', label: 'Расчёт каркаса', type: 'select', options: [
+                { value: 'linear', label: 'По стойкам и обвязкам' }, { value: 'area', label: 'По площади · быстрый' },
+              ] },
               {
                 path: "settings.sip.connectorType",
                 label: "Силовой каркас",
@@ -904,6 +958,12 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 ],
               },
             ])}
+            <div className="parameter-subgroup"><strong>Метизы по узлам</strong>{fields([
+              { path: 'settings.nodeFasteners.reservePercent', label: 'Запас крепежа', suffix: '%', min: 0, max: 100, step: 1, integer: true },
+            ])}
+              {Object.entries(project.settings.nodeFasteners.packSizes || {}).length ? <details><summary>Упаковки по типоразмерам</summary>{Object.entries(project.settings.nodeFasteners.packSizes).map(([size, quantity]) => <NumberField key={size} label={`${size} · штук в упаковке`} value={quantity} min={0} step={1} onChange={value => commit(next => { if (value > 0) next.settings.nodeFasteners.packSizes[size] = Math.round(value); else delete next.settings.nodeFasteners.packSizes[size]; return next; })} />)}</details> : null}
+              <p className="inspector-note">Новые типоразмеры и узлы назначаются в разделе «Метизы по узлам» после технической проверки.</p>
+            </div>
             <div className="parameter-readouts">
               {(project.meta.floors || 1) > 1 ? (
                 <>
@@ -1182,6 +1242,46 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 integer: true,
               },
             ])}
+            {project.settings.roof.shape === 'gable' && project.settings.roof.type === 'combo' && project.settings.roof.gableType !== 'none' ? <div className="parameter-subgroup"><strong>Фронтоны комбинированной кровли</strong>{['first', 'second'].slice(0, project.settings.roof.gableCount ?? 2).map((side, index) => <SelectField key={side} label={`Фронтон ${index + 1}`} value={project.settings.roof.gableSideTypes?.[side] || 'auto'} options={[
+              { value: 'auto', label: 'По общему выбору' }, { value: 'sip', label: 'SIP-панели' }, { value: 'frame', label: 'Каркас 50×150 мм + OSB' },
+            ]} onChange={value => write('settings.roof.gableSideTypes', { ...project.settings.roof.gableSideTypes, [side]: value })} />)}</div> : null}
+            {project.settings.roof.shape === 'gable' && project.settings.roof.type === 'cold' && calculation.roof.rafterStructure?.system === 'hanging' ? <div className="parameter-subgroup"><strong>Висячие стропила</strong>
+              <Toggle label="Ригели висячих пар" checked={project.settings.roof.hangingRiegelEnabled !== false} onChange={value => write('settings.roof.hangingRiegelEnabled', value)} />
+              {project.settings.roof.hangingRiegelEnabled !== false ? <NumberField label="Высота ригеля · % подъёма конька" value={project.settings.roof.hangingRiegelHeightPercent ?? 50} suffix="%" min={10} max={90} step={5} onChange={value => write('settings.roof.hangingRiegelHeightPercent', value)} /> : null}
+              <p className="inspector-note">Положение ригеля эскизное. Сечение и узел крепления подтверждаются расчётом.</p>
+            </div> : null}
+            {project.settings.roof.shape === 'gable' && project.settings.roof.type === 'cold' && calculation.roof.rafterStructure?.system === 'layered' ? <div className="parameter-subgroup"><strong>Наслонные стропила</strong>
+              <Toggle label="Опорные рамы" checked={project.settings.roof.layeredFrameEnabled !== false} onChange={value => write('settings.roof.layeredFrameEnabled', value)} />
+              {project.settings.roof.layeredFrameEnabled !== false ? <>
+                <SelectField label="Расположение прогонов" value={project.settings.roof.layeredFrameMode || 'auto'} options={[{ value: 'auto', label: 'Автоматически' }, { value: 'manual', label: 'Вручную' }]} onChange={value => write('settings.roof.layeredFrameMode', value)} />
+                {project.settings.roof.layeredFrameMode === 'manual' ? <>
+                  <SelectField label="Количество прогонов" value={String(project.settings.roof.layeredFrameCount || 2)} options={[1, 2, 3].map(value => ({ value: String(value), label: `${value} шт` }))} onChange={value => write('settings.roof.layeredFrameCount', Number(value))} />
+                  {Array.from({ length: Number(project.settings.roof.layeredFrameCount) || 2 }, (_, index) => {
+                    const count = Number(project.settings.roof.layeredFrameCount) || 2;
+                    const current = project.settings.roof.layeredFramePositions;
+                    return <NumberField key={index} label={`Прогон ${index + 1} · от края ширины`} value={(current?.length === count ? current[index] : undefined) ?? Math.round((index + 1) * 100 / (count + 1))} suffix="%" min={5} max={95} step={1} onChange={value => {
+                      const positions = Array.from({ length: count }, (_, item) => current?.length === count ? current[item] : Math.round((item + 1) * 100 / (count + 1)));
+                      positions[index] = value;
+                      write('settings.roof.layeredFramePositions', positions);
+                    }} />;
+                  })}
+                </> : null}
+                <SelectField label="Шаг стоек" value={project.settings.roof.layeredFramePostSpacingMode || 'auto'} options={[{ value: 'auto', label: 'Автоматически' }, { value: 'manual', label: 'Вручную' }]} onChange={value => write('settings.roof.layeredFramePostSpacingMode', value)} />
+                {project.settings.roof.layeredFramePostSpacingMode === 'manual' ? <NumberField label="Максимальный шаг стоек" value={(project.settings.roof.layeredFramePostSpacingMm || 1000) / 1000} suffix="м" min={1} max={6} step={0.1} onChange={value => write('settings.roof.layeredFramePostSpacingMm', Math.round(value * 1000))} /> : null}
+              </> : null}
+              <p className="inspector-note">Опирание, соединения и сечения проверяются конструктором.</p>
+            </div> : null}
+            <div className="parameter-subgroup"><strong>Снегозадержатели</strong>
+              {['flat', 'hip'].includes(project.settings.roof.shape) ? <p className="inspector-note">Для плоской и вальмовой кровли этот расчёт не применяется.</p> : null}
+              <SelectField label="Скаты" value={project.settings.roof.snowGuards?.mode || 'none'} disabled={['flat', 'hip'].includes(project.settings.roof.shape)} options={[{ value: 'none', label: 'Не учитывать' }, { value: 'first', label: 'Первый скат' }, { value: 'second', label: 'Второй скат' }, { value: 'both', label: 'Оба ската' }]} onChange={mode => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, mode })} />
+              {['first', 'both'].includes(project.settings.roof.snowGuards?.mode) ? <NumberField label="Длина первого ската" value={calculation.roof.snowGuards?.firstLength ?? 0} suffix="м" min={0} step={0.1} onChange={firstLength => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, firstLength })} /> : null}
+              {['second', 'both'].includes(project.settings.roof.snowGuards?.mode) ? <NumberField label="Длина второго ската" value={calculation.roof.snowGuards?.secondLength ?? 0} suffix="м" min={0} step={0.1} onChange={secondLength => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, secondLength })} /> : null}
+              {project.settings.roof.snowGuards?.mode !== 'none' ? <details><summary>Цены снегозадержателей</summary>
+                <NumberField label="Комплект 3 м" value={calculation.roof.snowGuards?.materialPrice ?? 0} suffix="₽/компл" min={0} disabled={Boolean(project.sharedPriceCatalog)} onChange={materialPrice => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, materialPrice })} />
+                <NumberField label="Монтаж" value={calculation.roof.snowGuards?.laborPrice ?? 0} suffix="₽/м" min={0} disabled={Boolean(project.sharedPriceCatalog)} onChange={laborPrice => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, laborPrice })} />
+                <button type="button" className="button secondary" onClick={() => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, materialPrice: null, laborPrice: null })}>Вернуть цены прайса</button>
+              </details> : null}
+            </div>
             {calculation.roof.layeredRidgeLength > 0 ? <div className="roof-cost-warning"><strong>Наслонная система: опоры — по проекту</strong><span>В смете учтены верхний и нижний ряды конькового прогона 100×50 мм и монтаж обоих рядов. Стойки, опирание и несущая способность прогона определяются конструктором и в автоматическую смету не включены. Количество и цену можно изменить в ведомости проекта.</span></div> : null}
             <div className="toggle-grid parameter-roof-toggles">
               {[
@@ -1414,12 +1514,18 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 step: 10,
               },
             ])}
+            <details className="parameter-subgroup"><summary>Объёмы материалов по категориям</summary>
+              <DeliveryVolume project={project} calculation={calculation} onChange={volumeGroups => write('settings.delivery.volumeGroups', volumeGroups)} />
+            </details>
             <div className="parameter-layer-box">
               <strong>Печатные схемы</strong>
               <div className="toggle-grid">
                 {[
                   ["includePlan", "План дома", true],
+                  ["separatePlanSheets", "Каждый этаж отдельным листом", true],
                   ["includeRoof", "Крыша на контуре", false],
+                  ["separatePileSheet", "Свайное поле отдельным листом", false],
+                  ["separateRoofSheet", "Крыша отдельным листом", true],
                   ["showContour", "Контур дома", true],
                   ["showRooms", "Комнаты", true],
                   ["showOpenings", "Окна и двери", true],
@@ -1441,6 +1547,35 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 ))}
               </div>
             </div>
+            <div className="parameter-layer-box"><strong>Состав печатной сметы</strong><div className="toggle-grid">
+              {[
+                ['includeLabor', 'Включить работы', true],
+                ['includeAccessories', 'Крепёж и сопутствующие товары', true],
+                ['compactAccessories', 'Сгруппировать монтажные комплекты', true],
+                ['maximumCompact', 'Максимально компактно', false],
+                ['superCompact', 'Сверхкомпактная таблица', false],
+              ].map(([key, label, defaultOn]) => <Toggle key={key} label={label} checked={defaultOn ? project.settings.print[key] !== false : project.settings.print[key] === true} onChange={value => write(`settings.print.${key}`, value)} />)}
+            </div></div>
+          </Section>
+          <Section id="production" number="11" title="Производство и раскрой" description="Общие настройки деталировки. Индивидуальные панели и узлы остаются в рабочем чертеже.">
+            <p className="inspector-note">Размеры и допуски изменяют производственную деталировку. Проверьте их по рабочему проекту перед выпуском в работу.</p>
+            {fields([
+              { path: 'settings.productionCutting.wallPanelMode', label: 'Раскладка стен', type: 'select', options: [{ value: 'full', label: 'Целые панели у проёмов' }, { value: 'grid', label: 'По шагу каркаса' }] },
+              { path: 'settings.productionCutting.profileMode', label: 'Сечения деталей', type: 'select', options: [{ value: 'saved', label: 'Сохранённые в проекте' }, { value: 'estimate', label: 'Из расчётной сметы' }] },
+              { path: 'settings.productionCutting.frameStepMm', label: 'Шаг силового каркаса', suffix: 'мм', min: 100, max: 2500, step: 1 },
+              { path: 'settings.productionCutting.windowSillMm', label: 'Низ окна по умолчанию', suffix: 'мм', min: 0, max: 30000, step: 1 },
+              { path: 'settings.productionCutting.stockLengthMm', label: 'Длина хлыста', suffix: 'мм', min: 500, max: 15000, step: 1 },
+              { path: 'settings.productionCutting.splineWidthMm', label: 'Ширина шпонки', suffix: 'мм', min: 20, max: 300, step: 1 },
+              { path: 'settings.productionCutting.edgeWidthMm', label: 'Толщина торцевой доски', suffix: 'мм', min: 20, max: 300, step: 1 },
+              { path: 'settings.productionCutting.rafterGeometry', label: 'Геометрия стропил', type: 'select', options: [{ value: 'wallSlope', label: 'По уклону стен' }, { value: 'estimate', label: 'По сметной модели' }] },
+            ])}
+            <Toggle label="Шахматная раскладка пола и потолка" checked={project.settings.productionCutting.staggered !== false} onChange={value => write('settings.productionCutting.staggered', value)} />
+            <Toggle label="Поворот заготовок на 90°" checked={project.settings.productionCutting.allowRotation === true} onChange={value => write('settings.productionCutting.allowRotation', value)} />
+            <Toggle label="Деталировка каркаса перегородок в смете" checked={project.settings.productionCutting.detailedFrameEstimate !== false} onChange={value => write('settings.productionCutting.detailedFrameEstimate', value)} />
+            <Toggle label="Привязка потолка к несущим стенам" checked={project.settings.productionCutting.ceilingBearingAlignment !== false} onChange={value => write('settings.productionCutting.ceilingBearingAlignment', value)} />
+            <Toggle label="Стыки SIP по примыканиям перегородок" checked={project.settings.productionCutting.partitionSipAlignment !== false} onChange={value => write('settings.productionCutting.partitionSipAlignment', value)} />
+            <Toggle label="Стыки пола вдоль перегородок" checked={project.settings.productionCutting.floorPartitionAlignment === true} onChange={value => write('settings.productionCutting.floorPartitionAlignment', value)} />
+            <Toggle label="Показывать пристройки в раскрое" checked={project.settings.productionCutting.showPlatforms !== false} onChange={value => write('settings.productionCutting.showPlatforms', value)} />
           </Section>
         </div>
         {!embedded ? <Navigator items={checklist} /> : null}
