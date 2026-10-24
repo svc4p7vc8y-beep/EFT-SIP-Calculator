@@ -37,7 +37,7 @@ function EstimateSectionEditor({ section, project, commit }) {
   />;
 }
 
-export default function EstimateScreen() {
+export default function EstimateScreen({ directPrint = false, onDirectPrintDone }) {
   const [formationDate, setFormationDate] = useState(() => new Date().toLocaleDateString('ru-RU'));
   useEffect(() => {
     const refreshDate = () => flushSync(() => setFormationDate(new Date().toLocaleDateString('ru-RU')));
@@ -158,6 +158,38 @@ export default function EstimateScreen() {
     flushSync(() => setPrintReady(false));
     handlePrint();
   };
+  const runDirectPrint = useCurrentPriceAction(() => {
+    if (pendingClientPrices.length) {
+      window.alert(`Заполните цены в прайс-листе: ${pendingClientPrices.map((line) => line.name).join(' · ')}`);
+      return false;
+    }
+    document.body.classList.add('print-estimate-from-plan');
+    window.print();
+    return true;
+  });
+  const directPrintActionRef = useRef(runDirectPrint);
+  directPrintActionRef.current = runDirectPrint;
+  const directPrintDoneRef = useRef(onDirectPrintDone);
+  directPrintDoneRef.current = onDirectPrintDone;
+  useEffect(() => {
+    if (!directPrint) return undefined;
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => requestAnimationFrame(async () => {
+      if (cancelled) return;
+      const started = await directPrintActionRef.current();
+      if (started !== true) directPrintDoneRef.current?.();
+    }));
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
+  }, [directPrint]);
+  useEffect(() => {
+    if (!directPrint) return undefined;
+    const finish = () => onDirectPrintDone?.();
+    window.addEventListener('afterprint', finish);
+    return () => {
+      window.removeEventListener('afterprint', finish);
+      document.body.classList.remove('print-estimate-from-plan');
+    };
+  }, [directPrint, onDirectPrintDone]);
   const exportCurrent = useCurrentPriceAction(() => {
     if (project.sharedPriceCatalog && pendingClientPrices.length) { window.alert('Заполните недостающие цены в общем прайс-листе перед выгрузкой сметы.'); return; }
     downloadEstimateWorkbook(project, calculation);

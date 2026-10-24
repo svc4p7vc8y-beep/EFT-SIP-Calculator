@@ -1,5 +1,5 @@
-const CACHE_NAME = 'eft-calculator-react-v295';
-const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png'];
+const CACHE_NAME = 'eft-calculator-react-v297';
+const APP_SHELL = ['./react.html', './manifest.webmanifest', './icons/eft-logo.png', './icons/eft-app-192.png', './icons/eft-app-512.png', './icons/eft-favicon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

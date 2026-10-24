@@ -80,6 +80,7 @@ import {
   pileRowPoints,
 } from "../calculations/foundation-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
+import { buildCommercialScope } from "../calculations/commercial-scope.js";
 import { attachedHouseContour, shiftPlanContents } from '../planner/attached-contour.js';
 import { referenceBuildingContour, newHouseAtExistingCorner } from '../planner/existing-building.js';
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
@@ -102,6 +103,7 @@ import {
 import { useProject } from "../state/ProjectContext.jsx";
 import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
 const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
+const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
 const CalculationSettingsPanel=lazy(()=>import('./CalculationSettingsScreen.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
@@ -5062,6 +5064,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [plan3DPlacement,setPlan3DPlacement]=useState('dock');
   const [inspectorTab,setInspectorTab]=useState('house');
   const [calculationParametersOpen,setCalculationParametersOpen]=useState(false);
+  const [directEstimatePrint,setDirectEstimatePrint]=useState(false);
+  const finishEstimatePrint=useCallback(()=>setDirectEstimatePrint(false),[]);
   const [showFullscreenInspector,setShowFullscreenInspector]=useState(true);
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
   const [foundationDraft, setFoundationDraft] = useState(() => ({
@@ -5192,6 +5196,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     [project.plan, project.settings.piles],
   );
   const projectCalculation = useMemo(() => calculateProject(project), [project]);
+  const estimateScope = useMemo(() => buildCommercialScope(project, projectCalculation, project.settings.print || {}), [project, projectCalculation]);
   const foundationPreview = useMemo(() => {
     const manualRows = (project.plan.pileRows || []).filter((row) => !row.auto);
     const autoRows = generateAutoPileRows(project.plan, foundationDraft.spacing, {
@@ -6614,10 +6619,18 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             />
           )}
           </div>
-          <div className="plan-inspector-estimate no-print">
-            <details><summary>Что входит в смету · {formatMoney(projectCalculation.totals.total)}</summary><ul>{projectCalculation.sections.filter((section) => section.lines.length).map((section) => <li key={section.key}><span>{section.title}</span><strong>{formatMoney(section.lines.reduce((sum, line) => sum + line.qty * line.price, 0))}</strong></li>)}</ul></details>
-            <button type="button" className="button primary" onClick={() => onNavigate?.('estimate')}><Printer />Состав и печать сметы</button>
-          </div>
+          <details className="plan-inspector-estimate no-print">
+            <summary>Смета · Итого {formatMoney(projectCalculation.totals.total)}</summary>
+            <div className="plan-inspector-estimate-content">
+              <strong>Что посчитано и входит в смету</strong>
+              <p>Состав соответствует активным разделам и настройкам печати проекта.</p>
+              <ul>{estimateScope.map((item) => <li key={item.key}><div><strong>{item.title}</strong><span>{item.summary}</span><small>{item.details}</small></div><strong>{item.total}</strong></li>)}</ul>
+              <div className="plan-inspector-estimate-actions">
+                <button type="button" className="button secondary" onClick={() => onNavigate?.('estimate')}>Перейти в смету</button>
+                <button type="button" className="button primary" onClick={() => setDirectEstimatePrint(true)} disabled={directEstimatePrint}><Printer />Печать сметы</button>
+              </div>
+            </div>
+          </details>
         </aside>
       </div>
       <div className="stats-row planner-stats">
@@ -6650,6 +6663,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           tone={issues.length ? "danger" : ""}
         />
       </div>
+      {directEstimatePrint ? <Suspense fallback={null}><div className="plan-estimate-print-host"><EstimatePrintScreen directPrint onDirectPrintDone={finishEstimatePrint} /></div></Suspense> : null}
     </div>
   );
 }
