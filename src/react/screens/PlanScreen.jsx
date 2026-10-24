@@ -33,6 +33,7 @@ import {
   PanelsTopLeft,
   Pentagon,
   Plus,
+  Printer,
   Redo2,
   RotateCw,
   Ruler,
@@ -6227,6 +6228,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             <button type="button" className="remove-floor" title="Удалить 2 этаж" aria-label="Удалить 2 этаж" onClick={removeSecondFloor}><Trash2 /></button>
           </> : null}
         </div>
+        <div className="plan-status-total" aria-live="polite"><span>Итого</span><strong>{formatMoney(projectCalculation.totals.total)}</strong></div>
+        <button type="button" className="plan-status-fullscreen" aria-label={isPlanFullscreen ? 'Свернуть план' : 'План во весь экран'} aria-pressed={isPlanFullscreen} onClick={() => { if (!isPlanFullscreen && window.innerWidth <= 760) setShowFullscreenInspector(false); setIsPlanFullscreen((value) => !value); }}>{isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{isPlanFullscreen ? 'Свернуть' : 'Во весь экран'}</span></button>
         <div className="plan-view-switches">
           <Toggle
             label="Сваи"
@@ -6610,6 +6613,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               issues={issues}
             />
           )}
+          </div>
+          <div className="plan-inspector-estimate no-print">
+            <details><summary>Что входит в смету · {formatMoney(projectCalculation.totals.total)}</summary><ul>{projectCalculation.sections.filter((section) => section.lines.length).map((section) => <li key={section.key}><span>{section.title}</span><strong>{formatMoney(section.lines.reduce((sum, line) => sum + line.qty * line.price, 0))}</strong></li>)}</ul></details>
+            <button type="button" className="button primary" onClick={() => onNavigate?.('estimate')}><Printer />Состав и печать сметы</button>
           </div>
         </aside>
       </div>

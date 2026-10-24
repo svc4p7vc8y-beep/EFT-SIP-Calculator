@@ -12,6 +12,17 @@ export function validateImportedProject(data) {
     throw new Error("В файле нет данных проекта ЭФТ");
   if (hasPlan && (!isRecord(data.plan.house) || !Array.isArray(data.plan.rooms)))
     throw new Error("План дома имеет неверную структуру");
+  if (hasPlan && (data.plan.house.w === undefined || data.plan.house.h === undefined))
+    throw new Error("План дома: отсутствуют размеры контура");
+  if (hasPlan && (![data.plan.house.w, data.plan.house.h].every((size) => (typeof size === 'number' || typeof size === 'string' && size.trim() !== '') && Number.isFinite(Number(size)) && Number(size) >= 0) ||
+    (Number(data.plan.house.w) === 0) !== (Number(data.plan.house.h) === 0)))
+    throw new Error("План дома: проверьте ширину и длину контура");
+  const validEstimateNumber = (value) => (typeof value === 'number' || typeof value === 'string' && value.trim() !== '') && Number.isFinite(Number(value)) && Number(value) >= 0;
+  for (const line of [...(Array.isArray(data.customEstimateLines) ? data.customEstimateLines : []),
+    ...(Array.isArray(data.estimateOverrides) ? data.estimateOverrides : [])]) {
+    if (!isRecord(line) || ['qty', 'price'].some((key) => line[key] !== undefined && !validEstimateNumber(line[key])))
+      throw new Error("Смета содержит недопустимое количество или цену");
+  }
   if (data.plan !== undefined && !hasPlan)
     throw new Error("План дома имеет неверную структуру");
   if (data.meta !== undefined && !isRecord(data.meta))

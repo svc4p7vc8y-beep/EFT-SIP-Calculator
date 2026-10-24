@@ -13,4 +13,8 @@ test("current and legacy EFT projects still import", () => {
   assert.equal(migrateProject(validateImportedProject(current)).plan.house.w, current.plan.house.w);
   assert.doesNotThrow(() => migrateProject(validateImportedProject({ estimate: [], params: [] })));
   assert.throws(() => validateImportedProject({ ...current, plan: { house: {}, rooms: "bad" } }), /План/);
+  assert.throws(() => validateImportedProject({ ...current, plan: { ...current.plan, house: {} } }), /размеры контура/);
+  assert.throws(() => validateImportedProject({ ...current, plan: { ...current.plan, house: { w: -10, h: 8 } } }), /ширину и длину/);
+  assert.throws(() => validateImportedProject({ ...current, customEstimateLines: [{ qty: 'Infinity', price: 10 }] }), /Смета/);
+  assert.throws(() => validateImportedProject({ ...current, estimateOverrides: [{ qty: -1 }] }), /Смета/);
 });

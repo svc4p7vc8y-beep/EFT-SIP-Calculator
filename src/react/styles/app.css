@@ -7254,6 +7254,24 @@ select,
 /* The floor selector shares the plan options bar; canvas actions occupy its top edge. */
 .plan-screen-v2 .plan-status-bar{justify-content:space-between;flex-wrap:nowrap}
 .plan-screen-v2 .plan-status-floor-switcher{grid-column:auto;flex:0 0 auto;align-self:center}
+.plan-status-total{display:flex;align-items:baseline;justify-content:center;gap:8px;min-width:0;margin-inline:auto;white-space:nowrap;color:var(--green-dark);font-size:12px;font-weight:700}
+.plan-status-total strong{font-size:16px}
+.plan-status-fullscreen{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--green-dark);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.plan-status-fullscreen svg{width:15px;height:15px}
+.plan-inspector-estimate{flex:0 0 auto;display:grid;gap:8px;padding:10px;border-top:1px solid var(--line);background:var(--panel)}
+.plan-inspector-estimate details{max-height:180px;overflow:auto;font-size:11px}
+.plan-inspector-estimate summary{cursor:pointer;font-weight:700;color:var(--green-dark)}
+.plan-inspector-estimate ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:5px}
+.plan-inspector-estimate li{display:flex;justify-content:space-between;gap:8px}
+.plan-inspector-estimate li span{min-width:0}
+.plan-inspector-estimate li strong{white-space:nowrap}
+.plan-inspector-estimate .button{width:100%;justify-content:center}
+.estimate-included-lines{display:grid;gap:9px;margin:14px 0;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.estimate-included-lines h2,.estimate-included-lines p{margin:0}
+.estimate-included-lines p{font-size:12px;color:var(--muted)}
+.estimate-included-lines details{min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.estimate-included-lines summary{display:flex;justify-content:space-between;gap:12px;padding:11px;cursor:pointer;font-weight:700}
+.estimate-included-lines .table-wrap{max-width:100%;overflow:auto}
 .plan-screen-v2 .plan-layer-tabs{max-width:calc(100% - 370px)}
 .plan-screen-v2 .planner-shell:not(.is-fullscreen) .canvas-history-controls{top:12px}
 .plan-screen-v2 .planner-shell.is-fullscreen .canvas-history-controls{top:64px;right:12px;max-width:none;flex-wrap:nowrap}
@@ -7272,6 +7290,8 @@ select,
 }
 @media(max-width:1000px){
   .plan-screen-v2 .plan-status-bar{flex-wrap:wrap}
+  .plan-status-total{margin-inline:0}
+  .plan-status-fullscreen{margin-left:auto}
   .plan-screen-v2 .plan-status-floor-switcher{width:max-content;flex:0 0 auto}
   .plan-screen-v2 .plan-view-switches{flex:1 1 100%;justify-content:flex-start}
   .plan-screen-v2 .canvas-history-controls{gap:2px}

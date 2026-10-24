@@ -13,6 +13,32 @@ $action = (string)($_GET['action'] ?? 'session');
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $pdo = eft_db();
 
+function eft_valid_project_amount(mixed $value): bool {
+    return (is_int($value) || is_float($value) || (is_string($value) && trim($value) !== '' && is_numeric($value)))
+        && is_finite((float)$value) && (float)$value >= 0;
+}
+
+function eft_validate_project_amounts(array $payload): void {
+    $house = $payload['plan']['house'] ?? null;
+    if (is_array($house)) {
+        foreach (['w', 'h'] as $key) {
+            if (array_key_exists($key, $house) && !eft_valid_project_amount($house[$key]))
+                eft_json(['ok' => false, 'code' => 'invalid_plan_size', 'message' => 'Размеры плана должны быть конечными неотрицательными числами.'], 422);
+        }
+    }
+    foreach (['estimateOverrides', 'customEstimateLines'] as $field) {
+        if (!array_key_exists($field, $payload)) continue;
+        if (!is_array($payload[$field])) eft_json(['ok' => false, 'code' => 'invalid_estimate', 'message' => 'Строки сметы имеют неверную структуру.'], 422);
+        foreach ($payload[$field] as $line) {
+            if (!is_array($line)) eft_json(['ok' => false, 'code' => 'invalid_estimate', 'message' => 'Строки сметы имеют неверную структуру.'], 422);
+            foreach (['qty', 'price'] as $key) {
+                if (array_key_exists($key, $line) && !eft_valid_project_amount($line[$key]))
+                    eft_json(['ok' => false, 'code' => 'invalid_estimate_amount', 'message' => 'Количество и цена должны быть конечными неотрицательными числами.'], 422);
+            }
+        }
+    }
+}
+
 function eft_collect_uploaded_files(string $field, int $maxFiles = 10, int $maxFileBytes = 8388608, int $maxTotalBytes = 20971520): array {
     if (!isset($_FILES[$field])) return [];
     $upload = $_FILES[$field];
@@ -538,6 +564,7 @@ if ($action === 'projects' && $method === 'POST') {
     $input = eft_input();
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
     if (!$payload) eft_json(['ok' => false, 'code' => 'missing_project', 'message' => 'Нет данных проекта.'], 422);
+    eft_validate_project_amounts($payload);
     $payload = eft_price_project($pdo, $payload);
     $id = eft_uuid();
     $pdo->beginTransaction();
@@ -568,12 +595,14 @@ if ($action === 'project' && $method === 'PUT') {
     $id = (string)($input['id'] ?? '');
     $revision = (int)($input['revision'] ?? 0);
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
-    $statement = $pdo->prepare('SELECT revision, payload, updated_at FROM eft_projects WHERE id = ? FOR UPDATE');
+    eft_validate_project_amounts($payload);
+    $statement = $pdo->prepare('SELECT revision, payload, status, updated_at FROM eft_projects WHERE id = ? FOR UPDATE');
     $payload = eft_price_project($pdo, $payload);
     $pdo->beginTransaction();
     $statement->execute([$id]);
     $current = $statement->fetch();
     if (!$current) { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Проект не найден.'], 404); }
+    if ($current['status'] === 'archived') { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'project_archived', 'message' => 'Архивный проект нельзя изменить.'], 409); }
     if ((int)$current['revision'] !== $revision) { $pdo->rollBack(); eft_json(['ok' => false, 'code' => 'revision_conflict', 'message' => 'Проект уже изменён другим сотрудником.', 'currentRevision' => (int)$current['revision'], 'updatedAt' => $current['updated_at']], 409); }
     $savedPayload = json_decode((string)$current['payload'], true);
     if (is_array($savedPayload['meta'] ?? null)) {
@@ -584,7 +613,7 @@ if ($action === 'project' && $method === 'PUT') {
     $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $name = eft_project_name($payload);
     $reason = !empty($input['checkpoint']) ? 'checkpoint' : 'autosave';
-    $pdo->prepare('UPDATE eft_projects SET name = ?, revision = ?, payload = ?, updated_by = ?, updated_at = NOW() WHERE id = ?')->execute([$name, $nextRevision, $encoded, (int)$user['id'], $id]);
+    $pdo->prepare("UPDATE eft_projects SET name = ?, revision = ?, payload = ?, updated_by = ?, updated_at = NOW() WHERE id = ? AND status <> 'archived'")->execute([$name, $nextRevision, $encoded, (int)$user['id'], $id]);
     $lastVersion = $pdo->prepare('SELECT created_at FROM eft_project_versions WHERE project_id = ? ORDER BY revision DESC LIMIT 1');
     $lastVersion->execute([$id]);
     $lastAt = $lastVersion->fetchColumn();
@@ -705,16 +734,21 @@ if ($action === 'intake-status' && $method === 'POST') {
     $status = (string)($input['status'] ?? 'reviewed');
     if (!in_array($status, ['reviewed', 'imported'], true)) eft_json(['ok' => false, 'code' => 'invalid_status', 'message' => 'Архивация доступна только администратору через защищённое удаление.'], 422);
     $projectId = $input['projectId'] ?? null;
-    $statement = $pdo->prepare('SELECT 1 FROM eft_questionnaires WHERE id = ? LIMIT 1');
-    $statement->execute([$id]);
-    if (!$statement->fetchColumn()) eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Анкета не найдена.'], 404);
     if ($status === 'imported') {
         if (!is_string($projectId) || !preg_match('/^[a-f0-9-]{36}$/i', $projectId)) eft_json(['ok' => false, 'code' => 'project_required', 'message' => 'Для импорта нужен существующий проект.'], 422);
         $statement = $pdo->prepare("SELECT 1 FROM eft_projects WHERE id = ? AND status <> 'archived' LIMIT 1");
         $statement->execute([$projectId]);
         if (!$statement->fetchColumn()) eft_json(['ok' => false, 'code' => 'project_not_found', 'message' => 'Проект для анкеты не найден.'], 404);
     } else $projectId = null;
-    $pdo->prepare('UPDATE eft_questionnaires SET status = ?, imported_project_id = ?, updated_at = NOW() WHERE id = ?')->execute([$status, $projectId, $id]);
+    $statement = $pdo->prepare("UPDATE eft_questionnaires SET status = ?, imported_project_id = ?, updated_at = NOW() WHERE id = ? AND status <> 'archived'");
+    $statement->execute([$status, $projectId, $id]);
+    if (!$statement->rowCount()) {
+        $check = $pdo->prepare('SELECT status FROM eft_questionnaires WHERE id = ? LIMIT 1');
+        $check->execute([$id]);
+        $currentStatus = $check->fetchColumn();
+        if ($currentStatus === false || $currentStatus === 'archived') eft_json(['ok' => false, 'code' => 'not_found', 'message' => 'Анкета не найдена или уже архивирована.'], 404);
+        eft_json(['ok' => true]);
+    }
     eft_audit((int)$user['id'], 'intake_status_changed', 'questionnaire', $id, ['status' => $status, 'projectId' => $projectId]);
     eft_json(['ok' => true]);
 }

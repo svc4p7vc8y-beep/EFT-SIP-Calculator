@@ -201,6 +201,7 @@ export function App() {
     tabs,
     activeTabId,
     openTab,
+    rememberOpenedProject,
     activateTab,
     getTabProject,
     closeTab,
@@ -349,6 +350,7 @@ export function App() {
       await saveBeforeSwitch();
       team.detachProject();
       openTab(imported, null, file.name);
+      rememberOpenedProject(imported);
       setActive('plan');
       setNotice(`Проект «${file.name}» открыт в новой вкладке`);
     } catch (error) {
@@ -395,6 +397,7 @@ export function App() {
         : team.createProject(nextProject))
         .then((created) => {
           openTab(created.payload, created.id, created.name, created.revision);
+          rememberOpenedProject(created.payload);
           setActive("parameters");
           setNotice(
             created.intakeLinkWarning
@@ -410,6 +413,7 @@ export function App() {
     } else {
       team.detachProject();
       openTab(nextProject);
+      rememberOpenedProject(nextProject);
       setActive("parameters");
       setNotice(`Создан черновик по заявке: ${briefPreview.fileName}`);
     }
@@ -427,12 +431,14 @@ export function App() {
       if (team.user) {
         const created = await team.createProject(next);
         openTab(created.payload, created.id, created.name, created.revision);
+        rememberOpenedProject(created.payload);
       } else {
         const number = await reserveLocalProjectNumber(project.meta.projectNum);
         next.meta.projectNum = number;
         if (next.request) next.request.number = `КП-${number}`;
         team.detachProject();
         openTab(next);
+        rememberOpenedProject(next);
       }
     } catch (error) {
       setNotice(`Проект не создан: ${error.message}`);
@@ -498,12 +504,16 @@ export function App() {
       const existing = tabs.find((tab) => tab.serverId === id);
       if (existing) {
         await switchProjectTab(existing.id);
+        const opened = getTabProject(existing.id);
+        if (opened) rememberOpenedProject(opened);
         setActive(destination);
         return;
       }
       await saveBeforeSwitch();
       const result = await team.openProject(id);
-      openTab(result.payload, result.id, result.name, result.revision);
+      const opened = migrateProject(validateImportedProject(result.payload));
+      openTab(opened, result.id, result.name, result.revision);
+      rememberOpenedProject(opened);
       setActive(destination);
       setNotice(`Открыт общий проект «${result.name}»`);
     } catch (error) {
@@ -675,7 +685,7 @@ export function App() {
           <button
             className="icon-button"
             onClick={() => setBackupOpen(true)}
-            aria-label="Резервные копии"
+            aria-label="История проектов"
           >
             <History />
           </button>
@@ -727,7 +737,7 @@ export function App() {
             <button onClick={saveProject}><Save/>Сохранить файл проекта</button>
             <button onClick={() => { setMenuOpen(false); shareProject(); }}><Share2/>Поделиться файлом проекта</button>
             <button onClick={() => {fileRef.current?.click();setMenuOpen(false);}}><FileUp/>Открыть файл проекта</button>
-            <button onClick={() => setBackupOpen(true)}><History/>Резервные копии</button>
+            <button onClick={() => setBackupOpen(true)}><History/>История проектов</button>
           </div></details>
           <nav aria-label="Разделы калькулятора">
             {NAV_ITEMS.map(({ id, label, icon: Icon, group }, index) => (
@@ -991,9 +1001,9 @@ export function App() {
           >
             <header>
               <div>
-                <h2 id="backup-title">Резервные копии</h2>
+                <h2 id="backup-title">История проектов и резервные копии</h2>
                 <p>
-                  Создаются при нажатии на дискету и перед заменой текущего проекта.
+                  Проект попадает сюда при открытии, создании и сохранении.
                   Хранятся в этом браузере.
                 </p>
               </div>
@@ -1011,10 +1021,11 @@ export function App() {
                   <button
                     key={backup.backupId || backup.savedAt}
                     onClick={() => {
-                      checkpoint();
-                      replace(backup);
+                      openTab(backup);
+                      rememberOpenedProject(backup);
+                      setActive('plan');
                       setBackupOpen(false);
-                      setNotice("Восстановлена резервная копия");
+                      setNotice("Проект из истории открыт в новой вкладке");
                     }}
                   >
                     <span>

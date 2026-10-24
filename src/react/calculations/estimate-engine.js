@@ -255,13 +255,13 @@ function applyProjectEstimateEdits(project, sections, roofSystem) {
     const sourceLines=['roof','sip'].includes(section.key)?[...section.lines,...projectSupportLines.filter(line=>line.section===section.key)]:section.lines;
     const generated = sourceLines.flatMap((line) => {
       const override = overrides.get(line.id);
-      if (override?.excluded) return [];
       if (!override) return [line];
       const catalogMatches =
         override.catalogId === undefined ||
         override.catalogId === null ||
         override.catalogId === line.catalogId;
       if (!catalogMatches) return [line];
+      if (override.excluded) return [];
       return [
         {
           ...line,

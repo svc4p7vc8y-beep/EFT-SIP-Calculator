@@ -16,6 +16,7 @@ import {
 } from "./project-model.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { applySharedPriceCatalog } from '../cloud/price-catalog.js';
+import { validateImportedProject } from './project-import.js';
 import { createProjectWorkspace, projectWorkspaceReducer, PROJECT_TABS_KEY, restoreProjectWorkspace, serializeProjectWorkspace } from './project-tabs.js';
 
 const ProjectContext = createContext(null);
@@ -102,12 +103,24 @@ export function ProjectProvider({ children }) {
   const undo = useCallback(() => dispatch({ type: "undo", tabId: workspace.activeId }), [workspace.activeId]);
   const redo = useCallback(() => dispatch({ type: "redo", tabId: workspace.activeId }), [workspace.activeId]);
   const openTab = useCallback((nextProject, serverId = null, serverName = '', serverRevision = 0, libraryId = null) => {
+    validateImportedProject(nextProject);
     const existing = workspace.tabs.find(tab => (serverId && tab.serverId === serverId) || (libraryId && tab.libraryId === libraryId));
     if (existing) { dispatch({ type: 'activate-tab', id: existing.id }); return existing.id; }
     const id = globalThis.crypto?.randomUUID?.() || `tab-${Date.now()}-${Math.random()}`;
     dispatch({ type: 'open-tab', id, project: nextProject, serverId, libraryId, serverName, serverRevision });
     return id;
   }, [workspace.tabs]);
+  const rememberOpenedProject = useCallback((openedProject) => {
+    try {
+      const existing = JSON.parse(localStorage.getItem(REACT_BACKUPS_KEY) || '[]');
+      const snapshot = { ...openedProject, backupId: globalThis.crypto?.randomUUID?.() || Date.now(), savedAt: new Date().toISOString() };
+      localStorage.setItem(REACT_BACKUPS_KEY, JSON.stringify([snapshot, ...existing].slice(0, 10)));
+      return true;
+    } catch (error) {
+      setSaveState({ status: 'error', message: `История проектов недоступна: ${error.message}` });
+      return false;
+    }
+  }, []);
   const activateTab = useCallback((id) => dispatch({ type: 'activate-tab', id }), []);
   const getTabProject = useCallback((id) => workspace.tabs.find((tab) => tab.id === id)?.history.present || null, [workspace.tabs]);
   const closeTab = useCallback((id) => {
@@ -160,6 +173,7 @@ export function ProjectProvider({ children }) {
       recordMarks,
       replace,
       openTab,
+      rememberOpenedProject,
       activateTab,
       getTabProject,
       closeTab,
@@ -175,7 +189,7 @@ export function ProjectProvider({ children }) {
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
     }),
-    [workspace, history, project, commit, recordMarks, replace, openTab, activateTab, getTabProject, closeTab, replaceTab, attachServer, hydrated, undo, redo, checkpoint, saveState],
+    [workspace, history, project, commit, recordMarks, replace, openTab, rememberOpenedProject, activateTab, getTabProject, closeTab, replaceTab, attachServer, hydrated, undo, redo, checkpoint, saveState],
   );
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

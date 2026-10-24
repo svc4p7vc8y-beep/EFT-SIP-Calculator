@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { Printer, Settings2, Maximize, Minimize, ZoomIn, ZoomOut, Undo2, Redo2, Layers, ChevronLeft, ChevronRight, Download, Box, PanelsTopLeft, SquareDashed, Scissors, Grid2X2, PencilRuler } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
+import { serializeCsv } from '../utils/csv.js';
 import { groupPanels, groupMembers } from '../calculations/production-cutting.js';
 import WallPanelPlan from './WallPanelPlan.jsx';
 import WallPlanNavigator from './WallPlanNavigator.jsx';
@@ -115,7 +116,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     setPrintError('');title.current=document.title;document.title=project.meta.projectName||project.meta.projectNum||'Домокомплект';
     flushSync(()=>setPrinting({ids,current,detail}));document.body.classList.add('print-production');window.print();
   };
-  const exportTable=()=>{const rows=[['Материал','Размер / сечение','Ед.','Количество'],...purchases.map(r=>[r.name,r.profile,r.unit,r.qty])];download(`${project.meta.projectName||'Домокомплект'}-закупка.csv`,'\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';')).join('\r\n'),'text/csv;charset=utf-8');};
+  const exportTable=()=>{const rows=[['Материал','Размер / сечение','Ед.','Количество'],...purchases.map(r=>[r.name,r.profile,r.unit,r.qty])];download(`${project.meta.projectName||'Домокомплект'}-закупка.csv`,serializeCsv(rows),'text/csv;charset=utf-8');};
   const issueClick=issue=>{const target=locateWorkbenchItem(report,issue.target);if(target.surface||target.member){showItem(target.panel?.id||target.member?.id||target.surface.id);return;}if(issue.code==='ASSEMBLY'||issue.code==='ROOF_SUPPORTS'){go('supports');setWorkMode('construction');}else onSettings();};
   const resetView=()=>{setZoom(1);setOffsets(old=>({...old,[viewKey]:[0,0]}));setFit(v=>v+1);};
   const exportDrawing=async share=>{
