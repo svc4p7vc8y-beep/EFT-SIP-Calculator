@@ -6,7 +6,9 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - '!src/site/**'
       - 'public/**'
+      - '!public/site-assets/**'
       - 'index.html'
       - 'react.html'
       - 'legacy-v45.html'
@@ -14,7 +16,6 @@ on:
       - 'vite.config.js'
       - 'package.json'
       - 'package-lock.json'
-      - '.github/workflows/beget.yml'
 
 permissions:
   contents: read
