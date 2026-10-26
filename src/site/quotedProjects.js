@@ -1,7 +1,17 @@
-// Prices and included sections come from the four EFT estimates dated 23.10.2026.
+// Prices and included sections come from the supplied EFT estimates dated 23–26.10.2026.
 // kitPrice is "Материалы"; assembledPrice is "Итого по предложению".
 // Catalog prices do not change the calculator's price list or formulas.
 export const quotedResidentialProjects = [
+  {
+    id: 'lotos', name: 'Лотос', image: 'lotos-render.webp', planImage: 'lotos-plan.webp',
+    mood: 'Просторный одноэтажный дом для семьи', type: 'family', tag: '3 спальни',
+    meta: ['106,3 м² по контуру', '12,15 × 8,75 м', 'Крыльцо 5,3 м²'], areaLabel: '106,3 м² · 12,15 × 8,75 м',
+    description: 'Кухня-гостиная, мастер-спальня, спальня и детская, санузел, бойлерная и прихожая. Перед входом — крыльцо.',
+    included: 'СИП-пол, наружные стены и потолок, каркас перегородок, холодная двускатная кровля из профлиста, крыльцо, 7 окон и входная дверь.',
+    rooms: ['Кухня-гостиная', 'Мастер-спальня', 'Спальня', 'Детская', 'Санузел', 'Бойлерная', 'Прихожая', 'Крыльцо'],
+    kitPrice: 1825342, assembledPrice: 3249298, quoteDate: '26.10.2026',
+    planNote: 'Планировка и размеры из предоставленного расчёта ЭФТ. Изображение фасада показывает вариант внешнего вида.',
+  },
   {
     id: 'oniks', name: 'Оникс', image: 'oniks-render.webp', planImage: 'oniks-plan.png',
     mood: 'Компактный дом с большой террасой', type: 'compact', tag: '2 комнаты',
