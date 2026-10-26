@@ -13,7 +13,7 @@ $action = (string)($_GET['action'] ?? 'session');
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $pdo = eft_db();
 
-function eft_valid_project_amount(mixed $value): bool {
+function eft_valid_project_amount($value): bool {
     return (is_int($value) || is_float($value) || (is_string($value) && trim($value) !== '' && is_numeric($value)))
         && (float)$value >= 0 && (float)$value <= PHP_FLOAT_MAX;
 }
@@ -600,8 +600,7 @@ if ($action === 'projects' && $method === 'POST') {
         $technicalCode = (string)$error->getCode();
         if (!preg_match('/^[A-Z0-9]{5}$/', $technicalCode)) $technicalCode = '';
         $errorType = get_class($error);
-        $detail = $phase === 'validation' && $error instanceof TypeError ? mb_substr($error->getMessage(), 0, 200) : '';
-        eft_json(['ok' => false, 'code' => 'project_create_failed', 'stage' => $phase, 'technicalCode' => $technicalCode, 'errorType' => $errorType, 'message' => 'Не удалось создать проект (этап: ' . $phase . ', тип: ' . $errorType . ($technicalCode !== '' ? ', код: ' . $technicalCode : '') . ')' . ($detail !== '' ? ': ' . $detail : '.')], 500);
+        eft_json(['ok' => false, 'code' => 'project_create_failed', 'stage' => $phase, 'technicalCode' => $technicalCode, 'errorType' => $errorType, 'message' => 'Не удалось создать проект (этап: ' . $phase . ', тип: ' . $errorType . ($technicalCode !== '' ? ', код: ' . $technicalCode : '') . ').'], 500);
     }
     eft_audit_after_commit((int)$user['id'], 'project_created', 'project', $id);
     eft_json(['ok' => true, 'project' => ['id' => $id, 'name' => $name, 'status' => 'new', 'revision' => 1, 'payload' => $payload]], 201);
