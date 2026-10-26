@@ -600,7 +600,8 @@ if ($action === 'projects' && $method === 'POST') {
         $technicalCode = (string)$error->getCode();
         if (!preg_match('/^[A-Z0-9]{5}$/', $technicalCode)) $technicalCode = '';
         $errorType = get_class($error);
-        eft_json(['ok' => false, 'code' => 'project_create_failed', 'stage' => $phase, 'technicalCode' => $technicalCode, 'errorType' => $errorType, 'message' => 'Не удалось создать проект (этап: ' . $phase . ', тип: ' . $errorType . ($technicalCode !== '' ? ', код: ' . $technicalCode : '') . ').'], 500);
+        $detail = $phase === 'validation' && $error instanceof TypeError ? mb_substr($error->getMessage(), 0, 200) : '';
+        eft_json(['ok' => false, 'code' => 'project_create_failed', 'stage' => $phase, 'technicalCode' => $technicalCode, 'errorType' => $errorType, 'message' => 'Не удалось создать проект (этап: ' . $phase . ', тип: ' . $errorType . ($technicalCode !== '' ? ', код: ' . $technicalCode : '') . ')' . ($detail !== '' ? ': ' . $detail : '.')], 500);
     }
     eft_audit_after_commit((int)$user['id'], 'project_created', 'project', $id);
     eft_json(['ok' => true, 'project' => ['id' => $id, 'name' => $name, 'status' => 'new', 'revision' => 1, 'payload' => $payload]], 201);
