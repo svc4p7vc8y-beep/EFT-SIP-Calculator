@@ -15,7 +15,7 @@ $pdo = eft_db();
 
 function eft_valid_project_amount(mixed $value): bool {
     return (is_int($value) || is_float($value) || (is_string($value) && trim($value) !== '' && is_numeric($value)))
-        && is_finite((float)$value) && (float)$value >= 0;
+        && (float)$value >= 0 && (float)$value <= PHP_FLOAT_MAX;
 }
 
 function eft_validate_project_amounts(array $payload): void {
@@ -599,7 +599,8 @@ if ($action === 'projects' && $method === 'POST') {
         error_log('EFT project creation failed at ' . $phase . ': ' . $error->getMessage());
         $technicalCode = (string)$error->getCode();
         if (!preg_match('/^[A-Z0-9]{5}$/', $technicalCode)) $technicalCode = '';
-        eft_json(['ok' => false, 'code' => 'project_create_failed', 'stage' => $phase, 'technicalCode' => $technicalCode, 'message' => 'Не удалось создать проект (этап: ' . $phase . ($technicalCode !== '' ? ', код: ' . $technicalCode : '') . ').'], 500);
+        $errorType = get_class($error);
+        eft_json(['ok' => false, 'code' => 'project_create_failed', 'stage' => $phase, 'technicalCode' => $technicalCode, 'errorType' => $errorType, 'message' => 'Не удалось создать проект (этап: ' . $phase . ', тип: ' . $errorType . ($technicalCode !== '' ? ', код: ' . $technicalCode : '') . ').'], 500);
     }
     eft_audit_after_commit((int)$user['id'], 'project_created', 'project', $id);
     eft_json(['ok' => true, 'project' => ['id' => $id, 'name' => $name, 'status' => 'new', 'revision' => 1, 'payload' => $payload]], 201);
