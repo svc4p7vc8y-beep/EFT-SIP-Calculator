@@ -39,8 +39,21 @@ $statement = $pdo->prepare("UPDATE eft_counters SET next_value = GREATEST(next_v
 $statement->execute([max($existingApplications, $maximumApplication) + 1]);
 eft_price_seed($pdo);
 eft_price_add_bundled_roof_packages($pdo);
-if ($isCli) echo "EFT database migration complete\n";
+$auditProbe = ['ok' => true];
+try {
+    $pdo->beginTransaction();
+    eft_audit(null, 'health_probe', 'system');
+    $pdo->rollBack();
+} catch (Throwable $error) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('EFT audit probe failed: ' . $error->getMessage());
+    $auditProbe = ['ok' => false, 'error' => mb_substr($error->getMessage(), 0, 300)];
+}
+if ($isCli) {
+    echo $auditProbe['ok'] ? "EFT database migration complete\n" : "EFT audit probe failed: {$auditProbe['error']}\n";
+    if (!$auditProbe['ok']) exit(1);
+}
 else {
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => true, 'message' => 'EFT database migration complete']);
+    echo json_encode(['ok' => true, 'message' => 'EFT database migration complete', 'auditProbe' => $auditProbe]);
 }

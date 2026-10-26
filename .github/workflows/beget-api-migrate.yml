@@ -70,15 +70,5 @@ jobs:
             --exclude='/config.local.php' --exclude='/config.local.php.pending-*' \
             -e "$SSH_COMMAND" server/beget-api/ "${USER}@${HOST}:${API_DIR}/"
           RESPONSE="$(curl --fail --silent --show-error --max-time 45 -X POST -H "X-EFT-Setup-Token: ${SETUP_TOKEN}" 'https://eftsip.ru/api/migrate.php')"
-          printf '%s' "$RESPONSE" | jq -e '.ok == true' > /dev/null
-      - name: Verify production audit log write
-        env:
-          HOST: ${{ secrets.BEGET_SSH_HOST }}
-          USER: ${{ secrets.BEGET_SITE_SSH_USER }}
-          SSHPASS: ${{ secrets.BEGET_SITE_SSH_PASSWORD }}
-          DEPLOY_PATH: ${{ secrets.BEGET_SITE_DEPLOY_PATH }}
-        run: |
-          SSH_COMMAND="ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes"
-          API_DIR="${DEPLOY_PATH%/}/api"
-          SCRIPT_BASE64="$(base64 -w0 scripts/check-server-audit.php)"
-          sshpass -e $SSH_COMMAND "${USER}@${HOST}" "cd '${API_DIR}' && printf '%s' '${SCRIPT_BASE64}' | base64 -d | php"
+          printf '%s' "$RESPONSE" | jq '{ok, auditProbe}'
+          printf '%s' "$RESPONSE" | jq -e '.ok == true and .auditProbe.ok == true' > /dev/null
