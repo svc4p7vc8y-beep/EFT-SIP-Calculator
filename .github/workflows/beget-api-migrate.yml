@@ -70,5 +70,5 @@ jobs:
             --exclude='/config.local.php' --exclude='/config.local.php.pending-*' \
             -e "$SSH_COMMAND" server/beget-api/ "${USER}@${HOST}:${API_DIR}/"
           RESPONSE="$(curl --fail --silent --show-error --max-time 45 -X POST -H "X-EFT-Setup-Token: ${SETUP_TOKEN}" 'https://eftsip.ru/api/migrate.php')"
-          printf '%s' "$RESPONSE" | jq '{ok, auditProbe}'
-          printf '%s' "$RESPONSE" | jq -e '.ok == true and .auditProbe.ok == true' > /dev/null
+          printf '%s' "$RESPONSE" | jq '{ok, auditProbe, projectCreateProbe}'
+          printf '%s' "$RESPONSE" | jq -e '.ok == true and .auditProbe.ok == true and .projectCreateProbe.ok == true' > /dev/null

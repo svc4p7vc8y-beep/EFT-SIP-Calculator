@@ -49,11 +49,36 @@ try {
     error_log('EFT audit probe failed: ' . $error->getMessage());
     $auditProbe = ['ok' => false, 'error' => mb_substr($error->getMessage(), 0, 300)];
 }
+$projectCreateProbe = ['ok' => true];
+$probePhase = 'prices';
+try {
+    $probePayload = eft_price_project($pdo, ['meta' => ['projectName' => 'Health probe'], 'plan' => ['house' => ['w' => 10, 'h' => 8]]]);
+    $probePhase = 'user';
+    $probeUserId = (int)$pdo->query('SELECT id FROM eft_users WHERE active = 1 ORDER BY id LIMIT 1')->fetchColumn();
+    if (!$probeUserId) throw new RuntimeException('No active employee for project creation probe');
+    $pdo->beginTransaction();
+    $probePhase = 'number';
+    $probePayload['meta']['projectNum'] = eft_next_project_number();
+    $probeId = eft_uuid();
+    $probeName = eft_project_name($probePayload);
+    $probeEncoded = json_encode($probePayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    $probePhase = 'project';
+    $pdo->prepare('INSERT INTO eft_projects (id, name, payload, owner_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)')->execute([$probeId, $probeName, $probeEncoded, $probeUserId, $probeUserId, $probeUserId]);
+    $probePhase = 'version';
+    $pdo->prepare('INSERT INTO eft_project_versions (project_id, revision, payload, saved_by, reason) VALUES (?, 1, ?, ?, ?)')->execute([$probeId, $probeEncoded, $probeUserId, 'created']);
+    $probePhase = 'audit';
+    eft_audit($probeUserId, 'project_created', 'project', $probeId);
+    $pdo->rollBack();
+} catch (Throwable $error) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('EFT project creation probe failed at ' . $probePhase . ': ' . $error->getMessage());
+    $projectCreateProbe = ['ok' => false, 'phase' => $probePhase, 'error' => mb_substr($error->getMessage(), 0, 300)];
+}
 if ($isCli) {
-    echo $auditProbe['ok'] ? "EFT database migration complete\n" : "EFT audit probe failed: {$auditProbe['error']}\n";
-    if (!$auditProbe['ok']) exit(1);
+    echo $auditProbe['ok'] && $projectCreateProbe['ok'] ? "EFT database migration complete\n" : "EFT database health probe failed: " . json_encode(['auditProbe' => $auditProbe, 'projectCreateProbe' => $projectCreateProbe]) . "\n";
+    if (!$auditProbe['ok'] || !$projectCreateProbe['ok']) exit(1);
 }
 else {
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => true, 'message' => 'EFT database migration complete', 'auditProbe' => $auditProbe]);
+    echo json_encode(['ok' => true, 'message' => 'EFT database migration complete', 'auditProbe' => $auditProbe, 'projectCreateProbe' => $projectCreateProbe]);
 }
