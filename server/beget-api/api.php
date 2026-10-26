@@ -564,28 +564,43 @@ if ($action === 'projects' && $method === 'POST') {
     $input = eft_input();
     $payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
     if (!$payload) eft_json(['ok' => false, 'code' => 'missing_project', 'message' => 'Нет данных проекта.'], 422);
-    eft_validate_project_amounts($payload);
-    $payload = eft_price_project($pdo, $payload);
-    $id = eft_uuid();
-    $pdo->beginTransaction();
-    $number = eft_next_project_number();
-    $payload['meta'] = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
-    $previousNumber = (string)($payload['meta']['projectNum'] ?? '');
-    $payload['meta']['projectNum'] = $number;
-    $payload['meta']['date'] = (new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow')))->format('Y-m-d');
-    if (is_array($payload['request'] ?? null)) {
-        $document = &$payload['request'];
-        $oldDocumentNumber = (string)($document['number'] ?? '');
-        if ($oldDocumentNumber === '' || $oldDocumentNumber === 'КП-' . $previousNumber || $oldDocumentNumber === 'З-' . $previousNumber) {
-            $document['number'] = (($document['documentType'] ?? '') === 'internal' ? 'З-' : 'КП-') . $number;
+    $phase = 'validation';
+    try {
+        eft_validate_project_amounts($payload);
+        $phase = 'price_catalog';
+        $payload = eft_price_project($pdo, $payload);
+        $id = eft_uuid();
+        $pdo->beginTransaction();
+        $phase = 'project_number';
+        $number = eft_next_project_number();
+        $payload['meta'] = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+        $previousNumber = (string)($payload['meta']['projectNum'] ?? '');
+        $payload['meta']['projectNum'] = $number;
+        $payload['meta']['date'] = (new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow')))->format('Y-m-d');
+        if (is_array($payload['request'] ?? null)) {
+            $document = &$payload['request'];
+            $oldDocumentNumber = (string)($document['number'] ?? '');
+            if ($oldDocumentNumber === '' || $oldDocumentNumber === 'КП-' . $previousNumber || $oldDocumentNumber === 'З-' . $previousNumber) {
+                $document['number'] = (($document['documentType'] ?? '') === 'internal' ? 'З-' : 'КП-') . $number;
+            }
+            unset($document);
         }
-        unset($document);
+        $phase = 'serialization';
+        $name = mb_substr(trim(eft_project_name($payload)), 0, 255) ?: 'Новый проект';
+        $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $phase = 'project_record';
+        $pdo->prepare('INSERT INTO eft_projects (id, name, payload, owner_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)')->execute([$id, $name, $encoded, (int)$user['id'], (int)$user['id'], (int)$user['id']]);
+        $phase = 'first_version';
+        $pdo->prepare('INSERT INTO eft_project_versions (project_id, revision, payload, saved_by, reason) VALUES (?, 1, ?, ?, ?)')->execute([$id, $encoded, (int)$user['id'], 'created']);
+        $phase = 'commit';
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('EFT project creation failed at ' . $phase . ': ' . $error->getMessage());
+        $technicalCode = (string)$error->getCode();
+        if (!preg_match('/^[A-Z0-9]{5}$/', $technicalCode)) $technicalCode = '';
+        eft_json(['ok' => false, 'code' => 'project_create_failed', 'stage' => $phase, 'technicalCode' => $technicalCode, 'message' => 'Не удалось создать проект (этап: ' . $phase . ($technicalCode !== '' ? ', код: ' . $technicalCode : '') . ').'], 500);
     }
-    $name = mb_substr(trim(eft_project_name($payload)), 0, 255) ?: 'Новый проект';
-    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-    $pdo->prepare('INSERT INTO eft_projects (id, name, payload, owner_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)')->execute([$id, $name, $encoded, (int)$user['id'], (int)$user['id'], (int)$user['id']]);
-    $pdo->prepare('INSERT INTO eft_project_versions (project_id, revision, payload, saved_by, reason) VALUES (?, 1, ?, ?, ?)')->execute([$id, $encoded, (int)$user['id'], 'created']);
-    $pdo->commit();
     eft_audit_after_commit((int)$user['id'], 'project_created', 'project', $id);
     eft_json(['ok' => true, 'project' => ['id' => $id, 'name' => $name, 'status' => 'new', 'revision' => 1, 'payload' => $payload]], 201);
 }
