@@ -80,4 +80,5 @@ jobs:
         run: |
           SSH_COMMAND="ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes"
           API_DIR="${DEPLOY_PATH%/}/api"
-          sshpass -e $SSH_COMMAND "${USER}@${HOST}" "cd '${API_DIR}' && php" < scripts/check-server-audit.php
+          SCRIPT_BASE64="$(base64 -w0 scripts/check-server-audit.php)"
+          sshpass -e $SSH_COMMAND "${USER}@${HOST}" "cd '${API_DIR}' && printf '%s' '${SCRIPT_BASE64}' | base64 -d | php"
