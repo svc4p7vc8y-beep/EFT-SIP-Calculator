@@ -2025,6 +2025,27 @@ select,
   overflow: hidden;
   background: #fff;
 }
+.plan-contour-actions {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  bottom: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  width: max-content;
+  max-width: calc(100% - 20px);
+  padding: 8px;
+  border: 1px solid #b9cbbd;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .97);
+  box-shadow: 0 8px 24px rgba(32, 55, 28, .15);
+  transform: translateX(-50%);
+}
+.plan-contour-actions .button { min-height: 40px; white-space: nowrap; }
+.plan-contour-actions span { font-size: 12px; font-weight: 700; color: #476047; }
 .plan-layer-tabs {
   position: absolute;
   z-index: 6;
@@ -7014,11 +7035,13 @@ select,
   .sidebar-mobile-project-actions{display:grid;margin:6px 0 0;padding-bottom:0;border-bottom:0}
 }
 @media(max-width:700px){
+  .plan-contour-actions{bottom:78px}
   .mobile-plan-edit-toggle{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0 0 10px;padding:8px 13px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--green-dark);font:inherit;font-weight:800}
   .plan-screen-v2:not(.mobile-plan-editing) .screen-actions,
   .plan-screen-v2:not(.mobile-plan-editing) .planner-tools,
   .plan-screen-v2:not(.mobile-plan-editing) .planner-inspector,
-  .plan-screen-v2:not(.mobile-plan-editing) .roof-rotate-button{display:none!important}
+  .plan-screen-v2:not(.mobile-plan-editing) .roof-rotate-button,
+  .plan-screen-v2:not(.mobile-plan-editing) .plan-contour-actions{display:none!important}
   .plan-screen-v2:not(.mobile-plan-editing) .planner-shell:not(.is-fullscreen),
   .plan-screen-v2:not(.mobile-plan-editing) .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary){display:block;height:620px;min-height:0;overflow:hidden}
   .plan-screen-v2:not(.mobile-plan-editing) .planner-canvas{height:100%}

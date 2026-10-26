@@ -3434,7 +3434,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
   if (selected.type === "houseContour") {
     const contour = houseContourPoints(plan);
     const contourBounds = boundsOf(contour);
-    if(plan.attachment) return <div className="inspector-form"><h3>Новый дом у существующего угла</h3><div className="readout"><span>Площадь нового дома</span><strong>{formatNumber(polygonArea(contour))} м²</strong></div><div className="readout"><span>Используемые существующие стены</span><strong>{formatNumber(plan.attachment.sharedEdges.reduce((sum,edge)=>sum+Math.hypot(edge.b.x-edge.a.x,edge.b.y-edge.a.y),0))} м</strong></div><NumberField label="Высота существующих стен (0 — неизвестна)" value={(plan.existingBuilding?.wallHeightMm||0)/1000} suffix="м" min={0} step={0.01} onChange={value=>commitPlan(next=>{next.existingBuilding.wallHeightMm=Math.round(value*1000);})}/><NumberField label="Отметка низа существующих стен" value={(plan.existingBuilding?.baseZMm||0)/1000} suffix="м" min={-20} step={0.01} onChange={value=>commitPlan(next=>{next.existingBuilding.baseZMm=Math.round(value*1000);})}/><p className="inspector-note">Для изменения пятна нарисуйте открытый контур заново. Узлы примыкания, отметки и несущую способность существующих стен следует проверить в проекте.</p></div>;
+    if(plan.attachment) return <div className="inspector-form"><h3>Новый дом у существующего здания</h3><div className="readout"><span>Площадь нового дома</span><strong>{formatNumber(polygonArea(contour))} м²</strong></div><div className="readout"><span>Используемые существующие стены</span><strong>{formatNumber(plan.attachment.sharedEdges.reduce((sum,edge)=>sum+Math.hypot(edge.b.x-edge.a.x,edge.b.y-edge.a.y),0))} м</strong></div><NumberField label="Высота существующих стен (0 — неизвестна)" value={(plan.existingBuilding?.wallHeightMm||0)/1000} suffix="м" min={0} step={0.01} onChange={value=>commitPlan(next=>{next.existingBuilding.wallHeightMm=Math.round(value*1000);})}/><NumberField label="Отметка низа существующих стен" value={(plan.existingBuilding?.baseZMm||0)/1000} suffix="м" min={-20} step={0.01} onChange={value=>commitPlan(next=>{next.existingBuilding.baseZMm=Math.round(value*1000);})}/><p className="inspector-note">Для изменения пятна нарисуйте открытый контур заново. Узлы примыкания, отметки и несущую способность существующих стен следует проверить в проекте.</p></div>;
     return (
       <div className="inspector-form">
         <h3>Внешний контур дома</h3>
@@ -5401,7 +5401,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       if(result.error){setTransferStatus(result.error);return;}
       commitPlan(next=>{next.existingBuilding=result.building;next.attachment=null;});
       setPolygonDraft([]);setTool('attachedContour');
-      setTransferStatus('Существующее здание сохранено как справочный контур. Нарисуйте открытый контур нового дома от одной стены до соседней.');
+      setTransferStatus('Существующее здание сохранено как справочный контур. Нарисуйте открытый контур нового дома от одной стены до этой же или соседней.');
       return;
     }
     if(tool==='attachedContour'){
@@ -5540,6 +5540,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       setActiveFloor(1);
       setActiveLayer('plan');
       setTool('houseContour');
+      if (window.matchMedia('(max-width: 700px)').matches) setMobilePlanEditing(true);
       setSelected(null);
       setPolygonDraft([]);
       setTransferStatus('Чистый проект открыт: нарисуйте замкнутый внешний контур дома');
@@ -5806,7 +5807,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           : tool === 'existingContour'
             ? 'На новом чистом плане нарисуйте замкнутый контур существующего здания. Он будет справочным и не войдёт в смету.'
           : tool === 'attachedContour'
-            ? plan.existingBuilding ? 'Начните на стене существующего здания, обойдите внешние углы нового дома и закончите на соседней стене.' : 'Начните на наружной стене дома, обойдите внешние углы пристройки и закончите на той же стене. Затем нажмите «Присоединить».'
+            ? plan.existingBuilding ? 'Начните на стене существующего здания, обойдите внешние углы нового дома и закончите на этой же или соседней стене. Нажмите «Присоединить».' : 'Начните на наружной стене дома, обойдите внешние углы пристройки и закончите на той же стене. Затем нажмите «Присоединить».'
           : tool === "dimension"
             ? "Нажмите первую точку, затем вторую. Размер автоматически вынесется за контур дома и займёт свободный уровень."
             : tool === 'guide'
@@ -6138,7 +6139,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </>
         }
       />
-      <button type="button" className="mobile-plan-edit-toggle" aria-pressed={mobilePlanEditing} onClick={() => { setMobilePlanEditing(value => !value); setTool('select'); setSelected(null); }}>
+      <button type="button" className="mobile-plan-edit-toggle" aria-pressed={mobilePlanEditing} onClick={() => { if (mobilePlanEditing) { setTool('select'); setSelected(null); } setMobilePlanEditing(value => !value); }}>
         {mobilePlanEditing ? 'Готово · смотреть план' : 'Редактировать план'}
       </button>
       {editingLibraryId ? <div className="plan-library-edit-banner" role="status"><span>Редактируется план «{libraryPlans.find(entry => entry.id === editingLibraryId)?.name || 'из библиотеки'}»</span><button className="button primary" type="button" onClick={saveSketch}><Save />Обновить в библиотеке</button></div> : null}
@@ -6315,7 +6316,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 <button
                   className="active"
                   onClick={finishPolygon}
-                  disabled={polygonDraft.length < (tool==='attachedContour'?4:3)}
+                  disabled={polygonDraft.length < (tool==='attachedContour'?(plan.existingBuilding?3:4):3)}
                 >
                   <Save />
                   <span>{tool==='attachedContour'?'Присоединить':'Замкнуть'}</span>
@@ -6457,6 +6458,15 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             wheelZoomEnabled={isPlanFullscreen}
             middlePanEnabled={isPlanFullscreen}
           />
+          {["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool) && polygonDraft.length > 0 ? (
+            <div className="plan-contour-actions" role="group" aria-label="Действия с контуром">
+              <button type="button" className="button primary" disabled={polygonDraft.length < (tool === 'attachedContour' ? (plan.existingBuilding ? 3 : 4) : 3)} onClick={finishPolygon}>
+                <Save />{tool === 'attachedContour' ? 'Присоединить' : 'Замкнуть контур'}
+              </button>
+              <button type="button" className="button secondary" onClick={() => setPolygonDraft([])}><X />Сбросить</button>
+              {polygonDraft.length < (tool === 'attachedContour' ? (plan.existingBuilding ? 3 : 4) : 3) ? <span>Осталось точек: {(tool === 'attachedContour' ? (plan.existingBuilding ? 3 : 4) : 3) - polygonDraft.length}</span> : null}
+            </div>
+          ) : null}
           <div className="planner-hint">
             {activeLayer === "roof"
               ? "Настройте кровлю справа. Слои покрытия, мауэрлата, стропил и обрешётки можно включать отдельно."
@@ -6580,8 +6590,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           {tool === 'attachedContour' && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">
               <h3>Открытый контур пристройки</h3>
-              <p className="inspector-note">{plan.existingBuilding?'Начните на одной стене существующего здания, обойдите наружные углы нового дома и закончите на соседней стене. Две общие стороны используют существующие стены.':'Оба конца поставьте на одну наружную стену. Общий участок стены замкнёт пристройку; исходные помещения и проёмы сохраняются.'}</p>
-              <button className="button primary" disabled={polygonDraft.length<4} onClick={finishPolygon}><Save />Присоединить к дому</button>
+              <p className="inspector-note">{plan.existingBuilding?'Начните на стене существующего здания, обойдите наружные углы нового дома и закончите на этой же или соседней стене. Общая стена останется справочной и не войдёт в смету.':'Оба конца поставьте на одну наружную стену. Общий участок стены замкнёт пристройку; исходные помещения и проёмы сохраняются.'}</p>
+              <button className="button primary" disabled={polygonDraft.length<(plan.existingBuilding?3:4)} onClick={finishPolygon}><Save />Присоединить к дому</button>
             </div>
           ) : ["houseContour", "existingContour"].includes(tool) && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">

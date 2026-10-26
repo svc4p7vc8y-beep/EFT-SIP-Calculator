@@ -35,30 +35,40 @@ export function referenceBuildingContour(points){
   return {building:{id:'existing-1',points:rounded.map(p=>shifted(p,shift)),wallHeightMm:null,baseZMm:null,referenceOnly:true},shift};
 }
 
-// The new building closes against two adjacent host walls. The host footprint
-// remains a reference and never enters the calculated floor or roof polygon.
+// The new building closes against one host wall or two adjacent host walls.
+// The host footprint remains a reference and never enters the calculated area.
 export function newHouseAtExistingCorner(plan,openPoints){
   const host=plan.existingBuilding?.points;
   if(!Array.isArray(host)||host.length<3)return {error:'Сначала нарисуйте контур существующего здания.'};
-  if(!Array.isArray(openPoints)||openPoints.length<4)return {error:'Начните на одной стене, обойдите наружные углы нового дома и закончите на соседней стене существующего здания.'};
-  const first=openPoints[0],last=openPoints.at(-1),matches=[];
+  if(!Array.isArray(openPoints)||openPoints.length<3)return {error:'Начните на стене существующего здания, обойдите наружные углы нового дома и закончите на этой же или соседней стене.'};
+  const first=openPoints[0],last=openPoints.at(-1),sideMatches=[],matches=[];
+  const complete=(points,edges,hostEdgeIndices,corner=null)=>{
+    if(points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y))||!simple(points)||area(points)<.25)return {error:'Наружный контур нового дома пересекает себя или имеет площадь меньше 0,25 м².'};
+    let overlap=0;
+    try{overlap=polygonArea(clipping.intersection([ring(host)],[ring(points)]));}catch{return {error:'Контур нового дома геометрически некорректен.'};}
+    if(overlap>.001)return {error:'Новый дом пересекает внутреннюю площадь существующего. Исправьте наружные углы.'};
+    const bounds=boundsOf(points),shift={x:roundCoord(-bounds.x),y:roundCoord(-bounds.y)};
+    const sharedEdges=edges.map(([a,b])=>({a:shifted(a,shift),b:shifted(b,shift)}));
+    return {points:points.map(p=>shifted(p,shift)),existingBuilding:{...plan.existingBuilding,points:host.map(p=>shifted(p,shift))},attachment:{id:'joint-1',existingBuildingId:plan.existingBuilding.id,hostEdgeIndices,sharedEdges,corner:corner?shifted(corner,shift):null,wallMode:'existing',roofMode:'independent',nodeRef:''},shift,addedArea:roundCoord(area(points)),sharedLength:roundCoord(edges.reduce((sum,[a,b])=>sum+distance(a,b),0))};
+  };
   for(let i=0;i<host.length;i++){
     const j=(i+1)%host.length,k=(i+host.length-1)%host.length;
+    const sideStart=pointOnEdge(first,host[i],host[j]),sideEnd=pointOnEdge(last,host[i],host[j]);
+    if(sideStart&&sideEnd&&distance(sideStart,sideEnd)>=.1)sideMatches.push({start:sideStart,end:sideEnd,edge:i});
     for(const [a,b,corner] of [[i,j,host[j]],[i,k,host[i]]]){
       const start=pointOnEdge(first,host[a],host[(a+1)%host.length]),end=pointOnEdge(last,host[b],host[(b+1)%host.length]);
       if(start&&end&&distance(start,corner)>=.1&&distance(end,corner)>=.1)matches.push({start,end,corner,firstEdge:a,lastEdge:b});
     }
   }
-  if(matches.length!==1)return {error:'Точки примыкания должны лежать на двух соседних наружных стенах и отступать от их общего угла минимум на 100 мм.'};
+  if(sideMatches.length===1){
+    const {start,end,edge}=sideMatches[0];
+    return complete([start,...openPoints.slice(1,-1).map(p=>({x:roundCoord(Number(p.x)),y:roundCoord(Number(p.y))})),end],[[end,start]],[edge]);
+  }
+  if(sideMatches.length>1)return {error:'Точки примыкания должны задавать один участок существующей стены.'};
+  if(matches.length!==1)return {error:'Точки примыкания должны лежать на одной наружной стене или на двух соседних стенах с отступом от общего угла минимум 100 мм.'};
   const {start,end,corner,firstEdge,lastEdge}=matches[0];
   const points=[start,...openPoints.slice(1,-1).map(p=>({x:roundCoord(Number(p.x)),y:roundCoord(Number(p.y))})),end,{...corner}];
-  if(points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y))||!simple(points)||area(points)<.25)return {error:'Наружный контур нового дома пересекает себя или имеет площадь меньше 0,25 м².'};
-  let overlap=0;
-  try{overlap=polygonArea(clipping.intersection([ring(host)],[ring(points)]));}catch{return {error:'Контур нового дома геометрически некорректен.'};}
-  if(overlap>.001)return {error:'Новый дом пересекает внутреннюю площадь существующего. Исправьте наружные углы.'};
-  const bounds=boundsOf(points),shift={x:roundCoord(-bounds.x),y:roundCoord(-bounds.y)};
-  const sharedEdges=[[end,corner],[corner,start]].map(([a,b])=>({a:shifted(a,shift),b:shifted(b,shift)}));
-  return {points:points.map(p=>shifted(p,shift)),existingBuilding:{...plan.existingBuilding,points:host.map(p=>shifted(p,shift))},attachment:{id:'joint-1',existingBuildingId:plan.existingBuilding.id,hostEdgeIndices:[firstEdge,lastEdge],sharedEdges,corner:shifted(corner,shift),wallMode:'existing',roofMode:'independent',nodeRef:''},shift,addedArea:roundCoord(area(points)),sharedLength:roundCoord(distance(start,corner)+distance(end,corner))};
+  return complete(points,[[end,corner],[corner,start]],[firstEdge,lastEdge],corner);
 }
 
 export function existingWallEdge(plan,a,b){

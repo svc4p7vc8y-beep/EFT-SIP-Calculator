@@ -34,9 +34,29 @@ test('new footprint wraps the host corner, meets adjacent walls, and prices only
   assert.equal(allOpeningSegments(plan).filter(segment=>segment.outer).length,4);
 });
 
-test('invalid adjacent-wall endpoints and overlap with host are rejected',()=>{
+test('open footprint closes against one existing wall without pricing that wall',()=>{
   const plan=createBlankPlan();plan.existingBuilding=referenceBuildingContour(host).building;
-  assert.match(newHouseAtExistingCorner(plan,[{x:8,y:1},{x:12,y:1},{x:12,y:3},{x:8,y:3}]).error,/соседних/);
+  const result=newHouseAtExistingCorner(plan,[{x:8,y:0},{x:12,y:0},{x:12,y:6},{x:8,y:6}]);
+  assert.equal(result.error,undefined);
+  assert.equal(result.addedArea,24);
+  assert.equal(result.sharedLength,6);
+  assert.deepEqual(result.attachment.hostEdgeIndices,[1]);
+  assert.equal(result.attachment.sharedEdges.length,1);
+  plan.house={w:4,h:6,points:result.points,contourDefined:true};
+  plan.existingBuilding=result.existingBuilding;plan.attachment=result.attachment;
+  assert.equal(calculatePlanMetrics(plan).floorArea,24);
+  assert.equal(calculatePlanMetrics(plan).perimeter,14);
+  assert.equal(exteriorWallConstruction(plan).length,3);
+  assert.equal(existingWallLength(plan),6);
+  const project=createDefaultProject();project.plan=plan;
+  const restored=migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(calculateProject(restored).metrics.floorArea,24);
+  assert.equal(existingWallLength(restored.plan),6);
+});
+
+test('invalid endpoints and overlap with host are rejected',()=>{
+  const plan=createBlankPlan();plan.existingBuilding=referenceBuildingContour(host).building;
+  assert.match(newHouseAtExistingCorner(plan,[{x:8,y:1},{x:12,y:1},{x:12,y:3},{x:0,y:3}]).error,/соседних/);
   assert.match(newHouseAtExistingCorner(plan,[{x:8,y:3},{x:7,y:3},{x:7,y:7},{x:5,y:7},{x:5,y:6}]).error,/пересекает/);
 });
 
