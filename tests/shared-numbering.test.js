@@ -27,7 +27,7 @@ test('API assigns project and application numbers inside the insert transactions
   const bootstrap = source('../server/beget-api/bootstrap.php');
   const migration = source('../server/beget-api/migrate.php');
   assert.match(api, /\$pdo->beginTransaction\(\);\s*\$number = 'EFT-' \. str_pad\(\(string\)eft_next_counter\('application'\)/);
-  assert.match(api, /\$pdo->beginTransaction\(\);\s*\$number = eft_next_project_number\(\);/);
+  assert.match(api, /\$pdo->beginTransaction\(\);\s*\$phase = 'project_number';\s*\$number = eft_next_project_number\(\);/);
   assert.match(api, /INSERT INTO eft_project_versions \(project_id, revision, payload, saved_by, reason\)/);
   assert.match(bootstrap, /SELECT next_value FROM eft_counters WHERE counter_key = \? FOR UPDATE/);
   assert.match(migration, /existingApplications.*COUNT\(\*\) FROM eft_questionnaires/);
