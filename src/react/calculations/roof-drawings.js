@@ -15,6 +15,9 @@ export function roofDrawingData(assembly, roof, roofSettings = {}, geometryMode=
       z2=Number(roofSettings.ridgeHeight)*1000;
     }
     if (roof.mainRoofShape === 'flat' && ['back', 'right'].includes(roof.flatSlopeDirection)) [z1,z2] = [rise,0];
+    if(roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='tapered'){
+      z1=0;z2=0;
+    }
     if(roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='structural'){
       const slope=Number(roofSettings.flatSlopePercent||0)/100,negative=['back','right'].includes(roof.flatSlopeDirection);
       const height=x=>negative?(span-x)*slope:x*slope;
@@ -40,7 +43,7 @@ export function roofDrawingData(assembly, roof, roofSettings = {}, geometryMode=
     const actual=sections[0].length;
     if(Math.abs(expected-actual)>2)warnings.push(`Двускатная крыша: выбранная сметная длина стропила ${actual} мм; при продолжении уклона от стены через свес получается ${Math.ceil(expected)} мм. Переключите геометрию раскроя на непрерывный уклон или подтвердите индивидуальный узел.`);
   }
-  if(roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='tapered')warnings.push('Уклон плоской кровли выполнен разуклонкой. Наклон покрытия не подтверждает наклон несущих стропил; показана геометрия текущего расчёта, требуется отдельный конструктивный разрез.');
+  if(roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='tapered')warnings.push('Уклон плоской кровли выполнен разуклонкой. Несущие стропила показаны горизонтально; сметные длины сохранены, толщины разуклонки и рабочий узел требуют проверки.');
   const estimateLength=Number(roof.geometry?.slopeLength)*1000;
   const estimateDifference=roof.mainRoofShape==='gable'&&sections.length?sections[0].length-estimateLength:0;
   return {axis,across,span,sections,origin,warnings,geometryMode,estimateLength,estimateDifference};

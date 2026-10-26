@@ -207,7 +207,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
   const planLayers = [
     ['showContour', 'Контур дома'], ['showRooms', 'Комнаты и перегородки'],
     ['showOpenings', 'Окна и двери'], ['showPlatforms', 'Терраса и крыльцо'],
-    ['showPiles', 'Сваи'], ['showBinding', 'Обвязка'], ['showDimensions', 'Размеры'],
+    ['showPiles', project.settings.piles?.pileType === 'concreteBlock' ? 'Блоки' : 'Сваи'], ['showBinding', 'Обвязка'], ['showDimensions', 'Размеры'],
   ];
   return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent} disabled={printPreparing}><Printer />{printPreparing ? 'Подготовка…' : 'Печать'}</button><button className="button primary no-print estimate-download-pdf" onClick={downloadPdf} disabled={pdfPreparing}><FileDown />{pdfPreparing ? 'Создаю PDF…' : 'PDF ↓'}</button></>} />
     {pdfError ? <p className="estimate-pdf-error no-print" role="alert">{pdfError}</p> : null}

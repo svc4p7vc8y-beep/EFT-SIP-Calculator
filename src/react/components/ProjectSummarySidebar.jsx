@@ -311,7 +311,7 @@ export default function ProjectSummarySidebar({
       </SummarySection>
 
       <SummarySection
-        title="Сваи и обвязка"
+        title={project.settings.piles?.pileType === 'concreteBlock' ? 'Бетонные блоки и обвязка' : 'Сваи и обвязка'}
         icon={HardHat}
         target="piles"
         onNavigate={onNavigate}
@@ -320,7 +320,7 @@ export default function ProjectSummarySidebar({
       >
         <div className="summary-grid">
           <SummaryValue
-            label="Всего свай"
+            label={project.settings.piles?.pileType === 'concreteBlock' ? 'Всего блоков' : 'Всего свай'}
             value={`${foundation.totalPiles} шт`}
           />
           <SummaryValue
@@ -340,7 +340,7 @@ export default function ProjectSummarySidebar({
             value={`${formatNumber(project.settings.piles.spacing)} м`}
           />
           <SummaryValue
-            label="Общие с террасой"
+            label="Общие опоры с террасой"
             value={`${foundation.sharedPiles} шт`}
           />
         </div>

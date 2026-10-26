@@ -52,10 +52,25 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
     floorPlans.flatMap((plan) => plan.openings || []).filter(o => !isInteriorDoor(o) && o.includeInEstimate !== false),
   );
 
-  if (key === 'foundation') return project.services.foundation ? {
-    summary: `${pluralRu(foundation.totalPiles, 'свая', 'сваи', 'свай')}, обвязка ${formatNumber(foundation.bindingLength)} м`,
-    details: `Разбивка, монтаж свай, оголовки, крепёж и ${foundation.boardCount} досок обвязки по 6 м`
-  } : foundation.concreteBase?.active ? {
+  if (key === 'foundation') return project.services.foundation ? (() => {
+    const blockLine = lines.find(line => line.id === 'foundation:concrete-blocks');
+    const concretePileLine = lines.find(line => line.id === 'foundation:concrete-piles');
+    const screwPileLine = lines.find(line => line.id === 'foundation:piles');
+    const support = blockLine
+      ? pluralRu(blockLine.qty, 'бетонный блок', 'бетонных блока', 'бетонных блоков')
+      : concretePileLine
+        ? pluralRu(concretePileLine.qty, 'железобетонная свая', 'железобетонные сваи', 'железобетонных свай')
+        : screwPileLine
+          ? pluralRu(screwPileLine.qty, 'свая', 'сваи', 'свай')
+          : 'опоры исключены из текущей сметы';
+    const supportDetails = blockLine ? 'Бетонные блоки с монтажом'
+      : concretePileLine ? 'Железобетонные сваи с оголовками и установкой'
+        : screwPileLine ? 'Разбивка, монтаж винтовых свай и оголовки' : '';
+    return {
+      summary: `${support}, обвязка ${formatNumber(foundation.bindingLength)} м`,
+      details: joinParts([supportDetails, `${foundation.boardCount} досок обвязки по 6 м`, lines.some(line => line.id.includes('binding-pack-screw')) && 'крепёж обвязки']),
+    };
+  })() : foundation.concreteBase?.active ? {
     summary: `Готовое бетонное основание; обвязка ${formatNumber(foundation.concreteBase?.length || 0)} м`,
     details: `Лежачий брус 100×150, отсечная гидроизоляция, ${foundation.concreteBase?.anchorCount || 0} анкеров к бетону и монтаж; устройство бетона не входит в предложение. Шаг анкеров и узел проверить по проекту.`,
   } : {

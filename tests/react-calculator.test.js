@@ -15,6 +15,7 @@ import { calculateFramePartitionAssembly } from '../src/react/calculations/sip-j
 import { SIP_GUIDE_ENTRIES } from '../src/react/data/sip-guide.js';
 import { roofControlVisibility } from '../src/react/calculations/roof-control-visibility.js';
 import { calculateConstructionNodes } from '../src/react/calculations/construction-nodes.js';
+import { formatMoney } from '../src/react/utils/format.js';
 
 test('roof controls only expose parameters that affect the selected construction', () => {
   const gable = roofControlVisibility({ shape: 'gable', type: 'cold' });
@@ -525,6 +526,22 @@ test('commercial proposal lists only priced sections and explains their scope', 
   assert.match(foundation.total, /₽/);
   assert.match(engineering.summary, /электрика/);
   assert.equal(scope.some((item) => item.key === 'internal'), false);
+});
+
+test('foundation description names the supports actually included in the estimate', () => {
+  for (const [pileType, name, excluded] of [
+    ['concreteBlock', /бетонных блок/, /монтаж свай|винтовые сваи|оголовки/],
+    ['reinforcedConcrete', /железобетонн/, /монтаж винтовых свай/],
+  ]) {
+    const project = createDefaultProject();
+    project.settings.piles.pileType = pileType;
+    const calculation = calculateProject(project);
+    const scope = buildCommercialScope(project, calculation).find(item => item.key === 'foundation');
+    assert.match(scope.summary, name);
+    assert.doesNotMatch(`${scope.summary} ${scope.details}`, excluded);
+    const lines = calculation.sections.find(section => section.key === 'foundation').lines;
+    assert.equal(scope.total, formatMoney(lines.reduce((sum, line) => sum + line.qty * line.price, 0)));
+  }
 });
 
 test('client estimate keeps SIP panels and timber visible but groups consumables', () => {

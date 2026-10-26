@@ -30,8 +30,16 @@ export function roofBaseElevation(project, calculation, floorCount, spanMm, shap
   const pitch = Math.atan2(Number(settings.ridgeHeight || 0) * 1000, spanMm / 2 || 1);
   const aligned = ceiling.topZ + profile.heightMm + depth * Math.cos(pitch) / 2
     - (settings.type === 'sip' ? 0 : 25) - Math.tan(pitch) * profile.widthMm / 2;
+  // A cold flat roof starts at the wall plate. For a structural slope the low
+  // bearing edge is the datum; the raised edge still needs a designed support.
+  const flatSlope = calculation.roof?.flatSlopeMode === 'structural'
+    ? Number(settings.flatSlopePercent || 0) / 100 : 0;
+  const flatAligned = ceiling.topZ + profile.heightMm + depth / 2 - 25
+    - flatSlope * profile.widthMm / 2;
   return design.baseZ !== '' && design.baseZ != null && Number.isFinite(Number(design.baseZ))
     ? Number(design.baseZ)
+    : shape === 'flat' && settings.type === 'cold' && calculation.roof?.mauerlatLength > 0
+      ? flatAligned
     : ceiling.hasCeiling && ['gable', 'hip'].includes(shape) && calculation.roof?.mauerlatLength > 0
       ? aligned : defaultBase;
 }

@@ -143,6 +143,10 @@ export function roofProject(project,calculation,assembly){
  if(Math.abs(warmArea-estimateWarm)>.05)issue('ROOF_WARM_AREA',`Тёплая кровля: геометрия ${warmArea.toFixed(2)} м²; смета ${estimateWarm.toFixed(2)} м². Проверьте границу и состав.`, 'main');
  if(Math.abs(mainArea-estimateMain)>.05)issue('ROOF_AREA',`Площадь главной крыши: геометрия ${mainArea.toFixed(2)} м²; сметная геометрия ${estimateMain.toFixed(2)} м². Смета не заменена.`, 'main');
  if(settings.type==='combo'&&Number(settings.warmPercent)>0&&Number(settings.warmPercent)<100&&shape!=='tiered'&&!faces.some(f=>design.faceOverrides?.[f.id]?.warm!=null)&&!design.manualFaces?.length)issue('ROOF_WARM_BOUNDARY','Для комбинированной крыши назначьте тёплые скаты либо задайте точные границы отдельными скатами XYZ.');
- if(design.manualFaces?.length||Math.abs(roofBase-defaultBase)>1)issue('ROOF_WALL_ALIGNMENT','Проектные скаты/отметка основания не изменяют автоматически наружные стены и фронтоны. Согласуйте контуры стен, опор и узлы примыкания по текущей ревизии.');
+ const explicitBase=design.baseZ!==''&&design.baseZ!=null&&Number.isFinite(Number(design.baseZ));
+ if(shape==='flat'&&settings.type==='cold'&&calculation.roof.flatSlopeMode==='structural'&&!explicitBase&&!design.manualFaces?.length&&Number(settings.flatSlopePercent)>0)
+  issue('ROOF_WALL_ALIGNMENT','Низкая сторона несущей плоскости опирается на мауэрлат; высокая сторона поднята уклоном. Её стену или опору и узел примыкания задайте по проекту.');
+ else if(design.manualFaces?.length||explicitBase||shape!=='flat'&&Math.abs(roofBase-defaultBase)>1)
+  issue('ROOF_WALL_ALIGNMENT','Проектные скаты/отметка основания не изменяют автоматически наружные стены и фронтоны. Согласуйте контуры стен, опор и узлы примыкания по текущей ревизии.');
  return {version:1,units:'мм',datum:'Z = верх пола первого этажа',roofBase,faces,edges,issues,area,projection,warmArea,mainArea,estimateArea:expected,groupAreas};
 }

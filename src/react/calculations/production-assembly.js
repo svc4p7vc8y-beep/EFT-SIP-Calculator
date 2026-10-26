@@ -195,16 +195,18 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for(const rafter of assembly.rafters){
       const face=assembly.roofModel.faces.find(face=>face.group==='main'&&face.name===rafter.name)||assembly.roofModel.faces.find(face=>face.group==='main'&&roofAt({faces:[face]},...rafter.a).length);
       if(!face){rafter.bearingStatus='unresolved';unresolved++;continue;}
-      rafter.worldA=[...rafter.a,roofAt({faces:[face]},...rafter.a)[0]?.z??assembly.roofModel.roofBase];
-      rafter.worldB=[...rafter.b,roofAt({faces:[face]},...rafter.b)[0]?.z??assembly.roofModel.roofBase];
-      rafter.normal=face.normal;
+      const horizontalStructure=roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='tapered';
+      rafter.worldA=[...rafter.a,horizontalStructure?assembly.roofModel.roofBase:(roofAt({faces:[face]},...rafter.a)[0]?.z??assembly.roofModel.roofBase)];
+      rafter.worldB=[...rafter.b,horizontalStructure?assembly.roofModel.roofBase:(roofAt({faces:[face]},...rafter.b)[0]?.z??assembly.roofModel.roofBase)];
+      rafter.normal=horizontalStructure?[0,0,1]:face.normal;
       const depth=Number(rafter.profile.split(/[×xх]/)[1])||0;
       const candidates=plates.flatMap(plate=>{
         const hit=planIntersection(rafter.worldA,rafter.worldB,plate.worldA,plate.worldB);
         if(!hit)return [];
         const centerZ=rafter.worldA[2]+(rafter.worldB[2]-rafter.worldA[2])*hit.t;
-        const notchMm=plate.plateTopZ-centerZ+depth*face.normal[2]/2;
-        return notchMm>=-5&&notchMm/face.normal[2]<=50?[{plate,point:[rafter.worldA[0]+(rafter.worldB[0]-rafter.worldA[0])*hit.t,rafter.worldA[1]+(rafter.worldB[1]-rafter.worldA[1])*hit.t,plate.plateTopZ],notchMm:Math.max(0,notchMm/face.normal[2])}]:[];
+        const normalZ=rafter.normal[2];
+        const notchMm=plate.plateTopZ-centerZ+depth*normalZ/2;
+        return notchMm>=-5&&notchMm/normalZ<=50?[{plate,point:[rafter.worldA[0]+(rafter.worldB[0]-rafter.worldA[0])*hit.t,rafter.worldA[1]+(rafter.worldB[1]-rafter.worldA[1])*hit.t,plate.plateTopZ],notchMm:Math.max(0,notchMm/normalZ)}]:[];
       });
       if(candidates.length){const bearing=candidates[0];Object.assign(rafter,{bearingStatus:'geometry-only',bearingMauerlatId:bearing.plate.id,bearingPoint:bearing.point,bearingNotchMm:bearing.notchMm});}
       else {rafter.bearingStatus='unresolved';unresolved++;}

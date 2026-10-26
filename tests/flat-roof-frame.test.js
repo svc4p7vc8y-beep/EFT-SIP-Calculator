@@ -56,3 +56,24 @@ test('older projects receive an editable flat frame depth without losing their r
   assert.equal(restored.settings.roof.flatFrameDepthMm, 300);
   assert.equal(restored.settings.roof.shape, original.settings.roof.shape);
 });
+
+test('flat cold rafters meet the wall plate and tapered covering does not slope the structure', () => {
+  for (const mode of ['none', 'structural', 'tapered']) {
+    const project = createDefaultProject();
+    Object.assign(project.settings.roof, { shape: 'flat', type: 'cold', flatSlopeMode: mode, flatSlopePercent: 5 });
+    const calculation = calculateProject(project);
+    const report = calculateProductionCutting(project, calculation);
+    const rafters = report.assembly.rafters;
+    const bearing = rafters.filter(item => item.bearingStatus === 'geometry-only');
+    assert.ok(bearing.length >= rafters.length - 2, `${mode}: rafters inside the wall plate must meet it`);
+    assert.ok(bearing.every(item => item.bearingPoint && item.bearingNotchMm <= 50));
+    const wallReview = report.assembly.roofModel.issues.filter(item => item.code === 'ROOF_WALL_ALIGNMENT');
+    if (mode === 'structural') assert.match(wallReview[0]?.message || '', /высокая сторона/);
+    else assert.equal(wallReview.length, 0);
+    if (mode === 'tapered') {
+      assert.ok(rafters.every(item => Math.abs(item.worldA[2] - item.worldB[2]) < 0.01));
+      assert.ok(report.assembly.roofModel.faces[0].slopePercent > 0);
+    }
+    assert.equal(calculateProject(project).totals.total, calculation.totals.total);
+  }
+});
