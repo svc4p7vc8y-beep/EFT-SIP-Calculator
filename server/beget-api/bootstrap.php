@@ -126,6 +126,15 @@ function eft_audit(?int $userId, string $action, string $entityType, string $ent
     $statement->execute([$userId, $action, $entityType, $entityId, $details ? json_encode($details, JSON_UNESCAPED_UNICODE) : null]);
 }
 
+// A committed project must not be reported as failed if the audit write fails afterward.
+function eft_audit_after_commit(?int $userId, string $action, string $entityType, string $entityId = '', array $details = []): void {
+    try {
+        eft_audit($userId, $action, $entityType, $entityId, $details);
+    } catch (Throwable $error) {
+        error_log('EFT post-commit audit failed for ' . $action . ': ' . $error->getMessage());
+    }
+}
+
 function eft_project_name(array $payload): string {
     $number = trim((string)($payload['meta']['projectNum'] ?? ''));
     $projectName = trim((string)($payload['meta']['projectName'] ?? ''));

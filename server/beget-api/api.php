@@ -586,7 +586,7 @@ if ($action === 'projects' && $method === 'POST') {
     $pdo->prepare('INSERT INTO eft_projects (id, name, payload, owner_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?)')->execute([$id, $name, $encoded, (int)$user['id'], (int)$user['id'], (int)$user['id']]);
     $pdo->prepare('INSERT INTO eft_project_versions (project_id, revision, payload, saved_by, reason) VALUES (?, 1, ?, ?, ?)')->execute([$id, $encoded, (int)$user['id'], 'created']);
     $pdo->commit();
-    eft_audit((int)$user['id'], 'project_created', 'project', $id);
+    eft_audit_after_commit((int)$user['id'], 'project_created', 'project', $id);
     eft_json(['ok' => true, 'project' => ['id' => $id, 'name' => $name, 'status' => 'new', 'revision' => 1, 'payload' => $payload]], 201);
 }
 
@@ -620,7 +620,7 @@ if ($action === 'project' && $method === 'PUT') {
     $needsVersion = !empty($input['checkpoint']) || !$lastAt || strtotime((string)$lastAt) < time() - 300;
     if ($needsVersion) $pdo->prepare('INSERT INTO eft_project_versions (project_id, revision, payload, saved_by, reason) VALUES (?, ?, ?, ?, ?)')->execute([$id, $nextRevision, $encoded, (int)$user['id'], $reason]);
     $pdo->commit();
-    eft_audit((int)$user['id'], 'project_saved', 'project', $id, ['revision' => $nextRevision, 'checkpoint' => !empty($input['checkpoint'])]);
+    eft_audit_after_commit((int)$user['id'], 'project_saved', 'project', $id, ['revision' => $nextRevision, 'checkpoint' => !empty($input['checkpoint'])]);
     eft_json(['ok' => true, 'revision' => $nextRevision, 'name' => $name, 'versionCreated' => $needsVersion]);
 }
 
