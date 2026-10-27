@@ -105,6 +105,7 @@ import {
   ensureProjectFloorCount,
 } from "../state/project-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
+import { useTeam } from "../cloud/TeamContext.jsx";
 import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
 const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
@@ -4940,7 +4941,7 @@ function PlanLibraryThumbnail({ plan }) {
   );
 }
 
-function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare, onDelete, onCreateFolder, onRenameFolder, onDeleteFolder, onMove, onCopy, onRestore, onDeleteForever }) {
+function PlanLibraryModal({ entries, syncState, onRefresh, onClose, onOpen, onEdit, onRename, onShare, onDelete, onCreateFolder, onRenameFolder, onDeleteFolder, onMove, onCopy, onRestore, onDeleteForever }) {
   const [folderId, setFolderId] = useState('');
   const [showTrash, setShowTrash] = useState(false);
   const [movingId, setMovingId] = useState('');
@@ -4965,7 +4966,9 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
           <span className="plan-library-toolbar-spacer" />
           {!showTrash ? <button className="button secondary" type="button" onClick={() => onCreateFolder(activeFolderId)}><FolderPlus />Создать папку</button> : null}
           <button className="button secondary" type="button" aria-pressed={showTrash} onClick={() => setShowTrash(value => !value)}><Trash2 />Корзина ({entries.filter(item => item.deletedAt && item.kind !== 'folder').length})</button>
+          {onRefresh ? <button className="button secondary" type="button" onClick={onRefresh}><RotateCw />Обновить общую библиотеку</button> : null}
         </div>
+        {syncState ? <p className={`plan-library-sync-status ${syncState.status}`} role="status">{syncState.message}</p> : null}
         <div className="plan-library-grid">
           {!showTrash ? visible.filter(item => item.kind === 'folder').map(folder => <article className="plan-library-folder" key={folder.id}>
             <button type="button" className="plan-library-folder-open" onClick={() => setFolderId(folder.id)}><Folder /><strong>{folder.name}</strong><small>{entries.filter(item => !item.deletedAt && item.kind !== 'folder' && item.folderId === folder.id).length} планов</small></button>
@@ -5071,6 +5074,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
 }
 
 export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
+  const team = useTeam();
   const { project, activeTabId, openTab, attachLibrary, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
   const [mobilePlanEditing, setMobilePlanEditing] = useState(false);
@@ -6215,6 +6219,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       {libraryOpen ? (
         <PlanLibraryModal
           entries={planLibraryEntries}
+          syncState={team.user ? team.syncState : null}
+          onRefresh={team.user ? () => team.syncLibraries().catch(() => {}) : null}
           onClose={() => setLibraryOpen(false)}
           onOpen={(entry) => openLibraryPlan(entry, false)}
           onEdit={(entry) => openLibraryPlan(entry, true)}

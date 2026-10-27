@@ -5,7 +5,10 @@ const EDITABLE_FIELDS = new Set(['name', 'kind', 'unit', 'qty', 'price']);
 export function changeEstimateLine(project, line, changes) {
   if (line.custom) {
     const custom = (project.customEstimateLines || []).find((item) => item.id === line.id);
-    if (custom) Object.assign(custom, changes);
+    if (custom) {
+      Object.assign(custom, changes);
+      if (custom.catalogId && changes.price !== undefined) custom.priceOverride = changes.price;
+    }
     return;
   }
   const overrides = Array.isArray(project.estimateOverrides) ? project.estimateOverrides : [];
@@ -78,6 +81,12 @@ export function removeEstimateLine(project, line) {
 
 export function resetEstimateLine(project, lineId) {
   project.estimateOverrides = (project.estimateOverrides || []).filter((item) => item.lineId !== lineId);
+  const custom = (project.customEstimateLines || []).find(item => item.id === lineId);
+  if (custom?.priceOverride !== undefined) {
+    delete custom.priceOverride;
+    const catalog = [...(project.priceMat || []), ...(project.priceLab || [])].find(item => item.id === custom.catalogId);
+    if (catalog) custom.price = Number(catalog.price) || 0;
+  }
 }
 
 export function addEstimateLine(project, section) {

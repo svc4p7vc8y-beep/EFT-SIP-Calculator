@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { AlertTriangle, FileSpreadsheet, FileDown, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus, Box, FolderOpen, FileText, Share2, Send } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
+import { adjustedEstimateCalculation } from '../calculations/price-adjustments.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
 import { buildClientEstimate, isEstimateCutting, unpricedClientLines } from '../calculations/client-estimate.js';
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
@@ -32,7 +33,7 @@ function EstimateSectionEditor({ section, project, commit }) {
     grouped={section.key === 'sip' || section.key === 'engineering'}
     hiddenCount={hiddenCount}
     sharedCatalog={project.sharedPriceCatalog?.source === 'server' ? [...project.priceMat, ...project.priceLab] : null}
-    priceChangedIds={new Set((project.estimateOverrides||[]).filter(item=>item.price!==undefined).map(item=>item.lineId))}
+    priceChangedIds={new Set([...(project.estimateOverrides||[]).filter(item=>item.price!==undefined).map(item=>item.lineId), ...(project.customEstimateLines||[]).filter(item=>item.priceOverride!==undefined).map(item=>item.id)])}
     onChangeLine={(line, changes) => update((next) => changeEstimateLine(next, line, changes))}
     onRemoveLine={(line) => update((next) => removeEstimateLine(next, line))}
     onResetLine={(line) => update((next) => resetEstimateLine(next, line.id))}
@@ -114,6 +115,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
   const removeImage = (id) => commit((next) => { next.estimateImages = (next.estimateImages || []).filter(image => image.id !== id); return next; });
   const moveImage = (index, direction) => commit((next) => { const images = [...(next.estimateImages || [])]; const target = index + direction; if (target < 0 || target >= images.length) return next; [images[index], images[target]] = [images[target], images[index]]; next.estimateImages = images; return next; });
   const calculation = useMemo(() => calculateProject(project), [project]);
+  const adjustedCalculation = useMemo(() => adjustedEstimateCalculation(project, calculation), [project, calculation]);
   const setPrintOption = (key, value) => commit((next) => {
     next.settings.print = { ...(next.settings.print || {}), [key]: value };
     if (value && key === 'superCompact') next.settings.print.maximumCompact = false;
@@ -123,12 +125,12 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
   const printOptions = project.settings.print || {};
   const commercialScope = useMemo(() => buildCommercialScope(project, calculation, printOptions), [project, calculation, printOptions]);
   const clientEstimate = useMemo(
-    () => buildClientEstimate(calculation, printOptions),
-    [calculation, printOptions],
+    () => buildClientEstimate(adjustedCalculation, printOptions),
+    [adjustedCalculation, printOptions],
   );
   const pendingClientPrices = useMemo(
-    () => unpricedClientLines(calculation, printOptions),
-    [calculation, printOptions],
+    () => unpricedClientLines(adjustedCalculation, printOptions),
+    [adjustedCalculation, printOptions],
   );
   const visibleManagerSections = useMemo(
     () => calculation.sections

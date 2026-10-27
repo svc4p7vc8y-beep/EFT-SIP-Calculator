@@ -5,6 +5,7 @@ import {
 
 export const PLAN_LIBRARY_KEY = "eft-react-plan-library-v103";
 export const LEGACY_SKETCHES_KEY = "eft-react-plan-sketches-v47";
+let volatilePlanLibrary = null;
 
 const clone = (value) => structuredClone(value);
 
@@ -96,14 +97,17 @@ export function restorePlanLibraryEntryFromTrash(entries, entryId) {
 }
 
 export function deleteEmptyPlanLibraryFolder(entries, folderId) {
-  const folder = entries.find(item => item.id === folderId && item.kind === 'folder');
+  const folder = entries.find(item => item.id === folderId && item.kind === 'folder' && !item.deletedAt);
   if (!folder) throw new Error('Папка не найдена.');
   if (entries.some(item => !item.deletedAt && (item.folderId === folderId || item.parentId === folderId)))
     throw new Error('Сначала переместите планы и вложенные папки.');
-  return entries.filter(item => item.id !== folderId);
+  const now = new Date().toISOString();
+  return entries.map(item => item.id === folderId ? { ...item, deletedAt: now, updatedAt: now } : item);
 }
 
 export function readPlanLibrary(storage = localStorage) {
+  if (typeof localStorage !== 'undefined' && storage === localStorage && volatilePlanLibrary)
+    return clone(volatilePlanLibrary);
   try {
     const storedCurrent = storage.getItem(PLAN_LIBRARY_KEY);
     const current = JSON.parse(storedCurrent || "[]");
@@ -117,8 +121,16 @@ export function readPlanLibrary(storage = localStorage) {
 export function writePlanLibrary(entries, storage = localStorage, { notify = true } = {}) {
   const persistent = (entries || [])
     .filter((item) => !item.preset || item.deletedAt);
-  storage.setItem(PLAN_LIBRARY_KEY, JSON.stringify(persistent));
-  storage.removeItem?.(LEGACY_SKETCHES_KEY);
+  try {
+    storage.setItem(PLAN_LIBRARY_KEY, JSON.stringify(persistent));
+    storage.removeItem?.(LEGACY_SKETCHES_KEY);
+    if (typeof localStorage !== 'undefined' && storage === localStorage) volatilePlanLibrary = null;
+  } catch (error) {
+    if (typeof localStorage === 'undefined' || storage !== localStorage || error?.name !== 'QuotaExceededError') throw error;
+    // The authenticated team's server remains durable storage when the
+    // browser's small localStorage quota cannot hold another full plan.
+    volatilePlanLibrary = clone(persistent);
+  }
   if (typeof localStorage !== "undefined" && storage === localStorage) {
     window.dispatchEvent(new CustomEvent("eft:plan-library-synced"));
     if (notify) window.dispatchEvent(new CustomEvent("eft:plan-library-changed"));

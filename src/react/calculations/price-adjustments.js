@@ -64,3 +64,20 @@ export function calculateAdjustedPrice(project, calculation) {
     groups,
   };
 }
+
+// Keep the commercial rows and the header's adjusted total on one price basis.
+// This derives a view for print/export and never changes the project's catalog.
+export function adjustedEstimateCalculation(project, calculation) {
+  const settings = normalizePriceAdjustments(project.settings?.priceAdjustments);
+  const sections = calculation.sections.map(section => {
+    const rule = settings[section.key] || { materials: 0, labor: 0 };
+    return {
+      ...section,
+      lines: section.lines.map(line => {
+        const percent = line.kind === 'labor' ? rule.labor : rule.materials;
+        return percent ? { ...line, price: Number(line.price) * (1 + percent / 100) } : line;
+      }),
+    };
+  });
+  return { ...calculation, sections, lines: sections.flatMap(section => section.lines) };
+}

@@ -200,7 +200,7 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
           <td><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Количество: ${line.name}`} value={line.qty} onChange={(qty) => onChangeLine(line, { qty })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
           <td className={priceChangedIds.has(line.id) ? 'estimate-price-changed' : ''}><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Цена: ${line.name}`} title="Цена только для текущего проекта; общий прайс не меняется" value={line.price} onChange={(price) => onChangeLine(line, { price })} /><span className="print-only">{formatMoney(line.price)}</span></td>
           <td>{formatMoney(line.qty * line.price)}</td>
-          <td className="estimate-row-actions no-print">{line.projectOverride ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>
+          <td className="estimate-row-actions no-print">{line.projectOverride || line.priceOverride !== undefined ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>
         </tr>];
         })}</tbody>
         <tfoot><tr><td colSpan="5">Итого раздела</td><td>{formatMoney(total)}</td><td className="no-print" /></tr></tfoot>

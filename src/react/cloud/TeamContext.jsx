@@ -13,7 +13,7 @@ import {
   replaceKnowledgeArticles,
 } from "../storage/knowledge-library.js";
 import { readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
-import { mergeLibraryEntries } from "./library-sync.js";
+import { mergeLibraryEntries, reconcileInitialLibrary } from "./library-sync.js";
 import { normalizeNodeTypeRules } from "./node-type-rules.js";
 import { getSavedProjectVersion, restoreSavedProjectVersion } from "./project-versions.js";
 import { describeProjectSaveConflict } from "./save-conflict.js";
@@ -176,12 +176,25 @@ export function TeamProvider({ children }) {
         if (remoteRevision !== localRevision) {
           if (libraryDirty.current[key]) {
             await saveSharedLibrary(key);
+          } else if (localRevision === 0) {
+            // A new browser session can already contain folders and plans that
+            // have never reached the server. Reconcile before replacing cache.
+            const local = await readLocalLibrary(key);
+            const initial = reconcileInitialLibrary(local, remote.payload || []);
+            libraryBases.current[key] = structuredClone(remote.payload || []);
+            libraryRevisions.current[key] = remoteRevision;
+            await writeLocalLibrary(key, initial.entries);
+            if (initial.needsUpload) await saveSharedLibrary(key);
           } else {
             libraryBases.current[key] = structuredClone(await writeLocalLibrary(key, remote.payload || []));
             libraryRevisions.current[key] = remoteRevision;
           }
         }
       }
+      setSyncState({ status: 'saved', message: 'Общие библиотеки синхронизированы' });
+    } catch (error) {
+      setSyncState({ status: 'error', message: `Библиотеки: ${error.message}` });
+      throw error;
     } finally {
       syncingLibraries.current = false;
     }
@@ -569,6 +582,7 @@ export function TeamProvider({ children }) {
       saveNodeTypeRule,
       current,
       syncState,
+      syncLibraries,
       projectSaveConflict,
       login,
       logout,
@@ -606,6 +620,7 @@ export function TeamProvider({ children }) {
       saveNodeTypeRule,
       current,
       syncState,
+      syncLibraries,
       projectSaveConflict,
       login,
       logout,

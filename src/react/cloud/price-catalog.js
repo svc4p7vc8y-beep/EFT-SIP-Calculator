@@ -5,7 +5,8 @@ export function applySharedPriceCatalog(project, catalog, revision) {
   const currentPrice = line => {
     if (!line.catalogId) return { ...line, price: Math.max(0, Number(line.price) || 0), pricePending: !(Number(line.price) > 0) };
     const row = byId.get(line.catalogId);
-    return { ...line, ...(row ? { kind: row.kind, unit: row.unit } : {}), price: Number(row?.price) || 0, pricePending: !(Number(row?.price) > 0) };
+    const price = line.priceOverride !== undefined ? Number(line.priceOverride) : Number(row?.price);
+    return { ...line, ...(row ? { kind: row.kind, unit: row.unit } : {}), price: Number.isFinite(price) ? price : 0, pricePending: !(price > 0) };
   };
   return { ...project, priceMat: catalog.priceMat, priceLab: catalog.priceLab, sharedPriceCatalog: { revision, source: 'server' },
     customEstimateLines: (project.customEstimateLines || []).map(currentPrice),

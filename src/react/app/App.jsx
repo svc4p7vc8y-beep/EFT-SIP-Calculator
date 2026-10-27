@@ -246,6 +246,9 @@ export function App() {
     () => calculateAdjustedPrice(project, calculation),
     [project, calculation],
   );
+  const estimatePriceModified = adjustedPrice.delta !== 0 ||
+    (project.estimateOverrides || []).length > 0 ||
+    (project.customEstimateLines || []).length > 0;
   const priceChanges = useMemo(
     () => summarizePriceCatalogChanges(project),
     [project.priceMat, project.priceLab],
@@ -596,7 +599,7 @@ export function App() {
             <span>Итого</span>
             <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(calculation.totals.total)}</strong>
           </div>
-          <div className="adjusted">
+          <div className={`adjusted${estimatePriceModified ? ' is-modified' : ''}`}>
             <span>Изменённая цена</span>
             <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(adjustedPrice.total)}</strong>
           </div>

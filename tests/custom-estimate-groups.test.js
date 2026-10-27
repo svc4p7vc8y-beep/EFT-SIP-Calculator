@@ -26,7 +26,7 @@ test('user-created estimate group is editable, priced, included in totals and su
   assert.equal(result.totals.materials + result.totals.labor, result.totals.total);
 });
 
-test('server catalog leaves standalone project rates editable while bound rows follow server price', () => {
+test('server catalog preserves deliberate project prices on custom bound rows', () => {
   const project = createDefaultProject();
   const group = addEstimateGroup(project);
   const own = addEstimateLine(project, group.id);
@@ -36,12 +36,12 @@ test('server catalog leaves standalone project rates editable while bound rows f
   const catalog = createDefaultPriceLists();
   const first = applySharedPriceCatalog(project, catalog, 1);
   assert.equal(first.customEstimateLines.find((line) => line.id === own.id).price, 730);
-  assert.equal(first.customEstimateLines.find((line) => line.id === bound.id).price, catalog.priceMat.find((row) => row.id === 'MAT-001').price);
+  assert.equal(first.customEstimateLines.find((line) => line.id === bound.id).price, 3);
   catalog.priceMat.find((row) => row.id === 'MAT-001').price = 6789;
   const refreshed = applySharedPriceCatalog(migrateProject(JSON.parse(JSON.stringify(first))), catalog, 2);
   const rows = calculateProject(refreshed).sections.find((item) => item.key === group.id).lines;
   assert.equal(rows.find((line) => line.id === own.id).price, 730);
-  assert.equal(rows.find((line) => line.id === bound.id).price, 6789);
+  assert.equal(rows.find((line) => line.id === bound.id).price, 3);
 });
 
 test('old projects without custom groups migrate; an empty group does not change the client estimate', () => {

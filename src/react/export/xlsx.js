@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { requestFileName, requestTotals } from '../state/request-model.js';
 import { buildClientEstimate } from '../calculations/client-estimate.js';
+import { adjustedEstimateCalculation } from '../calculations/price-adjustments.js';
 import {windowGeometry,windowPrice} from '../state/window-products.js';
 
 const escapeXml = (value) => String(value ?? '')
@@ -32,7 +33,7 @@ function worksheet(rows, widths = []) {
 }
 
 export function createEstimateWorkbook(project, calculation) {
-  const clientEstimate = buildClientEstimate(calculation, project.settings?.print || {});
+  const clientEstimate = buildClientEstimate(adjustedEstimateCalculation(project, calculation), project.settings?.print || {});
   const estimateRows = [
     ['ЭФТ — смета проекта'],
     ['Номер проекта', project.meta.projectNum], ['Заказчик', project.meta.customer], ['Адрес', project.meta.address], ['Дата', new Date().toLocaleDateString('ru-RU')],

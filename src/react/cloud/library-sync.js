@@ -21,3 +21,11 @@ export function mergeLibraryEntries(localEntries = [], remoteEntries = [], baseE
   }
   return [...merged.values()].sort((left, right) => updatedAt(right) - updatedAt(left));
 }
+
+export function reconcileInitialLibrary(localEntries = [], remoteEntries = []) {
+  const merged = mergeLibraryEntries(localEntries, remoteEntries);
+  return {
+    entries: merged,
+    needsUpload: JSON.stringify(merged) !== JSON.stringify(mergeLibraryEntries([], remoteEntries)),
+  };
+}

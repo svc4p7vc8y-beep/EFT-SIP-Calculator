@@ -7146,6 +7146,10 @@ select,
 .plan-right-3d-placeholder { margin: 10px 0 0; color: #667069; font-size: 10px; }
 .editable-estimate-table .estimate-price-changed,
 .editable-estimate-table .estimate-price-changed input { color: #b42318 !important; font-weight: 800; }
+.header-totals .adjusted.is-modified strong { color: #b42318 !important; }
+.header-totals .adjusted.is-modified { background: #fff0ed; }
+.plan-library-sync-status { margin: 0 16px 10px; font-size: 12px; color: #426844; }
+.plan-library-sync-status.error { color: #b42318 !important; }
 .mail-contacts { display: grid; gap: 10px; margin: 0 0 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
 .mail-contacts form, .mail-contacts > div > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .mail-contacts input, .mail-compose select { min-width: 180px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); color: var(--text); }
