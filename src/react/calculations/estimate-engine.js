@@ -266,12 +266,12 @@ function applyProjectEstimateEdits(project, sections, roofSystem) {
         {
           ...line,
           ...Object.fromEntries(
-            (project.sharedPriceCatalog?.source === 'server' ? ["name", "qty"] : ["name", "kind", "unit", "qty", "price"])
+            (project.sharedPriceCatalog?.source === 'server' ? ["name", "qty", "price"] : ["name", "kind", "unit", "qty", "price"])
               .filter((key) => override[key] !== undefined)
               .map((key) => [key, override[key]]),
           ),
           projectOverride: true,
-          pricePending: !(Number(project.sharedPriceCatalog?.source === 'server' ? line.price : override.price ?? line.price) > 0),
+          pricePending: !(Number(override.price ?? line.price) > 0),
         },
       ];
     });
@@ -1392,11 +1392,16 @@ function roofSection(project, metrics, index, inputs) {
   );
   const plateProfile = mauerlatProfile(roof);
   const perimeterRuns = housePerimeterRuns(project.plan);
-  const mauerlatLayout = ["perimeter", "supports", "none"].includes(
+  const configuredMauerlatLayout = ["perimeter", "supports", "none"].includes(
     roof.mauerlatLayout,
   )
     ? roof.mauerlatLayout
     : "perimeter";
+  // A complete SIP roof bears on the walls; keep the saved layout for a later
+  // switch back to a cold or partially warm roof.
+  const mauerlatLayout = roof.type === "sip" ||
+    (roof.type === "combo" && Number(roof.warmPercent) >= 100)
+    ? "none" : configuredMauerlatLayout;
   const plateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout }, roofAxes.ridgeAxis, terraceRoofs);
   const supportedPlateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout, gableOverhang: 0 }, roofAxes.ridgeAxis);
   const mauerlatRuns = supportedPlateGeometry.runs.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000);
@@ -1519,7 +1524,9 @@ function roofSection(project, metrics, index, inputs) {
   const lathStep = Math.min(1.2, Math.max(0.1, Number(roof.lathStep) || 0.35));
   const lathRafterRun = rectangularRoof && mainColdSlopeArea > 0 && rafterStructure.system !== 'truss'
     && ['gable', 'tiered'].includes(mainRoofShape) && rafterStructure.positions.length > 1
-    ? (rafterStructure.positions.at(-1) - rafterStructure.positions[0]) / 1000 : null;
+    ? mainRoofShape === 'gable' && gableOverhang > 0
+      ? houseLength + 2 * gableOverhang
+      : (rafterStructure.positions.at(-1) - rafterStructure.positions[0]) / 1000 : null;
   const mainLathRequiredLength = includeCovering && mainArea
     ? mainRoofShape === 'tiered' && Number(geometry.upperSlopeLength) > 0 && Number(geometry.lowerSlopeLength) > 0
       ? ['upper', 'lower'].reduce((sum, level) => sum + (lathRafterRun ?? Number(geometry[`${level}Area`]) / Number(geometry[`${level}SlopeLength`]))

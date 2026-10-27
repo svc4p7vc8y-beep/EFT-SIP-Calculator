@@ -4949,7 +4949,7 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
   const currentFolder = folders.find(item => item.id === folderId);
   const activeFolderId = currentFolder?.id || '';
   const visible = entries.filter(item => showTrash
-    ? item.kind !== 'folder' && item.deletedAt && !item.preset
+    ? item.kind !== 'folder' && item.deletedAt
     : !item.deletedAt && (item.kind === 'folder' ? (item.parentId || '') === activeFolderId : (item.folderId || '') === activeFolderId));
   return (
     <div className="plan-library-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -4995,14 +4995,14 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
                     <span><small>Кровля</small><b>{roofNames[settings.roof?.form] || "по проекту"}</b></span>
                   </div>
                   <div className="plan-library-actions">
-                    {showTrash ? <><button className="button primary" type="button" onClick={() => onRestore(entry)}>Восстановить</button><button className="button danger" type="button" onClick={() => onDeleteForever(entry)}>Удалить окончательно</button></> : <>
+                    {showTrash ? <><button className="button primary" type="button" onClick={() => onRestore(entry)}>Восстановить</button>{!entry.preset ? <button className="button danger" type="button" onClick={() => onDeleteForever(entry)}>Удалить окончательно</button> : null}</> : <>
                       <button className="button primary" type="button" onClick={() => onOpen(entry)}>Открыть</button>
                       {!entry.preset ? <button className="button secondary" type="button" onClick={() => onEdit(entry)}>Изменить</button> : null}
                       {!entry.preset ? <button className="button secondary" type="button" onClick={() => onRename(entry)}>Переименовать</button> : null}
                       {!entry.preset ? <button className="button secondary" type="button" onClick={() => onCopy(entry)}><Copy />Копировать</button> : null}
                       {!entry.preset ? <button className="button secondary" type="button" onClick={() => { setMovingId(entry.id); setDestination(entry.folderId || ''); }}><MoveRight />Переместить</button> : null}
                       <button className="button secondary" type="button" onClick={() => onShare(entry)}><Share2 />Поделиться</button>
-                      {!entry.preset ? <button className="button danger" type="button" onClick={() => onDelete(entry)}><Trash2 />В корзину</button> : null}
+                      <button className="button danger" type="button" onClick={() => onDelete(entry)}><Trash2 />В корзину</button>
                     </>}
                   </div>
                   {movingId === entry.id ? <div className="plan-library-move"><label>Папка назначения <select value={destination} onChange={event => setDestination(event.target.value)}><option value="">Без папки</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><button className="button primary" type="button" disabled={destination === (entry.folderId || '')} onClick={() => { onMove(entry, destination); setMovingId(''); }}>Переместить</button><button className="button secondary" type="button" onClick={() => setMovingId('')}>Отмена</button></div> : null}
@@ -5071,7 +5071,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
 }
 
 export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
-  const { project, activeTabId, openTab, commit, undo, redo, canUndo, canRedo } = useProject();
+  const { project, activeTabId, openTab, attachLibrary, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
   const [mobilePlanEditing, setMobilePlanEditing] = useState(false);
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
@@ -5099,6 +5099,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
   const [plan3DSize,setPlan3DSize]=useState('small');
+  const [plan3DMode,setPlan3DMode]=useState('3d');
+  const [plan3DPreferences,setPlan3DPreferences]=useState(null);
+  const plan3DCameraRef=useRef(null);
   const [showPlan3D,setShowPlan3D]=useState(true);
   const [plan3DPlacement,setPlan3DPlacement]=useState('dock');
   const [inspectorTab,setInspectorTab]=useState('house');
@@ -5312,7 +5315,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   };
   const issues = useMemo(() => planIssues(plan), [plan]);
   const planLibraryEntries = useMemo(() => {
-    const entries = [
+    const presetEntries = [
       { id: "photo-plan", name: "План с фото", plan: createDefaultPlan(), preset: true },
       {
         id: "compact",
@@ -5321,8 +5324,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         preset: true,
       },
       { id: "empty", name: "Новый чистый план", plan: createBlankPlan(), preset: true },
-      ...libraryPlans,
     ];
+    const savedPresets = new Map(libraryPlans.filter(item => item.preset).map(item => [item.id, item]));
+    const entries = [...presetEntries.map(item => savedPresets.get(item.id) || item), ...libraryPlans.filter(item => !item.preset)];
     if (!libraryOpen) return entries;
     return entries.map((entry) => {
       if (entry.kind === 'folder' || entry.deletedAt || Number(entry.priceSnapshot?.total) > 0) return entry;
@@ -5564,6 +5568,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       : [entry, ...latest];
     const stored = writePlanLibrary(updated);
     setLibraryPlans(stored);
+    attachLibrary(activeTabId, entry.id);
     setEditingLibraryId(entry.id);
     setTransferStatus(existing ? `План «${name}» обновлён в библиотеке` : `План «${name}» сохранён вместе с параметрами и ценой`);
   };
@@ -5594,6 +5599,11 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     setLibraryPlans(writePlanLibrary(updated));
   };
   const deleteLibraryPlan = (entry) => {
+    if (entry.preset) {
+      setLibraryPlans(writePlanLibrary([...readPlanLibrary().filter(item => item.id !== entry.id), { ...entry, deletedAt: new Date().toISOString() }]));
+      setTransferStatus(`Шаблон «${entry.name}» скрыт в корзине.`);
+      return;
+    }
     setLibraryPlans(writePlanLibrary(trashPlanLibraryEntry(readPlanLibrary(), entry.id)));
     if (editingLibraryId === entry.id) setEditingLibraryId(null);
     setTransferStatus(`План «${entry.name}» перемещён в корзину. Его можно восстановить.`);
@@ -5613,7 +5623,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const deleteLibraryFolder = (folder) => updateLibrary(entries => deleteEmptyPlanLibraryFolder(entries, folder.id));
   const moveLibraryPlan = (entry, folderId) => updateLibrary(entries => movePlanLibraryEntry(entries, entry.id, folderId));
   const copyLibraryPlan = (entry) => updateLibrary(entries => copyPlanLibraryEntry(entries, entry.id));
-  const restoreLibraryPlan = (entry) => updateLibrary(entries => restorePlanLibraryEntryFromTrash(entries, entry.id));
+  const restoreLibraryPlan = (entry) => updateLibrary(entries => entry.preset ? entries.filter(item => item.id !== entry.id) : restorePlanLibraryEntryFromTrash(entries, entry.id));
   const deleteLibraryPlanForever = (entry) => {
     if (!window.confirm(`Окончательно удалить план «${entry.name}»? Восстановить его из корзины будет нельзя.`)) return;
     updateLibrary(entries => entries.filter(item => item.id !== entry.id));
@@ -6494,7 +6504,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </div>
           </>:null}
           {showPlan3D && plan3DPlacement === 'floating' ? <FloatingPlan3D containerRef={plannerCanvasRef} size={plan3DSize} onSizeChange={setPlan3DSize}>
-            <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
+            <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense>
           </FloatingPlan3D> : null}
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
@@ -6546,12 +6556,12 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             <div className="plan-right-3d-heading">
               <div><strong>Дом в 3D</strong><small>Текущий проект · изменения отображаются здесь</small></div>
               <div className="plan-right-3d-actions">
-                {plan3DPlacement === 'floating' ? <button type="button" onClick={() => setPlan3DPlacement('dock')}>Вернуть справа</button> : <button type="button" onClick={() => setPlan3DPlacement('floating')} disabled={!showPlan3D}>Открепить</button>}
+                {plan3DPlacement === 'floating' ? <button type="button" onClick={() => setPlan3DPlacement('dock')}>Вернуть справа</button> : <button type="button" onClick={() => {setPlan3DSize('large');setPlan3DPlacement('floating');}} disabled={!showPlan3D}>Открепить</button>}
                 <button type="button" onClick={() => setShowPlan3D((value) => !value)}>{showPlan3D ? 'Скрыть' : 'Показать'}</button>
               </div>
             </div>
             {showPlan3D && plan3DPlacement === 'dock' ? <div className={`plan-right-3d-view size-${plan3DSize}`}>
-              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation}/></Suspense>
+              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense>
             </div> : <p className="plan-right-3d-placeholder">{showPlan3D ? '3D-окно находится поверх плана.' : '3D-вид скрыт.'}</p>}
             {showPlan3D && plan3DPlacement === 'dock' ? <div className="plan-right-3d-sizes" role="group" aria-label="Размер 3D-вида">
               {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}

@@ -38,7 +38,7 @@ test('single-slope structural and tiered roofs use existing sections, not a new 
  p.settings.roof.shape='tiered';p.settings.roof.type='cold';r=run(p);a=generateRoofSupportLayout(p,r,{variant:'double',baseZ:2000});assert.deepEqual(a.errors,[]);assert.equal(a.counts.purlins,2);
 });
 test('warm gable roof places supports using SIP panel planes when rafters are absent',()=>{
- const p=base();p.settings.roof.type='sip';const r=run(p),a=generateRoofSupportLayout(p,r,{});assert.equal(r.assembly.rafters.length,0);assert.deepEqual(a.errors,[]);assert.equal(a.items[0].z1,3963);
+ const p=base();p.settings.roof.type='sip';const r=run(p),a=generateRoofSupportLayout(p,r,{});assert.equal(r.assembly.rafters.length,0);assert.deepEqual(a.errors,[]);assert.equal(a.items[0].z1,4036);
 });
 test('auto layouts are opt-in, repeated application replaces only unlocked auto items',()=>{
  const p=base(),r=run(p),a=generateRoofSupportLayout(p,r,{});assert.equal(p.settings.productionCutting.roofSupports.length,0);

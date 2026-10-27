@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { AlertTriangle, FileSpreadsheet, FileDown, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus, Box, FolderOpen, FileText } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, FileDown, Printer, ImagePlus, Trash2, ArrowLeft, ArrowRight, Plus, Box, FolderOpen, FileText, Share2, Send } from 'lucide-react';
 import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
@@ -17,6 +17,9 @@ import { MAX_ESTIMATE_IMAGES, MAX_ESTIMATE_IMAGE_DATA, prepareEstimateImage } fr
 import { MAX_ESTIMATE_FILES, estimateFileUrl, normalizeEstimateFiles } from '../state/estimate-files.js';
 import { useCurrentPriceAction } from '../cloud/useCurrentPriceAction.js';
 import { resolveEftApiUrl } from '../../shared/team-api.js';
+import { eftApi } from '../../shared/team-api.js';
+import { useTeam } from '../cloud/TeamContext.jsx';
+import { ALEXEY_EMAIL, estimateMailContent } from '../export/estimate-mail.js';
 
 const EstimateFilePicker = lazy(() => import('../components/EstimateFilePicker.jsx'));
 const Estimate3DViewDialog = lazy(() => import('../components/Estimate3DViewDialog.jsx'));
@@ -29,6 +32,7 @@ function EstimateSectionEditor({ section, project, commit }) {
     grouped={section.key === 'sip' || section.key === 'engineering'}
     hiddenCount={hiddenCount}
     sharedCatalog={project.sharedPriceCatalog?.source === 'server' ? [...project.priceMat, ...project.priceLab] : null}
+    priceChangedIds={new Set((project.estimateOverrides||[]).filter(item=>item.price!==undefined).map(item=>item.lineId))}
     onChangeLine={(line, changes) => update((next) => changeEstimateLine(next, line, changes))}
     onRemoveLine={(line) => update((next) => removeEstimateLine(next, line))}
     onResetLine={(line) => update((next) => resetEstimateLine(next, line.id))}
@@ -45,6 +49,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
     return () => window.removeEventListener('beforeprint', refreshDate);
   }, []);
   const { project, commit } = useProject();
+  const team = useTeam();
   const pdfTitle = estimatePdfTitle(project.meta);
   useEffect(() => {
     const previousTitle = document.title;
@@ -60,6 +65,8 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
   const [printPreparing, setPrintPreparing] = useState(false);
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [pdfError, setPdfError] = useState('');
+  const [mailSending,setMailSending]=useState(false);
+  const [mailNotice,setMailNotice]=useState('');
   const estimateImages = project.estimateImages || [];
   const estimateFiles = project.estimateFiles || [];
   const appendImages = async (files, caption = '') => {
@@ -204,12 +211,42 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
     try { await preparePdf(); } catch (error) { setPdfError(error?.message || 'Не удалось сохранить PDF.'); }
     finally { setPdfPreparing(false); }
   };
+  const makePdfFile = async () => {
+    if (pendingClientPrices.length) throw new Error('Укажите недостающие цены перед отправкой сметы.');
+    const blob = await downloadEstimatePdf(document.querySelector('.estimate-screen .print-sheet'), pdfTitle, { save: false });
+    return new File([blob], `${pdfTitle}.pdf`, { type: 'application/pdf' });
+  };
+  const shareEstimate = useCurrentPriceAction(async () => {
+    setMailNotice('');
+    try {
+      const file = await makePdfFile();
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ title: pdfTitle, files: [file] });
+      else {
+        const url = URL.createObjectURL(file),link = document.createElement('a');
+        link.href=url;link.download=file.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+        setMailNotice('PDF сохранён. Его можно передать через почту или мессенджер.');
+      }
+    } catch (error) { if (error.name !== 'AbortError') setMailNotice(error.message || 'Не удалось поделиться сметой.'); }
+  });
+  const sendEstimateToAlexey = useCurrentPriceAction(async () => {
+    if (mailSending) return;
+    if (!team.user || team.user.role === 'viewer') { setMailNotice('Войдите в командный режим с правом отправки почты.'); return; }
+    setMailSending(true);setMailNotice('Формирую PDF и отправляю письмо…');
+    try {
+      const file=await makePdfFile(),mail=estimateMailContent(project.meta),form=new FormData();
+      form.append('to',ALEXEY_EMAIL);form.append('subject',mail.subject);form.append('body',mail.body);form.append('attachments[]',file);
+      await eftApi('mail-send',{method:'POST',csrf:team.csrf,body:form});
+      setMailNotice(`Письмо отправлено на ${ALEXEY_EMAIL}. PDF приложен.`);
+    } catch (error) { setMailNotice(error.message || 'Письмо не отправлено.'); }
+    finally { setMailSending(false); }
+  });
   const planLayers = [
     ['showContour', 'Контур дома'], ['showRooms', 'Комнаты и перегородки'],
     ['showOpenings', 'Окна и двери'], ['showPlatforms', 'Терраса и крыльцо'],
     ['showPiles', project.settings.piles?.pileType === 'concreteBlock' ? 'Блоки' : 'Сваи'], ['showBinding', 'Обвязка'], ['showDimensions', 'Размеры'],
   ];
-  return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent} disabled={printPreparing}><Printer />{printPreparing ? 'Подготовка…' : 'Печать'}</button><button className="button primary no-print estimate-download-pdf" onClick={downloadPdf} disabled={pdfPreparing}><FileDown />{pdfPreparing ? 'Создаю PDF…' : 'PDF ↓'}</button></>} />
+  return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent} disabled={printPreparing}><Printer />{printPreparing ? 'Подготовка…' : 'Печать'}</button><button className="button primary no-print estimate-download-pdf" onClick={downloadPdf} disabled={pdfPreparing}><FileDown />{pdfPreparing ? 'Создаю PDF…' : 'PDF ↓'}</button><button type="button" className="button secondary no-print" onClick={shareEstimate}><Share2 />Поделиться</button><button type="button" className="button primary no-print" onClick={sendEstimateToAlexey} disabled={mailSending}><Send />{mailSending?'Отправляю…':'Отправить Алексею'}</button></>} />
+    {mailNotice ? <p className="notice no-print" role="status">{mailNotice}</p> : null}
     {pdfError ? <p className="estimate-pdf-error no-print" role="alert">{pdfError}</p> : null}
     <label className="super-compact-option no-print"><input type="checkbox" checked={printOptions.superCompact === true} onChange={event => setPrintOption('superCompact', event.target.checked)} /><span><strong>Суперкомпактное предложение</strong><small>Шапка, стоимость, схемы и состав комплектации. Без перечня номенклатуры.</small></span></label>
     {pendingClientPrices.length ? <div className="estimate-price-warning no-print"><AlertTriangle /><div><strong>В предложении есть позиции без цены</strong><span>{pendingClientPrices.map((line) => line.name).join(' · ')}. Укажите цену своей позиции в смете, либо выберите позицию общего прайса, либо исключите строку из предложения.</span></div></div> : null}

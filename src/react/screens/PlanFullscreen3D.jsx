@@ -5,10 +5,9 @@ import '../styles/drawing-workbench.css';
 const ProductionHouse3D=lazy(()=>import('./ProductionHouse3D.jsx'));
 const DrawingCanvas=lazy(()=>import('./DrawingCanvas.jsx').then(module=>({default:module.DrawingCanvas})));
 
-export default function PlanFullscreen3D({project,calculation}) {
+export default function PlanFullscreen3D({project,calculation,view='3d',onViewChange=()=>{},viewerPreferences,onViewerPreferencesChange,cameraRef}) {
   const [result,setResult]=useState({project:null,report:null,error:''});
   const [selectedMemberId,setSelectedMemberId]=useState('');
-  const [view,setView]=useState('3d');
   const [drawingIndex,setDrawingIndex]=useState(0);
   useEffect(()=>{
     let worker;
@@ -20,8 +19,9 @@ export default function PlanFullscreen3D({project,calculation}) {
     },180);
     return()=>{window.clearTimeout(timer);worker?.terminate();};
   },[project,calculation]);
-  if(result.project!==project)return <p role="status" className="plan-3d-loading">Обновляю 3D по плану…</p>;
+  if(!result.report && !result.error)return <p role="status" className="plan-3d-loading">Обновляю 3D по плану…</p>;
   if(result.error)return <p role="alert" className="plan-3d-loading">{result.error}</p>;
+  const displayedProject=result.project||project;
   const assembly=result.report.assembly,mauerlats=assembly.roofTimbers.filter(item=>!item.excluded&&(item.name==='Мауэрлат'||item.material?.startsWith('Мауэрлат')));
   const rafters=[...assembly.rafters,...assembly.roofTimbers.filter(item=>item.roofMemberKind==='hip')].filter(item=>!item.excluded);
   const mainFaceIds=new Set(assembly.roofModel?.faces.filter(face=>face.group==='main').map(face=>face.id)||[]);
@@ -39,9 +39,10 @@ export default function PlanFullscreen3D({project,calculation}) {
   const index=Math.min(drawingIndex,Math.max(0,surfaces.length-1));
   const surface=surfaces[index];
   return <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>
-    <div className="plan-3d-view-switch" role="group" aria-label="Вид в окне 3D"><button type="button" aria-pressed={view==='3d'} onClick={()=>setView('3d')}>3D</button><button type="button" aria-pressed={view==='drawing'} onClick={()=>setView('drawing')}>Развёртки</button></div>
+    <div className="plan-3d-view-switch" role="group" aria-label="Вид в окне 3D"><button type="button" aria-pressed={view==='3d'} onClick={()=>onViewChange('3d')}>3D</button><button type="button" aria-pressed={view==='drawing'} onClick={()=>onViewChange('drawing')}>Развёртки</button></div>
+    {result.project!==project?<p role="status" className="plan-3d-loading">Обновляю 3D по плану…</p>:null}
     {view==='3d'?<>
-      <ProductionHouse3D report={result.report} project={project} initialZoom={0.9} showRoofStructureByDefault showBearingPoints selected={selectedMemberId?[selectedMemberId]:[]} onSelect={setSelectedMemberId}/>
+      <ProductionHouse3D report={result.report} project={displayedProject} initialZoom={0.9} showRoofStructureByDefault showBearingPoints selected={selectedMemberId?[selectedMemberId]:[]} onSelect={setSelectedMemberId} viewerPreferences={viewerPreferences} onViewerPreferencesChange={onViewerPreferencesChange} savedViewRef={cameraRef}/>
       {mauerlats.length?<p className="plan-3d-bearing-summary">Мауэрлат (зелёный): {mauerlats.length} {plateWord} · геометрическое пересечение: {bearingCount}/{bearingTotal} {tapered?'линий нижнего пояса':'стропил'} дома{platformRafterCount?` · ${platformRafterCount} стропил пристроек проверяются отдельно`:''}. Оранжевые точки — места пересечения, без расчёта врубки и крепежа.</p>:null}
       {selected?<p className="plan-3d-bearing-detail">{selected.id} · {selected.name||selected.material} · {Math.round(selected.length)} мм{selected.bearingPoint?` · мауэрлат ${selected.bearingMauerlatId} · врезка ${Math.round(selected.bearingNotchMm||0)} мм (предел 50 мм) · XYZ ${selected.bearingPoint.map(Math.round).join(' / ')} мм`:selected.bearingStatus==='unresolved'?' · опирание на мауэрлат не подтверждено':''}</p>:null}
     </>:<div className="plan-3d-drawing">

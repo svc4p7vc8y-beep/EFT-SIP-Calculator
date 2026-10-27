@@ -120,8 +120,14 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       const run=rafters.filter(r=>r.name===name),sample=run[0];
       const alongIndex=axis==='x'?0:1,acrossIndex=1-alongIndex;
       const anchors=[...new Set(run.map(r=>r.a[alongIndex]-(axis==='x'?bounds.x:bounds.y)))].sort((a,b)=>a-b);
-      const spans=[];let start=anchors[0];
-      while(start<anchors.at(-1)-.1){const choices=anchors.filter(x=>x>start+.1&&x-start<=settings.stockLengthMm-2*Number(settings.endAllowanceMm||0));const end=choices.at(-1);if(end==null){issues.push(`${name}: нет стропильной опоры для стыка обрешётки в пределах заготовки ${settings.stockLengthMm} мм.`);break;}spans.push([start,end]);start=end;}
+      const sideOverhang=['gable','flat'].includes(roof.mainRoofShape)?Math.max(0,mm(roof.gableOverhang||0)):0;
+      const spans=[],finish=Math.max(anchors.at(-1),axisLength+sideOverhang),maxStock=settings.stockLengthMm-2*Number(settings.endAllowanceMm||0);let start=Math.min(anchors[0],-sideOverhang);
+      while(start<finish-.1){
+        if(finish-start<=maxStock&&anchors.some(x=>x>=start-.1&&x<=finish+.1)){spans.push([start,finish]);break;}
+        const choices=anchors.filter(x=>x>start+.1&&x-start<=maxStock),end=choices.at(-1);
+        if(end==null){issues.push(`${name}: нет стропильной опоры для стыка обрешётки в пределах заготовки ${settings.stockLengthMm} мм.`);break;}
+        spans.push([start,end]);start=end;
+      }
       for(const slopeY of roofLathRows(sample.length,mm(roof.lathStep||.35)))for(const [from,to]of spans){const t=slopeY/sample.length,across=sample.a[acrossIndex]+(sample.b[acrossIndex]-sample.a[acrossIndex])*t-(axis==='x'?bounds.y:bounds.x),a=at(from,across),b=at(to,across),id=`КР-ОБ${laths.length+1}`,length=Math.round(to-from);
         const item={id,a,b,length,profile:'25×100',name,slopeY:Math.round(slopeY)};laths.push(item);members.push({...item,material:'Обрешётка',cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Три сплошные доски у каждого края ската; остальные с проектным шагом',surface:'Кровля',panels:[],processing:'Стыки на стропилах; крепление по рабочему узлу'});
       }
@@ -231,10 +237,11 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const plainSipGable=project.services.roof&&fullyWarmMain&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);
   const automaticColdHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
   const automaticSipHip=project.services.roof&&roof.mainRoofShape==='hip'&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
+  const automaticSipFlat=project.services.roof&&roof.mainRoofShape==='flat'&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
   const automaticColdContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
   const automaticSipContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
   const warmPlatform=assembly.roofModel.faces.some(face=>face.group?.startsWith('terrace:')&&face.warm);
-  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticColdHip||automaticColdContour||automaticSipContour;
+  assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticSipFlat||automaticColdHip||automaticColdContour||automaticSipContour;
   assembly.usesPlatformRoofPlanes=warmPlatform;
   if((plainSipGable||automaticSipHip||automaticSipContour)&&!settings.roofDesign.enabled){
     assembly.roofDrawing.model=assembly.roofModel;

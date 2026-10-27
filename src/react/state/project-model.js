@@ -516,6 +516,7 @@ export function createDefaultProject() {
     meta: {
       projectNum: "0001",
       projectName: "",
+      projectDescription: "",
       customer: "",
       phone: "",
       email: "",

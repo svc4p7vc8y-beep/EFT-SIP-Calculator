@@ -51,7 +51,8 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
    for(const row of roofLathRows(v1-v0,step)){const y=v0+row;for(const [a,b]of roofLineIntervals(transposed,y)){
     const supports=faceRafters.filter(r=>y>=r.a-.01&&y<=r.b+.01&&r.x>=a-.01&&r.x<=b+.01).map(r=>r.x).sort((a,b)=>a-b);
     if(supports.length<2)continue;
-    let from=supports[0],end=supports.at(-1);while(from<end-.01){const max=Number(settings.stockLengthMm)-2*Number(settings.endAllowanceMm||0),anchors=supports.filter(x=>x>from+.01&&x<=from+max),to=end-from<=max?end:anchors.at(-1);if(to==null){issues.push(`${f.name}: нет стропила для стыка обрешётки.`);break;}
+    const sideOverhang=f.group==='main'&&['gable','flat'].includes(calculation.roof.mainRoofShape)&&Number(calculation.roof.gableOverhang)>0;
+    let from=sideOverhang?a:supports[0],end=sideOverhang?b:supports.at(-1);while(from<end-.01){const max=Number(settings.stockLengthMm)-2*Number(settings.endAllowanceMm||0),anchors=supports.filter(x=>x>from+.01&&x<=from+max),to=end-from<=max?end:anchors.at(-1);if(to==null){issues.push(`${f.name}: нет стропила для стыка обрешётки.`);break;}
      const A=roofWorld(f,[from,y]),B=roofWorld(f,[to,y]),id=`${f.id}-ОБ${laths.length+1}`;append({id,name:f.name,faceId:f.id,normal:f.normal,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(to-from),profile:'25×100',flat:true},'Обрешётка',laths);from=to;
     }
    }}

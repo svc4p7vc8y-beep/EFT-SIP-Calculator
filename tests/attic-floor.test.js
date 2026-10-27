@@ -72,7 +72,9 @@ test('cutting omits zero-height knee walls, keeps roof/gables/partitions and sta
   const r = calculateProductionCutting(p, calculateProject(p));
   assert.equal(r.surfaces.some(s => /^Э2-С/.test(s.id)), false);
   assert.equal(r.surfaces.some(s => s.id === 'Э2-ПТ'), false);
-  assert.ok(r.surfaces.some(s => /^Э2-ПГ/.test(s.id) && s.height === 2000 && s.topProfile));
+  const partition = r.surfaces.find(s => /^Э2-ПГ/.test(s.id) && s.topProfile);
+  assert.ok(partition);
+  assert.ok(partition.height > 1900 && partition.height < 2000); // Stops at the underside of the SIP roof.
   assert.ok(r.surfaces.some(s => s.id.startsWith('ФР')));
   assert.equal(r.issues.some(i => i.code === 'WALL_SIZE'), false);
   const area = r.parts.filter(s => s.surfaceId === 'Э2-ПОЛ').reduce((sum, s) => sum + s.area, 0) / 1e6;

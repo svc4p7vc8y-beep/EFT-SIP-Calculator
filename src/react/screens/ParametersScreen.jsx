@@ -492,6 +492,9 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   onChange={(event) => write('meta.projectName', event.target.value)}
                 />
               </Field>
+              <Field label="Описание проекта" className="span-2">
+                <textarea rows={3} maxLength={2000} value={project.meta.projectDescription || ''} onChange={(event) => write('meta.projectDescription', event.target.value)} placeholder="Кратко опишите состав, пожелания и особенности проекта" />
+              </Field>
               <Field label="Номер проекта">
                 <input
                   value={project.meta.projectNum}

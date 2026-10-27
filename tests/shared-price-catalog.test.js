@@ -36,17 +36,19 @@ test('all old projects get the current server prices without changing geometry o
   assert.equal(JSON.stringify(raw), snapshot);
 });
 
-test('server catalog supersedes project price overrides while preserving quantity and price multipliers', () => {
+test('project estimate price overrides stay local while preserving quantity and other shared prices', () => {
   const raw = createDefaultProject(), common = createDefaultPriceLists();
   raw.settings.roof.shape = 'gable';
   raw.settings.roof.snowGuards = { mode: 'first', firstLength: 5, materialPrice: 1, laborPrice: 2 };
   const first = calculateProject(applySharedPriceCatalog(raw, common, 1));
   const snow = first.lines.find(line => line.catalogId === 'MAT-246');
   assert.ok(snow);
+  const catalogPrice = common.priceMat.find(row => row.id === snow.catalogId).price;
   raw.estimateOverrides = [{ lineId: snow.id, catalogId: snow.catalogId, section: snow.section, price: 99, qty: 7 }];
   const shared = applySharedPriceCatalog(raw, common, 2), changed = calculateProject(shared).lines.find(line => line.id === snow.id);
   assert.equal(changed.qty, 7);
-  assert.equal(changed.price, common.priceMat.find(row => row.id === snow.catalogId).price);
+  assert.equal(changed.price, 99);
+  assert.equal(common.priceMat.find(row => row.id === snow.catalogId).price, catalogPrice);
   assert.equal(raw.estimateOverrides[0].price, 99);
   raw.plan.openings.push({ id: 'pano', type: 'window', windowType: 'panoramic', width: 2, height: 2, outer: true });
   const pano = calculateProject(applySharedPriceCatalog(raw, common, 2)).lines.find(line => line.id === 'openings:opening-1');

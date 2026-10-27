@@ -7144,6 +7144,14 @@ select,
 .plan-right-3d-view .production-3d small[role="alert"] { display: block; }
 .plan-right-3d-view .plan-3d-drawing .workbench-drawing { width: 100%; height: 180px; }
 .plan-right-3d-placeholder { margin: 10px 0 0; color: #667069; font-size: 10px; }
+.editable-estimate-table .estimate-price-changed,
+.editable-estimate-table .estimate-price-changed input { color: #b42318 !important; font-weight: 800; }
+.mail-contacts { display: grid; gap: 10px; margin: 0 0 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.mail-contacts form, .mail-contacts > div > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mail-contacts input, .mail-compose select { min-width: 180px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); color: var(--text); }
+.mail-contacts > div { display: grid; gap: 7px; }
+.mail-contacts > div > div { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.mail-contacts > div > div span { margin-right: auto; overflow-wrap: anywhere; }
 .plan-right-3d-sizes { display: flex; justify-content: flex-end; gap: 4px; margin-top: 5px; }
 .plan-right-3d-sizes button[aria-pressed="true"] { background: #dff0d5; border-color: #77a55f; }
 .plan-right-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px 10px; border-bottom: 1px solid #dce4dc; background: #f8faf7; }

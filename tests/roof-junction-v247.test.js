@@ -29,7 +29,7 @@ test('face junctions start enabled, preserve an explicit off choice, and meet ex
   assert.deepEqual(project.plan.walls, saved);
 });
 
-test('main and detailed laths end at the last rafter, and the takeoff uses that length', () => {
+test('main and detailed laths reach both side overhang edges and agree with takeoff', () => {
   const project = createDefaultProject();
   for (const detailed of [false, true]) {
     project.settings.productionCutting.roofDesign.enabled = detailed;
@@ -37,13 +37,13 @@ test('main and detailed laths end at the last rafter, and the takeoff uses that 
     const mainRafters = assembly.rafters.filter(rafter => rafter.id.startsWith('КР-СТ') || rafter.faceId?.startsWith('КР-С'));
     const mainLaths = assembly.laths.filter(lath => lath.id.startsWith('КР-ОБ') || lath.faceId?.startsWith('КР-С'));
     const ends = mainRafters.map(rafter => rafter.a[0]);
+    const fullStart = assembly.bounds.x - project.settings.roof.gableOverhang * 1000;
+    const fullEnd = assembly.bounds.x + assembly.bounds.width + project.settings.roof.gableOverhang * 1000;
     assert.ok(mainLaths.length > 0);
     assert.ok(mainLaths.every(lath => [lath.a[0], lath.b[0]].every(x =>
-      x >= Math.min(...ends) - .01 && x <= Math.max(...ends) + .01)));
-    if (!detailed) {
-      assert.equal(calculation.roof.mainLathRequiredLength, 463);
-      assert.equal(mainLaths.reduce((sum, lath) => sum + lath.length, 0), 463000);
-    }
+      x >= fullStart - .01 && x <= fullEnd + .01)));
+    assert.ok(Math.min(...mainLaths.flatMap(lath=>[lath.a[0],lath.b[0]])) <= Math.min(...ends));
+    assert.equal(mainLaths.reduce((sum, lath) => sum + lath.length, 0), calculation.roof.mainLathRequiredLength * 1000);
   }
 });
 
@@ -59,7 +59,8 @@ test('cold roof places a rafter on each side of both SIP gables in simple and de
     for (const station of [-25, 199, 9801, 10025]) assert.ok(stations.some(x => Math.abs(x - station) < .01), `${station} mm`);
     const visibleRafters = productionScene(report(project), project).beams.filter(beam => beam.layer === 'rafters');
     assert.ok(visibleRafters.length >= assembly.rafters.length);
-    assert.ok(assembly.laths.every(lath => [lath.a[0], lath.b[0]].every(x =>
-      x >= Math.min(...stations) - .01 && x <= Math.max(...stations) + .01)));
+    const mainLaths=assembly.laths.filter(lath=>lath.id.startsWith('КР-ОБ')||lath.faceId?.startsWith('КР-С'));
+    assert.equal(Math.min(...mainLaths.flatMap(lath=>[lath.a[0],lath.b[0]])),-300);
+    assert.equal(Math.max(...mainLaths.flatMap(lath=>[lath.a[0],lath.b[0]])),10300);
   }
 });

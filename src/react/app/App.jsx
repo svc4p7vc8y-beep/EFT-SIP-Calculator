@@ -291,21 +291,24 @@ export function App() {
     try {
       if (saveToLibrary) {
         const entries = readPlanLibrary();
-        const existing = entries.find(entry => entry.id === tab.libraryId);
+        const compactSnapshot = createPlanLibraryEntry(tabProject, '', null).project;
+        const existing = entries.find(entry => entry.id === tab.libraryId)
+          || entries.find(entry => !entry.deletedAt && entry.project && JSON.stringify(entry.project) === JSON.stringify(compactSnapshot));
         const name = existing?.name || tab.serverName || tab.meta?.projectName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`;
         const calculationForTab = calculateProject(tabProject, { nodeTypeRules: team.nodeTypeRules });
         const saved = createPlanLibraryEntry(tabProject, name, calculationForTab, existing);
-        writePlanLibrary(existing ? entries.map(entry => entry.id === existing.id ? saved : entry) : [saved, ...entries]);
+        if (!existing || JSON.stringify(existing.project) !== JSON.stringify(saved.project))
+          writePlanLibrary(existing ? entries.map(entry => entry.id === existing.id ? saved : entry) : [saved, ...entries]);
       }
       const index = tabs.findIndex((item) => item.id === id);
       const next = tabs.filter((item) => item.id !== id)[Math.min(index, tabs.length - 2)];
-      if (!closeTab(id)) throw new Error('Не удалось создать резервную копию вкладки.');
+      if (!closeTab(id, { skipBackup: true })) throw new Error('Не удалось закрыть вкладку проекта.');
       if (id === activeTabId && next) {
         team.activateProjectSession(next.serverId, next.serverRevision, next.serverName);
         setActive('plan');
       }
       setClosingTabId(null);
-      setNotice(saveToLibrary ? 'Проект сохранён в библиотеке, вкладка закрыта.' : 'Вкладка закрыта; локальная резервная копия сохранена.');
+      setNotice(saveToLibrary ? 'Проект сохранён в библиотеке, вкладка закрыта.' : 'Вкладка закрыта без новой копии.');
     } catch (error) { setClosingTabError(error.message || 'Не удалось закрыть вкладку.'); }
     finally { setClosingTabBusy(false); }
   };
@@ -886,10 +889,10 @@ export function App() {
       </div> : null}
       {closingTabId ? <div className="modal-backdrop project-save-backdrop">
         <section className="modal project-save-dialog" role="dialog" aria-modal="true" aria-labelledby="close-project-tab-title">
-          <header><div><h2 id="close-project-tab-title">Закрыть вкладку проекта?</h2><p>Сохранить проект в библиотеке планов перед закрытием? При закрытии также создаётся локальная резервная копия.</p></div><button type="button" className="icon-button" aria-label="Отмена" onClick={() => setClosingTabId(null)} disabled={closingTabBusy}><X/></button></header>
+          <header><div><h2 id="close-project-tab-title">Закрыть вкладку проекта?</h2><p>Можно сохранить текущую версию в библиотеке или закрыть вкладку без новой копии. Уже сохранённые планы останутся в библиотеке.</p></div><button type="button" className="icon-button" aria-label="Отмена" onClick={() => setClosingTabId(null)} disabled={closingTabBusy}><X/></button></header>
           <p><strong>{tabs.find(tab => tab.id === closingTabId)?.serverName || tabs.find(tab => tab.id === closingTabId)?.meta?.projectName || `Проект № ${tabs.find(tab => tab.id === closingTabId)?.meta?.projectNum || '—'}`}</strong></p>
           {closingTabError ? <p role="alert">{closingTabError}</p> : null}
-          <footer><button type="button" className="button secondary" onClick={() => setClosingTabId(null)} disabled={closingTabBusy}>Отмена</button><button type="button" className="button secondary" onClick={() => confirmCloseProjectTab(false)} disabled={closingTabBusy}>Без сохранения в библиотеку</button><button type="button" className="button primary" onClick={() => confirmCloseProjectTab(true)} disabled={closingTabBusy}>{closingTabBusy ? 'Сохранение…' : 'Сохранить в библиотеку и закрыть'}</button></footer>
+          <footer><button type="button" className="button secondary" onClick={() => setClosingTabId(null)} disabled={closingTabBusy}>Отмена</button><button type="button" className="button secondary" onClick={() => confirmCloseProjectTab(false)} disabled={closingTabBusy}>Закрыть без новой копии</button><button type="button" className="button primary" onClick={() => confirmCloseProjectTab(true)} disabled={closingTabBusy}>{closingTabBusy ? 'Сохранение…' : 'Сохранить в библиотеку и закрыть'}</button></footer>
         </section>
       </div> : null}
       {newProjectOpen ? (

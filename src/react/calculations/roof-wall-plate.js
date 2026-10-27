@@ -15,7 +15,7 @@ export function mauerlatProfile(roof = {}) {
 export function ceilingTopElevation(project, calculation, floorCount) {
   const wallTop = productionLevels(project, floorCount).roofBase;
   const hasCeiling = project.services.sipCeiling && Number(calculation.metrics?.ceilingArea) > 0;
-  return { wallTop, hasCeiling, topZ: wallTop + (hasCeiling ? Number(project.settings.sip.ceilingThickness || 0) / 2 : 0) };
+  return { wallTop, hasCeiling, topZ: wallTop + (hasCeiling ? Number(project.settings.sip.ceilingThickness || 0) : 0) };
 }
 
 export function structuralFlatRoofRise(project, calculation, bounds, point) {
@@ -50,8 +50,10 @@ export function roofBaseElevation(project, calculation, floorCount, spanMm, shap
   // sloping upper chord starts one board depth above that lower chord.
   const taperedFrameBase = ceiling.topZ + profile.heightMm + depth * 1.5
     + Math.max(0, Number(settings.eaveOverhang) || 0) * 1000 * Math.max(0, Number(settings.flatSlopePercent) || 0) / 100;
+  const fullyWarm = settings.type === 'sip' || settings.type === 'combo' && Number(settings.warmPercent) >= 100;
   return design.baseZ !== '' && design.baseZ != null && Number.isFinite(Number(design.baseZ))
     ? Number(design.baseZ)
+    : fullyWarm ? ceiling.topZ + depth / 2
     : shape === 'flat' && settings.type === 'cold' && calculation.roof?.mauerlatLength > 0
       ? calculation.roof?.flatSlopeMode === 'tapered' ? taperedFrameBase : flatAligned
     : ceiling.hasCeiling && ['gable', 'hip'].includes(shape) && calculation.roof?.mauerlatLength > 0

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const SIZES = { small: [280, 300], medium: [380, 390], large: [520, 500] };
+const SIZES = { small: [280, 300], medium: [380, 390], large: [700, 800] };
 const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
 
 export default function FloatingPlan3D({ containerRef, size, onSizeChange, children }) {

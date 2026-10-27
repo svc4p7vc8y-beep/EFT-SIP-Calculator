@@ -31,7 +31,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
       const sloped=category==='ceiling'&&s.floor===plans.length&&project.settings.roof.flatSlopeMode==='structural'&&report.assembly.roofShape==='flat';
       const dx=sloped?roofRise(1,0)-roofRise(0,0):0,dy=sloped?roofRise(0,1)-roofRise(0,0):0;
       const length=Math.hypot(dx,dy,1);
-      placements.set(s.id,{origin:[0,0,base+(category==='ceiling'?exteriorHeight(plans[(s.floor||1)-1],project.settings.sip)*1000+(sloped?roofRise(0,0):0):-Number(s.thickness)/2)],u:[1,0,dx],v:[0,1,dy],normal:[-dx/length,-dy/length,1/length],layer:category});
+      placements.set(s.id,{origin:[0,0,base+(category==='ceiling'?exteriorHeight(plans[(s.floor||1)-1],project.settings.sip)*1000+Number(s.thickness)/2+(sloped?roofRise(0,0):0):-Number(s.thickness)/2)],u:[1,0,dx],v:[0,1,dy],normal:[-dx/length,-dy/length,1/length],layer:category});
     }
     else if(category==='roof'&&report.assembly.roofShape==='gable'&&/^КР-С[12]$/.test(s.id)){
       const a=report.assembly,axis=a.axis==='x',g=a.roofGeometry||{},span=axis?a.bounds.height:a.bounds.width,eave=Number(g.eaveOverhang||0)*1000,overhang=Number(g.gableOverhang||0)*1000,rise=Number(project.settings.roof.ridgeHeight||0)*1000,angle=Math.atan2(rise,span/2),second=s.id.endsWith('2'),sign=second?-1:1;

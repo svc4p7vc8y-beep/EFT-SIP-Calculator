@@ -1,7 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { formatMoney, formatNumber } from '../utils/format.js';
-import { isPriceEditorUnlocked } from '../security/price-access.js';
 
 export function Field({ label, hint, children, className = '' }) {
   return <label className={`field ${className}`}><span>{label}</span>{children}{hint ? <small>{hint}</small> : null}</label>;
@@ -179,14 +178,13 @@ export const PreviewTable = memo(function PreviewTable({ lines, empty = 'Нет 
   );
 });
 
-export function EditableEstimateTable({ lines, empty = 'Нет позиций для расчёта', onChangeLine, onRemoveLine, onResetLine, onAddLine, onResetSection, hiddenCount = 0, grouped = false, sharedCatalog = null }) {
+export function EditableEstimateTable({ lines, empty = 'Нет позиций для расчёта', onChangeLine, onRemoveLine, onResetLine, onAddLine, onResetSection, hiddenCount = 0, grouped = false, sharedCatalog = null, priceChangedIds = new Set() }) {
   const total = (lines || []).reduce((sum, line) => sum + line.qty * line.price, 0);
   const changed = hiddenCount > 0 || (lines || []).some((line) => line.custom || line.projectOverride);
-  const priceUnlocked = !sharedCatalog && isPriceEditorUnlocked();
   return <div className="estimate-editor">
     {(lines || []).some(line => line.catalogId === 'MAT-OPENING-FOAM') ? <p className="internal-source-note no-print">Монтажная пена: предварительный сметный запас — 1 баллон 750 мл на окно или дверь. Фактический расход зависит от зазоров; количество можно изменить в ведомости.</p> : null}
     <div className="estimate-editor-toolbar no-print">
-      <div><strong>Ведомость текущего проекта</strong><span>{sharedCatalog ? 'Свои позиции оцениваются здесь; позиции общего прайса получают серверную цену.' : `Правки не изменяют общий прайс-лист · свои позиции доступны для оценки, прочие цены ${priceUnlocked ? 'разблокированы' : 'защищены паролем'}`}</span></div>
+      <div><strong>Ведомость текущего проекта</strong><span>Количество и цена редактируются только для этого проекта. Изменённая цена выделена красным до сброса строки.</span></div>
       <div><button className="button secondary compact-button" onClick={onAddLine}><Plus />Добавить позицию</button>{changed && onResetSection ? <button className="button secondary compact-button" onClick={onResetSection}><RotateCcw />Сбросить правки{hiddenCount ? ` · скрыто ${hiddenCount}` : ''}</button> : null}</div>
     </div>
     {!lines?.length ? <div className="empty-state">{empty}</div> : <div className="table-wrap">
@@ -200,7 +198,7 @@ export function EditableEstimateTable({ lines, empty = 'Нет позиций д
           <td><select className="estimate-cell-input no-print" aria-label={`Вид: ${line.name}`} value={line.kind} disabled={Boolean(sharedCatalog) && !(line.custom && !line.catalogId)} onChange={(event) => onChangeLine(line, { kind: event.target.value })}><option value="material">Материал</option><option value="labor">Работа</option></select><span className={`kind ${line.kind} print-only`}>{line.kind === 'labor' ? 'Работа' : 'Материал'}</span></td>
           <td><input className="estimate-cell-input unit-input no-print" aria-label={`Единица: ${line.name}`} value={line.unit} disabled={Boolean(sharedCatalog) && !(line.custom && !line.catalogId)} onChange={(event) => onChangeLine(line, { unit: event.target.value })} /><span className="print-only">{line.unit}</span></td>
           <td><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Количество: ${line.name}`} value={line.qty} onChange={(qty) => onChangeLine(line, { qty })} /><span className="print-only">{formatNumber(line.qty, line.qty % 1 ? 2 : 0)}</span></td>
-          <td><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Цена: ${line.name}`} title={line.custom && !line.catalogId ? 'Цена только для текущего проекта' : sharedCatalog ? 'Цена из общего прайса; измените её в разделе «Прайс-лист»' : priceUnlocked ? 'Цена только для текущего проекта' : 'Разблокируйте цены в разделе «Прайс-лист»'} disabled={!(line.custom && !line.catalogId) && !priceUnlocked} value={line.price} onChange={(price) => onChangeLine(line, { price })} /><span className="print-only">{formatMoney(line.price)}</span></td>
+          <td className={priceChangedIds.has(line.id) ? 'estimate-price-changed' : ''}><NumericInput className="estimate-number-input no-print" showSteppers={false} min={0} step={0.01} ariaLabel={`Цена: ${line.name}`} title="Цена только для текущего проекта; общий прайс не меняется" value={line.price} onChange={(price) => onChangeLine(line, { price })} /><span className="print-only">{formatMoney(line.price)}</span></td>
           <td>{formatMoney(line.qty * line.price)}</td>
           <td className="estimate-row-actions no-print">{line.projectOverride ? <button title="Вернуть строку к прайс-листу" onClick={() => onResetLine(line)}><RotateCcw /></button> : null}<button title="Удалить из ведомости" onClick={() => onRemoveLine(line)}><Trash2 /></button></td>
         </tr>];

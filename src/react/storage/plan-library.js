@@ -116,7 +116,7 @@ export function readPlanLibrary(storage = localStorage) {
 
 export function writePlanLibrary(entries, storage = localStorage, { notify = true } = {}) {
   const persistent = (entries || [])
-    .filter((item) => !item.preset);
+    .filter((item) => !item.preset || item.deletedAt);
   storage.setItem(PLAN_LIBRARY_KEY, JSON.stringify(persistent));
   storage.removeItem?.(LEGACY_SKETCHES_KEY);
   if (typeof localStorage !== "undefined" && storage === localStorage) {

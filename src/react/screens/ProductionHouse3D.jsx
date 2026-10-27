@@ -31,11 +31,12 @@ function beamGeometry(item,width,depth,length){
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
  geometry.setIndex([0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,3,0,4,3,4,7]);geometry.computeVertexNormals();return geometry;
 }
-export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,captureRef,pan=false,initialZoom=1,showRoofStructureByDefault=false,showBearingPoints=false}) {
-  const host=useRef(null),api=useRef(null),selection=useRef(selected),callback=useRef(onSelect),view=useRef(null);
-  const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(false),[hidden,setHidden]=useState(()=>['ceiling','platformRoof',...roofCoverLayers]);
-  const [display,setDisplay]=useState('solid');
-  const [bearingsVisible,setBearingsVisible]=useState(showBearingPoints);
+export default memo(function ProductionHouse3D({report,project,selected=[],onSelect,large=false,onExpand,controlsRef,captureRef,pan=false,initialZoom=1,showRoofStructureByDefault=false,showBearingPoints=false,viewerPreferences,onViewerPreferencesChange,savedViewRef}) {
+  const host=useRef(null),api=useRef(null),selection=useRef(selected),callback=useRef(onSelect),internalView=useRef(null),view=savedViewRef||internalView;
+  const [error,setError]=useState(''),[showLayers,setShowLayers]=useState(viewerPreferences?.showLayers||false),[hidden,setHidden]=useState(()=>viewerPreferences?.hidden||['ceiling','platformRoof',...roofCoverLayers]);
+  const [display,setDisplay]=useState(viewerPreferences?.display||'solid');
+  const [bearingsVisible,setBearingsVisible]=useState(viewerPreferences?.bearingsVisible??showBearingPoints);
+  useEffect(()=>{onViewerPreferencesChange?.({showLayers,hidden,display,bearingsVisible});},[showLayers,hidden,display,bearingsVisible,onViewerPreferencesChange]);
   const data=useMemo(()=>productionScene(report,project),[report,project]);
   const blockedPreviews=useMemo(()=>[...new Set(data.previews.map(item=>item.surfaceId))].map(id=>({id,reasons:blockedSurfaceReasons(report,id),summary:blockedSurfaceSummary(report,id)})),[data,report]);
   const roofWarning=useMemo(()=>missingMainRoofReason(report,project,data),[report,project,data]);

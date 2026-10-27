@@ -123,14 +123,20 @@ export function ProjectProvider({ children }) {
   }, []);
   const activateTab = useCallback((id) => dispatch({ type: 'activate-tab', id }), []);
   const getTabProject = useCallback((id) => workspace.tabs.find((tab) => tab.id === id)?.history.present || null, [workspace.tabs]);
-  const closeTab = useCallback((id) => {
+  const closeTab = useCallback((id, { skipBackup = false } = {}) => {
     if (workspace.tabs.length < 2) return false;
     const tab = workspace.tabs.find((item) => item.id === id);
     if (!tab) return false;
     try {
-      const existing = JSON.parse(localStorage.getItem(REACT_BACKUPS_KEY) || '[]');
-      const snapshot = { ...tab.history.present, backupId: Date.now(), savedAt: new Date().toISOString() };
-      localStorage.setItem(REACT_BACKUPS_KEY, JSON.stringify([snapshot, ...existing].slice(0, 10)));
+      if (!skipBackup) {
+        const existing = JSON.parse(localStorage.getItem(REACT_BACKUPS_KEY) || '[]');
+        const snapshot = { ...tab.history.present, backupId: Date.now(), savedAt: new Date().toISOString() };
+        let saved = false;
+        for (let retained = Math.min(existing.length, 9); retained >= 0 && !saved; retained--) {
+          try { localStorage.setItem(REACT_BACKUPS_KEY, JSON.stringify([snapshot, ...existing.slice(0, retained)])); saved = true; }
+          catch (error) { if (retained === 0) throw error; }
+        }
+      }
     } catch (error) {
       setSaveState({ status: 'error', message: `Не удалось закрыть вкладку: резервная копия не создана (${error.message})` });
       return false;
@@ -140,6 +146,7 @@ export function ProjectProvider({ children }) {
   }, [workspace.tabs]);
   const replaceTab = useCallback((id, nextProject) => dispatch({ type: 'replace', tabId: id, project: nextProject }), []);
   const attachServer = useCallback((id, serverId, serverName, serverRevision) => dispatch({ type: 'attach-server', id, serverId, serverName, serverRevision }), []);
+  const attachLibrary = useCallback((id, libraryId) => dispatch({ type: 'attach-library', id, libraryId }), []);
   const checkpoint = useCallback(() => {
     try {
       const existing = JSON.parse(
@@ -179,6 +186,7 @@ export function ProjectProvider({ children }) {
       closeTab,
       replaceTab,
       attachServer,
+      attachLibrary,
       hydrated,
       tabs: workspace.tabs.map(({ id, serverId, libraryId, serverName, serverRevision, history: tabHistory }) => ({ id, serverId, libraryId, serverName, serverRevision, meta: tabHistory.present.meta, plan: tabHistory.present.plan })),
       activeTabId: workspace.activeId,
@@ -189,7 +197,7 @@ export function ProjectProvider({ children }) {
       canUndo: history.past.length > 0,
       canRedo: history.future.length > 0,
     }),
-    [workspace, history, project, commit, recordMarks, replace, openTab, rememberOpenedProject, activateTab, getTabProject, closeTab, replaceTab, attachServer, hydrated, undo, redo, checkpoint, saveState],
+    [workspace, history, project, commit, recordMarks, replace, openTab, rememberOpenedProject, activateTab, getTabProject, closeTab, replaceTab, attachServer, attachLibrary, hydrated, undo, redo, checkpoint, saveState],
   );
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

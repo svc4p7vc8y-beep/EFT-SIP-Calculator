@@ -80,6 +80,13 @@ export function projectWorkspaceReducer(state, action) {
     tabs[index] = { ...tabs[index], serverId: action.serverId, serverName: action.serverName, serverRevision: action.serverRevision };
     return { ...state, tabs };
   }
+  if (action.type === 'attach-library') {
+    const index = state.tabs.findIndex((tab) => tab.id === action.id);
+    if (index < 0) return state;
+    const tabs = state.tabs.slice();
+    tabs[index] = { ...tabs[index], libraryId: action.libraryId };
+    return { ...state, tabs };
+  }
   if (action.type === 'close-tab') {
     if (state.tabs.length === 1) return state;
     const index = state.tabs.findIndex((tab) => tab.id === action.id);

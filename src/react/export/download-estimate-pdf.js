@@ -11,7 +11,7 @@ export function inlineEstimateSvgPaint(root) {
   }
 }
 
-export async function downloadEstimatePdf(source, filename) {
+export async function downloadEstimatePdf(source, filename, { save = true } = {}) {
   if (!source) throw new Error('Не найден лист сметы для PDF.');
   const [{ jsPDF }, { toCanvas }] = await Promise.all([import('jspdf'), import('html-to-image')]);
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
@@ -110,6 +110,8 @@ export async function downloadEstimatePdf(source, filename) {
         }
       } else await addBlock(child.cloneNode(true));
     }
-    pdf.save(`${filename || 'Смета_ЭФТ'}.pdf`);
+    const blob = pdf.output('blob');
+    if (save) pdf.save(`${filename || 'Смета_ЭФТ'}.pdf`);
+    return blob;
   } finally { holder.remove(); }
 }

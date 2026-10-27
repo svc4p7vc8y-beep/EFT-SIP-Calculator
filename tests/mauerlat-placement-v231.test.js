@@ -22,7 +22,7 @@ test('old files retain lying 100 × 150 wall plate; board choice changes only it
   assert.equal(timberLine.qty, 0.72);
   assert.equal(timber.calculation.roof.mauerlatLength, 44.17);
   assert.equal(timber.report.assembly.roofTimbers.filter(item => item.name === 'Мауэрлат').length, 4);
-  const plateTop = productionLevels(old, 1).roofBase + Number(old.settings.sip.ceilingThickness) / 2;
+  const plateTop = productionLevels(old, 1).roofBase + Number(old.settings.sip.ceilingThickness);
   for (const item of timber.report.assembly.roofTimbers.filter(item => item.name === 'Мауэрлат')) {
     assert.equal(item.profile, '100×150');
     assert.equal(item.plateTopZ, plateTop + 100);

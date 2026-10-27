@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, File, FileEdit, Inbox, Link2, Mail, Paperclip, RefreshCw, Search, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Archive, File, FileEdit, Inbox, Link2, Mail, Paperclip, RefreshCw, Search, Send, Sparkles, Trash2, Users, X } from "lucide-react";
 import { eftApi, resolveEftApiUrl } from "../../shared/team-api.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
 
 const formatDate = (value) => value ? new Date(value).toLocaleString("ru-RU") : "";
 const senderName = (value) => String(value || "").replace(/<[^>]+>/g, "").replace(/["']/g, "").trim() || "клиент";
+const CONTACTS_KEY = 'eft-mail-contacts-v1';
+const defaultContacts = [{ name: 'Алексей Поликарпов', email: 'polikarpov@eftsip.ru', fixed: true }];
+const readContacts = () => { try { return JSON.parse(localStorage.getItem(CONTACTS_KEY) || '[]').filter(item => item?.name && item?.email); } catch { return []; } };
 
 export default function MailScreen() {
   const team = useTeam();
@@ -20,7 +23,13 @@ export default function MailScreen() {
   const [attachments, setAttachments] = useState([]);
   const [sending, setSending] = useState(false);
   const [composeError, setComposeError] = useState("");
+  const [contacts,setContacts]=useState(readContacts);
+  const [showContacts,setShowContacts]=useState(false);
+  const [contactDraft,setContactDraft]=useState({name:'',email:''});
   const mailboxAddress = status?.address || "sale@eftsip.ru";
+  const allContacts=[...defaultContacts,...contacts];
+  const saveContacts=next=>{localStorage.setItem(CONTACTS_KEY,JSON.stringify(next));setContacts(next);};
+  const addContact=event=>{event.preventDefault();const name=contactDraft.name.trim(),email=contactDraft.email.trim().toLowerCase();if(!name||!email||allContacts.some(item=>item.email.toLowerCase()===email)){setNotice('Укажите новое имя и уникальный адрес контакта.');return;}try{saveContacts([...contacts,{name,email}]);setContactDraft({name:'',email:''});setNotice('Контакт сохранён.');}catch(error){setNotice(`Не удалось сохранить контакт: ${error.message}`);}};
   const canWrite = Boolean(team.user && team.user.role !== "viewer");
 
   const load = useCallback(async (search = "") => {
@@ -142,8 +151,9 @@ export default function MailScreen() {
 
   return (
     <section className="screen mail-screen">
-      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта {mailboxAddress}</h1><p>Письма и папки синхронизируются с почтовым сервером.</p></div><div className="screen-actions"><button className="button secondary" onClick={() => load(query)}><RefreshCw />Обновить</button>{canWrite ? <button className="button" onClick={startNewMessage}><FileEdit />Новое письмо</button> : null}</div></header>
+      <header className="screen-header"><div><p className="eyebrow">Командная почта</p><h1>Почта {mailboxAddress}</h1><p>Письма и папки синхронизируются с почтовым сервером.</p></div><div className="screen-actions"><button className="button secondary" onClick={() => load(query)}><RefreshCw />Обновить</button><button className="button secondary" onClick={()=>setShowContacts(value=>!value)} aria-expanded={showContacts}><Users />Контакты</button>{canWrite ? <button className="button" onClick={startNewMessage}><FileEdit />Новое письмо</button> : null}</div></header>
       {notice ? <div className="notice">{notice}</div> : null}
+      {showContacts ? <section className="mail-contacts" aria-label="Контакты почты"><form onSubmit={addContact}><input aria-label="Имя контакта" placeholder="Имя" value={contactDraft.name} maxLength={100} onChange={event=>setContactDraft({...contactDraft,name:event.target.value})} required/><input aria-label="Почта контакта" placeholder="Электронная почта" type="email" value={contactDraft.email} maxLength={190} onChange={event=>setContactDraft({...contactDraft,email:event.target.value})} required/><button className="button" type="submit">Добавить</button></form><div>{allContacts.map(item=><div key={item.email}><strong>{item.name}</strong><span>{item.email}</span>{canWrite?<button type="button" className="button secondary" onClick={()=>{setCompose({to:item.email,subject:'',body:''});setAttachments([]);}}>Написать</button>:null}{!item.fixed?<button type="button" className="button danger" onClick={()=>{try{saveContacts(contacts.filter(contact=>contact.email!==item.email));}catch(error){setNotice(`Не удалось удалить контакт: ${error.message}`);}}} aria-label={`Удалить контакт ${item.name}`}><Trash2 /></button>:null}</div>)}</div></section> : null}
       <div className="mail-layout">
         <aside className="mail-list-panel">
           <nav className="mail-folders" aria-label="Папки почты">{folders.map((folder) => <button key={folder.key} className={folder.key === activeFolder?.key ? "active" : ""} onClick={() => { setSelected(null); setFolderKey(folder.key); }}>{folderIcon(folder.kind)}<span>{folder.name}</span>{folder.unread > 0 ? <b>{folder.unread}</b> : <small>{folder.total}</small>}</button>)}</nav>
@@ -166,7 +176,7 @@ export default function MailScreen() {
           </> : <div className="mail-reader-empty"><Mail /><h2>Выберите письмо</h2><p>Здесь появятся текст, вложения и связь с проектом.</p></div>}
         </article>
       </div>
-      {compose ? <div className="modal-backdrop" role="presentation" onMouseDown={() => !sending && setCompose(null)}><form className="modal mail-compose" role="dialog" aria-modal="true" onSubmit={send} onMouseDown={(event) => event.stopPropagation()}><header><div><h2>Новое письмо</h2><p>Отправитель: {mailboxAddress}</p></div><button type="button" className="icon-button" disabled={sending} onClick={() => setCompose(null)}><X /></button></header>{composeError ? <div className="mail-compose-error" role="alert">{composeError}</div> : null}<label>Кому<input type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} required /></label><label>Тема<input value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} required /></label><label>Сообщение<textarea value={compose.body} onChange={(event) => setCompose({ ...compose, body: event.target.value })} required /></label><div className="mail-compose-attachments"><label className="button secondary"><Paperclip />Прикрепить файлы<input className="visually-hidden" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.rar,.7z,.dwg,.dxf,.json" onChange={chooseAttachments} /></label><small>До 8 файлов, один файл до 8 МБ, всего до 20 МБ.</small>{attachments.length ? <div>{attachments.map((file, index) => <span key={`${file.name}-${file.lastModified}`}><File />{file.name}<button type="button" onClick={() => setAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Убрать ${file.name}`}><X /></button></span>)}</div> : null}</div><footer><button type="button" className="button secondary" onClick={saveDraft} disabled={sending}><FileEdit />Сохранить черновик</button><button type="button" className="button secondary" onClick={() => setCompose(null)} disabled={sending}>Отмена</button><button className="button" disabled={sending}><Send />{sending ? "Отправляем…" : "Отправить"}</button></footer></form></div> : null}
+      {compose ? <div className="modal-backdrop" role="presentation" onMouseDown={() => !sending && setCompose(null)}><form className="modal mail-compose" role="dialog" aria-modal="true" onSubmit={send} onMouseDown={(event) => event.stopPropagation()}><header><div><h2>Новое письмо</h2><p>Отправитель: {mailboxAddress}</p></div><button type="button" className="icon-button" disabled={sending} onClick={() => setCompose(null)}><X /></button></header>{composeError ? <div className="mail-compose-error" role="alert">{composeError}</div> : null}<label>Кому<input type="email" value={compose.to} onChange={(event) => setCompose({ ...compose, to: event.target.value })} required /></label><label>Из контактов<select value="" onChange={event=>setCompose({...compose,to:event.target.value})}><option value="">Выберите контакт</option>{allContacts.map(item=><option key={item.email} value={item.email}>{item.name} · {item.email}</option>)}</select></label><label>Тема<input value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} required /></label><label>Сообщение<textarea value={compose.body} onChange={(event) => setCompose({ ...compose, body: event.target.value })} required /></label><div className="mail-compose-attachments"><label className="button secondary"><Paperclip />Прикрепить файлы<input className="visually-hidden" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.rar,.7z,.dwg,.dxf,.json" onChange={chooseAttachments} /></label><small>До 8 файлов, один файл до 8 МБ, всего до 20 МБ.</small>{attachments.length ? <div>{attachments.map((file, index) => <span key={`${file.name}-${file.lastModified}`}><File />{file.name}<button type="button" onClick={() => setAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Убрать ${file.name}`}><X /></button></span>)}</div> : null}</div><footer><button type="button" className="button secondary" onClick={saveDraft} disabled={sending}><FileEdit />Сохранить черновик</button><button type="button" className="button secondary" onClick={() => setCompose(null)} disabled={sending}>Отмена</button><button className="button" disabled={sending}><Send />{sending ? "Отправляем…" : "Отправить"}</button></footer></form></div> : null}
     </section>
   );
 }
