@@ -589,9 +589,8 @@ export function calculateProductionCutting(project, calculation) {
       const wallKey = `${edge.id}@${mm(edge.a.x)},${mm(edge.a.y)}:${mm(edge.b.x)},${mm(edge.b.y)}`;
       const addition = Number(settings.wallAdditions[wallKey]) || 0;
       const baseHeight = edge.outer ? h : mm(partitionHeight(plan));
-      const framedSlope=edge.outer&&calculation.roof?.flatSlopeMode==='structural'&&calculation.roof?.mainGableType==='cold';
-      const heightStart=edge.outer&&!framedSlope?mm(edge.heightStart)+addition:baseHeight+addition;
-      const heightEnd=edge.outer&&!framedSlope?mm(edge.heightEnd)+addition:baseHeight+addition;
+      const heightStart=edge.outer?mm(edge.heightStart)+addition:baseHeight+addition;
+      const heightEnd=edge.outer?mm(edge.heightEnd)+addition:baseHeight+addition;
       const width = mm(edge.outer?edge.length:Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y));
       const topProfile=!edge.outer&&plan.floorType==='attic'&&floorIndex===plans.length-1&&services.roof&&roofGeometryMatches
         ?atticPartitionProfile(assembly.roofModel,[mm(edge.a.x),mm(edge.a.y)],[mm(edge.b.x),mm(edge.b.y)],productionLevels(project,plans.length).bases[floorIndex],baseHeight+addition):null;
@@ -762,7 +761,7 @@ export function calculateProductionCutting(project, calculation) {
             gableSurface.gableAnchor={planStart:[mm(edge.a.x),mm(edge.a.y)],planEnd:[mm(edge.b.x),mm(edge.b.y)],thickness:gableSurface.thickness,exterior:true,floor:plans.length,elevation:productionLevels(project,plans.length).roofBase};
           }
         }
-      } else if(rectangular && roof.mainRoofShape==='flat' && roof.mainGableType==='cold'){
+      } else if(rectangular && roof.mainRoofShape==='flat' && roof.mainGableType==='cold' && roof.flatSlopeMode!=='structural'){
         const construction=exteriorWallConstruction(plans.at(-1),sip,roofSettings,true,services.roof);
         let sideCount=0;
         for(const w of construction){
@@ -773,6 +772,8 @@ export function calculateProductionCutting(project, calculation) {
           const s=addRoof(`ФР-${wallId}`,`Перепад над стеной ${wallId} · каркас`,[[[0,0],[width,0],[width,right],[0,left],[0,0]]],sip.wallThickness,false);
           s.frameOnly=true;s.parentWallId=wallId;
         }
+      } else if(roof.mainRoofShape==='flat' && roof.flatSlopeMode==='structural') {
+        // The height difference is already cut into the exterior SIP panels.
       } else issue('GABLE', 'Фронтоны сложной или односкатной кровли: требуются отдельные развёртки и проёмы.');
     }
   }
@@ -1061,7 +1062,7 @@ export function calculateProductionCutting(project, calculation) {
   const revision = cuttingRevision({ fabricationModel:227, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
   const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
-  report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces, { framedSlope: calculation.roof?.flatSlopeMode === 'structural' && calculation.roof?.mainGableType === 'cold' }) };
+  report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces) };
   report.constructionRuleChecks = { bindingStraightSupport: evaluateBindingStraightSupport({
     enabled: services.foundation, foundationType: assembly.foundationType,
     bindingType: calculation.foundation?.bindingType, lines: assembly.binding,

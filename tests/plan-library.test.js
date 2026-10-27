@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
-import { createPlanLibraryEntry, normalizePlanLibrary, restorePlanLibraryEntry } from '../src/react/storage/plan-library.js';
+import { createPlanLibraryEntry, createPlanLibraryFolder, movePlanLibraryEntry, copyPlanLibraryEntry, trashPlanLibraryEntry, restorePlanLibraryEntryFromTrash, deleteEmptyPlanLibraryFolder, normalizePlanLibrary, restorePlanLibraryEntry } from '../src/react/storage/plan-library.js';
 import { createDefaultProject } from '../src/react/state/project-model.js';
 
 test('plan library keeps full construction settings and a price snapshot without duplicating the price list', () => {
@@ -45,4 +45,25 @@ test('old sketches appear in the new library and remain loadable', () => {
   const restored = restorePlanLibraryEntry(project, entries[0]);
   assert.doesNotThrow(() => calculateProject(restored));
   assert.equal(restored.plan.house.w, project.plan.house.w);
+});
+
+test('library folders preserve projects through move, copy, trash and restore', () => {
+  const project = createDefaultProject();
+  const original = createPlanLibraryEntry(project, 'Исходный', calculateProject(project));
+  let entries = createPlanLibraryFolder([original], 'Заказы');
+  const folder = entries.find(item => item.kind === 'folder');
+  entries = movePlanLibraryEntry(entries, original.id, folder.id);
+  assert.equal(entries.find(item => item.id === original.id).folderId, folder.id);
+  entries = copyPlanLibraryEntry(entries, original.id);
+  const copy = entries.find(item => item.name.endsWith('копия'));
+  assert.notEqual(copy.id, original.id);
+  assert.deepEqual(copy.project.plan, original.project.plan);
+  copy.project.plan.house.w = 11;
+  assert.notEqual(entries.find(item => item.id === original.id).project.plan.house.w, 11);
+  entries = trashPlanLibraryEntry(entries, original.id);
+  assert.throws(() => movePlanLibraryEntry(entries, original.id, ''), /не найден/);
+  entries = restorePlanLibraryEntryFromTrash(entries, original.id);
+  assert.equal(entries.find(item => item.id === original.id).folderId, folder.id);
+  assert.throws(() => deleteEmptyPlanLibraryFolder(entries, folder.id), /переместите/);
+  assert.equal(normalizePlanLibrary(entries).length, 3);
 });

@@ -17,3 +17,14 @@ test("plan library does not silently truncate a conflict merge", () => {
   assert.equal(writePlanLibrary(plans, storage).length, 25);
   assert.equal(readPlanLibrary(storage).length, 25);
 });
+
+test('folder moves and trash status survive an older concurrent library revision', () => {
+  const base = [{ id: 'plan-1', name: 'Дом', savedAt: '2026-01-01T00:00:00Z' }];
+  const local = [{ id: 'folder-1', kind: 'folder', name: 'Заказы', updatedAt: '2026-01-02T00:00:00Z' },
+    { ...base[0], folderId: 'folder-1', deletedAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' }];
+  const remote = [{ ...base[0], name: 'Дом заказчика', updatedAt: '2026-01-02T12:00:00Z' }];
+  const merged = mergeLibraryEntries(local, remote, base);
+  assert.ok(merged.some(item => item.kind === 'folder'));
+  assert.equal(merged.find(item => item.id === 'plan-1').folderId, 'folder-1');
+  assert.ok(merged.find(item => item.id === 'plan-1').deletedAt);
+});

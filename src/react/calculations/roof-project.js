@@ -68,7 +68,7 @@ export function roofProject(project,calculation,assembly){
      contourRoofOutline(contour,assembly.axis,e,t);
    add('КР-С1','Односкатная поверхность',outline.map(([x,y])=>[x,y,roofBase+z(axis===0?y-b.y:x-b.x)]),{structureHorizontal:tapered});
   }catch(error){issue('ROOF_CONTOUR',error.message,'main');}
-  if(tapered)issue('ROOF_TAPER','Разуклонка: несущая поверхность горизонтальна; задайте материал, толщины и водоприёмники.');
+  if(tapered)issue('ROOF_TAPER','Разуклонка: нижний пояс горизонтален, верхняя доска повторяет уклон; стыки, крепёж и водоприёмники задайте по рабочему проекту.');
   if(!structural&&!tapered)issue('ROOF_DRAIN','Старый режим без уклона: водоотвод не подтверждён.');
  }else if(shape==='tiered'){
   const q=settings.tiered||{},U=Number(g.upperSpan)*1000,lo=Number(g.lowerSpan)*1000,J=Number(g.jointOverhang||0)*1000;
@@ -145,7 +145,7 @@ export function roofProject(project,calculation,assembly){
  if(settings.type==='combo'&&Number(settings.warmPercent)>0&&Number(settings.warmPercent)<100&&shape!=='tiered'&&!faces.some(f=>design.faceOverrides?.[f.id]?.warm!=null)&&!design.manualFaces?.length)issue('ROOF_WARM_BOUNDARY','Для комбинированной крыши назначьте тёплые скаты либо задайте точные границы отдельными скатами XYZ.');
  const explicitBase=design.baseZ!==''&&design.baseZ!=null&&Number.isFinite(Number(design.baseZ));
  if(shape==='flat'&&settings.type==='cold'&&calculation.roof.flatSlopeMode==='structural'&&!explicitBase&&!design.manualFaces?.length&&Number(settings.flatSlopePercent)>0)
-  issue('ROOF_WALL_ALIGNMENT','Низкая сторона несущей плоскости опирается на мауэрлат; высокая сторона поднята уклоном. Её стену или опору и узел примыкания задайте по проекту.');
+  issue('ROOF_WALL_ALIGNMENT','Стеновые SIP-панели подрезаны по заданному перепаду; потолок, мауэрлат и стропила повторяют уклон. Опирание и узлы примыкания подтвердите рабочим проектом.');
  else if(design.manualFaces?.length||explicitBase||shape!=='flat'&&Math.abs(roofBase-defaultBase)>1)
   issue('ROOF_WALL_ALIGNMENT','Проектные скаты/отметка основания не изменяют автоматически наружные стены и фронтоны. Согласуйте контуры стен, опор и узлы примыкания по текущей ревизии.');
  return {version:1,units:'мм',datum:'Z = верх пола первого этажа',roofBase,faces,edges,issues,area,projection,warmArea,mainArea,estimateArea:expected,groupAreas};

@@ -52,6 +52,10 @@ import {
   ChevronDown,
   Grid3X3,
   Box,
+  Copy,
+  Folder,
+  FolderPlus,
+  MoveRight,
   Hammer,
   Home,
   Check,
@@ -120,8 +124,14 @@ import {
 import {
   PLAN_LIBRARY_KEY,
   createPlanLibraryEntry,
+  createPlanLibraryFolder,
+  copyPlanLibraryEntry,
+  deleteEmptyPlanLibraryFolder,
+  movePlanLibraryEntry,
   readPlanLibrary,
   restorePlanLibraryEntry,
+  restorePlanLibraryEntryFromTrash,
+  trashPlanLibraryEntry,
   writePlanLibrary,
 } from "../storage/plan-library.js";
 import {
@@ -3110,7 +3120,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
       />
       {roof.shape === 'tiered' ? <p className="inspector-note">Ширина, уклоны двух уровней и пять зон фронтонов редактируются в разделе «Кровля → Основная кровля». Несущие опоры перепада — по проекту.</p> : null}
       <div className="form-grid">
-        {roof.shape === 'flat' && roof.type === 'cold' ? <NumberField
+        {roof.shape === 'flat' && roof.type === 'cold' && (roof.flatSlopeMode || 'none') === 'none' ? <NumberField
           label="Глубина каркаса"
           value={roof.flatFrameDepthMm ?? 300}
           suffix="мм"
@@ -3119,6 +3129,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           step={10}
           onChange={(value) => commitRoof('flatFrameDepthMm', value)}
         /> : null}
+        {roof.shape === 'flat' && roof.type === 'cold' && roof.flatSlopeMode === 'tapered' ? <p className="inspector-note">Нижний пояс лежит на мауэрлате, верхняя доска идёт под заданным уклоном. Высота каркаса определяется уклоном и сечением доски; стыки и запил проверяются по рабочему проекту.</p> : null}
         {roof.shape === "flat" && (roof.flatSlopeMode || "none") !== "none" ? (
           <NumberField
             label="Уклон"
@@ -4929,16 +4940,38 @@ function PlanLibraryThumbnail({ plan }) {
   );
 }
 
-function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare, onDelete }) {
+function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare, onDelete, onCreateFolder, onRenameFolder, onDeleteFolder, onMove, onCopy, onRestore, onDeleteForever }) {
+  const [folderId, setFolderId] = useState('');
+  const [showTrash, setShowTrash] = useState(false);
+  const [movingId, setMovingId] = useState('');
+  const [destination, setDestination] = useState('');
+  const folders = entries.filter(item => item.kind === 'folder' && !item.deletedAt);
+  const currentFolder = folders.find(item => item.id === folderId);
+  const activeFolderId = currentFolder?.id || '';
+  const visible = entries.filter(item => showTrash
+    ? item.kind !== 'folder' && item.deletedAt && !item.preset
+    : !item.deletedAt && (item.kind === 'folder' ? (item.parentId || '') === activeFolderId : (item.folderId || '') === activeFolderId));
   return (
     <div className="plan-library-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="plan-library-modal" role="dialog" aria-modal="true" aria-label="Библиотека планов">
         <header>
-          <div><h2>Библиотека планов</h2><p>Текущий план автоматически сохраняется в проекте. Именованные копии создаются кнопкой «В библиотеку»; у сотрудников они синхронизируются с сервером примерно раз в 45 секунд. Карточка содержит план, параметры и цену на момент сохранения.</p></div>
+          <div><h2>Библиотека планов</h2><p>Планы и папки сохраняются вместе с библиотекой. Удалённый план можно восстановить из корзины. Сотрудникам изменения синхронизируются с сервером.</p></div>
           <button type="button" aria-label="Закрыть библиотеку планов" onClick={onClose}><X /></button>
         </header>
+        <div className="plan-library-toolbar">
+          {showTrash ? <button className="button secondary" type="button" onClick={() => setShowTrash(false)}>← К планам</button>
+            : activeFolderId ? <button className="button secondary" type="button" onClick={() => setFolderId(currentFolder.parentId || '')}>← {currentFolder.name}</button>
+              : <strong>Все папки и планы</strong>}
+          <span className="plan-library-toolbar-spacer" />
+          {!showTrash ? <button className="button secondary" type="button" onClick={() => onCreateFolder(activeFolderId)}><FolderPlus />Создать папку</button> : null}
+          <button className="button secondary" type="button" aria-pressed={showTrash} onClick={() => setShowTrash(value => !value)}><Trash2 />Корзина ({entries.filter(item => item.deletedAt && item.kind !== 'folder').length})</button>
+        </div>
         <div className="plan-library-grid">
-          {entries.map((entry) => {
+          {!showTrash ? visible.filter(item => item.kind === 'folder').map(folder => <article className="plan-library-folder" key={folder.id}>
+            <button type="button" className="plan-library-folder-open" onClick={() => setFolderId(folder.id)}><Folder /><strong>{folder.name}</strong><small>{entries.filter(item => !item.deletedAt && item.kind !== 'folder' && item.folderId === folder.id).length} планов</small></button>
+            <div className="plan-library-actions"><button className="button secondary" type="button" onClick={() => onRenameFolder(folder)}>Переименовать</button><button className="button danger" type="button" onClick={() => onDeleteFolder(folder)}>Удалить папку</button></div>
+          </article>) : null}
+          {visible.filter(item => item.kind !== 'folder').map((entry) => {
             const snapshot = entry.project || {};
             const savedPlan = snapshot.plan || entry.plan;
             const settings = snapshot.settings || {};
@@ -4962,16 +4995,22 @@ function PlanLibraryModal({ entries, onClose, onOpen, onEdit, onRename, onShare,
                     <span><small>Кровля</small><b>{roofNames[settings.roof?.form] || "по проекту"}</b></span>
                   </div>
                   <div className="plan-library-actions">
-                    <button className="button primary" type="button" onClick={() => onOpen(entry)}>Открыть</button>
-                    {!entry.preset ? <button className="button secondary" type="button" onClick={() => onEdit(entry)}>Изменить</button> : null}
-                    {!entry.preset ? <button className="button secondary" type="button" onClick={() => onRename(entry)}>Переименовать</button> : null}
-                    <button className="button secondary" type="button" onClick={() => onShare(entry)}><Share2 />Поделиться</button>
-                    {!entry.preset ? <button className="button danger" type="button" onClick={() => onDelete(entry)}><Trash2 />Удалить</button> : null}
+                    {showTrash ? <><button className="button primary" type="button" onClick={() => onRestore(entry)}>Восстановить</button><button className="button danger" type="button" onClick={() => onDeleteForever(entry)}>Удалить окончательно</button></> : <>
+                      <button className="button primary" type="button" onClick={() => onOpen(entry)}>Открыть</button>
+                      {!entry.preset ? <button className="button secondary" type="button" onClick={() => onEdit(entry)}>Изменить</button> : null}
+                      {!entry.preset ? <button className="button secondary" type="button" onClick={() => onRename(entry)}>Переименовать</button> : null}
+                      {!entry.preset ? <button className="button secondary" type="button" onClick={() => onCopy(entry)}><Copy />Копировать</button> : null}
+                      {!entry.preset ? <button className="button secondary" type="button" onClick={() => { setMovingId(entry.id); setDestination(entry.folderId || ''); }}><MoveRight />Переместить</button> : null}
+                      <button className="button secondary" type="button" onClick={() => onShare(entry)}><Share2 />Поделиться</button>
+                      {!entry.preset ? <button className="button danger" type="button" onClick={() => onDelete(entry)}><Trash2 />В корзину</button> : null}
+                    </>}
                   </div>
+                  {movingId === entry.id ? <div className="plan-library-move"><label>Папка назначения <select value={destination} onChange={event => setDestination(event.target.value)}><option value="">Без папки</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><button className="button primary" type="button" disabled={destination === (entry.folderId || '')} onClick={() => { onMove(entry, destination); setMovingId(''); }}>Переместить</button><button className="button secondary" type="button" onClick={() => setMovingId('')}>Отмена</button></div> : null}
                 </div>
               </article>
             );
           })}
+          {!visible.length ? <p className="plan-library-empty">{showTrash ? 'Корзина пуста' : 'В этой папке пока нет планов'}</p> : null}
         </div>
       </section>
     </div>
@@ -5286,7 +5325,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     ];
     if (!libraryOpen) return entries;
     return entries.map((entry) => {
-      if (Number(entry.priceSnapshot?.total) > 0) return entry;
+      if (entry.kind === 'folder' || entry.deletedAt || Number(entry.priceSnapshot?.total) > 0) return entry;
       try {
         const previewProject = restorePlanLibraryEntry(project, entry);
         const totals = calculateProject(previewProject).totals;
@@ -5482,7 +5521,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     });
   };
   const openLibraryPlan = (entry, editAfterOpen = false) => {
-    if (!entry) return;
+    if (!entry || entry.kind === 'folder' || entry.deletedAt) return;
     const nextProject = restorePlanLibraryEntry(project, entry);
     const nextTabId = openTab(nextProject, null, entry.name, 0, entry.id);
     if (editAfterOpen && !entry.preset) setEditingLibraryIds(current => ({ ...current, [nextTabId]: entry.id }));
@@ -5513,15 +5552,16 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     setPolygonDraft([]);
   };
   const saveSketch = () => {
-    const existing = libraryPlans.find((item) => item.id === editingLibraryId);
+    const latest = readPlanLibrary();
+    const existing = latest.find((item) => item.id === editingLibraryId && !item.deletedAt);
     const name = existing?.name || window
       .prompt("Название плана:", [project.meta.customer || project.clientBrief?.customer?.name, project.meta.buildingType, project.meta.projectNum ? `№ ${project.meta.projectNum}` : '', project.meta.address].filter(Boolean).join(' · ') || `План ${libraryPlans.length + 1}`)
       ?.trim();
     if (!name) return;
     const entry = createPlanLibraryEntry(project, name, projectCalculation, existing);
     const updated = existing
-      ? libraryPlans.map((item) => item.id === existing.id ? entry : item)
-      : [entry, ...libraryPlans];
+      ? latest.map((item) => item.id === existing.id ? entry : item)
+      : [entry, ...latest];
     const stored = writePlanLibrary(updated);
     setLibraryPlans(stored);
     setEditingLibraryId(entry.id);
@@ -5531,7 +5571,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     if (!planCommand) return;
     if (planCommand.kind === 'openLibrary') setLibraryOpen(true);
     if (planCommand.kind === 'openLibraryEntry') {
-      const entry = libraryPlans.find(item => item.id === planCommand.entryId);
+      const entry = libraryPlans.find(item => item.id === planCommand.entryId && item.kind !== 'folder' && !item.deletedAt);
       if (entry) openLibraryPlan(entry);
       else { setLibraryOpen(true); setTransferStatus('План не найден в библиотеке. Выберите доступный план.'); }
     }
@@ -5550,14 +5590,33 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const renameLibraryPlan = (entry) => {
     const name = window.prompt("Новое название плана:", entry.name)?.trim();
     if (!name || name === entry.name) return;
-    const updated = libraryPlans.map((item) => item.id === entry.id ? { ...item, name } : item);
+    const updated = readPlanLibrary().map((item) => item.id === entry.id ? { ...item, name, updatedAt: new Date().toISOString() } : item);
     setLibraryPlans(writePlanLibrary(updated));
   };
   const deleteLibraryPlan = (entry) => {
-    if (!window.confirm(`Удалить план «${entry.name}» из библиотеки?`)) return;
-    const updated = libraryPlans.filter((item) => item.id !== entry.id);
-    setLibraryPlans(writePlanLibrary(updated));
+    setLibraryPlans(writePlanLibrary(trashPlanLibraryEntry(readPlanLibrary(), entry.id)));
     if (editingLibraryId === entry.id) setEditingLibraryId(null);
+    setTransferStatus(`План «${entry.name}» перемещён в корзину. Его можно восстановить.`);
+  };
+  const updateLibrary = (operation) => {
+    try { setLibraryPlans(writePlanLibrary(operation(readPlanLibrary()))); }
+    catch (error) { setTransferStatus(error.message); }
+  };
+  const createLibraryFolder = (parentId) => {
+    const name = window.prompt('Название новой папки:')?.trim();
+    if (name) updateLibrary(entries => createPlanLibraryFolder(entries, name, parentId));
+  };
+  const renameLibraryFolder = (folder) => {
+    const name = window.prompt('Новое название папки:', folder.name)?.trim();
+    if (name) updateLibrary(entries => entries.map(item => item.id === folder.id ? { ...item, name, updatedAt: new Date().toISOString() } : item));
+  };
+  const deleteLibraryFolder = (folder) => updateLibrary(entries => deleteEmptyPlanLibraryFolder(entries, folder.id));
+  const moveLibraryPlan = (entry, folderId) => updateLibrary(entries => movePlanLibraryEntry(entries, entry.id, folderId));
+  const copyLibraryPlan = (entry) => updateLibrary(entries => copyPlanLibraryEntry(entries, entry.id));
+  const restoreLibraryPlan = (entry) => updateLibrary(entries => restorePlanLibraryEntryFromTrash(entries, entry.id));
+  const deleteLibraryPlanForever = (entry) => {
+    if (!window.confirm(`Окончательно удалить план «${entry.name}»? Восстановить его из корзины будет нельзя.`)) return;
+    updateLibrary(entries => entries.filter(item => item.id !== entry.id));
   };
   const shareLibraryPlan = async (entry) => {
     try {
@@ -6152,6 +6211,13 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           onRename={renameLibraryPlan}
           onShare={shareLibraryPlan}
           onDelete={deleteLibraryPlan}
+          onCreateFolder={createLibraryFolder}
+          onRenameFolder={renameLibraryFolder}
+          onDeleteFolder={deleteLibraryFolder}
+          onMove={moveLibraryPlan}
+          onCopy={copyLibraryPlan}
+          onRestore={restoreLibraryPlan}
+          onDeleteForever={deleteLibraryPlanForever}
         />
       ) : null}
       {bindingSetupOpen ? (

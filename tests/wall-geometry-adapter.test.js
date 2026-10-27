@@ -115,15 +115,13 @@ test('gaps, excluded openings and overlapping openings preserve input and produc
   assert.deepEqual(p, before);
 });
 
-test('cold slope infill is reported as a distinction, not silently used to change SIP surfaces', () => {
+test('cold structural slope uses the same sloped SIP wall geometry in model and production', () => {
   const p = house(); p.services.roof = true;
   Object.assign(p.settings.roof, { shape: 'flat', flatSlopeMode: 'structural', flatSlopePercent: 5,
     flatSlopeDirection: 'back', gableType: 'cold', type: 'cold' });
   const report = run(p), comparison = report.geometryDiagnostics.comparison;
-  assert.equal(comparison.status, 'differences');
-  assert.ok(comparison.differences.length > 0);
-  assert.ok(comparison.differences.every(d => d.reason && d.field.startsWith('height')));
-  assert.ok(report.surfaces.filter(s => /^Э1-С/.test(s.id)).every(s => s.heightStart === 2500 && s.heightEnd === 2500));
+  assert.equal(comparison.status, 'matched');
+  assert.ok(report.surfaces.filter(s => /^Э1-С/.test(s.id)).some(s => s.heightStart !== s.heightEnd));
 });
 
 test('disabled wall production and zero wall height do not create false missing-surface diagnostics', () => {

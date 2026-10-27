@@ -27,7 +27,7 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
  if(!/^\d+×\d+$/.test(section)){issues.push('Стропила: проектное сечение отсутствует.');return {rafters,members,laths,counterLaths,roofTimbers,issues};}
  const width=Number(section.split('×')[0]),gap=Number(settings.rafterClearGapMm)||Math.max(100,Number(calculation.roof.rafterStructure?.step||.6)*1000);
  for(const f of model.faces.filter(f=>!f.warm)){
-  if(f.structureHorizontal){issues.push(`${f.name}: разуклонка не наклоняет стропила; несущую схему задайте вручную.`);continue;}
+  if(f.structureHorizontal){issues.push(`${f.name}: для проектных скатов разуклонки верхнюю доску и нижний пояс задайте вручную.`);continue;}
   const xs=f.polygon.map(p=>p[0]),lo=Math.min(...xs),hi=Math.max(...xs);if(hi-lo<width)continue;
   let positions=clearGapPositions(lo+width/2,hi-width/2,width,gap);
   if(f.group==='main'&&calculation.roof.mainRoofShape==='gable'&&!settings.roofDesign?.manualFaces?.length){

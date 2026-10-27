@@ -810,7 +810,7 @@ test('flat roof slope made above the deck changes slope area without adding gabl
   assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
 });
 
-test('structurally inclined flat roof adds two triangular sides and the high wall', () => {
+test('structurally inclined flat roof cuts the two sides and high wall from exterior SIP', () => {
   const project = createDefaultProject();
   project.settings.roof.shape = 'flat';
   project.settings.roof.flatSlopeMode = 'structural';
@@ -827,9 +827,9 @@ test('structurally inclined flat roof adds two triangular sides and the high wal
   assert.ok(Math.abs(result.roof.flatRise - expectedRise) < 0.001);
   assert.ok(Math.abs(result.roof.flatSideWallArea - expectedSideArea) < 0.01);
   assert.ok(Math.abs(result.roof.flatHighWallArea - expectedHighWallArea) < 0.01);
-  assert.ok(Math.abs(result.roof.gableArea - expectedSideArea - expectedHighWallArea) < 0.01);
-  assert.ok(result.lines.some((line) => line.id === 'roof:gable-frame'));
-  assert.match(result.lines.find((line) => line.id === 'roof:gable-frame').name, /перепада высот/);
+  assert.equal(result.roof.gableArea, 0);
+  assert.equal(result.lines.some((line) => line.id === 'roof:gable-frame'), false);
+  assert.ok(result.metrics.firstFloorExteriorWallNetArea > 0);
 });
 
 test('structural flat roof can still exclude all three-sided infill manually', () => {

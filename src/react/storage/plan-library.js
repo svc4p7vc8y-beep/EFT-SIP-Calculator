@@ -29,6 +29,8 @@ export function createPlanLibraryEntry(
       `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     name: String(name || existing.name || "План дома").trim() || "План дома",
     savedAt,
+    updatedAt: savedAt,
+    folderId: existing.folderId || "",
     project: compactProject(project),
     priceSnapshot: {
       materials: Number(calculation?.totals?.materials) || 0,
@@ -51,7 +53,54 @@ export function normalizePlanLibrary(entries = [], legacyEntries = []) {
       plan: clone(item.plan),
       priceSnapshot: { materials: 0, labor: 0, total: 0 },
     })),
-  ].filter((item) => item?.id && (item.project?.plan || item.plan));
+  ].filter((item) => item?.id && (item.kind === 'folder' || item.project?.plan || item.plan));
+}
+
+export function createPlanLibraryFolder(entries, name, parentId = '') {
+  const title = String(name || '').trim();
+  if (!title) throw new Error('Введите название папки.');
+  if (parentId && !entries.some(item => item.kind === 'folder' && item.id === parentId && !item.deletedAt))
+    throw new Error('Родительская папка не найдена.');
+  const now = new Date().toISOString();
+  const folder = { id: `folder-${crypto.randomUUID()}`, kind: 'folder', name: title, parentId, createdAt: now, updatedAt: now };
+  return [folder, ...entries];
+}
+
+export function movePlanLibraryEntry(entries, entryId, folderId = '') {
+  if (folderId && !entries.some(item => item.kind === 'folder' && item.id === folderId && !item.deletedAt))
+    throw new Error('Папка назначения не найдена.');
+  const entry = entries.find(item => item.id === entryId && item.kind !== 'folder' && !item.deletedAt);
+  if (!entry) throw new Error('План не найден.');
+  return entries.map(item => item.id === entryId ? { ...item, folderId, updatedAt: new Date().toISOString() } : item);
+}
+
+export function copyPlanLibraryEntry(entries, entryId) {
+  const entry = entries.find(item => item.id === entryId && item.kind !== 'folder' && !item.deletedAt);
+  if (!entry) throw new Error('План не найден.');
+  const now = new Date().toISOString();
+  return [{ ...clone(entry), id: `plan-${crypto.randomUUID()}`, name: `${entry.name} · копия`, savedAt: now, updatedAt: now }, ...entries];
+}
+
+export function trashPlanLibraryEntry(entries, entryId) {
+  const entry = entries.find(item => item.id === entryId && item.kind !== 'folder' && !item.deletedAt);
+  if (!entry) throw new Error('План не найден.');
+  const now = new Date().toISOString();
+  return entries.map(item => item.id === entryId ? { ...item, deletedAt: now, updatedAt: now } : item);
+}
+
+export function restorePlanLibraryEntryFromTrash(entries, entryId) {
+  const entry = entries.find(item => item.id === entryId && item.kind !== 'folder' && item.deletedAt);
+  if (!entry) throw new Error('План не найден в корзине.');
+  const folderId = entries.some(item => item.id === entry.folderId && item.kind === 'folder') ? entry.folderId : '';
+  return entries.map(item => item.id === entryId ? { ...item, folderId, deletedAt: null, updatedAt: new Date().toISOString() } : item);
+}
+
+export function deleteEmptyPlanLibraryFolder(entries, folderId) {
+  const folder = entries.find(item => item.id === folderId && item.kind === 'folder');
+  if (!folder) throw new Error('Папка не найдена.');
+  if (entries.some(item => !item.deletedAt && (item.folderId === folderId || item.parentId === folderId)))
+    throw new Error('Сначала переместите планы и вложенные папки.');
+  return entries.filter(item => item.id !== folderId);
 }
 
 export function readPlanLibrary(storage = localStorage) {

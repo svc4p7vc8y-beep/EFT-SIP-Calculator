@@ -371,9 +371,8 @@ function calculateBuildingMetrics(project) {
       const original=calculatePlanMetrics(plan);
       const walls=exteriorWallConstruction(plan,project.settings.sip,project.settings.roof,index===plans.length-1,project.services.roof);
       const roofSettings=project.settings.roof;
-      const frameSlope=roofSettings.shape==='flat'&&roofSettings.flatSlopeMode==='structural'&&(roofSettings.gableType==='cold'||(roofSettings.gableType==='auto'&&roofSettings.type!=='sip'));
-      const gross=plan.house?.contourDefined===false?0:walls.reduce((s,w)=>s+w.length*(frameSlope?w.baseHeight:(w.heightStart+w.heightEnd)/2),0);
-      return {...original,exteriorWallGrossArea:round(gross),exteriorWallNetArea:round(Math.max(0,gross-original.exteriorOpeningsArea)),wallConstruction:frameSlope?walls.map(w=>({...w,heightStart:w.baseHeight,heightEnd:w.baseHeight})):walls};
+      const gross=plan.house?.contourDefined===false?0:walls.reduce((s,w)=>s+w.length*(w.heightStart+w.heightEnd)/2,0);
+      return {...original,exteriorWallGrossArea:round(gross),exteriorWallNetArea:round(Math.max(0,gross-original.exteriorOpeningsArea)),wallConstruction:walls};
     })(),
   }));
   const base = floorPlans[0].metrics;
@@ -1232,7 +1231,7 @@ function roofSection(project, metrics, index, inputs) {
     mainGableType === "none"
       ? 0
       : hasStructuralFlatGables
-        ? mainFlatSideWallArea + mainFlatHighWallArea
+        ? 0 // The sloped extension is part of the cut exterior SIP wall.
         : gableAreas.slice(0,mainGableCount).reduce((s,a)=>s+a,0);
   const mainColdGableArea = tieredGables ? tieredGables.coldArea : mixedGableAreas
     ? mixedGableAreas.filter(item => item.type === 'cold').reduce((sum, item) => sum + item.area, 0)

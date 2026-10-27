@@ -9,7 +9,7 @@ import { isAxisAlignedRectangleContour } from './roof-contour.js';
 import {roofProject,roofAt} from './roof-project.js';
 import {roofFabrication,planIntersection} from './roof-fabrication.js';
 import {platformAssembly} from './platform-assembly.js';
-import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation } from './roof-wall-plate.js';
+import { mauerlatProfile, mauerlatWallRuns, ceilingTopElevation, structuralFlatRoofRise } from './roof-wall-plate.js';
 import { gluedRidgeLayout } from './roof-glued-ridge.js';
 import { roofSupportMatchesSystem } from '../state/auto-roof-supports.js';
 import { hangingRiegelEnabled, hangingRiegelMembers } from './hanging-riegel.js';
@@ -100,7 +100,9 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     layout.runs.forEach(([a,b],i)=>{
       const id=`КР-М${i+1}`,length=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1]));
       addRoofMember(id,'Мауэрлат',plate.profile,length,a,b);
-      Object.assign(roofTimbers.at(-1),{name:'Мауэрлат',flat:true,normal:[0,0,1],worldA:[...a,elevation.topZ+plate.heightMm/2],worldB:[...b,elevation.topZ+plate.heightMm/2],plateTopZ:elevation.topZ+plate.heightMm});
+      const riseA=structuralFlatRoofRise(project,calculation,bounds,a),riseB=structuralFlatRoofRise(project,calculation,bounds,b);
+      const slope=riseB-riseA,run=Math.hypot(b[0]-a[0],b[1]-a[1])||1;
+      Object.assign(roofTimbers.at(-1),{name:'Мауэрлат',flat:true,normal:[0,0,1],worldA:[...a,elevation.topZ+riseA+plate.heightMm/2],worldB:[...b,elevation.topZ+riseB+plate.heightMm/2],plateTopZ:elevation.topZ+riseA+plate.heightMm,plateTopA:elevation.topZ+riseA+plate.heightMm,plateTopB:elevation.topZ+riseB+plate.heightMm,slope:slope/run});
     });
   }
   const gluedRidge=gluedRidgeLayout(project,false,calculation.roof.terraceRoofs);
@@ -195,18 +197,28 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for(const rafter of assembly.rafters){
       const face=assembly.roofModel.faces.find(face=>face.group==='main'&&face.name===rafter.name)||assembly.roofModel.faces.find(face=>face.group==='main'&&roofAt({faces:[face]},...rafter.a).length);
       if(!face){rafter.bearingStatus='unresolved';unresolved++;continue;}
-      const horizontalStructure=roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='tapered';
-      rafter.worldA=[...rafter.a,horizontalStructure?assembly.roofModel.roofBase:(roofAt({faces:[face]},...rafter.a)[0]?.z??assembly.roofModel.roofBase)];
-      rafter.worldB=[...rafter.b,horizontalStructure?assembly.roofModel.roofBase:(roofAt({faces:[face]},...rafter.b)[0]?.z??assembly.roofModel.roofBase)];
-      rafter.normal=horizontalStructure?[0,0,1]:face.normal;
+      const taperedFrame=roof.mainRoofShape==='flat'&&roof.flatSlopeMode==='tapered'&&project.settings.roof.type==='cold';
+      rafter.worldA=[...rafter.a,roofAt({faces:[face]},...rafter.a)[0]?.z??assembly.roofModel.roofBase];
+      rafter.worldB=[...rafter.b,roofAt({faces:[face]},...rafter.b)[0]?.z??assembly.roofModel.roofBase];
+      rafter.normal=face.normal;
+      if(taperedFrame){
+        const run=Math.hypot(rafter.worldB[0]-rafter.worldA[0],rafter.worldB[1]-rafter.worldA[1]);
+        rafter.bearingStatus='upper-chord';
+        rafter.lowerChordJoinAngleDeg=Math.atan2(Math.abs(rafter.worldB[2]-rafter.worldA[2]),run)*180/Math.PI;
+        rafter.lowerChordJoinEnd=rafter.worldA[2]<=rafter.worldB[2]?'A':'B';
+        const member=members.find(item=>item.id===rafter.id);
+        if(member)member.processing=`Нижний конец ${rafter.lowerChordJoinEnd}: косой запил к нижнему поясу, угол ${rafter.lowerChordJoinAngleDeg.toFixed(2)}°. Узел и крепёж — по рабочему проекту.`;
+        continue;
+      }
       const depth=Number(rafter.profile.split(/[×xх]/)[1])||0;
       const candidates=plates.flatMap(plate=>{
         const hit=planIntersection(rafter.worldA,rafter.worldB,plate.worldA,plate.worldB);
         if(!hit)return [];
         const centerZ=rafter.worldA[2]+(rafter.worldB[2]-rafter.worldA[2])*hit.t;
         const normalZ=rafter.normal[2];
-        const notchMm=plate.plateTopZ-centerZ+depth*normalZ/2;
-        return notchMm>=-5&&notchMm/normalZ<=50?[{plate,point:[rafter.worldA[0]+(rafter.worldB[0]-rafter.worldA[0])*hit.t,rafter.worldA[1]+(rafter.worldB[1]-rafter.worldA[1])*hit.t,plate.plateTopZ],notchMm:Math.max(0,notchMm/normalZ)}]:[];
+        const plateTop=plate.plateTopA+(plate.plateTopB-plate.plateTopA)*hit.u;
+        const notchMm=plateTop-centerZ+depth*normalZ/2;
+        return notchMm>=-5&&notchMm/normalZ<=50?[{plate,point:[rafter.worldA[0]+(rafter.worldB[0]-rafter.worldA[0])*hit.t,rafter.worldA[1]+(rafter.worldB[1]-rafter.worldA[1])*hit.t,plateTop],notchMm:Math.max(0,notchMm/normalZ)}]:[];
       });
       if(candidates.length){const bearing=candidates[0];Object.assign(rafter,{bearingStatus:'geometry-only',bearingMauerlatId:bearing.plate.id,bearingPoint:bearing.point,bearingNotchMm:bearing.notchMm});}
       else {rafter.bearingStatus='unresolved';unresolved++;}
@@ -289,7 +301,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     if (roof.layeredFrame && layout.items.length !== roof.layeredFrame.items)
       assembly.issues.push(`Наслонные опоры: чертёж содержит ${layout.items.length} деталей, смета учитывает ${roof.layeredFrame?.items || 0}. Сверьте параметры.`);
   }
-  if (project.services.roof && roof.mainRoofShape === 'flat' && project.settings.roof.type === 'cold') {
+  if (project.services.roof && roof.mainRoofShape === 'flat' && project.settings.roof.type === 'cold' && roof.flatSlopeMode !== 'structural') {
     const frameLayout = flatRoofFrame(assembly, project.settings.roof, settings);
     assembly.roofTimbers.push(...frameLayout.items);
     assembly.members.push(...frameLayout.members);

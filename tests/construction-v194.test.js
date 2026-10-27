@@ -27,6 +27,15 @@ test('all slope directions change actual wall panel profiles and SIP areas, not 
   assert.equal(r.surfaces.some(s=>s.id.startsWith('ФР-')),false);assert.deepEqual(p,before);
  }
 });
+test('cold structural slope cuts wall SIP and removes the former separate framed extension',()=>{
+ const p=house();Object.assign(p.settings.roof,{shape:'flat',flatSlopeMode:'structural',flatSlopePercent:5,flatSlopeDirection:'back',type:'cold'});
+ const calculation=calculateProject(p),report=run(p);
+ close(calculation.metrics.firstFloorExteriorWallNetArea,44.56);
+ close(calculation.roof.gableArea,0);
+ assert.ok(report.surfaces.filter(s=>/^Э1-С\d+$/.test(s.id)).some(s=>s.heightStart!==s.heightEnd));
+ assert.ok(!report.surfaces.some(s=>s.id.startsWith('ФР-')));
+ close(calculation.totals.total,724256.15,.02);
+});
 test('wall jamb lengths interpolate sloping top; opening near trimmed corner is diagnosed',()=>{
  const p=house();Object.assign(p.settings.roof,{shape:'flat',flatSlopeMode:'structural',flatSlopePercent:5,flatSlopeDirection:'back',gableType:'sip',type:'sip'});
  p.plan.openings=[{id:'w',type:'window',outer:true,x:6,y:1.5,width:1,height:1.2,sillHeight:.85,orientation:'v'}];let r=run(p),jambs=r.members.filter(m=>m.role==='jamb');assert.equal(jambs.length,2);assert.notEqual(jambs[0].length,jambs[1].length);

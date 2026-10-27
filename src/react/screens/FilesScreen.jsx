@@ -154,7 +154,8 @@ export default function FilesScreen({ onOpenLibraryPlan }) {
 
   const visibleFolders = inPlanLibrary ? [] : data.folders?.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())) || [];
   const visibleFiles = inPlanLibrary ? [] : [...(data.files || []), ...(!folderId ? crmFiles : [])].filter((item) => item.original_name.toLowerCase().includes(query.toLowerCase()));
-  const visiblePlans = inPlanLibrary ? libraryPlans.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())) : [];
+  const activeLibraryPlans = libraryPlans.filter(item => item.kind !== 'folder' && !item.deletedAt);
+  const visiblePlans = inPlanLibrary ? activeLibraryPlans.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())) : [];
   const showPlanFolder = !folderId && "Планы из библиотеки".toLowerCase().includes(query.toLowerCase());
   const breadcrumbs = inPlanLibrary ? [{ id: "", name: "Файлы" }, { id: PLAN_LIBRARY_FOLDER, name: "Планы из библиотеки" }] : data.breadcrumbs || [];
   const openFolder = (id) => load(id);
@@ -182,7 +183,7 @@ export default function FilesScreen({ onOpenLibraryPlan }) {
       {!folderId && !crmConnected ? <div className="files-info"><Folder /><span>Для просмотра файлов CRM войдите в CRM и обновите список.</span><a href="https://crm.eftsip.ru/" target="_blank" rel="noreferrer">Открыть CRM</a></div> : null}
       {folderId === "questionnaires" ? <div className="files-info"><HardDrive /><span><strong>Файлы из анкет</strong> сохраняются автоматически вместе с заявкой. Здесь они больше не перекрывают рабочее поле.</span></div> : null}
       <div className="file-grid" aria-busy={loading}>
-        {showPlanFolder ? <button className="folder-card featured" onClick={() => openFolder(PLAN_LIBRARY_FOLDER)}><Folder /><span><strong>Планы из библиотеки</strong><small>{libraryPlans.length} планов · открыть в редакторе</small></span></button> : null}
+        {showPlanFolder ? <button className="folder-card featured" onClick={() => openFolder(PLAN_LIBRARY_FOLDER)}><Folder /><span><strong>Планы из библиотеки</strong><small>{activeLibraryPlans.length} планов · открыть в редакторе</small></span></button> : null}
         {!folderId && data.questionnaireCount > 0 ? <button className="folder-card featured" onClick={() => openFolder("questionnaires")}><Folder /><span><strong>Файлы из анкет</strong><small>{data.questionnaireCount} файлов</small></span></button> : null}
         {visibleFolders.map((folder) => <div key={folder.id} className="folder-card folder-card-managed"><button className="folder-card-open" onClick={() => openFolder(folder.id)}><Folder /><span><strong>{folder.name}</strong><small>Создал: {folder.created_by}</small></span></button>{canWrite ? fileActions("folder", folder) : null}</div>)}
       </div>

@@ -6,11 +6,14 @@ import { productionLevels } from './production-levels.js';
 import { rafterEndOutline } from './rafter-end-cuts.js';
 import { bindingPlanRows } from './binding-rows.js';
 import {foundationGeometry} from './foundation-geometry.js';
+import { structuralFlatRoofRise } from './roof-wall-plate.js';
 
 // Millimetres, right-handed model coordinates X/Y = plan, Z = height.
 // This adapter only places existing production geometry; it never creates stock.
 export function productionScene(report,project,{includePlatforms=report.settings.showPlatforms!==false}={}) {
   const {plans,bases,roofBase:defaultRoofBase}=productionLevels(project,report.assembly.floors.length),roofBase=report.assembly.roofModel?.roofBase??defaultRoofBase;
+  const roofContext={roof:{mainRoofShape:report.assembly.roofShape,flatSlopeMode:project.settings.roof.flatSlopeMode,ridgeAxis:report.assembly.axis,flatSlopeDirection:project.settings.roof.flatSlopeDirection}};
+  const roofRise=(x,y)=>structuralFlatRoofRise(project,roofContext,report.assembly.bounds,[x,y]);
   const links=gableLinks(report,report.settings.gableLinks),placements=new Map(),missing=[];
   const wallPlacement=(s,base,layer)=>{
     const dx=s.planEnd[0]-s.planStart[0],dy=s.planEnd[1]-s.planStart[1],l=Math.hypot(dx,dy)||1;
@@ -24,7 +27,12 @@ export function productionScene(report,project,{includePlatforms=report.settings
     else if(s.planStart)placements.set(s.id,wallPlacement(s,base,category));
     else if(category==='gables'){const link=links.find(l=>l.gable.id===s.id),wall=link?.wall,p=wall&&placements.get(wall.id);if(p){const offset=(link.offset||0)+(link.reverse?s.width:0),elevation=link.elevation||0;placements.set(s.id,{...p,origin:p.origin.map((n,i)=>n+p.u[i]*offset+p.v[i]*elevation),u:link.reverse?p.u.map(n=>-n):p.u,layer:'gables'});}else if(s.gableAnchor&&!report.settings.gableLinks[s.layoutKey])placements.set(s.id,wallPlacement(s.gableAnchor,s.gableAnchor.elevation,'gables'));else missing.push(s.id);}
     // Wall/partition datum is the top face of the floor, not its mid-plane.
-    else if(category==='floor'||category==='ceiling')placements.set(s.id,{origin:[0,0,base+(category==='ceiling'?exteriorHeight(plans[(s.floor||1)-1],project.settings.sip)*1000:-Number(s.thickness)/2)],u:[1,0,0],v:[0,1,0],normal:[0,0,1],layer:category});
+    else if(category==='floor'||category==='ceiling'){
+      const sloped=category==='ceiling'&&s.floor===plans.length&&project.settings.roof.flatSlopeMode==='structural'&&report.assembly.roofShape==='flat';
+      const dx=sloped?roofRise(1,0)-roofRise(0,0):0,dy=sloped?roofRise(0,1)-roofRise(0,0):0;
+      const length=Math.hypot(dx,dy,1);
+      placements.set(s.id,{origin:[0,0,base+(category==='ceiling'?exteriorHeight(plans[(s.floor||1)-1],project.settings.sip)*1000+(sloped?roofRise(0,0):0):-Number(s.thickness)/2)],u:[1,0,dx],v:[0,1,dy],normal:[-dx/length,-dy/length,1/length],layer:category});
+    }
     else if(category==='roof'&&report.assembly.roofShape==='gable'&&/^КР-С[12]$/.test(s.id)){
       const a=report.assembly,axis=a.axis==='x',g=a.roofGeometry||{},span=axis?a.bounds.height:a.bounds.width,eave=Number(g.eaveOverhang||0)*1000,overhang=Number(g.gableOverhang||0)*1000,rise=Number(project.settings.roof.ridgeHeight||0)*1000,angle=Math.atan2(rise,span/2),second=s.id.endsWith('2'),sign=second?-1:1;
       const origin=axis?[a.bounds.x-overhang,a.bounds.y+(second?span+eave:-eave),roofBase-eave*Math.tan(angle)]:[a.bounds.x+(second?span+eave:-eave),a.bounds.y-overhang,roofBase-eave*Math.tan(angle)];
@@ -64,7 +72,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const beams=[...roofAxonometricLines(assembly).map(m=>({...m,layer:'rafters',endCutOutline:report.settings.rafterEndCuts?rafterEndOutline(m.a,m.b,Number(m.profile.split(/[×xх]/)[1]))?.outline:null,a:[m.a[0],m.a[1],m.a[2]+roofBase],b:[m.b[0],m.b[1],m.b[2]+roofBase]})),
     ...(assembly.roofTimbers||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'roofTimbers')),...(assembly.laths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'laths')),...(assembly.counterLaths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'counterLaths')),
     ...assembly.supports.filter(m=>!m.referenceOnly||m.trussTemplate).map(m=>({...m,id:m.mark,layer:m.trussTemplate?'trussTemplates':'supports'})),...binding];
-  const bearingPoints=[...assembly.rafters,...(assembly.roofTimbers||[]).filter(item=>item.roofMemberKind==='hip')]
+  const bearingPoints=[...assembly.rafters,...(assembly.roofTimbers||[]).filter(item=>item.roofMemberKind==='hip'||item.roofMemberKind==='flat-frame-chord')]
     .filter(item=>!item.excluded&&item.bearingStatus==='geometry-only'&&item.bearingPoint)
     .map(item=>({id:item.id,mauerlatId:item.bearingMauerlatId,point:item.bearingPoint}));
   const platforms=includePlatforms?(assembly.platforms||[]):[];

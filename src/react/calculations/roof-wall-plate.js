@@ -18,6 +18,16 @@ export function ceilingTopElevation(project, calculation, floorCount) {
   return { wallTop, hasCeiling, topZ: wallTop + (hasCeiling ? Number(project.settings.sip.ceilingThickness || 0) / 2 : 0) };
 }
 
+export function structuralFlatRoofRise(project, calculation, bounds, point) {
+  if (calculation.roof?.mainRoofShape !== 'flat' || calculation.roof?.flatSlopeMode !== 'structural') return 0;
+  const acrossY = calculation.roof.ridgeAxis !== 'y';
+  const start = acrossY ? bounds.y : bounds.x;
+  const span = acrossY ? bounds.height : bounds.width;
+  const position = (acrossY ? point[1] : point[0]) - start;
+  const reverse = ['back', 'right'].includes(calculation.roof.flatSlopeDirection);
+  return (reverse ? span - position : position) * Math.max(0, Number(project.settings.roof.flatSlopePercent) || 0) / 100;
+}
+
 export function roofBaseElevation(project, calculation, floorCount, spanMm, shape) {
   const settings = project.settings.roof;
   const design = project.settings.productionCutting?.roofDesign || {};
@@ -36,10 +46,14 @@ export function roofBaseElevation(project, calculation, floorCount, spanMm, shap
     ? Number(settings.flatSlopePercent || 0) / 100 : 0;
   const flatAligned = ceiling.topZ + profile.heightMm + depth / 2 - 25
     - flatSlope * profile.widthMm / 2;
+  // In the tapered-frame variant the lower chord bears on the plate; the
+  // sloping upper chord starts one board depth above that lower chord.
+  const taperedFrameBase = ceiling.topZ + profile.heightMm + depth * 1.5
+    + Math.max(0, Number(settings.eaveOverhang) || 0) * 1000 * Math.max(0, Number(settings.flatSlopePercent) || 0) / 100;
   return design.baseZ !== '' && design.baseZ != null && Number.isFinite(Number(design.baseZ))
     ? Number(design.baseZ)
     : shape === 'flat' && settings.type === 'cold' && calculation.roof?.mauerlatLength > 0
-      ? flatAligned
+      ? calculation.roof?.flatSlopeMode === 'tapered' ? taperedFrameBase : flatAligned
     : ceiling.hasCeiling && ['gable', 'hip'].includes(shape) && calculation.roof?.mauerlatLength > 0
       ? aligned : defaultBase;
 }

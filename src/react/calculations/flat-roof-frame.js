@@ -1,4 +1,5 @@
 import { roofMemberGeometry } from './roof-rafter-detail.js';
+import { planIntersection } from './roof-fabrication.js';
 
 // Geometric scheme only. Chord joints, load path, connections and capacity require design.
 export function flatRoofFrame(assembly, roofSettings, cuttingSettings) {
@@ -8,6 +9,8 @@ export function flatRoofFrame(assembly, roofSettings, cuttingSettings) {
   const stock = Number(cuttingSettings.stockLengthMm || 6000);
   const mainFaces = new Set((assembly.roofModel?.faces || []).filter(face => face.group === 'main').map(face => face.id));
   const rafters = assembly.rafters.filter(item => item.worldA && item.worldB && (!item.faceId || mainFaces.has(item.faceId)));
+  const tapered = roofSettings.flatSlopeMode === 'tapered';
+  const plates = assembly.roofTimbers.filter(item => item.name === 'Мауэрлат');
   const append = (rafter, id, name, a, b, kind) => {
     const length = Math.ceil(Math.hypot(...a.map((value, index) => b[index] - value)));
     if (length < 1) return;
@@ -28,7 +31,7 @@ export function flatRoofFrame(assembly, roofSettings, cuttingSettings) {
       issues.push(`${rafter.id}: высоты каркаса недостаточно для нижнего пояса и стоек.`);
       continue;
     }
-    const lowerZ = Math.min(a[2], b[2]) - depth;
+    const lowerZ = tapered && plates.length ? plates[0].plateTopZ + sectionDepth / 2 : Math.min(a[2], b[2]) - depth;
     const at = (distance, z) => [a[0] + (b[0] - a[0]) * distance / run,
       a[1] + (b[1] - a[1]) * distance / run, z];
     const limit = Math.max(1000, stock - allowance);
@@ -46,8 +49,20 @@ export function flatRoofFrame(assembly, roofSettings, cuttingSettings) {
       append(rafter, `${rafter.id}-СТ${index}`, 'Вертикальная стойка плоской кровли', at(distance, bottomZ), at(distance, topZ), 'flat-frame-post');
     }
   }
+  if (tapered) for (const chord of items.filter(item => item.roofMemberKind === 'flat-frame-chord')) {
+    const hits = plates.flatMap(plate => {
+      const crossing = planIntersection(chord.worldA, chord.worldB, plate.worldA, plate.worldB);
+      if (!crossing) return [];
+      const top = plate.plateTopA + (plate.plateTopB - plate.plateTopA) * crossing.u;
+      return Math.abs(chord.worldA[2] - sectionDepthOf(chord.profile) / 2 - top) <= 5
+        ? [{ plate, point: [chord.worldA[0] + (chord.worldB[0] - chord.worldA[0]) * crossing.t, chord.worldA[1] + (chord.worldB[1] - chord.worldA[1]) * crossing.t, top] }] : [];
+    });
+    if (hits.length) Object.assign(chord, { bearingStatus: 'geometry-only', bearingMauerlatId: hits[0].plate.id, bearingPoint: hits[0].point, bearingNotchMm: 0 });
+  }
   if (rafters.length) issues.push('Нижние пояса и стойки плоской кровли — геометрическая схема. Опоры, устойчивость, стыки и несущая способность не подтверждены.');
   return { items, members, issues, rafterCount: rafters.length,
     chordCount: items.filter(item => item.roofMemberKind === 'flat-frame-chord').length,
     postCount: items.filter(item => item.roofMemberKind === 'flat-frame-post').length };
 }
+
+function sectionDepthOf(profile) { return Number(String(profile).split(/[×xх]/)[1]) || 150; }
