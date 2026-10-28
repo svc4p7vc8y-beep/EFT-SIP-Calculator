@@ -18,11 +18,18 @@ export async function downloadEstimatePdf(source, filename, { save = true } = {}
   const margin = 10, pageWidth = 210, pageHeight = 297, contentWidth = pageWidth - margin * 2, bottom = pageHeight - margin;
   const captureWidth = 800, mmPerPixel = contentWidth / captureWidth;
   let y = margin;
+  let imagePage = false;
   const holder = document.createElement('div');
   holder.className = `estimate-screen estimate-pdf-export ${source.closest('.estimate-screen')?.classList.contains('maximum-compact') ? 'maximum-compact' : ''} ${source.closest('.estimate-screen')?.classList.contains('super-compact') ? 'super-compact' : ''}`;
   holder.style.cssText = `position:fixed;left:-10000px;top:0;width:${captureWidth}px;background:#fff;z-index:-1;`;
   const sheet = document.createElement('section'); sheet.className = 'print-sheet'; holder.append(sheet); document.body.append(holder);
   const newPage = () => { pdf.addPage(); y = margin; };
+  const resumePortrait = () => {
+    if (!imagePage) return;
+    pdf.addPage('a4', 'portrait');
+    y = margin;
+    imagePage = false;
+  };
   const render = async node => {
     sheet.replaceChildren(node);
     // ForeignObject snapshots need explicit SVG paint to keep floor plans white.
@@ -100,9 +107,58 @@ export async function downloadEstimatePdf(source, filename, { save = true } = {}
       if (offset < rows.length) newPage();
     }
   };
+  const addFullPageImage = async figure => {
+    const image = figure.querySelector('img');
+    if (!image) return;
+    await image.decode?.();
+    const landscape = image.naturalWidth >= image.naturalHeight;
+    const page = document.createElement('div');
+    page.style.cssText = 'width:800px;background:#fff;text-align:center;';
+    const copy = image.cloneNode(true);
+    copy.style.cssText = `display:block;width:800px;height:${landscape ? 490 : 1020}px;object-fit:contain;background:#fff;`;
+    page.append(copy);
+    const caption = figure.querySelector('figcaption .print-only')?.textContent;
+    if (caption) {
+      const label = document.createElement('div');
+      label.textContent = caption;
+      label.style.cssText = 'padding:8px 12px;font:700 18px Arial,sans-serif;color:#111;';
+      page.append(label);
+    }
+    const canvas = await render(page);
+    pdf.addPage('a4', landscape ? 'landscape' : 'portrait');
+    const sheetWidth = landscape ? 297 : 210;
+    const sheetHeight = landscape ? 210 : 297;
+    const width = sheetWidth - margin * 2;
+    const height = canvas.height / canvas.width * width;
+    pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', margin, (sheetHeight - height) / 2, width, height, undefined, 'FAST');
+    imagePage = true;
+  };
   try {
     for (const child of source.children) {
       if (child.classList.contains('no-print') || child.classList.contains('estimate-source-ledger')) continue;
+      if (child.classList.contains('estimate-images') && child.querySelector('.is-full-page')) {
+        let regular = [];
+        const flushRegular = async () => {
+          if (!regular.length) return;
+          resumePortrait();
+          const group = child.cloneNode(false);
+          const grid = document.createElement('div');
+          grid.className = 'estimate-images-grid';
+          grid.append(...regular);
+          group.append(grid);
+          regular = [];
+          await addBlock(group);
+        };
+        for (const figure of child.querySelectorAll('.estimate-images-grid > figure')) {
+          if (figure.classList.contains('is-full-page')) {
+            await flushRegular();
+            await addFullPageImage(figure);
+          } else regular.push(figure.cloneNode(true));
+        }
+        await flushRegular();
+        continue;
+      }
+      resumePortrait();
       if (child.classList.contains('print-only')) {
         for (const section of child.children) {
           if (section.querySelector('tbody tr')) await addTableSection(section);

@@ -14,7 +14,7 @@ import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
 import { ProposalOverview } from '../components/ProposalOverview.jsx';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { addEstimateGroup, addEstimateLine, changeEstimateLine, removeEmptyEstimateGroup, removeEstimateLine, renameEstimateGroup, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
-import { MAX_ESTIMATE_IMAGES, MAX_ESTIMATE_IMAGE_DATA, prepareEstimateImage } from '../state/estimate-images.js';
+import { MAX_ESTIMATE_IMAGES, MAX_ESTIMATE_IMAGE_DATA, estimateImageFullPage, prepareEstimateImage } from '../state/estimate-images.js';
 import { MAX_ESTIMATE_FILES, estimateFileUrl, normalizeEstimateFiles } from '../state/estimate-files.js';
 import { useCurrentPriceAction } from '../cloud/useCurrentPriceAction.js';
 import { resolveEftApiUrl } from '../../shared/team-api.js';
@@ -70,7 +70,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
   const [mailNotice,setMailNotice]=useState('');
   const estimateImages = project.estimateImages || [];
   const estimateFiles = project.estimateFiles || [];
-  const appendImages = async (files, caption = '') => {
+  const appendImages = async (files, caption = '', { fullPage = false } = {}) => {
     if (!files.length) return;
     setImageError('');
     setUploadingImages(true);
@@ -81,6 +81,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
       for (const file of files) {
         const image = await prepareEstimateImage(file);
         if (caption) image.caption = caption.slice(0, 160);
+        if (fullPage) image.fullPage = true;
         total += image.data.length;
         if (total > MAX_ESTIMATE_IMAGE_DATA) throw new Error('Общий размер изображений для сметы превышает 2,8 МБ. Удалите часть изображений или выберите другие.');
         added.push(image);
@@ -280,7 +281,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
       <section className={`estimate-images${estimateImages.length ? '' : ' no-print'}`} aria-label="Изображения проекта в смете">
         <header className="no-print"><div><h2>Изображения и 3D-виды в смете</h2><p>Изображения сохраняются с проектом и печатаются в PDF.</p></div><div className="estimate-image-source-actions"><button type="button" className="button secondary" disabled={uploadingImages || estimateImages.length >= MAX_ESTIMATE_IMAGES} onClick={() => fileInput.current?.click()}><ImagePlus />С компьютера</button><button type="button" className="button secondary" disabled={uploadingImages} onClick={() => setFilePickerOpen(true)}><FolderOpen />Из внутренних файлов</button><button type="button" className="button secondary" disabled={uploadingImages || estimateImages.length >= MAX_ESTIMATE_IMAGES} onClick={() => setViewDialogOpen(true)}><Box />Создать 3D-вид</button><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addImages} /></div></header>
         {imageError ? <p className="estimate-image-error no-print" role="alert">{imageError}</p> : null}
-        {estimateImages.length ? <div className="estimate-images-grid">{estimateImages.map((image, index) => <figure key={image.id}><img src={image.data} alt={image.caption || `Изображение проекта ${index + 1}`} /><figcaption><span className="print-only">{image.caption || `Изображение ${index + 1}`}</span><input className="no-print" aria-label={`Подпись изображения ${index + 1}`} value={image.caption} maxLength={160} placeholder="Подпись к изображению" onChange={(event) => updateImage(image.id, { caption: event.target.value })} /></figcaption><div className="estimate-image-actions no-print"><button type="button" aria-label={`Переместить изображение ${index + 1} влево`} disabled={index === 0} onClick={() => moveImage(index, -1)}><ArrowLeft /></button><button type="button" aria-label={`Переместить изображение ${index + 1} вправо`} disabled={index === estimateImages.length - 1} onClick={() => moveImage(index, 1)}><ArrowRight /></button><button type="button" aria-label={`Удалить изображение ${index + 1}`} onClick={() => removeImage(image.id)}><Trash2 /></button></div></figure>)}</div> : <p className="estimate-images-empty no-print">Пока без дополнительных изображений.</p>}
+        {estimateImages.length ? <div className="estimate-images-grid">{estimateImages.map((image, index) => <figure key={image.id} className={estimateImageFullPage(image) ? 'is-full-page' : ''}><img src={image.data} alt={image.caption || `Изображение проекта ${index + 1}`} /><figcaption><span className="print-only">{image.caption || `Изображение ${index + 1}`}</span><input className="no-print" aria-label={`Подпись изображения ${index + 1}`} value={image.caption} maxLength={160} placeholder="Подпись к изображению" onChange={(event) => updateImage(image.id, { caption: event.target.value })} /></figcaption><label className="estimate-image-page-option no-print"><input type="checkbox" checked={estimateImageFullPage(image)} onChange={(event) => updateImage(image.id, { fullPage: event.target.checked })} />На отдельный лист</label><div className="estimate-image-actions no-print"><button type="button" aria-label={`Переместить изображение ${index + 1} влево`} disabled={index === 0} onClick={() => moveImage(index, -1)}><ArrowLeft /></button><button type="button" aria-label={`Переместить изображение ${index + 1} вправо`} disabled={index === estimateImages.length - 1} onClick={() => moveImage(index, 1)}><ArrowRight /></button><button type="button" aria-label={`Удалить изображение ${index + 1}`} onClick={() => removeImage(image.id)}><Trash2 /></button></div></figure>)}</div> : <p className="estimate-images-empty no-print">Пока без дополнительных изображений.</p>}
       </section>
       {estimateFiles.length ? <section className="estimate-file-references" aria-label="Внутренние документы проекта"><h2>Внутренние документы · доступ сотрудникам</h2><p>Документы хранятся на сервере. Для открытия ссылки нужен вход во внутренние файлы.</p><ul>{estimateFiles.map(file => <li key={file.id}><FileText size={16} /><a href={estimateFileUrl(file, resolveEftApiUrl())} target="_blank" rel="noreferrer">{file.name}</a><button type="button" className="icon-button no-print" aria-label={`Удалить файл ${file.name}`} onClick={() => removeFile(file.id)}><Trash2 size={16} /></button></li>)}</ul></section> : null}
       <section className="commercial-scope" aria-labelledby="commercial-scope-title">
@@ -296,7 +297,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
       <footer className="estimate-footer"><p>Расчёт сформирован в калькуляторе ЭФТ. Итоговая стоимость уточняется после проверки проекта специалистом.</p><strong>Итого: {formatMoney(clientEstimate.totals.total)}</strong></footer>
     </section>
     {filePickerOpen ? <Suspense fallback={<p role="status">Загружаю файлы…</p>}><EstimateFilePicker onClose={() => setFilePickerOpen(false)} onSelect={addInternalFile} selectedFiles={estimateFiles} /></Suspense> : null}
-    {viewDialogOpen ? <Suspense fallback={<p role="status">Загружаю 3D…</p>}><Estimate3DViewDialog project={project} calculation={calculation} onClose={() => setViewDialogOpen(false)} onCreate={(file, caption) => appendImages([file], caption)} /></Suspense> : null}
+    {viewDialogOpen ? <Suspense fallback={<p role="status">Загружаю 3D…</p>}><Estimate3DViewDialog project={project} calculation={calculation} onClose={() => setViewDialogOpen(false)} onCreate={(file, caption) => appendImages([file], caption, { fullPage: true })} /></Suspense> : null}
     {printReady ? <div className="modal-backdrop estimate-print-backdrop no-print" onMouseDown={event => { if (event.target === event.currentTarget) setPrintReady(false); }}>
       <section className="modal estimate-print-dialog" role="dialog" aria-modal="true" aria-label="Печать сметы">
         <header><div><h2>Смета готова к печати</h2><p>В окне печати выберите «Сохранить как PDF», чтобы сохранить файл на устройство.</p></div></header>

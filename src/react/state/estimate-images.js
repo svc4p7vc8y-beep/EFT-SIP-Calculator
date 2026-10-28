@@ -16,8 +16,13 @@ export function normalizeEstimateImages(value) {
       id,
       data: image.data,
       caption: String(image.caption || '').slice(0, 160),
+      ...(typeof image.fullPage === 'boolean' ? { fullPage: image.fullPage } : {}),
     }];
   });
+}
+
+export function estimateImageFullPage(image) {
+  return image.fullPage ?? /^3d[ -]?вид/i.test(image.caption || '');
 }
 
 export async function prepareEstimateImage(file) {
