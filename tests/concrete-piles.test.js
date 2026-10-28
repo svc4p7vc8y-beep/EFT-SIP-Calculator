@@ -14,7 +14,7 @@ test('concrete pile package costs 8750 per unique pile without duplicate install
   assert.equal(pile.qty*pile.price,after.foundation.totalPiles*8750);
 });
 test('legacy projects remain screw piles; selected type and manual price survive save/import',()=>{
-  const p=createDefaultProject();delete p.settings.piles.pileType;
+  const p=createDefaultProject();delete p.settings.piles.pileType;delete p.settings.piles.screwPileVariant;p.appVersion=234;
   const legacy=migrateProject(JSON.parse(JSON.stringify(p)));assert.equal(legacy.settings.piles.pileType,'screw');
   assert.ok(section(legacy).lines.some(l=>l.id==='foundation:pile-work'));
   p.settings.piles.pileType='reinforcedConcrete';p.priceMat.find(m=>m.id==='MAT-JB-C30-15').price=9000;

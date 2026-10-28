@@ -19,6 +19,7 @@ const cases=[
 
 for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   const project=createDefaultProject();
+  project.settings.piles.screwPileVariant='legacy'; // Keep the v230 foundation price fixed while testing roof changes.
   project.plan.house={w:8,h:6};project.plan.rooms=[];project.plan.openings=[];project.plan.platforms=[];
   project.settings.productionCutting.roofDesign.enabled=true;
   project.settings.roof.shape=scenario.shape;

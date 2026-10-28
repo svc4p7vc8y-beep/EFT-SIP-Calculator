@@ -602,7 +602,8 @@ test('maximum compact client estimate groups roof lumber, fasteners, trims and l
   assert.ok(labor.includedLineIds.includes('roof:rafters-work'));
   assert.ok(labor.includedLineIds.includes('roof:ridge-work'));
   const foundation = client.sections.find((section) => section.key === 'foundation').lines;
-  assert.ok(foundation.some((line) => line.id === 'foundation:concrete'));
+  assert.ok(foundation.some((line) => line.id === 'foundation:piles' && line.catalogId === 'MAT-PILE-KIT-108-2500'));
+  assert.ok(foundation.some((line) => line.id === 'foundation:axes'));
   assert.ok(roof.length < sourceRoof.length);
   assert.equal(Math.round(client.totals.total * 100), Math.round(calculation.totals.total * 100));
 });

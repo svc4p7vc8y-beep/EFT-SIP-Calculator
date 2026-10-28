@@ -7,6 +7,7 @@ import { normalizeTerracePlatform } from '../src/calculations/terrace-model.js';
 
 function roofCase(system, shape = 'gable') {
   const project = createDefaultProject();
+  project.settings.piles.screwPileVariant = 'legacy';
   project.settings.roof.structureMode = 'manual';
   project.settings.roof.rafterSystem = system;
   project.settings.roof.shape = shape;

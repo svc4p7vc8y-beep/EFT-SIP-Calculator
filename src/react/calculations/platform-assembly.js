@@ -32,8 +32,9 @@ export function platformAssembly(project, calculation, roofModel) {
       const plateZ=plateTopZ-Number(result.postSection.split('x')[1])/2;
       for(let i=1;i<posts.length;i++)ties.push({id:`platform:${p.id}:tie:${i}`,a:[...posts[i-1].b.slice(0,2),plateZ],b:[...posts[i].b.slice(0,2),plateZ],profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true,name:'Стяжка по уровню мауэрлата террасы',plateTopZ});
     }
-    const deckFrame=platformDeckFrame(p);
-    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:PLATFORM_DECK_THICKNESS_MM,steps,faces,posts,ties,
+    const deckThicknessMm=project.settings.terrace?.deckBoard==='28x145'?28:PLATFORM_DECK_THICKNESS_MM;
+    const deckFrame=platformDeckFrame(p,deckThicknessMm);
+    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:deckThicknessMm,steps,faces,posts,ties,
       frameMembers:deckFrame.members,stringers:deckFrame.stringers,joistSpacingMm:deckFrame.joistSpacingMm,frameIssues:deckFrame.issues,
       foundationMode:p.foundation.mode,bindingMode:p.binding.mode,referenceOnly:true};
   });

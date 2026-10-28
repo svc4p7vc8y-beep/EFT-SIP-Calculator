@@ -7,6 +7,7 @@ import { calculateTerraceRoof, resolveTerracePlatform } from "../../calculations
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { roofRafterControlValues } from "../calculations/roof-control-values.js";
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
+import { SCREW_PILE_KITS } from "../data/foundation-kits.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import DeliveryVolume from '../components/DeliveryVolume.jsx';
 import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
@@ -724,7 +725,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             {!project.services.foundation ? <p className="inspector-note">Бетонное основание считается готовым. Комплект лежачего бруса 100×150, отсечную гидроизоляцию, анкеры и монтаж настройте в разделе «Сваи → Готовое бетонное основание». Свайные работы не добавляются.</p> : null}
             {fields([
               { path: 'settings.piles.pileType', label: 'Тип основания', type: 'select', options: [
-                { value: 'screw', label: 'Винтовые сваи 108 мм' },
+                { value: 'screw', label: 'Винтовые сваи' },
                 { value: 'reinforcedConcrete', label: 'Забивные ЖБ сваи' },
                 { value: 'concreteBlock', label: 'Бетонные блоки' },
               ] },
@@ -732,6 +733,10 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 { value: 'boards', label: 'Пакет досок' }, { value: 'timber', label: 'Цельный брус 150×150' },
               ] },
             ])}
+            {project.settings.piles.pileType === 'screw' ? <>
+              {fields([{ path: 'settings.piles.screwPileVariant', label: 'Комплект винтовой сваи', type: 'select', options: [...SCREW_PILE_KITS, {value:'legacy',label:'Старая схема · раздельный расчёт'}] }])}
+              <p className="inspector-note">Комплект включает сваю, монтаж, оголовок и пескобетон. Разбивка осей фундамента остаётся отдельной позицией по числу свай.</p>
+            </> : null}
             {project.settings.piles.pileType === 'concreteBlock' ? <div className="parameter-subgroup"><strong>Габариты бетонного блока · подтвердить по проекту</strong>{fields([
               { path: 'settings.piles.blockDimensions.widthMm', label: 'Ширина блока', suffix: 'мм', min: 1, step: 1 },
               { path: 'settings.piles.blockDimensions.lengthMm', label: 'Длина блока', suffix: 'мм', min: 1, step: 1 },
@@ -1335,6 +1340,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             title="Террасы и крыльцо"
             description="Ступени, фундамент, обвязка, кровля, свесы, фронтоны и столбы каждой площадки."
           >
+            {fields([{ path: 'settings.terrace.deckBoard', label: 'Доска настила', type: 'select', options: [{value:'45x145',label:'45×145 мм · существующая'}, {value:'28x145',label:'28×145 мм · строганая'}] }])}
             {project.plan.platforms.length ? (
               <div className="parameter-platform-list">
                 {project.plan.platforms.map((platform, index) => (

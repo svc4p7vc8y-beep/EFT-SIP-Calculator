@@ -56,6 +56,7 @@ import { reserveLocalProjectNumber } from "../storage/project-number.js";
 import { createPlanLibraryEntry, readPlanLibrary, writePlanLibrary } from "../storage/plan-library.js";
 import { formatMoney } from "../utils/format.js";
 import ProjectSummarySidebar from "../components/ProjectSummarySidebar.jsx";
+import { PlanIcon, FurnitureIcon, ScrewPileIcon, ScrewIcon, SawIcon, RoofIcon, TerraceIcon, WindowIcon, FaucetIcon, FacadeIcon } from '../components/navigation-icons.jsx';
 import ProjectSchemePreview from "../components/ProjectSchemePreview.jsx";
 import ScreenErrorBoundary from "../components/ScreenErrorBoundary.jsx";
 import NewProjectDialog from "../components/NewProjectDialog.jsx";
@@ -97,18 +98,18 @@ const NAV_ITEMS = [
   { id: "team", label: "Общие проекты", icon: Cloud, group: "team" },
   { id: "mail", label: "Почта", icon: Mail, group: "team" },
   { id: "files", label: "Файлы", icon: FolderOpen, group: "team" },
-  { id: "plan", label: "План дома", icon: Ruler, group: "project" },
-  { id: "placement", label: "Мебель и инженерия", icon: Layers3, group: "project" },
+  { id: "plan", label: "План дома", icon: PlanIcon, group: "project" },
+  { id: "placement", label: "Мебель и инженерия", icon: FurnitureIcon, group: "project" },
   { id: "parameters", label: "Параметры", icon: Settings2, group: "project" },
-  { id: "piles", label: "Сваи", icon: HardHat, group: "calculate" },
+  { id: "piles", label: "Сваи / фундамент", icon: ScrewPileIcon, group: "calculate" },
   { id: "sip", label: "СИП", icon: Layers3, group: "calculate" },
-  { id: "nodes", label: "Метизы по узлам", icon: Wrench, group: "calculate" },
-  { id: "cutting", label: "Раскрой", icon: Ruler, group: "calculate" },
-  { id: "roof", label: "Кровля", icon: Home, group: "calculate" },
-  { id: "terrace", label: "Терраса", icon: Trees, group: "calculate" },
-  { id: "openings", label: "Окна / двери", icon: PanelTop, group: "calculate" },
-  { id: "engineering", label: "Инженерия", icon: Wrench, group: "calculate" },
-  { id: "external", label: "Внешняя отделка", icon: Home, group: "calculate" },
+  { id: "nodes", label: "Метизы по узлам", icon: ScrewIcon, group: "calculate" },
+  { id: "cutting", label: "Раскрой", icon: SawIcon, group: "calculate" },
+  { id: "roof", label: "Кровля", icon: RoofIcon, group: "calculate" },
+  { id: "terrace", label: "Терраса", icon: TerraceIcon, group: "calculate" },
+  { id: "openings", label: "Окна / двери", icon: WindowIcon, group: "calculate" },
+  { id: "engineering", label: "Инженерия", icon: FaucetIcon, group: "calculate" },
+  { id: "external", label: "Внешняя отделка", icon: FacadeIcon, group: "calculate" },
   {
     id: "internal",
     label: "Внутренняя отделка",

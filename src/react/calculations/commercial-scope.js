@@ -7,7 +7,7 @@ import { constructionDescription, internalDescription } from './proposal-descrip
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
 const ROOF_SHAPES = { flat: 'плоская', gable: 'двускатная', hip: 'вальмовая', tiered: 'два односкатных уровня' };
 const ROOF_COVERINGS = { profile: 'профлист С-21', 'profile-st15': 'профлист ST15', 'metal-tile': 'металлочерепица', soft: 'мягкая кровля с OSB' };
-const CONNECTOR_TYPES = { thermal: 'термобрус', 'board-pack': 'клеёный пакет досок', solid: 'брус естественной влажности' };
+const CONNECTOR_TYPES = { thermal: 'термобрус', 'board-pack': 'клеёный пакет досок', 'board-kit': 'комплект для пакета досок', solid: 'брус естественной влажности' };
 
 function openingCounts(openings = []) {
   return openings.reduce((counts, opening) => {
@@ -65,7 +65,9 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
           : 'опоры исключены из текущей сметы';
     const supportDetails = blockLine ? 'Бетонные блоки с монтажом'
       : concretePileLine ? 'Железобетонные сваи с оголовками и установкой'
-        : screwPileLine ? 'Разбивка, монтаж винтовых свай и оголовки' : '';
+        : screwPileLine ? screwPileLine.catalogId?.startsWith('MAT-PILE-KIT-')
+          ? 'Винтовые сваи с установкой, оголовками и пескобетоном; разбивка осей отдельно'
+          : 'Разбивка, монтаж винтовых свай и оголовки' : '';
     return {
       summary: `${support}, обвязка ${formatNumber(foundation.bindingLength)} м`,
       details: joinParts([supportDetails, `${foundation.boardCount} досок обвязки по 6 м`, lines.some(line => line.id.includes('binding-pack-screw')) && 'крепёж обвязки']),

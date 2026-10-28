@@ -46,6 +46,7 @@ import { withSipGableRafters } from './gable-rafter-stations.js';
 import { contourRoofOutline, contourRoofStrip, contourProjectedArea, facetedRoofArea } from './contour-roof-geometry.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
 import { windowGeometry, windowPrice } from '../state/window-products.js';
+import { screwPileKit } from '../data/foundation-kits.js';
 
 const round = (value, digits = 2) => {
   const factor = 10 ** digits;
@@ -869,8 +870,10 @@ function sipSection(project, metrics, index, inputs, roofResult) {
           },
         ),
       );
-    } else if (joinery.type === "board-pack") {
-      const query = `Пакет клеёных досок 95×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`;
+    } else if (joinery.type === "board-pack" || joinery.type === 'board-kit') {
+      const query = joinery.type === 'board-kit'
+        ? `Комплект для пакета досок 95×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`
+        : `Пакет клеёных досок 95×${row.endBoardDepth} мм для СИП ${row.panelThickness} мм`;
       lines.push(
         makeLine(
           index,
@@ -964,6 +967,8 @@ function foundationSection(project, index, inputs) {
   const concretePiles = project.settings.piles?.pileType === 'reinforcedConcrete';
   const blocks = project.settings.piles?.pileType === 'concreteBlock';
   const installedPackage = concretePiles || blocks;
+  const pileKit = installedPackage ? null : screwPileKit(project.settings.piles?.screwPileVariant);
+  const legacyScrewPiles = !installedPackage && !pileKit;
   const bindingPackSpacing = Math.max(0.05, Number(inputs.formulas.bindingPackScrewSpacingM) || 0.5);
   const bindingPackInterfaces = Math.max(0, foundation.bindingLayers - 1);
   const bindingPackScrewCount = Math.ceil(foundation.bindingLength / bindingPackSpacing) * bindingPackInterfaces;
@@ -977,31 +982,35 @@ function foundationSection(project, index, inputs) {
       }) : concretePiles ? makeLine(index, 'foundation', 'Свая железобетонная забивная (С30.15)', count, {
         key: 'concrete-piles', catalogId: 'MAT-JB-C30-15', exactQuantity: true,
         name: 'Свая железобетонная забивная (С30.15) · с оголовком и установкой',
-      }) : makeLine(
+      }) : pileKit ? makeLine(index, 'foundation', pileKit.label, count, {
+        key: 'piles', catalogId: pileKit.catalogId, exactQuantity: true,
+        name: `${pileKit.label} · установка, оголовок, пескобетон`,
+      }) : null,
+      !installedPackage && makeLine(
         index,
         "foundation",
         "Разбивка осей фундамента (1 свая)",
         count,
         { key: "axes", kind: "labor" },
       ),
-      !installedPackage && makeLine(index, "foundation", "Монтаж свай", count, {
+      legacyScrewPiles && makeLine(index, "foundation", "Монтаж свай", count, {
         key: "pile-work",
         kind: "labor",
       }),
-      !installedPackage && makeLine(index, "foundation", "Винтовые сваи 108мм", count, {
+      legacyScrewPiles && makeLine(index, "foundation", "Винтовые сваи 108мм", count, {
         key: "piles",
       }),
-      !installedPackage && makeLine(
+      legacyScrewPiles && makeLine(
         index,
         "foundation",
         "Пескобетон М300",
         count * inputs.formulas.pileConcreteM3,
         { key: "concrete", unit: "м³", digits: 3 },
       ),
-      !installedPackage && makeLine(index, "foundation", "Оголовок для свай", count, {
+      legacyScrewPiles && makeLine(index, "foundation", "Оголовок для свай", count, {
         key: "heads",
       }),
-      !installedPackage && makeLine(index, "foundation", "Монтаж оголовков", count, {
+      legacyScrewPiles && makeLine(index, "foundation", "Монтаж оголовков", count, {
         key: "heads-work",
         kind: "labor",
       }),
@@ -1313,8 +1322,8 @@ function roofSection(project, metrics, index, inputs) {
   const mainSipFramePurchaseLength = mainSipFramePieces * mainSipFrameStockLength;
   const mainSipFrameProfile = sipTimberProfile(project.settings.sip.ceilingThickness);
   const mainSipFrameConnectorType = project.settings.sip.connectorType || "thermal";
-  const mainSipFrameCatalogQuery = mainSipFrameConnectorType === "board-pack"
-    ? `Пакет клеёных досок 95×${mainSipFrameProfile.endBoardDepth} мм для СИП ${mainSipFrameProfile.panelThickness} мм`
+  const mainSipFrameCatalogQuery = mainSipFrameConnectorType === "board-pack" || mainSipFrameConnectorType === 'board-kit'
+    ? `${mainSipFrameConnectorType === 'board-kit' ? 'Комплект для пакета досок' : 'Пакет клеёных досок'} 95×${mainSipFrameProfile.endBoardDepth} мм для СИП ${mainSipFrameProfile.panelThickness} мм`
     : mainSipFrameConnectorType === "solid"
       ? `Брус соединительный ест. влажности 100×${mainSipFrameProfile.core} мм`
       : `Термобрус 95×${mainSipFrameProfile.thermalDepth} мм`;
@@ -2846,7 +2855,8 @@ function terraceSection(project, index, inputs) {
   const staircases = platforms.filter(
     (platform) => Number(platform.steps) > 0,
   ).length;
-  const layouts=platforms.map(platformDeckFrame);
+  const deckBoard28 = project.settings.terrace?.deckBoard === '28x145';
+  const layouts=platforms.map(platform => platformDeckFrame(platform, deckBoard28 ? 28 : 45));
   const geometricVolume=layouts.reduce((sum,layout)=>sum+layout.frameLengthMm,0)
     * PLATFORM_FRAME_BOARD_WIDTH_MM * PLATFORM_FRAME_BOARD_DEPTH_MM / 1e9 * PLATFORM_FRAME_RESERVE;
   const stringerVolume=layouts.reduce((sum,layout)=>sum+layout.stringerLengthMm,0)
@@ -2882,9 +2892,14 @@ function terraceSection(project, index, inputs) {
       makeLine(
         index,
         "terrace",
-        "Доска террасная 45×145 мм",
-        area * PLATFORM_DECK_THICKNESS_MM / 1000 * inputs.formulas.terraceDeckReserve,
-        { key: "deck", unit: "м³", digits: 3 },
+        deckBoard28 ? "Доска террасная строганая 28×145 мм" : "Доска террасная 45×145 мм",
+        deckBoard28
+          ? Math.ceil(area / 0.145 * inputs.formulas.terraceDeckReserve * 100) / 100
+          : area * PLATFORM_DECK_THICKNESS_MM / 1000 * inputs.formulas.terraceDeckReserve,
+        deckBoard28
+          ? { key: "deck", catalogId: "MAT-TERRACE-BOARD-28-145", unit: "м.п.", digits: 2,
+            name: "Настил 28×145 мм · 145 мм рабочая ширина без зазора · запас по настройке" }
+          : { key: "deck", unit: "м³", digits: 3 },
       ),
       makeLine(
         index,

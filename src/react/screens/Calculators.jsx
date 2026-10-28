@@ -8,6 +8,7 @@ import { calculateProject } from "../calculations/estimate-engine.js";
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
 import { calculateSnowGuards, SNOW_GUARD_SOURCE } from '../calculations/snow-guards.js';
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
+import { SCREW_PILE_KITS, screwPileKit } from "../data/foundation-kits.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import { InternalEditor } from '../components/InternalEditor.jsx';
 import { EngineeringEditor } from '../components/EngineeringEditor.jsx';
@@ -1248,7 +1249,11 @@ export default function Calculators({ type, onNavigate }) {
           <Panel title="Параметры основания">
             <div className="form-grid three">
               {project.services.foundation ? <>
-              <label>Тип основания<select aria-label="Тип свай" value={project.settings.piles.pileType||'screw'} onChange={e=>setSetting('piles','pileType',e.target.value)}><option value="screw">Винтовая свая 108 мм</option><option value="reinforcedConcrete">Свая железобетонная забивная (С30.15)</option><option value="concreteBlock">Блок фундаментный бетонный</option></select></label>
+              <label>Тип основания<select aria-label="Тип свай" value={project.settings.piles.pileType||'screw'} onChange={e=>setSetting('piles','pileType',e.target.value)}><option value="screw">Винтовые сваи</option><option value="reinforcedConcrete">Свая железобетонная забивная (С30.15)</option><option value="concreteBlock">Блок фундаментный бетонный</option></select></label>
+              {project.settings.piles.pileType==='screw'?<>
+                <SelectField label="Комплект винтовой сваи" value={project.settings.piles.screwPileVariant||'legacy'} options={[...SCREW_PILE_KITS,{value:'legacy',label:'Старая схема · отдельные материалы и монтаж'}]} onChange={value=>setSetting('piles','screwPileVariant',value)}/>
+                <p className="inspector-note">{screwPileKit(project.settings.piles.screwPileVariant)?.label || 'Старая схема'}: комплект включает сваю, установку, оголовок и пескобетон. Разбивка осей фундамента считается отдельно по количеству свай.</p>
+              </>:null}
               {project.settings.piles.pileType==='concreteBlock'?<div className="inspector-note"><p>{formatNumber(project.priceMat.find(item=>item.id==='MAT-FOUNDATION-BLOCK')?.price||0)} ₽/шт. с монтажом. Обвязка отдельно; крепление и отсечная гидроизоляция — по узлу проекта. Габариты блока не согласованы:</p>{[['widthMm','Ширина блока'],['lengthMm','Длина блока'],['heightMm','Высота блока']].map(([key,label])=><NumberField key={key} label={`${label}, мм`} value={project.settings.piles.blockDimensions?.[key]??''} min={1} max={10000} onChange={value=>setSetting('piles','blockDimensions',{...project.settings.piles.blockDimensions,[key]:value})}/>)}</div>:null}
               {project.settings.piles.pileType==='reinforcedConcrete'?<p className="inspector-note">Сечение 150×150 мм, длина 3 м. Цена в прайсе — {formatNumber(project.priceMat.find(item=>item.id==='MAT-JB-C30-15')?.price||0)} ₽/шт. с оголовком 200×200 с ушками, работой и установкой. Повторный монтаж не начисляется; обвязка отдельно. Длина и несущая способность подтверждаются по грунтам и проекту.</p>:null}
               <label>Конструкция обвязки<select value={project.settings.piles.bindingType||'boards'} onChange={e=>setSetting('piles','bindingType',e.target.value)}><option value="boards">Пакет досок · по умолчанию 3×50×150</option><option value="timber">Цельный брус 150×150</option></select></label>
@@ -1812,6 +1817,10 @@ export default function Calculators({ type, onNavigate }) {
       ) : null}
       {type === "terrace" ? (
         <>
+          <Panel title="Материал настила">
+            <SelectField label="Террасная доска" value={project.settings.terrace?.deckBoard||'45x145'} options={[{value:'45x145',label:'45×145 мм · существующий материал'},{value:'28x145',label:'28×145 мм · строганая'}]} onChange={value=>setSetting('terrace','deckBoard',value)}/>
+            {project.settings.terrace?.deckBoard==='28x145'?<p className="inspector-note">Длина закупки = площадь настила ÷ 0,145 м × запас; базовая цена 175 ₽/м.п. Расчёт без зазора между досками. Закупочную длину и цену можно поправить в ведомости.</p>:null}
+          </Panel>
           <div className="stats-row">
             <Stat
               label="Площадок"

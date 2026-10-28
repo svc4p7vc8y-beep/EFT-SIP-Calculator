@@ -23,6 +23,8 @@ test('lining length and grade keep distinct shared prices and ignore old room qu
 
 test('all old projects get the current server prices without changing geometry or raw project data', () => {
   const raw = createDefaultProject(), other = structuredClone(raw), common = createDefaultPriceLists();
+  raw.settings.piles.screwPileVariant = 'legacy';
+  other.settings.piles.screwPileVariant = 'legacy';
   other.priceMat.find(row => row.id === 'MAT-001').price = 17;
   raw.priceMat.find(row => row.id === 'MAT-001').price = 23;
   const snapshot = JSON.stringify(raw);

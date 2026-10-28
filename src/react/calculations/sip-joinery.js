@@ -8,6 +8,7 @@ const round = (value, digits = 3) => {
 export const SIP_JOINERY_TYPES = [
   { value: "thermal", label: "Термобрус · дорогой" },
   { value: "board-pack", label: "Клеёный пакет · средний" },
+  { value: "board-kit", label: "Комплект для пакета досок" },
   { value: "solid", label: "Брус ест. влажности · эконом" },
 ];
 

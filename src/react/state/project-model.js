@@ -29,7 +29,7 @@ import { createPlacement, normalizePlacement } from './placement-model.js';
 import { normalizeEstimateFiles } from './estimate-files.js';
 import { normalizeWindowProducts, normalizeWindowPresets, normalizeWindowTariffs } from './window-products.js';
 
-export const REACT_PROJECT_VERSION = 234;
+export const REACT_PROJECT_VERSION = 235;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -570,6 +570,7 @@ export function createDefaultProject() {
     settings: {
       piles: {
         pileType: "screw",
+        screwPileVariant: "108-2500",
         blockDimensions: { widthMm: '', lengthMm: '', heightMm: '' },
         spacing: 2.5,
         autoLayoutMode: "uniform",
@@ -607,6 +608,7 @@ export function createDefaultProject() {
         consumablesMode: "node",
         foamScope: "joints-and-edges",
       },
+      terrace: { deckBoard: '45x145' },
       nodeFasteners: {
         reservePercent: 10,
         packSizes: {},
@@ -1048,6 +1050,8 @@ export function migrateProject(raw) {
       ...(raw.settings || {}),
       piles: {
         ...base.settings.piles, autoLayoutMode: 'nodes', ...(raw.settings?.piles || {}),
+        screwPileVariant: ['legacy', '108-2500', '89-3000', '89-2500', '76-2500'].includes(raw.settings?.piles?.screwPileVariant)
+          ? raw.settings.piles.screwPileVariant : (!Number.isFinite(savedVersion) || savedVersion < 235) ? 'legacy' : '108-2500',
         concreteBase: { ...base.settings.piles.concreteBase, ...(raw.settings?.piles?.concreteBase || {}) },
       },
       sip: {
@@ -1058,6 +1062,10 @@ export function migrateProject(raw) {
         ...(preserveLegacyPartitionCalculation
           ? { partitionCalculationMode: "area" }
           : {}),
+      },
+      terrace: {
+        ...base.settings.terrace,
+        deckBoard: raw.settings?.terrace?.deckBoard === '28x145' ? '28x145' : '45x145',
       },
       nodeFasteners: {
         ...base.settings.nodeFasteners,

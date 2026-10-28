@@ -7,7 +7,8 @@ import {roofAxonometricLines,snapAssemblyPoint} from '../src/react/calculations/
 const run=p=>calculateProductionCutting(p,calculateProject(p));
 
 test('roof drawings preserve default quantities, estimate and project inputs',()=>{
- const p=createDefaultProject(),before=structuredClone(p),c=calculateProject(p),r=run(p);
+ const p=createDefaultProject();p.settings.piles.screwPileVariant='legacy';
+ const before=structuredClone(p),c=calculateProject(p),r=run(p);
  assert.ok(Math.abs(c.totals.total-3774073.89248)<.001);assert.equal(r.assembly.rafters.length,34);assert.ok(r.assembly.laths.length>88);
  assert.equal(r.assembly.roofDrawing.sections.length,2);assert.deepEqual(p,before);
  assert.equal(r.assembly.roofDrawing.warnings.length,0);

@@ -25,6 +25,7 @@ const PANEL_FAMILIES = { pps: "PPS", "mineral-wool": "минвата", "csp-pps"
 const CONNECTOR_TYPES = {
   thermal: "Термобрус",
   "board-pack": "Клеёный пакет досок",
+  "board-kit": "Комплект для пакета досок",
   solid: "Брус естественной влажности",
 };
 

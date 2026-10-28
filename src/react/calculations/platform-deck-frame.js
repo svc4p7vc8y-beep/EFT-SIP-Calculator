@@ -8,7 +8,7 @@ export const PLATFORM_FRAME_RESERVE = 1.1;
 
 // Geometric takeoff only. Foundation bearing, connections and board splices
 // still need a structural detail; the frame is not marked as approved.
-export function platformDeckFrame(raw) {
+export function platformDeckFrame(raw, deckThicknessMm = PLATFORM_DECK_THICKNESS_MM) {
   const platform = normalizeTerracePlatform(raw);
   const x = Number(platform.x) * 1000, y = Number(platform.y) * 1000;
   const w = Number(platform.w) * 1000, h = Number(platform.h) * 1000;
@@ -16,7 +16,7 @@ export function platformDeckFrame(raw) {
     return { members: [], stringers: [], joistSpacingMm: platform.joistSpacingMm, frameLengthMm: 0, stringerLengthMm: 0, issues: ['Каркас настила: недостаточный или неверный размер площадки.'] };
   const deckZ = platform.deckHeightMm !== '' && platform.deckHeightMm != null && Number.isFinite(Number(platform.deckHeightMm))
     ? Number(platform.deckHeightMm) : 0;
-  const topZ = deckZ - PLATFORM_DECK_THICKNESS_MM;
+  const topZ = deckZ - deckThicknessMm;
   const centerZ = topZ - PLATFORM_FRAME_BOARD_DEPTH_MM / 2;
   const width = PLATFORM_FRAME_BOARD_WIDTH_MM;
   const spacing = platform.joistSpacingMm;
