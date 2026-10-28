@@ -43,16 +43,17 @@ $snapshot = eft_price_project($pdo, ['priceMat' => [['id' => $a['id'], 'price' =
 check($snapshot['priceMat'][0]['price'] === 1700, 'Old project receives current price');
 check($snapshot['sharedPriceCatalog']['revision'] === 3, 'Snapshot revision');
 eft_price_seed($pdo); check(eft_price_read($pdo)['revision'] === 3, 'Redeploy preserves edited catalog');
-// Simulate an older live catalog, then deploy the three newly approved packages.
+// Simulate an older live catalog, then deploy only the newly approved positions.
 $legacy = eft_price_read($pdo)['payload'];
-$legacy['priceMat'] = array_values(array_filter($legacy['priceMat'], static fn($row) => !in_array($row['id'], ['MAT-250', 'MAT-251', 'MAT-252'], true)));
+$bundledIds = ['MAT-250', 'MAT-251', 'MAT-252', 'MAT-PILE-KIT-108-2500', 'MAT-PILE-KIT-89-3000', 'MAT-PILE-KIT-89-2500', 'MAT-PILE-KIT-76-2500', 'MAT-SIP-BOARD-KIT-124', 'MAT-SIP-BOARD-KIT-174', 'MAT-SIP-BOARD-KIT-224', 'MAT-TERRACE-BOARD-28-145'];
+$legacy['priceMat'] = array_values(array_filter($legacy['priceMat'], static fn($row) => !in_array($row['id'], $bundledIds, true)));
 $statement = $pdo->prepare("UPDATE eft_shared_documents SET payload = ? WHERE document_key = 'price-catalog'");
 $statement->execute([json_encode($legacy, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
-eft_price_add_bundled_roof_packages($pdo);
+eft_price_add_bundled_positions($pdo);
 $bundled = eft_price_read($pdo);
 check($bundled['revision'] === 4, 'New package revision');
-check(count(array_filter($bundled['payload']['priceMat'], static fn($row) => in_array($row['id'], ['MAT-250', 'MAT-251', 'MAT-252'], true))) === 3, 'All roof packages inserted');
+check(count(array_filter($bundled['payload']['priceMat'], static fn($row) => in_array($row['id'], $bundledIds, true))) === count($bundledIds), 'All bundled positions inserted');
 check($bundled['payload']['priceMat'][0]['price'] === 1700, 'Existing edited price preserved');
-eft_price_add_bundled_roof_packages($pdo);
+eft_price_add_bundled_positions($pdo);
 check(eft_price_read($pdo)['revision'] === 4, 'Package migration is idempotent');
 echo "Price catalog integration passed: access, history, atomic edits, concurrent conflicts, current project prices.\n";

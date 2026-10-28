@@ -21,13 +21,15 @@ function eft_price_seed(PDO $pdo): void {
 
 // A deploy may add bundled nomenclature to an already edited server catalog.
 // Only these new IDs are inserted; existing rows and their prices are untouched.
-function eft_price_add_bundled_roof_packages(PDO $pdo): void {
+function eft_price_add_bundled_positions(PDO $pdo): void {
     $owner = $pdo->query("SELECT id FROM eft_users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1")->fetchColumn();
     if (!$owner) return;
     $seed = json_decode((string)file_get_contents(__DIR__ . '/price-catalog.seed.json'), true, 512, JSON_THROW_ON_ERROR);
-    $ids = ['MAT-250', 'MAT-251', 'MAT-252'];
+    $ids = ['MAT-250', 'MAT-251', 'MAT-252',
+        'MAT-PILE-KIT-108-2500', 'MAT-PILE-KIT-89-3000', 'MAT-PILE-KIT-89-2500', 'MAT-PILE-KIT-76-2500',
+        'MAT-SIP-BOARD-KIT-124', 'MAT-SIP-BOARD-KIT-174', 'MAT-SIP-BOARD-KIT-224', 'MAT-TERRACE-BOARD-28-145'];
     $newRows = array_values(array_filter($seed['priceMat'] ?? [], static fn($row) => in_array($row['id'] ?? '', $ids, true)));
-    if (count($newRows) !== count($ids)) throw new RuntimeException('Roof package seed is incomplete');
+    if (count($newRows) !== count($ids)) throw new RuntimeException('Bundled catalog seed is incomplete');
     $pdo->beginTransaction();
     try {
         $statement = $pdo->query("SELECT revision, payload FROM eft_shared_documents WHERE document_key = 'price-catalog' FOR UPDATE");
@@ -39,7 +41,7 @@ function eft_price_add_bundled_roof_packages(PDO $pdo): void {
         foreach ($newRows as $row) {
             if (isset($existing[$row['id']])) {
                 if (($existing[$row['id']]['name'] ?? '') !== $row['name'] || ($existing[$row['id']]['unit'] ?? '') !== $row['unit'])
-                    throw new RuntimeException('Roof package catalog ID already belongs to another position');
+                    throw new RuntimeException('Bundled catalog ID already belongs to another position');
                 continue;
             }
             $payload['priceMat'][] = $row;

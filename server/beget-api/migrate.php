@@ -38,7 +38,7 @@ foreach ($rows as $row) $maximumApplication = max($maximumApplication, (int)subs
 $statement = $pdo->prepare("UPDATE eft_counters SET next_value = GREATEST(next_value, ?) WHERE counter_key = 'application'");
 $statement->execute([max($existingApplications, $maximumApplication) + 1]);
 eft_price_seed($pdo);
-eft_price_add_bundled_roof_packages($pdo);
+eft_price_add_bundled_positions($pdo);
 $auditProbe = ['ok' => true];
 try {
     $pdo->beginTransaction();
