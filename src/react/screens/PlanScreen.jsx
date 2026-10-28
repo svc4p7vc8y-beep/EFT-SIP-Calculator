@@ -6503,12 +6503,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
           </div>
-          {isPlanFullscreen ? <>
-            <div className="plan-fullscreen-bar" role="group" aria-label="Параметры полноэкранного плана">
-              <button type="button" className={tool==='houseContour'?'active':''} aria-pressed={tool==='houseContour'} onClick={()=>selectTool('houseContour')}>Контур</button>
-              <button type="button" className={tool==='wall'?'active':''} aria-pressed={tool==='wall'} onClick={()=>selectTool('wall')}>Перегородка</button>
-            </div>
-          </>:null}
           {showPlan3D && plan3DPlacement === 'floating' ? <FloatingPlan3D containerRef={plannerCanvasRef} size={plan3DSize} onSizeChange={setPlan3DSize}>
             <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense>
           </FloatingPlan3D> : null}
