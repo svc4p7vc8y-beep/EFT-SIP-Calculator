@@ -8,6 +8,7 @@ import { bindingPlanRows } from './binding-rows.js';
 import {foundationGeometry} from './foundation-geometry.js';
 import { structuralFlatRoofRise } from './roof-wall-plate.js';
 import { flatRoofParapetRuns } from './flat-roof-assembly.js';
+import {sectionWidths} from '../state/window-products.js';
 
 // Millimetres, right-handed model coordinates X/Y = plan, Z = height.
 // This adapter only places existing production geometry; it never creates stock.
@@ -43,6 +44,25 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const world=(p,x,y)=>p.origin.map((n,i)=>n+p.u[i]*x+p.v[i]*y);
   const roofFaces=new Map(report.surfaces.map(s=>[s.id,s.roofFaceId]));
   const panels=report.parts.flatMap(part=>{const p=placements.get(part.surfaceId);return p?[{id:part.id,surfaceId:part.surfaceId,faceId:roofFaces.get(part.surfaceId),layer:p.layer,shape:part.shape,placement:p,thickness:part.thickness}]:[];});
+  const windowProducts=new Map((project.windowProducts||[]).filter(product=>product.openingId).map(product=>[product.openingId,product]));
+  const windowPanels=report.surfaces.flatMap(surface=>{
+    const wall=placements.get(surface.id);
+    if(!wall||surface.blocked||!['walls','partitions'].includes(wall.layer))return [];
+    const face={...wall,origin:wall.origin.map((value,index)=>value+wall.normal[index]*(Number(surface.thickness)/2+5))};
+    return (surface.openings||[]).filter(opening=>opening.type==='window'&&!opening.gap).flatMap(opening=>{
+      const x=Number(opening.x),y=Number(opening.sill),width=Number(opening.width),height=Number(opening.height),border=Math.min(45,width/8,height/8);
+      if(![x,y,width,height].every(Number.isFinite)||width<=0||height<=0)return [];
+      const rect=(left,bottom,right,top)=>[[[left,bottom],[right,bottom],[right,top],[left,top]]];
+      const id=`window:${opening.id}`;
+      const glass={id,layer:'windows',shape:rect(x+border,y+border,x+width-border,y+height-border),placement:face,thickness:6,referenceOnly:true,windowGlass:true};
+      const frame=[[x,y,x+width,y+border],[x,y+height-border,x+width,y+height],[x,y+border,x+border,y+height-border],[x+width-border,y+border,x+width,y+height-border]].map(([left,bottom,right,top],index)=>({id:`${id}:frame:${index}`,layer:'windows',shape:rect(left,bottom,right,top),placement:face,thickness:35,referenceOnly:true,windowFrame:true}));
+      const product=windowProducts.get(opening.id),sectionCount=product?.sections?.length||1;
+      const span=product?.sectionAxis==='horizontal'?height:width;
+      const divisions=sectionCount>1?sectionWidths(product).slice(0,-1).reduce((state,part)=>{state.total+=part;state.values.push(state.total/span);return state;},{total:0,values:[]}).values:[];
+      const imposts=divisions.filter(ratio=>ratio>0&&ratio<1).map((ratio,index)=>product.sectionAxis==='horizontal'?{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+border,y+height*ratio-border/3,x+width-border,y+height*ratio+border/3),placement:face,thickness:35,referenceOnly:true,windowFrame:true}:{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+width*ratio-border/3,y+border,x+width*ratio+border/3,y+height-border),placement:face,thickness:35,referenceOnly:true,windowFrame:true});
+      return [glass,...frame,...imposts];
+    });
+  });
   // Invalid manufacturing surfaces remain visible as warning previews, never
   // as fabricated panels or purchasable stock.
   const previews=report.surfaces.filter(s=>s.blocked&&placements.has(s.id)).flatMap(s=>s.geometry.map((shape,i)=>({id:`preview:${s.id}:${i}`,surfaceId:s.id,layer:placements.get(s.id).layer,shape,placement:placements.get(s.id),thickness:s.thickness,preview:true})));
@@ -122,5 +142,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
     const b=hostPoints[(i+1)%hostPoints.length],dx=(b.x-a.x)*1000,dy=(b.y-a.y)*1000,length=Math.hypot(dx,dy);
     return length>1?{id:`existing:${host.id||'building'}:wall:${i}`,layer:'existingBuilding',referenceOnly:true,shape:[[[0,0],[length,0],[length,hostHeight||40],[0,hostHeight||40]]],placement:{origin:[a.x*1000,a.y*1000,hostBase],u:[dx/length,dy/length,0],v:[0,0,1],normal:[dy/length,-dx/length,0]},thickness:20}:null;
   }).filter(Boolean):[];
-  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...roofSheetPanels,...parapetPanels,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...flatLathBeams,...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...windowPanels,...coldRoofSurfaces,...roofSheetPanels,...parapetPanels,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...flatLathBeams,...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,platforms,missing,world,roofBase,bases,placements};
 }

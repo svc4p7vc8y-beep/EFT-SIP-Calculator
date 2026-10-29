@@ -154,7 +154,11 @@
  .mounting-album.paper-A4 .roof-project-facet .roof-document-drawing { height:50mm; max-height:50mm; }
  .mounting-album.paper-A4 .roof-project-facet .workbench-drawing { height:110mm; min-height:0; max-height:110mm; }
 }
-.production-3d-layers { display:flex; flex-wrap:wrap; gap:5px; padding:8px; background:#f5f8f3; border-bottom:1px solid #bac9b5; }
+.production-3d-layer-menu { position:relative; }
+.production-3d-layers { position:absolute; z-index:30; right:0; top:calc(100% + 4px); display:grid; grid-template-columns:1fr; gap:5px; width:min(290px,calc(100vw - 48px)); max-height:min(50vh,350px); overflow:auto; padding:8px; background:#f5f8f3; border:1px solid #bac9b5; border-radius:8px; box-shadow:0 10px 22px #172a1c24; }
+.production-3d-layers label { display:flex; align-items:center; gap:8px; min-height:32px; padding:5px 8px; border:1px solid #cbd9c7; border-radius:6px; background:#fff; cursor:pointer; font-size:12px; }
+.production-3d-layers label:has(input:checked) { background:#e6f2dc; border-color:#8bb377; }
+.production-3d-layers input { width:16px; height:16px; flex:none; accent-color:#4a872d; }
 .production-3d-layers button { font-size:12px; min-height:36px; padding:5px 9px; color:#000; border:1px solid #b4c3b0; border-radius:6px; background:#fff; }
 .production-3d-layers button[aria-pressed="true"] { background:#d9e9cb; border-color:#557a35; }
 @media print {

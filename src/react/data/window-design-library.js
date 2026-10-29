@@ -1,0 +1,21 @@
+// Geometric templates only. They carry no supplier quotation or catalogue price.
+export const WINDOW_DESIGN_LIBRARY = [
+  {id:'fixed-small',label:'Глухое компактное',widthMm:600,heightMm:900,sections:['fixed']},
+  {id:'fixed-wide',label:'Глухое широкое',widthMm:1600,heightMm:1200,sections:['fixed']},
+  {id:'turn-left',label:'Поворотное левое',widthMm:800,heightMm:1200,sections:['turn_left']},
+  {id:'turn-right',label:'Поворотное правое',widthMm:800,heightMm:1200,sections:['turn_right']},
+  {id:'tilt',label:'Откидное',widthMm:900,heightMm:700,sections:['tilt']},
+  {id:'tilt-turn-left',label:'Поворотно-откидное левое',widthMm:800,heightMm:1300,sections:['tilt_turn_left']},
+  {id:'tilt-turn-right',label:'Поворотно-откидное правое',widthMm:800,heightMm:1300,sections:['tilt_turn_right']},
+  {id:'two-fixed',label:'Две глухие створки',widthMm:1500,heightMm:1300,sections:['fixed','fixed']},
+  {id:'two-opening',label:'Две открывающиеся створки',widthMm:1500,heightMm:1300,sections:['tilt_turn_left','tilt_turn_right']},
+  {id:'two-mixed-left',label:'Открывание слева',widthMm:1500,heightMm:1300,sections:['tilt_turn_left','fixed']},
+  {id:'two-mixed-right',label:'Открывание справа',widthMm:1500,heightMm:1300,sections:['fixed','tilt_turn_right']},
+  {id:'three-center',label:'Три створки · центр',widthMm:2100,heightMm:1400,sections:['fixed','tilt_turn_right','fixed']},
+  {id:'three-sides',label:'Три створки · края',widthMm:2100,heightMm:1400,sections:['tilt_turn_left','fixed','tilt_turn_right']},
+  {id:'panorama',label:'Панорамное глухое',widthMm:2000,heightMm:2200,sections:['fixed']},
+  {id:'panorama-opening',label:'Панорамное с открыванием',widthMm:2200,heightMm:2200,sections:['fixed','tilt_turn_right']},
+  {id:'transom',label:'Окно с фрамугой',widthMm:1200,heightMm:1600,sectionAxis:'horizontal',sections:['fixed','bottom_hinged_transom']},
+  {id:'triangle',label:'Треугольное',shape:'triangle',widthMm:1400,heightMm:900,sections:['fixed']},
+  {id:'trapezoid',label:'Трапециевидное',shape:'trapezoid_sloped_top',widthMm:1500,heightMm:1200,leftHeightMm:900,rightHeightMm:1200,sections:['fixed']},
+];

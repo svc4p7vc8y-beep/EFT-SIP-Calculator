@@ -1,4 +1,5 @@
 import reference from '../data/window-reference-273803.json' with {type:'json'};
+import {WINDOW_DESIGN_LIBRARY} from '../data/window-design-library.js';
 
 export const WINDOW_REFERENCE = reference;
 export const WINDOW_SHAPES = [
@@ -81,6 +82,18 @@ export function createWindowFromReference(item, overrides={}) {
     ...overrides,
   };
 }
+export function createWindowFromDesign(design, overrides={}) {
+  const source=reference.items[0];
+  return createWindowFromReference(source,{
+    presetId:`design-${design.id}`,mark:design.label,quantity:1,
+    shape:design.shape||'rectangle',sectionAxis:design.sectionAxis||'vertical',
+    widthMm:design.widthMm,baseWidthMm:design.widthMm,heightMm:design.heightMm,
+    leftHeightMm:design.leftHeightMm??null,rightHeightMm:design.rightHeightMm??null,
+    sections:design.sections.map((openingMode,index)=>({id:`section-${index+1}`,openingMode,ratio:1,hardwareSystem:openingMode==='fixed'?null:source.hardware,handleSide:openingMode.endsWith('_right')?'right':openingMode==='fixed'?null:'left'})),
+    price:{mode:'design_unpriced',history:[]},...overrides,
+  });
+}
+export {WINDOW_DESIGN_LIBRARY};
 const referenceProducts=reference.items.map(item=>({item,base:createWindowFromReference(item)}));
 export function normalizeWindowProducts(value) {
   if(!Array.isArray(value)) return [];
@@ -130,6 +143,7 @@ export function windowReferenceMatch(product) {
 export function windowPrice(product,tariffs=[]) {
   const area=windowGeometry(product).areaM2;
   if(validateWindow(product).length) return {mode:'invalid',unitRub:null,label:'Уточните параметры'};
+  if(product.price?.mode==='design_unpriced') return {mode:'unpriced',unitRub:null,label:'Цена поставщика не задана',source:'Эскиз из библиотеки вариантов; назначьте цену проекта или подтверждённый тариф'};
   if(product.price?.mode==='manual') return product.price.amountRub!==null&&product.price.amountRub!==''&&Number(product.price.amountRub)>=0&&product.price.source?.trim()?{mode:'manual',unitRub:Number(product.price.amountRub),label:'Цена проекта, ручная',source:product.price.source}:{mode:'unpriced',unitRub:null,label:'Укажите сумму и источник ручной цены',source:'Ручной ввод проекта'};
   if(product.price?.mode==='parametric') return parametricWindowPrice(product,tariffs.find(t=>t.id===product.price?.tariffId))||{mode:'unpriced',unitRub:null,label:'Нет подтверждённого параметрического тарифа',source:'Уточните тариф и производственные измерения'};
   const exact=windowReferenceMatch(product);

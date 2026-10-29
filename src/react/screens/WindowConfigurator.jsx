@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {useProject} from '../state/ProjectContext.jsx';
-import {createWindowFromReference,normalizeWindowTariffs,WINDOW_OPENINGS,WINDOW_REFERENCE,WINDOW_SHAPES,windowGeometry,windowPrice,windowTotals,validateWindow} from '../state/window-products.js';
+import {createWindowFromDesign,createWindowFromReference,normalizeWindowTariffs,WINDOW_DESIGN_LIBRARY,WINDOW_OPENINGS,WINDOW_REFERENCE,WINDOW_SHAPES,windowGeometry,windowPrice,windowTotals,validateWindow} from '../state/window-products.js';
 import WindowDiagram from './WindowDiagram.jsx';
 import OpeningMiniPlan from '../components/OpeningMiniPlan.jsx';
 import {calculateProject} from '../calculations/estimate-engine.js';
@@ -10,8 +10,22 @@ import './window-configurator.css';
 const rub=n=>new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
 const n=(value)=>Number(value)||0;
 const productName=item=>`№ ${item.number} · ${item.shape==='triangle'?'треугольник':item.shape==='trapezoid_sloped_top'?'трапеция':`${item.widthMm}×${item.heightMm}`}`;
-const openingNames={fixed:'глухая',turn:'поворотная',tilt_turn:'поворотно-откидная',bottom_hinged_transom:'фрамуга'};
 const OPTIONAL_LINES=[['installation','Монтаж окна','labor'],['mesh','Москитная сетка','material'],['sill','Подоконник','material'],['flashing','Отлив','material'],['reveal','Откосы','labor'],['foam','Пена монтажная','material'],['tapes','Монтажные ленты','material'],['fasteners','Крепёж','material'],['delivery','Доставка окон','labor']];
+const DESIGN_CARDS=WINDOW_DESIGN_LIBRARY.map(item=>({key:item.id,label:item.label,product:createWindowFromDesign(item),source:item,note:'Эскиз · цена по проекту'}));
+const REFERENCE_CARDS=WINDOW_REFERENCE.items.map(item=>({key:item.number,label:productName(item),product:createWindowFromReference(item),source:item,note:`Расчёт № 273803 · ${rub(item.priceRubExact)} ₽`}));
+
+function WindowChoiceGallery({onDesign,onReference,compact=false}) {
+  const [group,setGroup]=useState('design');
+  const [query,setQuery]=useState('');
+  const items=group==='design'?DESIGN_CARDS:REFERENCE_CARDS;
+  const visible=items.filter(item=>`${item.label} ${item.product.sections.map(section=>WINDOW_OPENINGS.find(mode=>mode.id===section.openingMode)?.label).join(' ')}`.toLocaleLowerCase('ru').includes(query.toLocaleLowerCase('ru')));
+  return <div className={`window-choice-gallery ${compact?'is-compact':''}`}>
+    <div className="window-gallery-toolbar" role="group" aria-label="Группа окон"><button type="button" aria-pressed={group==='design'} onClick={()=>setGroup('design')}>Варианты ({WINDOW_DESIGN_LIBRARY.length})</button><button type="button" aria-pressed={group==='reference'} onClick={()=>setGroup('reference')}>Образцы поставщика (12)</button></div>
+    <input className="window-gallery-search" type="search" aria-label="Найти вариант окна" placeholder="Найти форму или открывание" value={query} onChange={event=>setQuery(event.target.value)}/>
+    <div className="window-gallery-cards">{visible.map(item=><button key={item.key} type="button" className="window-gallery-card" onClick={()=>group==='design'?onDesign(item.source):onReference(item.source)} aria-label={`Выбрать ${item.label}`}><WindowDiagram product={item.product} mark={item.label} dimensions={false}/><b>{item.label}</b><small>{item.product.widthMm} × {item.product.heightMm} мм · {item.product.sections.length} секц.</small><small>{item.note}</small></button>)}{!visible.length?<p>По запросу вариантов нет.</p>:null}</div>
+    <small className="window-gallery-note">Схемы показаны изнутри. Для эскизов стоимость задаётся отдельно; размеры и изготовление подтвердите у поставщика.</small>
+  </div>;
+}
 
 function WindowPrintDocument({products,tariffs,showPrices}) {
   const totals=windowTotals(products,tariffs);
@@ -42,9 +56,6 @@ export default function WindowConfigurator({focusOpeningId=null,embedded=false})
   const {project,commit}=useProject();
   const products=project.windowProducts||[];
   const [selectedId,setSelectedId]=useState(()=>focusOpeningId||sessionStorage.getItem('eft-window-opening-focus')||'');
-  const [shapeFilter,setShapeFilter]=useState('all');
-  const [sectionFilter,setSectionFilter]=useState('all');
-  const [openingFilter,setOpeningFilter]=useState('all');
   const [showPrintPrices,setShowPrintPrices]=useState(true);
   const [tariffError,setTariffError]=useState('');
   const selected=embedded?products.find(item=>item.openingId===focusOpeningId)||null:products.find(item=>item.id===selectedId)||products.find(item=>item.openingId===selectedId)||products[0]||null;
@@ -60,6 +71,11 @@ export default function WindowConfigurator({focusOpeningId=null,embedded=false})
     commit(next=>{next.windowProducts=[...(next.windowProducts||[]).map(item=>openingId&&item.openingId===openingId?{...item,openingId:null}:item),product];return next;});
     setSelectedId(product.id);
     sessionStorage.removeItem('eft-window-opening-focus');
+  };
+  const addDesign=(design,openingId=embedded?focusOpeningId:null)=>{
+    const product=createWindowFromDesign(design,{openingId});
+    commit(next=>{next.windowProducts=[...(next.windowProducts||[]).map(item=>openingId&&item.openingId===openingId?{...item,openingId:null}:item),product];return next;});
+    setSelectedId(product.id);
   };
   const newForOpening=opening=>{
     const first=WINDOW_REFERENCE.items[1];
@@ -106,10 +122,23 @@ export default function WindowConfigurator({focusOpeningId=null,embedded=false})
     popup.focus();setTimeout(()=>popup.print(),350);
   };
   const priceMode=selected?.price?.mode||'unpriced';
+  if(embedded) return <section className="window-configurator window-config-embedded" aria-label="Библиотека и параметры окна">
+    <h3>Окно на плане</h3>
+    {activeOpening?<p className="window-compact-opening">Проём: {Math.round(activeOpening.width*1000)} × {Math.round(activeOpening.height*1000)} мм · {activeOpening.floor} этаж</p>:null}
+    <details className="window-compact-library" open={!selected}><summary>Библиотека окон · выбрать вариант</summary><WindowChoiceGallery compact onDesign={addDesign} onReference={add}/></details>
+    {selected?<>
+      <div className="window-compact-preview"><WindowDiagram product={selected}/><div><b>{selected.mark||'Окно'}</b><small>{price?.label}{price?.unitRub!=null?` · ${rub(price.unitRub)} ₽/шт`:''}</small></div></div>
+      {errors.length?<div className="window-errors" role="alert">{errors.map(error=><p key={error}>{error}</p>)}</div>:null}
+      <div className="window-compact-fields"><label>Ширина, мм<input type="number" min="1" value={selected.widthMm||selected.baseWidthMm||''} onChange={e=>update({widthMm:n(e.target.value),baseWidthMm:n(e.target.value)})}/></label><label>Высота, мм<input type="number" min="1" value={selected.heightMm||''} onChange={e=>edit('heightMm',n(e.target.value))}/></label><label>Количество<input type="number" min="1" step="1" value={selected.quantity} onChange={e=>edit('quantity',n(e.target.value))}/></label></div>
+      <details className="window-compact-details"><summary>Секции и открывание</summary><div className="window-compact-fields">{selected.sections.map((section,index)=><label key={section.id||index}>Секция {index+1}<select value={section.openingMode} onChange={e=>updateSection(index,{openingMode:e.target.value})}>{WINDOW_OPENINGS.map(mode=><option key={mode.id} value={mode.id}>{mode.label}</option>)}</select></label>)}</div><button type="button" onClick={mirror}>Зеркально</button></details>
+      <details className="window-compact-details"><summary>Проём, комплектация и цена</summary><label>Марка<input value={selected.mark||''} onChange={e=>edit('mark',e.target.value)}/></label><RoughOpeningFields product={selected} opening={activeOpening} onChange={value=>edit('roughOpening',value)}/><div className="window-compact-fields"><label>Система профиля<input value={selected.profile?.system||''} onChange={e=>update({profile:{...selected.profile,system:e.target.value}})}/></label><label>Стеклопакет<input value={selected.glazing?.formula||''} onChange={e=>update({glazing:{...selected.glazing,formula:e.target.value}})}/></label></div><label>Цена<select value={priceMode==='manual'?'manual':priceMode==='parametric'?'parametric':'auto'} onChange={e=>update({price:{...selected.price,mode:e.target.value==='auto'?'unpriced':e.target.value,history:[...(selected.price?.history||[]),{at:new Date().toISOString(),from:selected.price?.mode,to:e.target.value}]}})}><option value="auto">По источнику / предварительная</option><option value="manual">Ручная цена проекта</option><option value="parametric">Тариф поставщика</option></select></label>{priceMode==='manual'?<ManualPriceFields product={selected} onChange={update}/>:null}{priceMode==='parametric'?<ParametricFields product={selected} tariffs={project.windowTariffs||[]} onChange={update}/>:null}</details>
+      <button type="button" className="window-compact-remove" onClick={remove}>Убрать изделие из проёма</button>
+    </>:<p className="window-compact-empty">Выберите схему из библиотеки. Размеры изделия затем можно уточнить справа.</p>}
+  </section>;
   return <section className={`window-configurator ${embedded?'window-config-embedded':''}`}>
     <div className="window-config-head"><div><h2>Конфигуратор окон</h2><p>Схема показана изнутри. Габарит изделия и проём SIP хранятся отдельно.</p></div><div className="window-config-totals"><b>{totals.quantity} шт</b><span>{totals.areaM2.toFixed(4)} м²</span><strong>{rub(totals.priceRub)} ₽</strong>{totals.unpriced?<small>{totals.unpriced} шт без цены</small>:null}</div></div>
     <div className="window-config-layout"><aside className="window-config-library">{embedded?<><h3>Окно на плане</h3><button type="button" onClick={()=>{const opening=openings.find(item=>item.id===focusOpeningId);if(opening)newForOpening(opening);}}>Создать изделие для этого проёма</button></>:<><h3>Проёмы на плане</h3>{openings.length?openings.map(opening=>{const linked=products.find(product=>product.openingId===opening.id);return <button key={opening.id} type="button" className={selected?.openingId===opening.id?'active':''} onClick={()=>linked?setSelectedId(linked.id):newForOpening(opening)}>{opening.floor} эт. · {Math.round(opening.width*1000)}×{Math.round(opening.height*1000)} мм <small>{linked?linked.mark:'Выбрать окно'}</small></button>}):<p>На плане пока нет оконных проёмов.</p>}</>}
-      <h3>Библиотека образцов</h3>{!embedded?<button type="button" onClick={loadReferenceSet}>Загрузить 12 образцов № 273803</button>:null}<select aria-label="Фильтр формы" value={shapeFilter} onChange={event=>setShapeFilter(event.target.value)}><option value="all">Все формы</option>{WINDOW_SHAPES.map(shape=><option key={shape.id} value={shape.id}>{shape.label}</option>)}</select><select aria-label="Фильтр секций" value={sectionFilter} onChange={event=>setSectionFilter(event.target.value)}><option value="all">Любое число секций</option><option value="1">Одна секция</option><option value="2">Две секции</option><option value="3">Три секции</option></select><select aria-label="Фильтр открывания" value={openingFilter} onChange={event=>setOpeningFilter(event.target.value)}><option value="all">Любое открывание</option>{Object.entries(openingNames).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select><div className="window-reference-list">{WINDOW_REFERENCE.items.filter(item=>(shapeFilter==='all'||shapeFilter===item.shape)&&(sectionFilter==='all'||item.sections.length===Number(sectionFilter))&&(openingFilter==='all'||item.sections.includes(openingFilter))).map(item=><button type="button" key={item.number} onClick={()=>add(item)}>{productName(item)} <small>{item.sections.map(mode=>openingNames[mode]||mode).join(' + ')} · {rub(item.priceRubExact)} ₽</small></button>)}</div>{project.windowPresets?.length?<><h3>Шаблоны проекта</h3>{project.windowPresets.map(preset=><div key={preset.id} className="window-preset-row"><button type="button" onClick={()=>addFromPreset(preset)}>{preset.label}<small>Добавить копию изделия</small></button><button type="button" aria-label={`Удалить шаблон ${preset.label}`} onClick={()=>commit(next=>{next.windowPresets=next.windowPresets.filter(item=>item.id!==preset.id);return next;})}>×</button></div>)}</>:null}
+      <h3>Библиотека образцов</h3><WindowChoiceGallery onDesign={addDesign} onReference={add}/>{!embedded?<button type="button" onClick={loadReferenceSet}>Загрузить 12 образцов № 273803</button>:null}{project.windowPresets?.length?<><h3>Шаблоны проекта</h3>{project.windowPresets.map(preset=><div key={preset.id} className="window-preset-row"><button type="button" onClick={()=>addFromPreset(preset)}>{preset.label}<small>Добавить копию изделия</small></button><button type="button" aria-label={`Удалить шаблон ${preset.label}`} onClick={()=>commit(next=>{next.windowPresets=next.windowPresets.filter(item=>item.id!==preset.id);return next;})}>×</button></div>)}</>:null}
     </aside><main className="window-config-main"><div className="window-product-tabs">{products.map(product=><button key={product.id} type="button" className={selected?.id===product.id?'active':''} onClick={()=>setSelectedId(product.id)}>{product.mark||'Окно'}</button>)}</div>
     {selected?<><div className="window-preview"><WindowDiagram product={selected}/><div className="window-price-card"><b>{price.label}</b>{price.unitRub!=null?<strong>{rub(price.unitRub)} ₽ / шт</strong>:null}<span>{price.source}</span><span>Площадь: {windowGeometry(selected).areaM2.toFixed(4)} м² · периметр: {Math.round(windowGeometry(selected).perimeterMm)} мм</span>{selected.shape!=='rectangle'?<em>Техническую возможность изготовления проверяет поставщик.</em>:null}{selected.openingId&&!activeOpening?<em>Проём удалён: изделие не включено в смету. Выберите другой проём или отвяжите изделие.</em>:null}{activeOpening?<small>Проём SIP: {Math.round(activeOpening.width*1000)}×{Math.round(activeOpening.height*1000)} мм. Зазоры не назначены автоматически.</small>:null}<OpeningMiniPlan plans={[project.plan,...(project.upperFloors||[])]} selectedId={selected.openingId} title="Окно на плане" onSelect={opening=>{if(opening.type==='window'&&!products.some(product=>product.id!==selected.id&&product.openingId===opening.id)) edit('openingId',opening.id);}}/></div></div>
       <div className="window-actions"><button type="button" onClick={mirror}>Зеркально</button><button type="button" onClick={duplicate}>Дублировать</button><button type="button" onClick={saveTemplate}>Сохранить шаблон</button><button type="button" onClick={print}>Схемы / PDF</button><button type="button" onClick={()=>downloadEstimateWorkbook(project,calculateProject(project))}>Excel</button><label className="window-print-choice"><input type="checkbox" checked={showPrintPrices} onChange={e=>setShowPrintPrices(e.target.checked)}/>С ценами</label><button type="button" className="danger" onClick={remove}>Удалить изделие</button></div>
