@@ -27,9 +27,12 @@ function eft_price_add_bundled_positions(PDO $pdo): void {
     $seed = json_decode((string)file_get_contents(__DIR__ . '/price-catalog.seed.json'), true, 512, JSON_THROW_ON_ERROR);
     $ids = ['MAT-250', 'MAT-251', 'MAT-252',
         'MAT-PILE-KIT-108-2500', 'MAT-PILE-KIT-89-3000', 'MAT-PILE-KIT-89-2500', 'MAT-PILE-KIT-76-2500',
-        'MAT-SIP-BOARD-KIT-124', 'MAT-SIP-BOARD-KIT-174', 'MAT-SIP-BOARD-KIT-224', 'MAT-TERRACE-BOARD-28-145'];
+        'MAT-SIP-BOARD-KIT-124', 'MAT-SIP-BOARD-KIT-174', 'MAT-SIP-BOARD-KIT-224', 'MAT-TERRACE-BOARD-28-145',
+        'MAT-FLAT-OSB9', 'MAT-FLAT-HPP', 'MAT-FLAT-HKP', 'MAT-FLAT-DRAIN', 'MAT-FLAT-CSP12', 'MAT-FLAT-PRIMER'];
+    $laborIds = ['LAB-FLAT-WATERPROOF', 'LAB-FLAT-CSP'];
     $newRows = array_values(array_filter($seed['priceMat'] ?? [], static fn($row) => in_array($row['id'] ?? '', $ids, true)));
-    if (count($newRows) !== count($ids)) throw new RuntimeException('Bundled catalog seed is incomplete');
+    $newLabor = array_values(array_filter($seed['priceLab'] ?? [], static fn($row) => in_array($row['id'] ?? '', $laborIds, true)));
+    if (count($newRows) !== count($ids) || count($newLabor) !== count($laborIds)) throw new RuntimeException('Bundled catalog seed is incomplete');
     $pdo->beginTransaction();
     try {
         $statement = $pdo->query("SELECT revision, payload FROM eft_shared_documents WHERE document_key = 'price-catalog' FOR UPDATE");
@@ -47,12 +50,21 @@ function eft_price_add_bundled_positions(PDO $pdo): void {
             $payload['priceMat'][] = $row;
             $added[] = $row;
         }
+        foreach ($newLabor as $row) {
+            if (isset($existing[$row['id']])) {
+                if (($existing[$row['id']]['name'] ?? '') !== $row['name'] || ($existing[$row['id']]['unit'] ?? '') !== $row['unit'])
+                    throw new RuntimeException('Bundled catalog ID already belongs to another position');
+                continue;
+            }
+            $payload['priceLab'][] = $row;
+            $added[] = $row;
+        }
         if ($added) {
             $revision = (int)$stored['revision'] + 1;
             $update = $pdo->prepare("UPDATE eft_shared_documents SET revision = ?, payload = ?, updated_by = ?, updated_at = NOW() WHERE document_key = 'price-catalog'");
             $update->execute([$revision, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), (int)$owner]);
             $history = $pdo->prepare('INSERT INTO eft_price_history (revision, catalog_key, catalog_id, before_row, after_row, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())');
-            foreach ($added as $row) $history->execute([$revision, 'priceMat', $row['id'], null, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), (int)$owner]);
+            foreach ($added as $row) $history->execute([$revision, $row['kind'] === 'labor' ? 'priceLab' : 'priceMat', $row['id'], null, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), (int)$owner]);
         }
         $pdo->commit();
     } catch (Throwable $error) {

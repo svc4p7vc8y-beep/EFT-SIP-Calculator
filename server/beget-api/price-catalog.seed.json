@@ -3496,6 +3496,65 @@
       "price": 5040,
       "priceSource": "https://lipa-osina.ru/category/vagonka/vagonka-iz-lipy/",
       "note": "Вариант из существующей таблицы предложений от 29.09.2026; цену обновляет редактор общего прайса."
+    },
+    {
+      "id": "MAT-FLAT-OSB9",
+      "name": "ОСБ-3 9 мм 1250×2500 мм",
+      "unit": "шт",
+      "price": 700,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceNote": "Цена и формат листа заданы пользователем 29.10.2026."
+    },
+    {
+      "id": "MAT-FLAT-HPP",
+      "name": "Стеклоизол Р ХПП-2.1 нижний слой 9 м²",
+      "unit": "рулон",
+      "price": 953,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Лемана ПРО, артикул 14237690: https://krasnodar.lemanapro.ru/product/stekloizol-r-hpp-21-nizhniy-sloy-osnova-stekloholst-9-m-14237690/ . Цена ориентировочная, региональная."
+    },
+    {
+      "id": "MAT-FLAT-HKP",
+      "name": "Стеклоизол Р ХКП-3.5 верхний слой 9 м²",
+      "unit": "рулон",
+      "price": 1267,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Прайс продавца: https://www.joint-company.ru/discounts/napl.php . Верхний слой ХКП с посыпкой; цена ориентировочная."
+    },
+    {
+      "id": "MAT-FLAT-CSP12",
+      "name": "ЦСП 12 мм 3200×1250 мм",
+      "unit": "шт",
+      "price": 2966,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Тимберия, лист 4 м²: https://timberia.ru/catalog/tssp/tssp-12-mm-3200kh1250-mm-/ . Два слоя со смещением швов по технологии ТЕХНОНИКОЛЬ."
+    },
+    {
+      "id": "MAT-FLAT-PRIMER",
+      "name": "Праймер полимерный ТЕХНОНИКОЛЬ №08 10 л",
+      "unit": "ведро",
+      "price": 4565,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Ориентир Шурик Маркет: https://shurik.market/catalog/praimery-tehnonikol . 10 л ≈ 7 кг; расчётный расход 0,2 кг/м² в пределах нормы производителя 0,10–0,30 кг/м²."
+    },
+    {
+      "id": "MAT-FLAT-DRAIN",
+      "name": "Воронка парапетная ТП-68/10 ПП 110 мм",
+      "unit": "шт",
+      "price": 4289,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Цена производителя от 4289 ₽: https://www.tatpolimer.ru/productions/plastikovye-parapetnye-voronki/ . Число и пропускная способность водостоков определяются проектом."
     }
   ],
   "priceLab": [
@@ -4909,6 +4968,25 @@
       "cat": "Инженерные системы",
       "priceEstimated": true,
       "priceNote": "04.09.2026. Ориентировочная средняя розничная цена; перед заказом заменить предложением поставщика и монтажной организации."
+    },
+    {
+      "id": "LAB-FLAT-CSP",
+      "name": "Монтаж ЦСП на кровле",
+      "unit": "м²",
+      "price": 450,
+      "kind": "labor",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Предварительный ориентир: нижняя граница 450 ₽/м² из прайса на обшивку ЦСП https://www.kaz-stroyka.ru/prajs-stroitelstvo.html . Кровельную ставку уточнить по проекту; смета считает два слоя раздельно."
+    },
+    {
+      "id": "LAB-FLAT-WATERPROOF",
+      "name": "Укладка двух слоёв рулонной гидроизоляции",
+      "unit": "м²",
+      "price": 1000,
+      "kind": "labor",
+      "cat": "Кровля",
+      "priceNote": "Расценка задана пользователем 29.10.2026; за оба слоя вместе."
     }
   ]
 }
