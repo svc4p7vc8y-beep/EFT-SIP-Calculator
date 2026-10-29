@@ -762,6 +762,7 @@ button:disabled {
 .flat-roof-assembly{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;min-width:0;padding:12px;margin:12px 0;border:1px solid #cbdac7;border-radius:12px;background:#f7fbf5}
 .flat-roof-assembly h4,.flat-roof-assembly p{grid-column:1/-1;margin:0}
 .flat-roof-assembly p{font-size:.8rem;color:#526958;line-height:1.4}
+.flat-roof-assembly .form-warning{color:#a53a26;background:#fff0e8;border:1px solid #e7b4a5;border-radius:8px;padding:8px}
 .flat-roof-assembly .field{min-width:0}
 .form-grid.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));

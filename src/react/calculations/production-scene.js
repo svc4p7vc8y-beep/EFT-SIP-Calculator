@@ -79,12 +79,25 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const platforms=includePlatforms?(assembly.platforms||[]):[];
   const coldRoofSurfaces=(assembly.roofModel?.faces||[]).filter(f=>f.group==='main'&&!panels.some(p=>p.faceId===f.id)).map(f=>({id:f.id,faceId:f.id,layer:'roofSurface',shape:[f.polygon],placement:{origin:f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
   const flatRoof=project.settings.roof||{},flatFaces=assembly.roofModel?.faces.filter(face=>face.group==='main')||[];
-  const roofSheetPanels=assembly.roofShape==='flat'&&flatRoof.flatCoverSystem==='bitumen'?flatFaces.flatMap(face=>{
+  const deckIsOsb=flatRoof.flatDeckMaterial==='osb',deckLayers=Math.min(3,Math.max(1,Math.round(Number(flatRoof.flatDeckLayers??2))));
+  const deckThickness=(deckIsOsb?(flatRoof.flatOsbThicknessMm===9?9:12):12)*deckLayers;
+  const firstDepth=(items,index)=>Number(String(items?.[0]?.profile||'').split(/[×xх]/)[index])||0;
+  const flatLathTop=face=>assembly.laths?.length?firstDepth(assembly.rafters,1)/2+firstDepth(assembly.counterLaths,1)+firstDepth(assembly.laths,0):Number(face.thickness||0)/2+25;
+  const flatLathBeams=assembly.roofShape==='flat'&&flatRoof.flatCoverSystem==='bitumen'&&flatRoof.includeCovering!==false&&!assembly.laths?.length?flatFaces.flatMap(face=>{
+    const polygon=face.polygon||[],step=Math.max(100,Number(flatRoof.lathStep||.35)*1000),minV=Math.min(...polygon.map(point=>point[1])),maxV=Math.max(...polygon.map(point=>point[1]));
+    const point=(u,v)=>face.origin.map((value,index)=>value+face.u[index]*u+face.v[index]*v+face.normal[index]*(Number(face.thickness||0)/2+12.5));
+    const rows=[];
+    for(let v=minV+50;v<maxV;v+=step){
+      const crossings=polygon.flatMap((a,index)=>{const b=polygon[(index+1)%polygon.length];return (a[1]<=v&&b[1]>v)||(b[1]<=v&&a[1]>v)?[a[0]+(v-a[1])*(b[0]-a[0])/(b[1]-a[1])]:[]}).sort((a,b)=>a-b);
+      for(let i=0;i+1<crossings.length;i+=2)rows.push({id:`flat-deck-lath:${face.id}:${rows.length}`,layer:'laths',a:point(crossings[i],v),b:point(crossings[i+1],v),profile:'25×100',flat:true,normal:face.normal,referenceOnly:true});
+    }
+    return rows;
+  }):[];
+  const roofSheetPanels=assembly.roofShape==='flat'&&flatRoof.flatCoverSystem==='bitumen'&&flatRoof.includeCovering!==false?flatFaces.flatMap(face=>{
     const offset=(distance)=>face.origin.map((value,index)=>value+face.normal[index]*distance);
-    const osbMm=(flatRoof.flatOsbThicknessMm===9?9:12)*(flatRoof.flatOsbLayers===1?1:2);
-    return [{id:`flat-osb:${face.id}`,layer:'flatOsb',shape:[face.polygon],placement:{origin:offset(osbMm/2),u:face.u,v:face.v,normal:face.normal},thickness:osbMm,referenceOnly:true},
-      {id:`flat-csp:${face.id}`,layer:'flatCsp',shape:[face.polygon],placement:{origin:offset(osbMm+12),u:face.u,v:face.v,normal:face.normal},thickness:24,referenceOnly:true},
-      {id:`flat-waterproof:${face.id}`,layer:'waterproofing',shape:[face.polygon],placement:{origin:offset(osbMm+26),u:face.u,v:face.v,normal:face.normal},thickness:4,referenceOnly:true}];
+    const deckTop=flatLathTop(face)+deckThickness;
+    return [{id:`flat-deck:${face.id}`,layer:deckIsOsb?'flatOsb':'flatCsp',shape:[face.polygon],placement:{origin:offset(flatLathTop(face)+deckThickness/2),u:face.u,v:face.v,normal:face.normal},thickness:deckThickness,referenceOnly:true},
+      {id:`flat-waterproof:${face.id}`,layer:'waterproofing',shape:[face.polygon],placement:{origin:offset(deckTop+2),u:face.u,v:face.v,normal:face.normal},thickness:4,referenceOnly:true}];
   }):[];
   const contour=assembly.floors.at(-1)?.contour||[],parapetRuns=assembly.roofShape==='flat'?flatRoofParapetRuns(contour,flatRoof):[];
   const parapetBase=defaultRoofBase+(project.services.sipCeiling?Number(project.settings.sip.ceilingThickness):0);
@@ -109,5 +122,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
     const b=hostPoints[(i+1)%hostPoints.length],dx=(b.x-a.x)*1000,dy=(b.y-a.y)*1000,length=Math.hypot(dx,dy);
     return length>1?{id:`existing:${host.id||'building'}:wall:${i}`,layer:'existingBuilding',referenceOnly:true,shape:[[[0,0],[length,0],[length,hostHeight||40],[0,hostHeight||40]]],placement:{origin:[a.x*1000,a.y*1000,hostBase],u:[dx/length,dy/length,0],v:[0,0,1],normal:[dy/length,-dx/length,0]},thickness:20}:null;
   }).filter(Boolean):[];
-  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...roofSheetPanels,...parapetPanels,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...roofSheetPanels,...parapetPanels,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...flatLathBeams,...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,platforms,missing,world,roofBase,bases,placements};
 }

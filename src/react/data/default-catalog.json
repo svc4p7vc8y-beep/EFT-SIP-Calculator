@@ -2711,6 +2711,36 @@
       "priceNote": "Ориентир Шурик Маркет: https://shurik.market/catalog/praimery-tehnonikol . 10 л ≈ 7 кг; расчётный расход 0,2 кг/м² в пределах нормы производителя 0,10–0,30 кг/м²."
     },
     {
+      "id": "MAT-FLAT-SELF-BASE",
+      "name": "Техноэласт С ЭМС самоклеящийся нижний слой 15 м²",
+      "unit": "рулон",
+      "price": 4683,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Самоклеящийся нижний слой для ОСП-3 от 12 мм по схеме ТЕХНОНИКОЛЬ: https://nav.tn.ru/knowledge-base/materialy/osnovaniya-po-kotorym-vozmozhno-primenit-krovelnye-bitumosoderzhashchie-materialy/ . Цена и формат 15 м²: https://progress-polymer.ru/rulonnaya-gidroizolyatsiya/tehnoelast-s-ems ."
+    },
+    {
+      "id": "MAT-FLAT-SELF-TOP",
+      "name": "Техноэласт ЭКП верхний слой 10 м²",
+      "unit": "рулон",
+      "price": 3597,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Полиэфирная основа для верхнего слоя по схеме ТЕХНОНИКОЛЬ. Цена и формат 10 м²: https://stroket.ru/product/447698 ."
+    },
+    {
+      "id": "MAT-FLAT-PRIMER-OSB",
+      "name": "Праймер битумный ТЕХНОНИКОЛЬ №01 20 л",
+      "unit": "ведро",
+      "price": 4079,
+      "kind": "material",
+      "cat": "Кровля",
+      "priceEstimated": true,
+      "priceNote": "Ориентир https://shurik.market/catalog/praimery-tehnonikol . 20 л ≈ 16 кг, предварительный расход 0,2 кг/м²."
+    },
+    {
       "id": "MAT-FLAT-DRAIN",
       "name": "Воронка парапетная ТП-68/10 ПП 110 мм",
       "unit": "шт",

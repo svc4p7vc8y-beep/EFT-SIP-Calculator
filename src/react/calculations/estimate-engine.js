@@ -2236,17 +2236,17 @@ function roofSection(project, metrics, index, inputs) {
   const parapetHeight = Math.max(0, Number(roof.flatParapetHeightMm ?? 900)) / 1000;
   const parapetArea = flatParapetLength * parapetHeight;
   const flatReserve = 1 + Math.max(0, Number(roof.wastePercent) || 0) / 100;
-  const flatOsbLayers = roof.flatOsbLayers === 1 ? 1 : 2;
+  const flatDeckMaterial = roof.flatDeckMaterial === 'osb' ? 'osb' : 'csp';
+  const flatDeckLayers = Math.min(3, Math.max(1, Math.round(Number(roof.flatDeckLayers ?? 2))));
   const flatOsbThickness = roof.flatOsbThicknessMm === 9 ? 9 : 12;
   const waterproofRise = flatParapetActive ? Math.min(parapetHeight, Math.max(0, Number(roof.flatWaterproofUpstandMm ?? 900)) / 1000) : 0;
   const waterproofOutside = flatParapetActive ? Math.max(0, Number(roof.flatWaterproofOutsideMm ?? 100)) / 1000 : 0;
   const waterproofArea = mainArea + flatParapetLength * (waterproofRise + Number(project.settings.sip.wallThickness) / 1000 + waterproofOutside);
-  const flatOsbSheets = flatBitumen ? Math.ceil(mainArea * flatReserve * flatOsbLayers / osbSheetArea) : 0;
-  // A torch-applied membrane needs a primed non-combustible substrate. Two CSP
-  // layers are staggered; OSB alone must never be presented as that substrate.
-  const flatCspSheets = flatBitumen ? Math.ceil(waterproofArea * flatReserve / 4) * 2 : 0;
-  const flatPrimerBuckets = flatBitumen ? Math.ceil(waterproofArea * 0.2 / 7) : 0;
-  const waterproofRolls = flatBitumen ? Math.ceil(waterproofArea * flatReserve / 9) : 0;
+  const flatOsbSheets = flatBitumen && flatDeckMaterial === 'osb' ? Math.ceil(waterproofArea * flatReserve / osbSheetArea) * flatDeckLayers : 0;
+  const flatCspSheets = flatBitumen && flatDeckMaterial === 'csp' ? Math.ceil(waterproofArea * flatReserve / 4) * flatDeckLayers : 0;
+  const flatPrimerBuckets = flatBitumen ? Math.ceil(waterproofArea * 0.2 / (flatDeckMaterial === 'osb' ? 16 : 7)) : 0;
+  const flatBaseRolls = flatBitumen ? Math.ceil(waterproofArea * flatReserve / (flatDeckMaterial === 'osb' ? 15 : 9)) : 0;
+  const flatTopRolls = flatBitumen ? Math.ceil(waterproofArea * flatReserve / (flatDeckMaterial === 'osb' ? 10 : 9)) : 0;
   const layeredFramePurchasing = layeredFramePurchases(layeredFrame);
   const layeredBridgeLength = scope => (layeredFrame.bridgeItems || []).filter(item => item.scope === scope)
     .reduce((sum, item) => sum + item.length / 1000, 0);
@@ -2772,23 +2772,21 @@ function roofSection(project, metrics, index, inputs) {
     makeLine(index, 'roof', 'Воронка парапетная ТП-68/10 ПП 110 мм', roof.flatParapetMode === 'closed' ? Math.max(1, Math.round(Number(roof.flatDrainCount) || 2)) : 0,
       { key: 'flat-parapet-drains', catalogId: 'MAT-FLAT-DRAIN', unit: 'шт' }),
     makeLine(index, 'roof', flatOsbThickness === 9 ? 'ОСБ-3 9 мм 1250×2500 мм' : 'ОСБ-3 12 мм 1250×2500 мм', flatOsbSheets,
-      { key: 'flat-osb', catalogId: flatOsbThickness === 9 ? 'MAT-FLAT-OSB9' : 'MAT-111', unit: 'шт', name: `ОСБ-3 ${flatOsbThickness} мм · ${flatOsbLayers} ${flatOsbLayers === 1 ? 'слой' : 'слоя'}` }),
-    makeLine(index, 'roof', 'Монтаж подкладочного слоя ОСБ/ГВЛВ', flatBitumen ? mainArea * flatOsbLayers : 0,
-      { key: 'flat-osb-work', catalogId: 'LAB-065', kind: 'labor', unit: 'м²', name: `Монтаж ОСБ · ${flatOsbLayers} ${flatOsbLayers === 1 ? 'слой' : 'слоя'}` }),
-    makeLine(index, 'roof', 'Саморезы 4.2 x 75', flatBitumen ? round(mainArea * flatOsbLayers * Math.max(0, Number(roof.flatOsbFastenersKgPerM2 ?? 0.1)), 3) : 0,
-      { key: 'flat-osb-fasteners', catalogId: 'MAT-078', unit: 'кг', name: 'Крепёж листов ОСБ · расход на слой задаётся проектом', digits: 3 }),
+      { key: 'flat-osb', catalogId: flatOsbThickness === 9 ? 'MAT-FLAT-OSB9' : 'MAT-111', unit: 'шт', name: `ОСБ-3 ${flatOsbThickness} мм · ${flatDeckLayers} сл. · кровля и примыкания` }),
+    makeLine(index, 'roof', 'Монтаж подкладочного слоя ОСБ/ГВЛВ', flatBitumen && flatDeckMaterial === 'osb' ? waterproofArea * flatDeckLayers : 0,
+      { key: 'flat-osb-work', catalogId: 'LAB-065', kind: 'labor', unit: 'м²', name: `Монтаж ОСБ · ${flatDeckLayers} сл. · кровля и примыкания` }),
     makeLine(index, 'roof', 'ЦСП 12 мм 3200×1250 мм', flatCspSheets,
-      { key: 'flat-csp', catalogId: 'MAT-FLAT-CSP12', unit: 'шт', name: 'Основание под наплавляемую кровлю · ЦСП 12 мм, 2 слоя' }),
-    makeLine(index, 'roof', 'Монтаж ЦСП на кровле', flatBitumen ? waterproofArea * 2 : 0,
-      { key: 'flat-csp-work', catalogId: 'LAB-FLAT-CSP', kind: 'labor', unit: 'м²', name: 'Монтаж ЦСП · 2 слоя на кровле и примыканиях' }),
-    makeLine(index, 'roof', 'Саморезы 4.2 x 75', flatBitumen ? round(waterproofArea * 2 * 0.1, 3) : 0,
-      { key: 'flat-csp-fasteners', catalogId: 'MAT-078', unit: 'кг', name: 'Крепёж листов ЦСП · предварительно 0,1 кг/м² на слой', digits: 3 }),
-    makeLine(index, 'roof', 'Праймер полимерный ТЕХНОНИКОЛЬ №08 10 л', flatPrimerBuckets,
-      { key: 'flat-primer', catalogId: 'MAT-FLAT-PRIMER', unit: 'ведро', name: 'Праймер основания и парапета · расход 0,2 кг/м²' }),
-    makeLine(index, 'roof', 'Стеклоизол Р ХПП-2.1 нижний слой 9 м²', waterproofRolls,
-      { key: 'flat-waterproof-base', catalogId: 'MAT-FLAT-HPP', unit: 'рулон' }),
-    makeLine(index, 'roof', 'Стеклоизол Р ХКП-3.5 верхний слой 9 м²', waterproofRolls,
-      { key: 'flat-waterproof-top', catalogId: 'MAT-FLAT-HKP', unit: 'рулон' }),
+      { key: 'flat-csp', catalogId: 'MAT-FLAT-CSP12', unit: 'шт', name: `ЦСП 12 мм · ${flatDeckLayers} сл. · кровля и примыкания` }),
+    makeLine(index, 'roof', 'Монтаж ЦСП на кровле', flatBitumen && flatDeckMaterial === 'csp' ? waterproofArea * flatDeckLayers : 0,
+      { key: 'flat-csp-work', catalogId: 'LAB-FLAT-CSP', kind: 'labor', unit: 'м²', name: `Монтаж ЦСП · ${flatDeckLayers} сл. · кровля и примыкания` }),
+    makeLine(index, 'roof', 'Саморезы 4.2 x 75', flatBitumen ? round(waterproofArea * flatDeckLayers * Math.max(0, Number(roof.flatOsbFastenersKgPerM2 ?? 0.1)), 3) : 0,
+      { key: 'flat-deck-fasteners', catalogId: 'MAT-078', unit: 'кг', name: `Крепёж листов ${flatDeckMaterial === 'osb' ? 'ОСБ' : 'ЦСП'} · расход на слой задаётся проектом`, digits: 3 }),
+    makeLine(index, 'roof', flatDeckMaterial === 'osb' ? 'Праймер битумный ТЕХНОНИКОЛЬ №01 20 л' : 'Праймер полимерный ТЕХНОНИКОЛЬ №08 10 л', flatPrimerBuckets,
+      { key: 'flat-primer', catalogId: flatDeckMaterial === 'osb' ? 'MAT-FLAT-PRIMER-OSB' : 'MAT-FLAT-PRIMER', unit: 'ведро', name: 'Праймер основания и парапета · расход 0,2 кг/м²' }),
+    makeLine(index, 'roof', flatDeckMaterial === 'osb' ? 'Техноэласт С ЭМС самоклеящийся нижний слой 15 м²' : 'Стеклоизол Р ХПП-2.1 нижний слой 9 м²', flatBaseRolls,
+      { key: 'flat-waterproof-base', catalogId: flatDeckMaterial === 'osb' ? 'MAT-FLAT-SELF-BASE' : 'MAT-FLAT-HPP', unit: 'рулон' }),
+    makeLine(index, 'roof', flatDeckMaterial === 'osb' ? 'Техноэласт ЭКП верхний слой 10 м²' : 'Стеклоизол Р ХКП-3.5 верхний слой 9 м²', flatTopRolls,
+      { key: 'flat-waterproof-top', catalogId: flatDeckMaterial === 'osb' ? 'MAT-FLAT-SELF-TOP' : 'MAT-FLAT-HKP', unit: 'рулон' }),
     makeLine(index, 'roof', 'Укладка двух слоёв рулонной гидроизоляции', flatBitumen ? waterproofArea : 0,
       { key: 'flat-waterproof-work', catalogId: 'LAB-FLAT-WATERPROOF', kind: 'labor', unit: 'м²' }),
   ])];
