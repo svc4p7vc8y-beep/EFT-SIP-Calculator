@@ -7,6 +7,7 @@ import { rafterEndOutline } from './rafter-end-cuts.js';
 import { bindingPlanRows } from './binding-rows.js';
 import {foundationGeometry} from './foundation-geometry.js';
 import { structuralFlatRoofRise } from './roof-wall-plate.js';
+import { flatRoofParapetRuns } from './flat-roof-assembly.js';
 
 // Millimetres, right-handed model coordinates X/Y = plan, Z = height.
 // This adapter only places existing production geometry; it never creates stock.
@@ -31,7 +32,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
       const sloped=category==='ceiling'&&s.floor===plans.length&&project.settings.roof.flatSlopeMode==='structural'&&report.assembly.roofShape==='flat';
       const dx=sloped?roofRise(1,0)-roofRise(0,0):0,dy=sloped?roofRise(0,1)-roofRise(0,0):0;
       const length=Math.hypot(dx,dy,1);
-      placements.set(s.id,{origin:[0,0,base+(category==='ceiling'?exteriorHeight(plans[(s.floor||1)-1],project.settings.sip)*1000+Number(s.thickness)/2+(sloped?roofRise(0,0):0):-Number(s.thickness)/2)],u:[1,0,dx],v:[0,1,dy],normal:[-dx/length,-dy/length,1/length],layer:category});
+      placements.set(s.id,{origin:[0,0,base+(category==='ceiling'?exteriorHeight(plans[(s.floor||1)-1],project.settings.sip)*1000+Number(s.thickness)/2+(sloped?roofRise(0,0):0):-Number(s.thickness)/2)],u:[1,0,dx],v:[0,1,dy],normal:[-dx/length,-dy/length,1/length],layer:category==='floor'&&s.floor>1?'interfloor':category});
     }
     else if(category==='roof'&&report.assembly.roofShape==='gable'&&/^КР-С[12]$/.test(s.id)){
       const a=report.assembly,axis=a.axis==='x',g=a.roofGeometry||{},span=axis?a.bounds.height:a.bounds.width,eave=Number(g.eaveOverhang||0)*1000,overhang=Number(g.gableOverhang||0)*1000,rise=Number(project.settings.roof.ridgeHeight||0)*1000,angle=Math.atan2(rise,span/2),second=s.id.endsWith('2'),sign=second?-1:1;
@@ -77,6 +78,21 @@ export function productionScene(report,project,{includePlatforms=report.settings
     .map(item=>({id:item.id,mauerlatId:item.bearingMauerlatId,point:item.bearingPoint}));
   const platforms=includePlatforms?(assembly.platforms||[]):[];
   const coldRoofSurfaces=(assembly.roofModel?.faces||[]).filter(f=>f.group==='main'&&!panels.some(p=>p.faceId===f.id)).map(f=>({id:f.id,faceId:f.id,layer:'roofSurface',shape:[f.polygon],placement:{origin:f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
+  const flatRoof=project.settings.roof||{},flatFaces=assembly.roofModel?.faces.filter(face=>face.group==='main')||[];
+  const roofSheetPanels=assembly.roofShape==='flat'&&flatRoof.flatCoverSystem==='bitumen'?flatFaces.flatMap(face=>{
+    const offset=(distance)=>face.origin.map((value,index)=>value+face.normal[index]*distance);
+    const osbMm=(flatRoof.flatOsbThicknessMm===9?9:12)*(flatRoof.flatOsbLayers===1?1:2);
+    return [{id:`flat-osb:${face.id}`,layer:'flatOsb',shape:[face.polygon],placement:{origin:offset(osbMm/2),u:face.u,v:face.v,normal:face.normal},thickness:osbMm,referenceOnly:true},
+      {id:`flat-csp:${face.id}`,layer:'flatCsp',shape:[face.polygon],placement:{origin:offset(osbMm+12),u:face.u,v:face.v,normal:face.normal},thickness:24,referenceOnly:true},
+      {id:`flat-waterproof:${face.id}`,layer:'waterproofing',shape:[face.polygon],placement:{origin:offset(osbMm+26),u:face.u,v:face.v,normal:face.normal},thickness:4,referenceOnly:true}];
+  }):[];
+  const contour=assembly.floors.at(-1)?.contour||[],parapetRuns=assembly.roofShape==='flat'?flatRoofParapetRuns(contour,flatRoof):[];
+  const parapetBase=defaultRoofBase+(project.services.sipCeiling?Number(project.settings.sip.ceilingThickness):0);
+  const parapetHeight=Math.max(150,Number(flatRoof.flatParapetHeightMm??900));
+  const parapetPanels=parapetRuns.map((run,index)=>{
+    const dx=run.b[0]-run.a[0],dy=run.b[1]-run.a[1],length=run.length;
+    return {id:`flat-parapet:${index}`,layer:'parapet',shape:[[[0,0],[length,0],[length,parapetHeight],[0,parapetHeight]]],placement:{origin:[run.a[0],run.a[1],parapetBase],u:[dx/length,dy/length,0],v:[0,0,1],normal:[dy/length,-dx/length,0]},thickness:Number(project.settings.sip.wallThickness),referenceOnly:true};
+  });
   const platformPanels=platforms.flatMap(p=>{
     const placement={origin:[0,0,p.deckZ-p.thickness/2],u:[1,0,0],v:[0,1,0],normal:[0,0,1],layer:'platforms'};
     const deck={id:`platform:${p.id}:deck`,layer:'platforms',shape:[p.contour],placement,thickness:p.thickness,timber:true,referenceOnly:true};
@@ -93,5 +109,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
     const b=hostPoints[(i+1)%hostPoints.length],dx=(b.x-a.x)*1000,dy=(b.y-a.y)*1000,length=Math.hypot(dx,dy);
     return length>1?{id:`existing:${host.id||'building'}:wall:${i}`,layer:'existingBuilding',referenceOnly:true,shape:[[[0,0],[length,0],[length,hostHeight||40],[0,hostHeight||40]]],placement:{origin:[a.x*1000,a.y*1000,hostBase],u:[dx/length,dy/length,0],v:[0,0,1],normal:[dy/length,-dx/length,0]},thickness:20}:null;
   }).filter(Boolean):[];
-  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...coldRoofSurfaces,...roofSheetPanels,...parapetPanels,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...beams.filter(visible),...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,platforms,missing,world,roofBase,bases,placements};
 }

@@ -12,6 +12,7 @@ import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import DeliveryVolume from '../components/DeliveryVolume.jsx';
 import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
 import { useProject } from "../state/ProjectContext.jsx";
+import FlatRoofAssemblyFields from '../components/FlatRoofAssemblyFields.jsx';
 import {
   Field,
   NumberField,
@@ -1023,6 +1024,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 onChange={(value) => write("settings.roof.includeCovering", value)}
               />
             </div>
+            {project.settings.roof.shape === 'flat' ? <FlatRoofAssemblyFields roof={project.settings.roof} onChange={(key,value)=>write(`settings.roof.${key}`,value)}/> : null}
             {fields([
               {
                 path: "settings.roof.shape",

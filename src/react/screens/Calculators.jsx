@@ -6,6 +6,7 @@ import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
+import FlatRoofAssemblyFields from '../components/FlatRoofAssemblyFields.jsx';
 import { calculateSnowGuards, SNOW_GUARD_SOURCE } from '../calculations/snow-guards.js';
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { SCREW_PILE_KITS, screwPileKit } from "../data/foundation-kits.js";
@@ -485,6 +486,7 @@ function RoofConstructionPanels({
                 </div>
               </>
             ) : null}
+            {isFlatRoof ? <FlatRoofAssemblyFields roof={project.settings.roof} onChange={(key, value) => setSetting('roof', key, value)}/> : null}
             {!isFlatRoof && !isTieredRoof ? (
               <NumberField
                 label="Высота конька"

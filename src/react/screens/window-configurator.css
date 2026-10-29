@@ -1,4 +1,16 @@
 .window-configurator{margin:20px 0;border:1px solid #d8e4df;border-radius:18px;background:#fbfdfb;color:#203c35;overflow:hidden}
+.window-config-embedded{margin:12px 0;border-radius:10px;max-width:100%}
+.window-config-embedded .window-config-head{display:none}
+.window-config-embedded .window-config-layout{display:block;min-height:0}
+.window-config-embedded .window-config-library{max-height:none;border-right:0;border-bottom:1px solid #dce8e2;padding:12px}
+.window-config-embedded .window-reference-list{display:flex;gap:6px;overflow-x:auto;max-height:150px}
+.window-config-embedded .window-reference-list button{min-width:150px;max-width:180px}
+.window-config-embedded .window-config-main{padding:12px}
+.window-config-embedded .window-product-tabs,.window-config-embedded .window-schedule{display:none}
+.window-config-embedded .window-preview{display:block}
+.window-config-embedded .window-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+.window-config-embedded .window-sections>div{grid-template-columns:repeat(2,minmax(0,1fr))}
+.window-config-embedded .window-sections>div b{grid-column:1/-1}
 .window-config-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:22px 24px;border-bottom:1px solid #dce8e2;background:#eff7f2}
 .window-config-head h2{margin:0 0 5px;font-size:1.35rem}.window-config-head p{margin:0;color:#526b60}
 .window-config-totals{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.window-config-totals strong{font-size:1.3rem}.window-config-totals small{color:#a45726}

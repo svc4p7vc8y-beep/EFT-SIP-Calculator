@@ -8,8 +8,8 @@ import {assemblyPlatformView} from '../calculations/platform-assembly.js';
 import {planPointToThree,planDirectionToThree} from '../calculations/plan-3d-orientation.js';
 import { Box,Frame,Scan,Layers,RotateCcw } from 'lucide-react';
 
-const layers={existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',rafters:'Стропила',roofTimbers:'Мауэрлат, конёк и ригели',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
-const roofCoverLayers=['roofSurface','laths','counterLaths'];
+const layers={existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',interfloor:'Межэтажное перекрытие',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',flatOsb:'Настил ОСБ',flatCsp:'Основание ЦСП · 2 слоя',waterproofing:'Рулонная гидроизоляция',parapet:'Парапет',rafters:'Стропила',roofTimbers:'Мауэрлат, конёк и ригели',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
+const roofCoverLayers=['roofSurface','flatOsb','flatCsp','waterproofing','laths','counterLaths'];
 const vector=point=>new THREE.Vector3(...planPointToThree(point));
 const direction=point=>new THREE.Vector3(...planDirectionToThree(point));
 function beamGeometry(item,width,depth,length){
@@ -53,7 +53,7 @@ export default memo(function ProductionHouse3D({report,project,selected=[],onSel
       for(const ring of item.shape.slice(1)){const hole=new THREE.Path();ring.forEach(([x,y],i)=>i?hole.lineTo(x/1000,y/1000):hole.moveTo(x/1000,y/1000));hole.closePath();shape.holes.push(hole);}
       const geo=new THREE.ExtrudeGeometry(shape,{depth:item.thickness/1000,bevelEnabled:false});geo.translate(0,0,-item.thickness/2000);
       const referencePlane=item.referenceOnly&&['roofSurface','platformRoof'].includes(item.layer);
-      const color=item.layer==='existingBuilding'?'#94a3b8':item.layer==='foundation'?'#999':item.preview?'#e08c75':item.timber?'#ba9562':item.layer==='roof'?'#91adbf':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0,transparent:referencePlane,opacity:referencePlane?0:1,depthWrite:!referencePlane});
+      const color=item.layer==='existingBuilding'?'#94a3b8':item.layer==='foundation'?'#999':item.preview?'#e08c75':item.timber?'#ba9562':item.layer==='roof'?'#91adbf':item.layer==='waterproofing'?'#484c50':item.layer==='flatCsp'?'#bab5a9':item.layer==='flatOsb'?'#b89668':item.layer==='parapet'?'#b8cfb2':'#c3d8b6',material=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.85,metalness:0,transparent:referencePlane,opacity:referencePlane?0:1,depthWrite:!referencePlane});
       const mesh=new THREE.Mesh(geo,material),p=item.placement;mesh.matrix.makeBasis(direction(p.u),direction(p.v),direction(p.normal));mesh.matrix.setPosition(vector(p.origin));mesh.matrixAutoUpdate=false;mesh.userData={id:item.preview?item.surfaceId:item.id,layer:item.layer,color};
       mesh.userData.panel=!item.timber;mesh.userData.preview=!!item.preview;mesh.userData.referencePlane=referencePlane;
       mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:referencePlane?'#7d8790':'#253229'})));model.add(mesh);meshes.push(mesh);

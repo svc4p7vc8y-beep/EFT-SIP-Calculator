@@ -8,6 +8,7 @@ import {hipRoofFromContour} from './hip-roof-geometry.js';
 import { roofBaseElevation } from './roof-wall-plate.js';
 import { contourRoofOutline, contourRoofStrip } from './contour-roof-geometry.js';
 import { isAxisAlignedRectangleContour } from './roof-contour.js';
+import { flatRoofFootprint } from './flat-roof-assembly.js';
 
 export const roofDot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
 const sub=(a,b)=>a.map((x,i)=>x-b[i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],unit=a=>a.map(x=>x/Math.hypot(...a));
@@ -64,7 +65,7 @@ export function roofProject(project,calculation,assembly){
   const structural=calculation.roof.flatSlopeMode==='structural',tapered=calculation.roof.flatSlopeMode==='tapered',slope=Number(settings.flatSlopePercent||0)/100;
   const negative=['back','right'].includes(calculation.roof.flatSlopeDirection),z=y=>structural||tapered?(negative?span-y:y)*slope:0;
   try{
-   const outline=rectangle?[at(-t,-e,0),at(L+t,-e,0),at(L+t,span+e,0),at(-t,span+e,0)].map(p=>p.slice(0,2)):
+   const outline=['flashing','closed','open'].includes(settings.flatParapetMode)?flatRoofFootprint(contour,settings):rectangle?[at(-t,-e,0),at(L+t,-e,0),at(L+t,span+e,0),at(-t,span+e,0)].map(p=>p.slice(0,2)):
      contourRoofOutline(contour,assembly.axis,e,t);
    add('КР-С1','Односкатная поверхность',outline.map(([x,y])=>[x,y,roofBase+z(axis===0?y-b.y:x-b.x)]),{structureHorizontal:tapered});
   }catch(error){issue('ROOF_CONTOUR',error.message,'main');}

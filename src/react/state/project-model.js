@@ -29,7 +29,7 @@ import { createPlacement, normalizePlacement } from './placement-model.js';
 import { normalizeEstimateFiles } from './estimate-files.js';
 import { normalizeWindowProducts, normalizeWindowPresets, normalizeWindowTariffs } from './window-products.js';
 
-export const REACT_PROJECT_VERSION = 235;
+export const REACT_PROJECT_VERSION = 236;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -622,6 +622,17 @@ export function createDefaultProject() {
         flatSlopeDirection: "back",
         flatSlopePercent: 3,
         flatFrameDepthMm: 300,
+        flatParapetMode: "none",
+        flatParapetHeightMm: 900,
+        flatOpenSide: "back",
+        flatOpenOverhangMm: 500,
+        flatDrainCount: 2,
+        flatCoverSystem: "sheet",
+        flatOsbThicknessMm: 12,
+        flatOsbLayers: 2,
+        flatOsbFastenersKgPerM2: 0.1,
+        flatWaterproofUpstandMm: 900,
+        flatWaterproofOutsideMm: 100,
         type: "cold",
         sipFrameMode: "standard",
         includeCovering: true,

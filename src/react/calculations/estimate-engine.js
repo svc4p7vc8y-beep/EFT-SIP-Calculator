@@ -45,6 +45,7 @@ import { platformDeckFrame, PLATFORM_FRAME_BOARD_WIDTH_MM, PLATFORM_FRAME_BOARD_
 import { withSipGableRafters } from './gable-rafter-stations.js';
 import { contourRoofOutline, contourRoofStrip, contourProjectedArea, facetedRoofArea } from './contour-roof-geometry.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
+import { flatRoofFootprint, flatRoofParapetRuns, flatRoofProjectedArea } from './flat-roof-assembly.js';
 import { windowGeometry, windowPrice } from '../state/window-products.js';
 import { screwPileKit } from '../data/foundation-kits.js';
 
@@ -1080,7 +1081,8 @@ function roofSection(project, metrics, index, inputs) {
       mainVergeTrimPurchaseLength: 0,
     };
   const { roof } = project.settings;
-  const roofAxes = resolveRoofAxes(project.plan, roof);
+  const effectiveFlatDirection = roof.flatParapetMode === 'open' ? roof.flatOpenSide || 'back' : roof.flatSlopeDirection || 'back';
+  const roofAxes = resolveRoofAxes(project.plan, { ...roof, flatSlopeDirection: effectiveFlatDirection });
   const covering = roofCoveringSpec(roof.covering);
   const includeCovering = roof.includeCovering !== false;
   const osbSheetArea = 1.25 * 2.5;
@@ -1151,6 +1153,20 @@ function roofSection(project, metrics, index, inputs) {
         }
       } catch { /* roofProject reports invalid contours; keep the last estimable quantities visible. */ }
     }
+  }
+  const topContourMm = houseContourPoints(metrics.floorPlans?.at(-1)?.plan || project.plan)
+    .map(point => [Number(point.x) * 1000, Number(point.y) * 1000]);
+  const flatParapetActive = mainRoofShape === 'flat' && ['flashing', 'closed', 'open'].includes(roof.flatParapetMode);
+  const flatRuns = flatParapetActive ? flatRoofParapetRuns(topContourMm, roof) : [];
+  const flatParapetLength = flatRuns.reduce((sum, run) => sum + run.length / 1000, 0);
+  if (flatParapetActive && topContourMm.length >= 3) {
+    const footprint = flatRoofFootprint(topContourMm, roof);
+    const area = round(flatRoofProjectedArea(footprint) * Math.hypot(1, flatSlopePercent / 100), 2);
+    const xs = footprint.map(point => point[0]), ys = footprint.map(point => point[1]);
+    const width = (Math.max(...xs) - Math.min(...xs)) / 1000;
+    const height = (Math.max(...ys) - Math.min(...ys)) / 1000;
+    geometry = { ...geometry, totalSlopeArea: area, slopeArea: area, roofLength: roofAxes.ridgeAxis === 'x' ? width : height,
+      roofSpan: roofAxes.ridgeAxis === 'x' ? height : width, eaveOverhang: 0, gableOverhang: 0 };
   }
   const mainArea = geometry.totalSlopeArea;
   const mainWarmPercent =
@@ -2169,8 +2185,9 @@ function roofSection(project, metrics, index, inputs) {
     }),
   );
   const gutterLength = includeCovering && roof.includeGutter === true ? mainEaveLength : 0;
+  const flatBitumen = mainRoofShape === 'flat' && roof.flatCoverSystem === 'bitumen' && includeCovering;
   const mainOsbArea =
-    (includeCovering && covering.osb ? mainCoverPurchaseArea : 0) +
+    (includeCovering && covering.osb && !flatBitumen ? mainCoverPurchaseArea : 0) +
     mainColdGableArea * (1 + roof.wastePercent / 100);
   const mainOsbSheets = mainOsbArea ? Math.ceil(mainOsbArea / osbSheetArea) : 0;
   const gutterRunCount =
@@ -2216,6 +2233,20 @@ function roofSection(project, metrics, index, inputs) {
     ) +
       1);
   const snowGuards = calculateSnowGuards(roof, geometry.roofLength, [...project.priceMat, ...project.priceLab]);
+  const parapetHeight = Math.max(0, Number(roof.flatParapetHeightMm ?? 900)) / 1000;
+  const parapetArea = flatParapetLength * parapetHeight;
+  const flatReserve = 1 + Math.max(0, Number(roof.wastePercent) || 0) / 100;
+  const flatOsbLayers = roof.flatOsbLayers === 1 ? 1 : 2;
+  const flatOsbThickness = roof.flatOsbThicknessMm === 9 ? 9 : 12;
+  const waterproofRise = flatParapetActive ? Math.min(parapetHeight, Math.max(0, Number(roof.flatWaterproofUpstandMm ?? 900)) / 1000) : 0;
+  const waterproofOutside = flatParapetActive ? Math.max(0, Number(roof.flatWaterproofOutsideMm ?? 100)) / 1000 : 0;
+  const waterproofArea = mainArea + flatParapetLength * (waterproofRise + Number(project.settings.sip.wallThickness) / 1000 + waterproofOutside);
+  const flatOsbSheets = flatBitumen ? Math.ceil(mainArea * flatReserve * flatOsbLayers / osbSheetArea) : 0;
+  // A torch-applied membrane needs a primed non-combustible substrate. Two CSP
+  // layers are staggered; OSB alone must never be presented as that substrate.
+  const flatCspSheets = flatBitumen ? Math.ceil(waterproofArea * flatReserve / 4) * 2 : 0;
+  const flatPrimerBuckets = flatBitumen ? Math.ceil(waterproofArea * 0.2 / 7) : 0;
+  const waterproofRolls = flatBitumen ? Math.ceil(waterproofArea * flatReserve / 9) : 0;
   const layeredFramePurchasing = layeredFramePurchases(layeredFrame);
   const layeredBridgeLength = scope => (layeredFrame.bridgeItems || []).filter(item => item.scope === scope)
     .reduce((sum, item) => sum + item.length / 1000, 0);
@@ -2386,24 +2417,24 @@ function roofSection(project, metrics, index, inputs) {
       index,
       "roof",
       "Гидро-ветрозащитная мембрана",
-      Math.ceil(mainConstructionArea / 70),
+      flatBitumen ? 0 : Math.ceil(mainConstructionArea / 70),
       { key: "membrane", unit: "рулон" },
     ),
     makeLine(
       index,
       "roof",
       covering.material,
-      includeCovering ? mainCoverPurchaseArea + mainGablePurchaseArea : 0,
+      includeCovering && !flatBitumen ? mainCoverPurchaseArea + mainGablePurchaseArea : 0,
       { key: "cover", unit: "м²", name: covering.label },
     ),
-    makeLine(index, "roof", covering.labor, mainConstructionArea, {
+    makeLine(index, "roof", covering.labor, flatBitumen ? 0 : mainConstructionArea, {
       key: "cover-work",
       kind: "labor",
       ...(covering.key.startsWith("profile") ? { catalogId: "LAB-031" } : {}),
       name: `Монтаж: ${covering.label.toLocaleLowerCase("ru")} · основная кровля`,
       unit: "м²",
     }),
-    covering.screws
+    covering.screws && !flatBitumen
       ? makeLine(
           index,
           "roof",
@@ -2727,6 +2758,39 @@ function roofSection(project, metrics, index, inputs) {
       projectPrice: roof.snowGuards?.laborPrice,
       name: `Монтаж снегозадержателей · ${formatNumberForName(snowGuards.totalLength)} м`,
     }),
+    makeLine(index, 'roof', sipPanelName(project.settings.sip.wallThickness, project.settings.sip.wallPanelFamily),
+      flatParapetActive ? Math.ceil(parapetArea * flatReserve / osbSheetArea) : 0,
+      { key: 'flat-parapet-panels', name: `SIP-панели парапета ${Math.round(parapetHeight * 1000)} мм`, unit: 'шт' }),
+    makeLine(index, 'roof', 'Монтаж сип-панели пол/стены', flatParapetActive ? parapetArea : 0,
+      { key: 'flat-parapet-work', kind: 'labor', name: 'Монтаж SIP-парапета', unit: 'м²' }),
+    makeLine(index, 'roof', 'Саморезы 4.2 x 75', flatParapetActive ? round(flatParapetLength * 0.1, 3) : 0,
+      { key: 'flat-parapet-fasteners', catalogId: 'MAT-078', unit: 'кг', name: 'Крепёж парапета · предварительно 0,1 кг/м.п.', digits: 3 }),
+    makeLine(index, 'roof', 'Планка примыкания разноуровневой кровли 1,25 м', flatParapetActive && !flatBitumen ? Math.ceil(flatParapetLength * flatReserve / 1.25) : 0,
+      { key: 'flat-parapet-flashing', catalogId: 'MAT-247', unit: 'шт', name: 'Планка примыкания листовой кровли к парапету · подобрать профиль' }),
+    makeLine(index, 'roof', 'Монтаж планки примыкания разноуровневой кровли', flatParapetActive && !flatBitumen ? flatParapetLength : 0,
+      { key: 'flat-parapet-flashing-work', catalogId: 'LAB-131', kind: 'labor', unit: 'м.п.', name: 'Монтаж примыкания кровли к парапету' }),
+    makeLine(index, 'roof', 'Воронка парапетная ТП-68/10 ПП 110 мм', roof.flatParapetMode === 'closed' ? Math.max(1, Math.round(Number(roof.flatDrainCount) || 2)) : 0,
+      { key: 'flat-parapet-drains', catalogId: 'MAT-FLAT-DRAIN', unit: 'шт' }),
+    makeLine(index, 'roof', flatOsbThickness === 9 ? 'ОСБ-3 9 мм 1250×2500 мм' : 'ОСБ-3 12 мм 1250×2500 мм', flatOsbSheets,
+      { key: 'flat-osb', catalogId: flatOsbThickness === 9 ? 'MAT-FLAT-OSB9' : 'MAT-111', unit: 'шт', name: `ОСБ-3 ${flatOsbThickness} мм · ${flatOsbLayers} ${flatOsbLayers === 1 ? 'слой' : 'слоя'}` }),
+    makeLine(index, 'roof', 'Монтаж подкладочного слоя ОСБ/ГВЛВ', flatBitumen ? mainArea * flatOsbLayers : 0,
+      { key: 'flat-osb-work', catalogId: 'LAB-065', kind: 'labor', unit: 'м²', name: `Монтаж ОСБ · ${flatOsbLayers} ${flatOsbLayers === 1 ? 'слой' : 'слоя'}` }),
+    makeLine(index, 'roof', 'Саморезы 4.2 x 75', flatBitumen ? round(mainArea * flatOsbLayers * Math.max(0, Number(roof.flatOsbFastenersKgPerM2 ?? 0.1)), 3) : 0,
+      { key: 'flat-osb-fasteners', catalogId: 'MAT-078', unit: 'кг', name: 'Крепёж листов ОСБ · расход на слой задаётся проектом', digits: 3 }),
+    makeLine(index, 'roof', 'ЦСП 12 мм 3200×1250 мм', flatCspSheets,
+      { key: 'flat-csp', catalogId: 'MAT-FLAT-CSP12', unit: 'шт', name: 'Основание под наплавляемую кровлю · ЦСП 12 мм, 2 слоя' }),
+    makeLine(index, 'roof', 'Монтаж ЦСП на кровле', flatBitumen ? waterproofArea * 2 : 0,
+      { key: 'flat-csp-work', catalogId: 'LAB-FLAT-CSP', kind: 'labor', unit: 'м²', name: 'Монтаж ЦСП · 2 слоя на кровле и примыканиях' }),
+    makeLine(index, 'roof', 'Саморезы 4.2 x 75', flatBitumen ? round(waterproofArea * 2 * 0.1, 3) : 0,
+      { key: 'flat-csp-fasteners', catalogId: 'MAT-078', unit: 'кг', name: 'Крепёж листов ЦСП · предварительно 0,1 кг/м² на слой', digits: 3 }),
+    makeLine(index, 'roof', 'Праймер полимерный ТЕХНОНИКОЛЬ №08 10 л', flatPrimerBuckets,
+      { key: 'flat-primer', catalogId: 'MAT-FLAT-PRIMER', unit: 'ведро', name: 'Праймер основания и парапета · расход 0,2 кг/м²' }),
+    makeLine(index, 'roof', 'Стеклоизол Р ХПП-2.1 нижний слой 9 м²', waterproofRolls,
+      { key: 'flat-waterproof-base', catalogId: 'MAT-FLAT-HPP', unit: 'рулон' }),
+    makeLine(index, 'roof', 'Стеклоизол Р ХКП-3.5 верхний слой 9 м²', waterproofRolls,
+      { key: 'flat-waterproof-top', catalogId: 'MAT-FLAT-HKP', unit: 'рулон' }),
+    makeLine(index, 'roof', 'Укладка двух слоёв рулонной гидроизоляции', flatBitumen ? waterproofArea : 0,
+      { key: 'flat-waterproof-work', catalogId: 'LAB-FLAT-WATERPROOF', kind: 'labor', unit: 'м²' }),
   ])];
   return {
     lines,
@@ -2745,9 +2809,12 @@ function roofSection(project, metrics, index, inputs) {
     mainSipFramePieces,
     ridgeAxis: roofAxes.ridgeAxis,
     flatSlopeMode,
-    flatSlopeDirection: roof.flatSlopeDirection || "back",
+    flatSlopeDirection: effectiveFlatDirection,
     flatSlopePercent,
     flatRise: geometry.rise || 0,
+    flatParapetLength: round(flatParapetLength),
+    flatParapetArea: round(parapetArea),
+    flatWaterproofArea: flatBitumen ? round(waterproofArea) : 0,
     flatSideWallArea:
       mainGableType === "none" ? 0 : round(mainFlatSideWallArea),
     flatHighWallArea:

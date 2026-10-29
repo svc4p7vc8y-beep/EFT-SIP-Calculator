@@ -88,6 +88,7 @@ import { buildCommercialScope } from "../calculations/commercial-scope.js";
 import { attachedHouseContour, shiftPlanContents } from '../planner/attached-contour.js';
 import { referenceBuildingContour, newHouseAtExistingCorner } from '../planner/existing-building.js';
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
+import FlatRoofAssemblyFields from '../components/FlatRoofAssemblyFields.jsx';
 import { RoomNameField } from "../components/RoomNameField.jsx";
 import {
   Field,
@@ -111,6 +112,7 @@ const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
 const CalculationSettingsPanel=lazy(()=>import('./CalculationSettingsScreen.jsx'));
+const InlineWindowConfigurator=lazy(()=>import('./WindowConfigurator.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
 import {
   applyPlanTransfer,
@@ -1592,6 +1594,7 @@ function PlanCanvas({
       id,
       orientation: segment.axis,
       outer: segment.outer,
+      wallRef: segment.ref || '',
       x: segment.axis === "v" ? segment.fixed : segment.projected,
       y: segment.axis === "v" ? segment.projected : segment.fixed,
     };
@@ -3099,6 +3102,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
           ) : null}
         </>
       )}
+      <FlatRoofAssemblyFields roof={roof} onChange={commitRoof}/>
       {visibility.showRafterSystem ? <SelectField
         label="Тип стропильной системы"
         value={roof.rafterSystem || "hanging"}
@@ -3359,8 +3363,8 @@ function DoorOrientationControls({ opening, onChange }) {
   );
 }
 
-function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {}, onNavigate }) {
-  const { project } = useProject();
+function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {}, onNavigate, activeFloor = 1 }) {
+  const { project, commit } = useProject();
   const get = (key) =>
     (plan[key] || []).find((item) => item.id === selected?.id);
   const update = (key, mutate) =>
@@ -3916,7 +3920,10 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           />
         </div>
         {opening.type === "window" ? (
-          <><SelectField
+          <><NumberField label="Низ проёма от чистого пола" value={Math.round(1000 * (opening.sillHeight ?? ((project.settings.productionCutting?.openingSills?.[`${activeFloor}:${opening.id}`] ?? project.settings.productionCutting?.windowSillMm ?? 850) / 1000)))} suffix="мм" min={0} max={10000} step={50}
+            onChange={value=>commit(next=>{const target=activeFloor===1?next.plan:next.upperFloors?.[activeFloor-2];const item=target?.openings?.find(candidate=>candidate.id===opening.id);if(item)item.sillHeight=Math.max(0,value)/1000;const settings=next.settings.productionCutting;if(settings?.openingSills)delete settings.openingSills[`${activeFloor}:${opening.id}`];return next;})}/>
+          <p className="inspector-note">Отметка низа задаётся для этого окна отдельно. Значение 0 мм позволяет сделать панорамный проём от пола; допустимость высоты проверяется в раскрое.</p>
+          <SelectField
             label="Вид окна"
             value={opening.windowType || "standard"}
             onChange={(value) => update("openings", (item) => { item.windowType = value; })}
@@ -3927,7 +3934,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           />
           {opening.windowType === "panoramic" ? <p className="inspector-note">Панорамное / витражное: изделие и монтаж ×2 к ставкам прайса. Количество считается по площади проёма.</p> : null}</>
         ) : null}
-        {opening.type === "window" ? <button type="button" className="button primary" onClick={()=>{sessionStorage.setItem('eft-window-opening-focus',opening.id);onNavigate?.('openings');}}>Выбрать окно / конфигуратор</button> : null}
+        {opening.type === "window" ? <Suspense fallback={<p>Загрузка библиотеки окон…</p>}><InlineWindowConfigurator focusOpeningId={opening.id} embedded/></Suspense> : null}
         {opening.type === "door" ? (
           <>
             <SelectField
@@ -4167,10 +4174,20 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
       </div>
     );
   }
-  if (gap)
+  if (gap) {
+    const segments=allOpeningSegments(plan);
+    const current=nearestSegment({x:gap.x,y:gap.y},segments);
+    const selectedIndex=segments.findIndex(segment=>segment.axis===current?.axis&&Math.abs(segment.fixed-current?.fixed)<.001&&Math.abs(segment.start-current?.start)<.001&&Math.abs(segment.end-current?.end)<.001&&segment.outer===current?.outer);
+    const segment=segments[selectedIndex];
+    const center=segment?(segment.axis==='v'?gap.y:gap.x):0;
+    const gapStart=segment?Math.max(0,center-gap.width/2-segment.start):0;
+    const gapEnd=segment?Math.min(segment.end-segment.start,center+gap.width/2-segment.start):0;
+    const setRange=(start,end)=>update('wallGaps',item=>{const length=segment.end-segment.start;const a=Math.max(0,Math.min(length-0.001,start));const b=Math.max(a+0.001,Math.min(length,end));item.width=b-a;const midpoint=segment.start+(a+b)/2;item.orientation=segment.axis;item.outer=segment.outer;item.wallRef=segment.ref||'';item.x=segment.axis==='v'?segment.fixed:midpoint;item.y=segment.axis==='v'?midpoint:segment.fixed;});
     return (
       <div className="inspector-form">
         <h3>Разрыв стены</h3>
+        <SelectField label="Стена" value={String(Math.max(0,selectedIndex))} onChange={value=>{const target=segments[Number(value)];if(!target)return;update('wallGaps',item=>{const midpoint=(target.start+target.end)/2;item.orientation=target.axis;item.outer=target.outer;item.wallRef=target.ref||'';item.x=target.axis==='v'?target.fixed:midpoint;item.y=target.axis==='v'?midpoint:target.fixed;item.width=Math.min(item.width,target.end-target.start);});}} options={segments.map((item,index)=>({value:String(index),label:`${item.outer?'Наружная':'Внутренняя'} ${index+1}: ${item.axis==='v'?'X':'Y'}=${formatNumber(item.fixed)} м, ${formatNumber(item.start)}–${formatNumber(item.end)} м`}))}/>
+        {segment?<div className="form-grid"><NumberField label="От начала стены" value={Math.round(gapStart*1000)} suffix="мм" min={0} max={Math.round((segment.end-segment.start)*1000)} step={50} onChange={value=>setRange(value/1000,gapEnd)}/><NumberField label="До точки" value={Math.round(gapEnd*1000)} suffix="мм" min={0} max={Math.round((segment.end-segment.start)*1000)} step={50} onChange={value=>setRange(gapStart,value/1000)}/></div>:null}
         <NumberField
           label="Ширина разрыва"
           value={gap.width * 1000}
@@ -4182,15 +4199,15 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
             })
           }
         />
-        <p className="inspector-note">
-          Разрыв можно перетащить на другую стену.
-        </p>
+        {segment?<button type="button" className="button" onClick={()=>setRange(0,segment.end-segment.start)}>Убрать всю стену</button>:null}
+        <p className="inspector-note">Выберите стену и задайте границы разрыва от её начальной точки. Разрыв можно также перетащить на плане.</p>
         <button className="button danger-button" onClick={remove}>
           <Trash2 />
           Удалить разрыв
         </button>
       </div>
     );
+  }
   if (pile)
     return (
       <div className="inspector-form">
@@ -6696,6 +6713,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           ) : (
             <Inspector
               plan={plan}
+              activeFloor={activeFloor}
               onNavigate={onNavigate}
               mainRoof={project.settings.roof}
               selected={selected}
