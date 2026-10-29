@@ -28,7 +28,8 @@ function eft_price_add_bundled_positions(PDO $pdo): void {
     $ids = ['MAT-250', 'MAT-251', 'MAT-252',
         'MAT-PILE-KIT-108-2500', 'MAT-PILE-KIT-89-3000', 'MAT-PILE-KIT-89-2500', 'MAT-PILE-KIT-76-2500',
         'MAT-SIP-BOARD-KIT-124', 'MAT-SIP-BOARD-KIT-174', 'MAT-SIP-BOARD-KIT-224', 'MAT-TERRACE-BOARD-28-145',
-        'MAT-FLAT-OSB9', 'MAT-FLAT-HPP', 'MAT-FLAT-HKP', 'MAT-FLAT-DRAIN', 'MAT-FLAT-CSP12', 'MAT-FLAT-PRIMER'];
+        'MAT-FLAT-OSB9', 'MAT-FLAT-HPP', 'MAT-FLAT-HKP', 'MAT-FLAT-DRAIN', 'MAT-FLAT-CSP12', 'MAT-FLAT-PRIMER',
+        'MAT-FLAT-SELF-BASE', 'MAT-FLAT-SELF-TOP', 'MAT-FLAT-PRIMER-OSB'];
     $laborIds = ['LAB-FLAT-WATERPROOF', 'LAB-FLAT-CSP'];
     $newRows = array_values(array_filter($seed['priceMat'] ?? [], static fn($row) => in_array($row['id'] ?? '', $ids, true)));
     $newLabor = array_values(array_filter($seed['priceLab'] ?? [], static fn($row) => in_array($row['id'] ?? '', $laborIds, true)));
