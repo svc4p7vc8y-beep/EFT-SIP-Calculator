@@ -667,9 +667,9 @@ export function createDefaultProject() {
         showRafters: true,
         showLath: true,
         showCounterLath: false,
-        includeEaveTrim: true,
-        includeVergeTrim: true,
-        includeRidgeSeal: true,
+        includeEaveTrim: false,
+        includeVergeTrim: false,
+        includeRidgeSeal: false,
         includeGutter: false,
         snowGuards: { mode: "none", firstLength: null, secondLength: null, materialPrice: null, laborPrice: null },
         gableType: "auto",
@@ -1090,6 +1090,9 @@ export function migrateProject(raw) {
       },
       roof: {
         ...base.settings.roof,
+        ...(!Number.isFinite(savedVersion) || savedVersion < 309 ? {
+          includeEaveTrim:true,includeVergeTrim:true,includeRidgeSeal:true,
+        } : {}),
         ...(raw.settings?.roof || {}),
         snowGuards: { ...base.settings.roof.snowGuards, ...(raw.settings?.roof?.snowGuards || {}) },
         gableSideTypes: { ...base.settings.roof.gableSideTypes, ...(raw.settings?.roof?.gableSideTypes || {}) },

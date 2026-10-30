@@ -6,6 +6,7 @@ import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { useProject } from "../state/ProjectContext.jsx";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
+import {ROOF_FORM_OPTIONS,roofFormPatch,roofFormValue} from '../calculations/roof-form.js';
 import FlatRoofAssemblyFields from '../components/FlatRoofAssemblyFields.jsx';
 import { calculateSnowGuards, SNOW_GUARD_SOURCE } from '../calculations/snow-guards.js';
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
@@ -399,14 +400,9 @@ function RoofConstructionPanels({
           <div className="form-grid four">
             <SelectField
               label="Форма основной кровли"
-              value={project.settings.roof.shape || "gable"}
+              value={roofFormValue(project.settings.roof)}
               onChange={(value) => setSetting("roof", "shape", value)}
-              options={[
-                { value: "gable", label: "Двускатная" },
-                { value: 'tiered', label: 'Два односкатных уровня' },
-                { value: "hip", label: "Вальмовая" },
-                { value: "flat", label: "Плоская" },
-              ]}
+              options={ROOF_FORM_OPTIONS}
             />
             {!isFlatRoof ? (
               <SelectField
@@ -430,12 +426,12 @@ function RoofConstructionPanels({
                 if (!value) setSetting("roof", "showCounterLath", false);
               }}
             />
-            {project.settings.roof.includeCovering !== false ? <SelectField
+            {project.settings.roof.includeCovering !== false && (!isFlatRoof || project.settings.roof.flatCoverSystem !== 'bitumen') ? <SelectField
               label="Кровельное покрытие"
               value={project.settings.roof.covering || "profile"}
               onChange={(value) => setSetting("roof", "covering", value)}
               options={ROOF_COVERINGS}
-            /> : <div className="readout"><span>Кровельное покрытие</span><strong>Не учитывается</strong></div>}
+            /> : <div className="readout"><span>Кровельное покрытие</span><strong>{project.settings.roof.includeCovering === false?'Не учитывается':'Рулонная система плоской кровли'}</strong></div>}
             <SelectField
               label="Тип кровли"
               value={project.settings.roof.type}
@@ -860,7 +856,7 @@ function RoofConstructionPanels({
             <Toggle
               label="Карнизные планки"
               hint={`${formatNumber(calculation.roof.mainEaveTrimPurchaseLength)} м с запасом`}
-              checked={project.settings.roof.includeEaveTrim !== false}
+              checked={project.settings.roof.includeEaveTrim === true}
               onChange={(value) =>
                 setSetting("roof", "includeEaveTrim", value)
               }
@@ -868,15 +864,15 @@ function RoofConstructionPanels({
             {roofVisibility.showVergeTrim ? <Toggle
               label="Торцевые (ветровые) планки"
               hint={`${formatNumber(calculation.roof.mainVergeTrimPurchaseLength)} м с запасом`}
-              checked={project.settings.roof.includeVergeTrim !== false}
+              checked={project.settings.roof.includeVergeTrim === true}
               onChange={(value) =>
                 setSetting("roof", "includeVergeTrim", value)
               }
             /> : null}
-            {!isTieredRoof ? <Toggle
+            {roofVisibility.showRidgeSeal ? <Toggle
               label="Уплотнитель под конёк"
               hint="Коньковая планка при этом остаётся"
-              checked={project.settings.roof.includeRidgeSeal !== false}
+              checked={project.settings.roof.includeRidgeSeal === true}
               onChange={(value) =>
                 setSetting("roof", "includeRidgeSeal", value)
               }
@@ -1171,7 +1167,8 @@ export default function Calculators({ type, onNavigate }) {
       if (group === 'internal' && next.settings.links.internalFinishFromPlan !== false) {
         Object.assign(next.settings.internal, calculation.inputs.internal);
       }
-      next.settings[group][key] = value;
+      if (group === 'roof' && key === 'shape') Object.assign(next.settings.roof,roofFormPatch(next.settings.roof,value));
+      else next.settings[group][key] = value;
       if (group === "sip") synchronizeWallThickness(next,key);
       if (group === "roof" && !key.startsWith("show"))
         releasePlanLinkedQuantityOverrides(next);

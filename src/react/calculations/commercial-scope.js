@@ -1,7 +1,7 @@
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { EXTERIOR_TYPES } from './exterior-model.js';
 import { isInteriorDoor } from './opening-types.js';
-import { isEstimateAccessory, isEstimateCutting } from './client-estimate.js';
+import { buildClientEstimate, isEstimateAccessory, isEstimateCutting } from './client-estimate.js';
 import { constructionDescription, internalDescription } from './proposal-description.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
@@ -192,6 +192,7 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
 }
 
 export function buildCommercialScope(project, calculation, options = {}) {
+  const clientSections = new Map(buildClientEstimate(calculation, options).sections.map(section => [section.key, section]));
   return calculation.sections.map(section => ({ ...section, lines: section.lines.filter(line =>
     Number(line.qty) > 0 &&
     (options.includeLabor !== false || line.kind !== 'labor' || isEstimateCutting(line)) &&
@@ -213,7 +214,7 @@ export function buildCommercialScope(project, calculation, options = {}) {
       details: exclusions ? `Комплектация по выбранным параметрам проекта. ${exclusions}` : description.details,
       expanded: `${groups.length && !description.blocks ? `Учтённые части раздела: ${groups.join('; ')}. ` : ''}${breakdown}`,
       coverage: [...sectionCoverage(section.lines), ...estimateGroups],
-      total: formatMoney(sectionAmount(section.lines))
+      total: formatMoney(sectionAmount(clientSections.get(section.key)?.lines || section.lines))
     };
   });
 }

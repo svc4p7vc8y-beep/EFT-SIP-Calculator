@@ -6,8 +6,8 @@ import {calculateProductionCutting} from '../src/react/calculations/production-c
 import {roofAxonometricLines,snapAssemblyPoint} from '../src/react/calculations/roof-drawings.js';
 const run=p=>calculateProductionCutting(p,calculateProject(p));
 
-test('roof drawings preserve default quantities, estimate and project inputs',()=>{
- const p=createDefaultProject();p.settings.piles.screwPileVariant='legacy';
+test('roof drawings preserve legacy accessory quantities, estimate and project inputs',()=>{
+ const p=createDefaultProject();p.settings.piles.screwPileVariant='legacy';Object.assign(p.settings.roof,{includeEaveTrim:true,includeVergeTrim:true,includeRidgeSeal:true});
  const before=structuredClone(p),c=calculateProject(p),r=run(p);
  assert.ok(Math.abs(c.totals.total-3774073.89248)<.001);assert.equal(r.assembly.rafters.length,34);assert.ok(r.assembly.laths.length>88);
  assert.equal(r.assembly.roofDrawing.sections.length,2);assert.deepEqual(p,before);

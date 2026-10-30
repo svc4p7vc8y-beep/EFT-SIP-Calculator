@@ -578,7 +578,9 @@ test('client estimate can exclude labor or accessories without changing manager 
 });
 
 test('maximum compact client estimate groups roof lumber, fasteners, trims and labor without changing total', () => {
-  const calculation = calculateProject(createDefaultProject());
+  const project = createDefaultProject();
+  Object.assign(project.settings.roof, { includeEaveTrim: true, includeVergeTrim: true, includeRidgeSeal: true });
+  const calculation = calculateProject(project);
   const client = buildClientEstimate(calculation, {
     includeLabor: true,
     includeAccessories: true,
@@ -680,6 +682,7 @@ test('cold roof defaults to 50x150 rafters and includes cold gables', () => {
 
 test('gable roof uses a full-perimeter SIP mauerlat and adds the ridge board to matching rafter material', () => {
   const project = createDefaultProject();
+  Object.assign(project.settings.roof, { includeEaveTrim: true, includeVergeTrim: true, includeRidgeSeal: true });
   const result = calculateProject(project);
   const houseLength = project.plan.house.w;
   const perimeter = 2 * (project.plan.house.w + project.plan.house.h) - 0.6;
@@ -897,6 +900,7 @@ test('warm terrace gables add SIP cutting, adhesive and structural fasteners', (
 
 test('terrace roof adds its slopes, posts and optional gable to the roof estimate', () => {
   const project = createDefaultProject();
+  Object.assign(project.settings.roof, { includeEaveTrim: true, includeVergeTrim: true, includeRidgeSeal: true });
   const terrace = project.plan.platforms[0];
   terrace.roof.mode = 'cold';
   terrace.roof.shape = 'gable';

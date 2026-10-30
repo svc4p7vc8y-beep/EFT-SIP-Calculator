@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useI
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
-import FloatingPlan3D from '../components/FloatingPlan3D.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
 import { roomBearingEdges } from '../calculations/bearing-walls.js';
 import { convertToWallLayout, rebuildWallRooms, addRoomWalls, wallDepth } from '../planner/wall-layout.js';
@@ -88,6 +87,7 @@ import { buildCommercialScope } from "../calculations/commercial-scope.js";
 import { attachedHouseContour, shiftPlanContents } from '../planner/attached-contour.js';
 import { referenceBuildingContour, newHouseAtExistingCorner } from '../planner/existing-building.js';
 import { roofControlVisibility } from "../calculations/roof-control-visibility.js";
+import {ROOF_FORM_OPTIONS,roofFormPatch,roofFormValue} from '../calculations/roof-form.js';
 import FlatRoofAssemblyFields from '../components/FlatRoofAssemblyFields.jsx';
 import { RoomNameField } from "../components/RoomNameField.jsx";
 import {
@@ -3056,14 +3056,9 @@ function RoofLayerInspector({ roof, commitRoof }) {
       <h3>Кровля · вид сверху</h3>
       <SelectField
         label="Форма основной кровли"
-        value={roof.shape || "gable"}
+        value={roofFormValue(roof)}
         onChange={(value) => commitRoof("shape", value)}
-        options={[
-          { value: "gable", label: "Двускатная" },
-          { value: "tiered", label: "Два односкатных уровня" },
-          { value: "hip", label: "Вальмовая" },
-          { value: "flat", label: "Плоская" },
-        ]}
+        options={ROOF_FORM_OPTIONS}
       />
       {roof.shape !== "flat" ? (
         <SelectField
@@ -3263,20 +3258,20 @@ function RoofLayerInspector({ roof, commitRoof }) {
           checked={roof.showCounterLath === true}
           onChange={(value) => commitRoof("showCounterLath", value)}
         /> : null}
-        <Toggle
+        {visibility.showGutter ? <Toggle
           label="Водосточная система"
           checked={roof.includeGutter === true}
           onChange={(value) => commitRoof("includeGutter", value)}
-        />
-        <Toggle
+        /> : null}
+        {visibility.showEaveTrim ? <Toggle
           label="Карнизные планки"
-          checked={roof.includeEaveTrim !== false}
+          checked={roof.includeEaveTrim === true}
           onChange={(value) => commitRoof("includeEaveTrim", value)}
-        />
+        /> : null}
         {visibility.showVergeTrim ? (
           <Toggle
             label="Торцевые планки"
-            checked={roof.includeVergeTrim !== false}
+            checked={roof.includeVergeTrim === true}
             onChange={(value) => commitRoof("includeVergeTrim", value)}
           />
         ) : null}
@@ -5125,6 +5120,13 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const plan3DCameraRef=useRef(null);
   const [showPlan3D,setShowPlan3D]=useState(true);
   const [plan3DPlacement,setPlan3DPlacement]=useState('dock');
+  const [inspectorWidth,setInspectorWidth]=useState(()=>{try{return Math.min(620,Math.max(280,Number(localStorage.getItem('eft-plan-inspector-width'))||360));}catch{return 360;}});
+  const [modelWidth,setModelWidth]=useState(()=>{try{return Math.min(620,Math.max(240,Number(localStorage.getItem('eft-plan-3d-width'))||340));}catch{return 340;}});
+  const plannerShellRef=useRef(null),paneResizeRef=useRef(null);
+  const startPaneResize=(event,side)=>{if(event.button!==0)return;event.preventDefault();paneResizeRef.current={side,x:event.clientX,width:side==='inspector'?inspectorWidth:modelWidth};event.currentTarget.setPointerCapture(event.pointerId);};
+  const movePaneResize=event=>{const drag=paneResizeRef.current;if(!drag)return;const shellWidth=plannerShellRef.current?.clientWidth||1200,delta=event.clientX-drag.x;const sideBySide=typeof window!=='undefined'&&window.matchMedia('(min-width: 1401px)').matches;const modelSpace=plan3DPlacement==='split'&&sideBySide?modelWidth+8:0;const limit=drag.side==='inspector'?shellWidth-100-modelSpace-320:shellWidth-100-inspectorWidth-320-16;const value=Math.round(Math.max(drag.side==='inspector'?280:240,Math.min(Math.max(drag.side==='inspector'?280:240,limit),drag.width+(drag.side==='inspector'?-delta:delta))));if(drag.side==='inspector')setInspectorWidth(value);else setModelWidth(value);};
+  const finishPaneResize=()=>{paneResizeRef.current=null;};
+  useEffect(()=>{try{localStorage.setItem('eft-plan-inspector-width',String(inspectorWidth));localStorage.setItem('eft-plan-3d-width',String(modelWidth));}catch{/* Layout remains usable without local storage. */}},[inspectorWidth,modelWidth]);
   const [inspectorTab,setInspectorTab]=useState('house');
   const [calculationParametersOpen,setCalculationParametersOpen]=useState(false);
   const [directEstimatePrint,setDirectEstimatePrint]=useState(false);
@@ -5239,7 +5241,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const commitRoof = useCallback(
     (key, value) =>
       commit((next) => {
-        next.settings.roof[key] = value;
+        if (key === 'shape') Object.assign(next.settings.roof,roofFormPatch(next.settings.roof,value));
+        else next.settings.roof[key] = value;
         if (key === "includeCovering") {
           next.settings.roof.showRoofCover = value;
           next.settings.roof.showLath = value;
@@ -6379,7 +6382,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </button>
         </div>
       </div>
-      <div className={`planner-shell${isPlanFullscreen ? " is-fullscreen" : ""}${isPlanFullscreen && !showFullscreenInspector ? " inspector-collapsed" : ""}`}>
+      <div ref={plannerShellRef} style={{'--plan-inspector-width':`${inspectorWidth}px`,'--plan-model-width':`${modelWidth}px`}} className={`planner-shell${plan3DPlacement==='split'&&showPlan3D?' three-pane':''}${isPlanFullscreen ? " is-fullscreen" : ""}${isPlanFullscreen && !showFullscreenInspector ? " inspector-collapsed" : ""}`}>
         <aside className="planner-tools">
           {TOOLS.filter(([id]) => id === "select").map(([id, label, Icon]) => (
             <div className="planner-tools-fixed" key={id}>
@@ -6441,6 +6444,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </div>
           ))}
         </aside>
+        {plan3DPlacement==='split'&&showPlan3D?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
         <div className="planner-canvas" ref={plannerCanvasRef}>
           <div className="plan-layer-tabs" aria-label="Слои проекта">
             {[
@@ -6520,9 +6524,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
           </div>
-          {showPlan3D && plan3DPlacement === 'floating' ? <FloatingPlan3D containerRef={plannerCanvasRef} size={plan3DSize} onSizeChange={setPlan3DSize}>
-            <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense>
-          </FloatingPlan3D> : null}
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
             sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
@@ -6568,22 +6569,23 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 : toolHint}
           </div>
         </div>
+        <div className="plan-pane-resizer inspector-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину панели параметров" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'inspector')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setInspectorWidth(value=>Math.max(280,value+(event.key==='ArrowLeft'?20:-20)));}}}/>
         <aside className="planner-inspector" ref={inspectorRef}>
-          <div className="plan-right-3d" aria-label="3D и параметры дома">
+          {plan3DPlacement==='dock'?<div className="plan-right-3d" aria-label="3D и параметры дома">
             <div className="plan-right-3d-heading">
               <div><strong>Дом в 3D</strong><small>Текущий проект · изменения отображаются здесь</small></div>
               <div className="plan-right-3d-actions">
-                {plan3DPlacement === 'floating' ? <button type="button" onClick={() => setPlan3DPlacement('dock')}>Вернуть справа</button> : <button type="button" onClick={() => {setPlan3DSize('large');setPlan3DPlacement('floating');}} disabled={!showPlan3D}>Открепить</button>}
+                <button type="button" onClick={() => {setPlan3DSize('large');setPlan3DPlacement('split');}} disabled={!showPlan3D}>Открепить</button>
                 <button type="button" onClick={() => setShowPlan3D((value) => !value)}>{showPlan3D ? 'Скрыть' : 'Показать'}</button>
               </div>
             </div>
-            {showPlan3D && plan3DPlacement === 'dock' ? <div className={`plan-right-3d-view size-${plan3DSize}`}>
+            {showPlan3D ? <div className={`plan-right-3d-view size-${plan3DSize}`}>
               <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense>
-            </div> : <p className="plan-right-3d-placeholder">{showPlan3D ? '3D-окно находится поверх плана.' : '3D-вид скрыт.'}</p>}
-            {showPlan3D && plan3DPlacement === 'dock' ? <div className="plan-right-3d-sizes" role="group" aria-label="Размер 3D-вида">
+            </div> : <p className="plan-right-3d-placeholder">3D-вид скрыт.</p>}
+            {showPlan3D ? <div className="plan-right-3d-sizes" role="group" aria-label="Размер 3D-вида">
               {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}
             </div> : null}
-          </div>
+          </div>:null}
           <div className="plan-right-tabs" role="group" aria-label="Настройки справа">
             <button type="button" aria-pressed={inspectorTab === 'house'} onClick={() => setInspectorTab('house')}>Параметры дома</button>
             <button type="button" aria-pressed={inspectorTab === 'element'} onClick={() => setInspectorTab('element')}>Конструкция / элемент</button>

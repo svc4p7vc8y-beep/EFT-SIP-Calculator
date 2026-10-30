@@ -7351,6 +7351,44 @@ select,
   .plan-screen-v2 .planner-shell.is-fullscreen .plan-stair-controls{top:266px}
   .plan-screen-v2 .planner-shell.is-fullscreen .planner-tools,.plan-screen-v2 .planner-shell.is-fullscreen .planner-inspector{padding-top:104px}
 }
+
+/* Adjustable plan workspace. On wide screens the detached model owns the left pane. */
+@media (min-width:1401px){
+  .plan-screen-v2 .planner-shell:not(.is-fullscreen),.plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed){grid-template-columns:88px minmax(0,1fr) 8px var(--plan-inspector-width)!important}
+  .plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen),.plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.three-pane.is-fullscreen:not(.inspector-collapsed){grid-template-columns:88px var(--plan-model-width) 8px minmax(0,1fr) 8px var(--plan-inspector-width)!important}
+  .plan-screen-v2 .planner-shell.is-fullscreen.inspector-collapsed{grid-template-columns:88px minmax(0,1fr)!important}
+  .plan-screen-v2 .planner-shell.three-pane.is-fullscreen.inspector-collapsed{grid-template-columns:88px var(--plan-model-width) 8px minmax(0,1fr)!important}
+}
+.plan-3d-pane{min-width:0;min-height:0;overflow:auto;border-right:1px solid #cbdacb;background:#fff;padding:8px}
+.plan-3d-pane-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px;font-size:12px}
+.plan-3d-pane-head>div{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.plan-3d-pane-head button{padding:5px 7px;border:1px solid #c8d8c2;border-radius:6px;background:#f4f8f1;color:#315d27;font-size:10px;cursor:pointer}
+.plan-3d-pane .production-3d-canvas{height:clamp(260px,38vh,520px)}
+.plan-3d-pane .production-3d-toolbar{flex-wrap:wrap}.plan-3d-pane .production-3d-toolbar strong{display:none}
+.plan-3d-pane .production-3d small{font-size:10px}
+.plan-pane-resizer{position:relative;min-width:8px;background:#e5eee1;cursor:col-resize;touch-action:none;outline-offset:-2px}
+.plan-pane-resizer::after{content:'';position:absolute;left:2px;top:42%;height:16%;min-height:35px;border-left:3px solid #86a578;border-radius:3px}
+.plan-pane-resizer:hover,.plan-pane-resizer:focus-visible{background:#d0e4c7}
+.planner-shell.inspector-collapsed .inspector-resizer{display:none}
+@media (min-width:701px) and (max-width:1400px){
+  .plan-screen-v2 .planner-shell:not(.is-fullscreen),.plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed){grid-template-columns:70px minmax(0,1fr) 8px minmax(280px,var(--plan-inspector-width))!important}
+  .plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen),.plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.three-pane.is-fullscreen:not(.inspector-collapsed){grid-template-columns:70px minmax(0,1fr) 8px minmax(280px,var(--plan-inspector-width))!important;grid-template-rows:minmax(235px,34%) minmax(0,1fr)}
+  .plan-screen-v2 .planner-shell.three-pane .planner-tools{grid-column:1;grid-row:1/span 2}
+  .plan-screen-v2 .planner-shell.three-pane .plan-3d-pane{grid-column:2;grid-row:1;border-bottom:1px solid #cbdacb}
+  .plan-screen-v2 .planner-shell.three-pane .model-resizer{display:none}
+  .plan-screen-v2 .planner-shell.three-pane .planner-canvas{grid-column:2;grid-row:2}
+  .plan-screen-v2 .planner-shell.three-pane .inspector-resizer{grid-column:3;grid-row:1/span 2}
+  .plan-screen-v2 .planner-shell.three-pane .planner-inspector{grid-column:4;grid-row:1/span 2}
+  .plan-screen-v2 .planner-shell.three-pane .plan-3d-pane .production-3d-canvas{height:180px}
+  .plan-screen-v2 .planner-shell.is-fullscreen.inspector-collapsed{grid-template-columns:70px minmax(0,1fr)!important}
+}
+@media (max-width:700px){
+  .plan-screen-v2 .plan-pane-resizer{display:none}
+  .plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen){grid-template-columns:1fr!important;grid-template-rows:64px minmax(230px,auto) 570px auto!important;height:auto!important}
+  .plan-screen-v2 .planner-shell.three-pane .plan-3d-pane{grid-row:2}
+  .plan-screen-v2 .planner-shell.three-pane .planner-canvas{grid-row:3}
+  .plan-screen-v2 .planner-shell.three-pane .planner-inspector{grid-row:4}
+}
 .project-tab-add,.project-tab-admin{display:flex;align-items:center;justify-content:center;gap:6px;flex:none;min-height:36px;padding:6px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-size:11px;font-weight:800;white-space:nowrap}
 .project-tab-add:hover,.project-tab-admin:hover{border-color:var(--green);background:var(--green-soft)}
 .project-tab-add svg,.project-tab-admin svg{width:15px;height:15px}

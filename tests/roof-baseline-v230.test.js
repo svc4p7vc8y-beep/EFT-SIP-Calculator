@@ -23,6 +23,8 @@ for(const scenario of cases)test(`v230 roof baseline: ${scenario.name}`,()=>{
   project.plan.house={w:8,h:6};project.plan.rooms=[];project.plan.openings=[];project.plan.platforms=[];
   project.settings.productionCutting.roofDesign.enabled=true;
   project.settings.roof.shape=scenario.shape;
+  // Keep the v230 accessory assumptions explicit; new projects now start with these options off.
+  Object.assign(project.settings.roof,{includeEaveTrim:true,includeVergeTrim:true,includeRidgeSeal:true});
   if(scenario.type)project.settings.roof.type=scenario.type;
   if(scenario.flatSlopeMode){project.settings.roof.flatSlopeMode=scenario.flatSlopeMode;project.settings.roof.flatSlopePercent=5;}
   if(scenario.lShaped){project.plan.house={w:10,h:8,points:[[0,0],[10,0],[10,4],[4,4],[4,8],[0,8]].map(([x,y])=>({x,y}))};project.settings.roof.eaveOverhang=0;project.settings.roof.gableOverhang=0;}

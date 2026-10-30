@@ -15,10 +15,13 @@ export function roofControlVisibility(roof = {}) {
     showRafterSystem: hasTimberStructure && !isFlat && !isTiered,
     showRafterDimensions: hasTimberStructure,
     showSipFrame: hasSipStructure,
-    showMauerlat: true,
+    showMauerlat: type !== 'sip' && !(type === 'combo' && Number(roof.warmPercent) >= 100),
     showRafterSupport: hasTimberStructure,
     showGableOverhang: shape !== "hip",
     showMainAccessories: !isFlat && includeCovering,
-    showVergeTrim: isGable || isTiered,
+    showEaveTrim: !isFlat && includeCovering,
+    showRidgeSeal: (isGable || shape === 'hip') && includeCovering,
+    showGutter: !isFlat && includeCovering,
+    showVergeTrim: (isGable || isTiered) && includeCovering,
   };
 }

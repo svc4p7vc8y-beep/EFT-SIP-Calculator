@@ -11,6 +11,7 @@ function roofCase(system, shape = 'gable') {
   project.settings.roof.structureMode = 'manual';
   project.settings.roof.rafterSystem = system;
   project.settings.roof.shape = shape;
+  Object.assign(project.settings.roof, { includeEaveTrim: true, includeVergeTrim: true, includeRidgeSeal: true });
   return calculateProject(project);
 }
 

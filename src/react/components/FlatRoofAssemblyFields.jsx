@@ -4,17 +4,18 @@ import { NumberField, SelectField } from './ui.jsx';
 export default function FlatRoofAssemblyFields({ roof, onChange }) {
   if (roof.shape !== 'flat') return null;
   const parapet = roof.flatParapetMode || 'none';
+  const hasParapet = ['flashing','closed','open'].includes(parapet);
   const bitumen = roof.flatCoverSystem === 'bitumen';
+  const includeCovering = roof.includeCovering !== false;
   const deck = roof.flatDeckMaterial === 'osb' ? 'osb' : 'csp';
   return <div className="flat-roof-assembly">
-    <h4>Парапет и покрытие плоской кровли</h4>
-    <SelectField label="Ограждение кровли" value={parapet} onChange={value => onChange('flatParapetMode', value)} options={[
-      { value: 'none', label: 'Без парапета · прежний расчёт' },
+    <h4>{hasParapet?'Парапет и покрытие':'Покрытие плоской кровли'}</h4>
+    {hasParapet ? <SelectField label="Вариант парапета" value={parapet} onChange={value => onChange('flatParapetMode', value)} options={[
       { value: 'flashing', label: 'Низкий парапет · листы и примыкание' },
       { value: 'closed', label: 'Закрытый парапет · водоотвод через стенку' },
       { value: 'open', label: 'Открыт со стороны ската' },
-    ]}/>
-    {parapet !== 'none' ? <>
+    ]}/> : null}
+    {hasParapet ? <>
       <NumberField label="Высота парапета от потолка" value={roof.flatParapetHeightMm ?? 900} suffix="мм" min={150} max={3000} step={50} onChange={value => onChange('flatParapetHeightMm', value)}/>
       {parapet === 'open' ? <>
         <SelectField label="Открытая сторона" value={roof.flatOpenSide || 'back'} onChange={value => { onChange('flatOpenSide', value); onChange('flatSlopeDirection', value); }} options={[
@@ -25,7 +26,7 @@ export default function FlatRoofAssemblyFields({ roof, onChange }) {
       </> : null}
       {parapet === 'closed' ? <NumberField label="Воронки через парапет" value={roof.flatDrainCount ?? 2} suffix="шт" min={1} max={20} step={1} onChange={value => onChange('flatDrainCount', value)}/> : null}
     </> : null}
-    <SelectField label="Настил и гидроизоляция" value={roof.flatCoverSystem || 'sheet'} onChange={value => onChange('flatCoverSystem', value)} options={[
+    {includeCovering ? <><SelectField label="Настил и гидроизоляция" value={roof.flatCoverSystem || 'sheet'} onChange={value => onChange('flatCoverSystem', value)} options={[
       {value:'sheet',label:'Листы по обрешётке · прежний расчёт'},
       {value:'bitumen',label:'Настил по обрешётке + рулонная гидроизоляция'},
     ]}/>
@@ -42,10 +43,10 @@ export default function FlatRoofAssemblyFields({ roof, onChange }) {
       <p>Под листами учитывается обрешётка 25×100 мм с выбранным шагом. {deck === 'osb' ? 'На ОСБ нижний рулон самоклеящийся Техноэласт С ЭМС, верхний — Техноэласт ЭКП. По документации производителя основание ОСБ должно быть не тоньше 12 мм.' : 'По ЦСП: праймер, нижний ХПП и верхний ХКП. Для наплавления производитель рекомендует два слоя ЦСП со смещением швов.'} Нахлёсты и примыкания входят в расход.</p>
       {deck === 'osb' && Number(roof.flatOsbThicknessMm) === 9 ? <p className="form-warning">ОСБ 9 мм не соответствует указанному производителем минимуму 12 мм для этой кровельной системы. Подбор и расчёт предварительные; подтвердите узел у конструктора.</p> : null}
       {deck === 'csp' && Number(roof.flatDeckLayers ?? 2) < 2 ? <p className="form-warning">Один слой ЦСП для наплавляемой системы не подтверждён типовой схемой производителя. Подтвердите узел у конструктора.</p> : null}
-      {parapet !== 'none' ? <>
+      {hasParapet ? <>
         <NumberField label="Подъём гидроизоляции на парапет" value={roof.flatWaterproofUpstandMm ?? 900} suffix="мм" min={0} max={3000} step={50} onChange={value => onChange('flatWaterproofUpstandMm', value)}/>
         <NumberField label="Спуск на наружную стену" value={roof.flatWaterproofOutsideMm ?? 100} suffix="мм" min={0} max={500} step={25} onChange={value => onChange('flatWaterproofOutsideMm', value)}/>
       </> : null}
-    </> : null}
+    </> : null}</> : <p>Покрытие и настил исключены из сметы.</p>}
   </div>;
 }

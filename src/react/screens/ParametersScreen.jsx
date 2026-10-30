@@ -6,6 +6,8 @@ import { Building2, CheckCircle2, ChevronDown, CircleAlert, DoorOpen, Home, Hous
 import { calculateTerraceRoof, resolveTerracePlatform } from "../../calculations/terrace-model.js";
 import { calculateProject } from "../calculations/estimate-engine.js";
 import { roofRafterControlValues } from "../calculations/roof-control-values.js";
+import {roofControlVisibility} from '../calculations/roof-control-visibility.js';
+import {ROOF_FORM_OPTIONS,roofFormPatch,roofFormValue} from '../calculations/roof-form.js';
 import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { SCREW_PILE_KITS } from "../data/foundation-kits.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
@@ -45,12 +47,6 @@ const roofCoverings = [
   { value: "profile-st15", label: "Профлист ST15" },
   { value: "metal-tile", label: "Металлочерепица" },
   { value: "soft", label: "Мягкая кровля + OSB" },
-];
-const roofShapes = [
-  { value: "gable", label: "Двускатная" },
-  { value: "tiered", label: "Два односкатных уровня" },
-  { value: "hip", label: "Вальмовая" },
-  { value: "flat", label: "Плоская" },
 ];
 const serviceGroups = [
   [
@@ -177,6 +173,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
   const [presetOpen, setPresetOpen] = useState(false);
   const calculation = useMemo(() => suppliedCalculation || calculateProject(project), [project, suppliedCalculation]);
   const rafterControls = roofRafterControlValues(project.settings.roof, calculation.roof);
+  const roofVisibility = roofControlVisibility(project.settings.roof);
   const { metrics, inputs } = calculation;
   const links = project.settings.links;
   const floorCount = Math.max(
@@ -279,7 +276,8 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
       keys.slice(0, -1).forEach((key) => {
         target = target[key];
       });
-      target[keys.at(-1)] = value;
+      if (path === 'settings.roof.shape') Object.assign(next.settings.roof,roofFormPatch(next.settings.roof,value));
+      else target[keys.at(-1)] = value;
       if (path.startsWith('settings.productionCutting.')) next.settings.productionCutting = normalizeProductionCutting(next.settings.productionCutting);
       if (path === "settings.roof.includeCovering") {
         next.settings.roof.showRoofCover = value;
@@ -1005,11 +1003,11 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           <Section
             id="roof"
             number="06"
-            title="Основная кровля"
+            title="Кровля"
             description="Форма, покрытие, свесы, стропильная система, обрешётка, фронтоны, доборы и слои."
           >
             <AutoLink
-              label="Длина конька из плана"
+              label={project.settings.roof.shape==='flat'?'Длина кровли из плана':'Длина конька из плана'}
               checked={links.roofRidgeFromPlan !== false}
               onChange={(value) =>
                 write("settings.links.roofRidgeFromPlan", value)
@@ -1024,14 +1022,17 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 onChange={(value) => write("settings.roof.includeCovering", value)}
               />
             </div>
-            {project.settings.roof.shape === 'flat' ? <FlatRoofAssemblyFields roof={project.settings.roof} onChange={(key,value)=>write(`settings.roof.${key}`,value)}/> : null}
             {fields([
               {
                 path: "settings.roof.shape",
                 label: "Форма",
                 type: "select",
-                options: roofShapes,
+                value:roofFormValue(project.settings.roof),
+                options: ROOF_FORM_OPTIONS,
               },
+            ])}
+            {project.settings.roof.shape === 'flat' ? <FlatRoofAssemblyFields roof={project.settings.roof} onChange={(key,value)=>write(`settings.roof.${key}`,value)}/> : null}
+            {fields([
               project.settings.roof.shape !== "flat" && {
                 path: "settings.roof.ridgeAxis",
                 label: project.settings.roof.shape === 'tiered' ? 'Направление линии стыка' : "Направление конька",
@@ -1078,7 +1079,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 1200,
                 step: 10,
               },
-              project.settings.roof.includeCovering !== false && {
+              project.settings.roof.includeCovering !== false && (project.settings.roof.shape !== 'flat' || project.settings.roof.flatCoverSystem !== 'bitumen') && {
                 path: "settings.roof.covering",
                 label: "Кровельное покрытие",
                 type: "select",
@@ -1094,7 +1095,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "combo", label: "Комбинированная" },
                 ],
               },
-              project.settings.roof.type !== "cold" && {
+              roofVisibility.showSipFrame && {
                 path: "settings.roof.sipFrameMode",
                 label: "Каркас SIP-кровли",
                 type: "select",
@@ -1111,7 +1112,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
               },
               {
                 path: "settings.roof.ridgeLength",
-                label: "Длина конька",
+                label: project.settings.roof.shape==='flat'?'Длина кровли':'Длина конька',
                 suffix: "м",
                 value: inputs.roof.ridgeLength,
                 disabled: links.roofRidgeFromPlan !== false,
@@ -1124,7 +1125,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 2,
                 step: 0.05,
               },
-              {
+              roofVisibility.showGableOverhang && {
                 path: "settings.roof.gableOverhang",
                 label: "Торцевой свес",
                 suffix: "м",
@@ -1144,7 +1145,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 100,
                 step: 5,
               },
-              {
+              roofVisibility.showRafterStructure && {
                 path: "settings.roof.structureMode",
                 label: "Режим",
                 type: "select",
@@ -1153,7 +1154,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "manual", label: "Ручной" },
                 ],
               },
-              {
+              roofVisibility.showRafterSystem && {
                 path: "settings.roof.rafterSystem",
                 label: "Стропильная система",
                 type: "select",
@@ -1165,7 +1166,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "truss", label: "Ферма" },
                 ],
               },
-              {
+              roofVisibility.showRafterDimensions && {
                 path: "settings.roof.rafterStep",
                 label: "Шаг стропил",
                 value: rafterControls.step,
@@ -1175,7 +1176,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 1.2,
                 step: 0.05,
               },
-              {
+              roofVisibility.showRafterDimensions && {
                 path: "settings.roof.rafterSection",
                 label: "Доска стропил",
                 type: "select",
@@ -1194,7 +1195,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 1.2,
                 step: 0.05,
               },
-              {
+              roofVisibility.showMauerlat && {
                 path: "settings.roof.mauerlatLayout",
                 label: "Схема мауэрлата",
                 type: "select",
@@ -1204,7 +1205,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "none", label: "Не учитывать" },
                 ],
               },
-              {
+              roofVisibility.showMauerlat && {
                 path: "settings.roof.mauerlatProfile",
                 label: "Сечение мауэрлата · плашмя",
                 type: "select",
@@ -1213,7 +1214,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "50x150", label: "Доска 50 × 150 мм" },
                 ],
               },
-              {
+              roofVisibility.showMauerlat && {
                 path: "settings.roof.mauerlatFastener",
                 label: "Крепление мауэрлата",
                 type: "select",
@@ -1223,7 +1224,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "none", label: "Не учитывать" },
                 ],
               },
-              {
+              roofVisibility.showRafterSupport && {
                 path: "settings.roof.rafterSupportConnection",
                 label: "Опора стропил",
                 type: "select",
@@ -1284,57 +1285,30 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             <div className="parameter-subgroup"><strong>Снегозадержатели</strong>
               {['flat', 'hip'].includes(project.settings.roof.shape) ? <p className="inspector-note">Для плоской и вальмовой кровли этот расчёт не применяется.</p> : null}
               <SelectField label="Скаты" value={project.settings.roof.snowGuards?.mode || 'none'} disabled={['flat', 'hip'].includes(project.settings.roof.shape)} options={[{ value: 'none', label: 'Не учитывать' }, { value: 'first', label: 'Первый скат' }, { value: 'second', label: 'Второй скат' }, { value: 'both', label: 'Оба ската' }]} onChange={mode => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, mode })} />
-              {['first', 'both'].includes(project.settings.roof.snowGuards?.mode) ? <NumberField label="Длина первого ската" value={calculation.roof.snowGuards?.firstLength ?? 0} suffix="м" min={0} step={0.1} onChange={firstLength => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, firstLength })} /> : null}
-              {['second', 'both'].includes(project.settings.roof.snowGuards?.mode) ? <NumberField label="Длина второго ската" value={calculation.roof.snowGuards?.secondLength ?? 0} suffix="м" min={0} step={0.1} onChange={secondLength => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, secondLength })} /> : null}
-              {project.settings.roof.snowGuards?.mode !== 'none' ? <details><summary>Цены снегозадержателей</summary>
+              {!['flat', 'hip'].includes(project.settings.roof.shape) && ['first', 'both'].includes(project.settings.roof.snowGuards?.mode) ? <NumberField label="Длина первого ската" value={calculation.roof.snowGuards?.firstLength ?? 0} suffix="м" min={0} step={0.1} onChange={firstLength => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, firstLength })} /> : null}
+              {!['flat', 'hip'].includes(project.settings.roof.shape) && ['second', 'both'].includes(project.settings.roof.snowGuards?.mode) ? <NumberField label="Длина второго ската" value={calculation.roof.snowGuards?.secondLength ?? 0} suffix="м" min={0} step={0.1} onChange={secondLength => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, secondLength })} /> : null}
+              {!['flat', 'hip'].includes(project.settings.roof.shape) && project.settings.roof.snowGuards?.mode !== 'none' ? <details><summary>Цены снегозадержателей</summary>
                 <NumberField label="Комплект 3 м" value={calculation.roof.snowGuards?.materialPrice ?? 0} suffix="₽/компл" min={0} disabled={Boolean(project.sharedPriceCatalog)} onChange={materialPrice => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, materialPrice })} />
                 <NumberField label="Монтаж" value={calculation.roof.snowGuards?.laborPrice ?? 0} suffix="₽/м" min={0} disabled={Boolean(project.sharedPriceCatalog)} onChange={laborPrice => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, laborPrice })} />
                 <button type="button" className="button secondary" onClick={() => write('settings.roof.snowGuards', { ...project.settings.roof.snowGuards, materialPrice: null, laborPrice: null })}>Вернуть цены прайса</button>
               </details> : null}
             </div>
             {calculation.roof.layeredRidgeLength > 0 ? <div className="roof-cost-warning"><strong>Наслонная система: опоры — по проекту</strong><span>В смете учтены верхний и нижний ряды конькового прогона 100×50 мм и монтаж обоих рядов. Стойки, опирание и несущая способность прогона определяются конструктором и в автоматическую смету не включены. Количество и цену можно изменить в ведомости проекта.</span></div> : null}
-            <div className="toggle-grid parameter-roof-toggles">
+            {roofVisibility.showMainAccessories ? <div className="toggle-grid parameter-roof-toggles">
               {[
-                ["includeEaveTrim", "Карнизные планки", true],
-                ["includeVergeTrim", "Торцевые планки", true],
-                ["includeRidgeSeal", "Уплотнитель конька", true],
-                ["includeGutter", "Водосток", false],
-              ].map(([key, label, defaultOn]) => (
+                roofVisibility.showEaveTrim && ["includeEaveTrim", "Карнизные планки"],
+                roofVisibility.showVergeTrim && ["includeVergeTrim", "Торцевые планки"],
+                roofVisibility.showRidgeSeal && ["includeRidgeSeal", "Уплотнитель конька"],
+                roofVisibility.showGutter && ["includeGutter", "Водосток"],
+              ].filter(Boolean).map(([key, label]) => (
                 <Toggle
                   key={key}
                   label={label}
-                  checked={
-                    defaultOn
-                      ? project.settings.roof[key] !== false
-                      : project.settings.roof[key] === true
-                  }
+                  checked={project.settings.roof[key] === true}
                   onChange={(value) => write(`settings.roof.${key}`, value)}
                 />
               ))}
-            </div>
-            <div className="parameter-layer-box">
-              <strong>Слои кровли на плане</strong>
-              <div className="toggle-grid">
-                {[
-                  ["includeCovering", "Кровельное покрытие", true],
-                  ["showMauerlat", "Мауэрлат", true],
-                  ["showRafters", "Стропила", true],
-                  ["showLath", "Обрешётка", true],
-                  ["showCounterLath", "Контробрешётка", false],
-                ].map(([key, label, defaultOn]) => (
-                  <Toggle
-                    key={key}
-                    label={label}
-                    checked={
-                      defaultOn
-                        ? project.settings.roof[key] !== false
-                        : project.settings.roof[key] === true
-                    }
-                    onChange={(value) => write(`settings.roof.${key}`, value)}
-                  />
-                ))}
-              </div>
-            </div>
+            </div> : null}
           </Section>
           <Section
             id="extensions"
