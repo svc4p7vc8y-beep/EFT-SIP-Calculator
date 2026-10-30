@@ -247,9 +247,17 @@ export function App() {
     () => calculateAdjustedPrice(project, calculation),
     [project, calculation],
   );
-  const estimatePriceModified = adjustedPrice.delta !== 0 ||
-    (project.estimateOverrides || []).length > 0 ||
-    (project.customEstimateLines || []).length > 0;
+  const estimatePriceModified = useMemo(()=>{
+    if(adjustedPrice.groups.some(group=>group.rule.materials!==0||group.rule.labor!==0))return true;
+    const overrides=project.estimateOverrides||[];
+    if(overrides.some(item=>item.price!==undefined)){
+      const baseline=calculateProject({...project,estimateOverrides:overrides.map(item=>{const copy={...item};delete copy.price;return copy;})},{nodeTypeRules:team.nodeTypeRules});
+      const prices=new Map(baseline.lines.map(line=>[line.id,Number(line.price)]));
+      if(calculation.lines.some(line=>prices.has(line.id)&&Math.abs(Number(line.price)-prices.get(line.id))>.005))return true;
+    }
+    const catalog=new Map([...(project.priceMat||[]),...(project.priceLab||[])].map(item=>[item.id,Number(item.price)]));
+    return (project.customEstimateLines||[]).some(line=>line.priceOverride!==undefined&&(!catalog.has(line.catalogId)||Math.abs(Number(line.priceOverride)-catalog.get(line.catalogId))>.005));
+  },[project,calculation,adjustedPrice,team.nodeTypeRules]);
   const priceChanges = useMemo(
     () => summarizePriceCatalogChanges(project),
     [project.priceMat, project.priceLab],

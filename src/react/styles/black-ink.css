@@ -20,3 +20,5 @@
   svg text, svg tspan { fill:#000 !important; }
 }
 .app:not([data-theme="dark"]) .estimate-screen .print-title *, .estimate-pdf-export .print-title *, #root .estimate-screen .print-title * { color:#fff !important; }
+
+.app:not([data-theme="dark"]) .header-totals .adjusted.is-modified strong{color:#b42318!important}.app:not([data-theme="dark"]) .header-totals .adjusted:not(.is-modified) strong{color:#2e6a29!important}
