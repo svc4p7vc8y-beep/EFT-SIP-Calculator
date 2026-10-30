@@ -30,3 +30,11 @@ test('excluded layer does not block printing for an unpriced row, and project am
   assert.equal(buildClientEstimate(calculation,options).totals.total,200);
   assert.equal(calculation.sections[0].lines[1].price,0);
 });
+
+test('gable selection is independent and material consolidation preserves quantities and money',()=>{
+ const c={sections:[{key:'roof',title:'Кровля',lines:[{id:'roof:gable-frame',name:'Каркас фронтона',kind:'material',qty:2,price:100,unit:'м³'},{id:'roof:rafters',name:'Стропила',kind:'material',qty:3,price:100,unit:'м³'}]},{key:'sip',title:'СИП',lines:[{id:'a',name:'Доска 45×145 · пол',catalogId:'wood',kind:'material',qty:2,price:200,unit:'м³'},{id:'b',name:'Доска 45×145 · потолок',catalogId:'wood',kind:'material',qty:3,price:200,unit:'м³'}]}]};
+ assert.notEqual(estimateLayerId(c.sections[0],c.sections[0].lines[0]),estimateLayerId(c.sections[0],c.sections[0].lines[1]));
+ const result=buildClientEstimate(c,{mergeConstructionMaterials:true});
+ assert.equal(result.totals.total,1500);
+ assert.equal(result.sections[0].lines.find(l=>l.catalogId==='wood').qty,5);
+});

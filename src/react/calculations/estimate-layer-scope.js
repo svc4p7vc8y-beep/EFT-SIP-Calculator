@@ -6,6 +6,7 @@ const ROLE_LABELS = { panel:'СИП-панели', timber:'Пиломатери�
 const ORDER = { foundation:0, sip:1, roof:2, terrace:3, openings:4, engineering:5, external:6, internal:7, delivery:8 };
 
 function stageForLine(section, line) {
+  if (/gable|фронтон/iu.test(`${line.id} ${line.estimateGroup||''} ${line.name}`)) return ['roof:gables','Фронтоны'];
   if (section.key === 'foundation') return /binding|обвязк/iu.test(`${line.id} ${line.name}`) ? ['foundation:binding','Обвязка фундамента'] : ['foundation:piles','Фундамент и разбивка осей'];
   if (section.key === 'sip') {
     const group = String(line.estimateGroup || 'Прочие СИП-конструкции');
@@ -13,7 +14,7 @@ function stageForLine(section, line) {
   }
   if (section.key === 'roof') {
     if (ROOF_FINISH.test(String(line.name || '')) && !TIMBER.test(String(line.name || ''))) return ['roof:cover','Покрытие и доборные элементы кровли'];
-    return ['roof:frame','Каркас кровли и фронтоны'];
+    return ['roof:frame','Каркас кровли'];
   }
   return [section.key,section.title];
 }

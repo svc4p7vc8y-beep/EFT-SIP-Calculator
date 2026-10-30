@@ -1,12 +1,13 @@
 import { formatMoney } from '../utils/format.js';
 
-export function EstimateLayerControls({ stages, options, total, onChange }) {
+export function EstimateLayerControls({ stages, options, total, onChange, onEnable }) {
   const excluded = new Set(options.excludedEstimateLayers || []);
   const toggle = (ids, enabled) => onChange([...new Set(enabled ? [...excluded].filter(id => !ids.includes(id)) : [...excluded, ...ids])],ids,enabled);
   const included = layer => !excluded.has(layer.id) && (layer.id.endsWith('|labor') ? options.includeLabor !== false : layer.id.endsWith('|accessory') ? options.includeAccessories !== false : true);
   return <section className="estimate-layer-controls no-print" aria-label="Слои состава сметы">
     <header><div><strong>Состав сметы · слои конструктива</strong><p>Выберите, что отправить клиенту. Расчёт проекта и исходная ведомость сохраняются; выбор применяется к смете, Excel, печати и PDF.</p></div><div className="estimate-layer-total"><span>Итого выбранного состава</span><strong>{formatMoney(total)}</strong><button type="button" className="button secondary" onClick={() => onChange([])}>Включить всё</button></div></header>
     <div className="estimate-layer-list">{stages.map(stage => {
+      if(!stage.layers.length)return <article className="estimate-layer-stage estimate-layer-missing" key={stage.key}><strong>{stage.title}</strong><p>Нет рассчитанных позиций. {stage.service?'Включите конструкцию для добавления в расчёт.':'Задайте тип фронтонов в разделе «Кровля»; для плоской кровли без перепада стен фронтоны не требуются.'}</p>{stage.service?<button type="button" className="button secondary" onClick={()=>onEnable(stage.service)}>Включить расчёт: {stage.title}</button>:null}</article>;
       const enabled = stage.layers.filter(included);
       const all = enabled.length === stage.layers.length;
       const amount = enabled.reduce((sum,layer)=>sum+layer.amount,0);

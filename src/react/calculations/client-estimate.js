@@ -159,7 +159,7 @@ export function buildClientEstimate(calculation, options = {}) {
   const compactAccessories = options.compactAccessories !== false;
   const maximumCompact = options.maximumCompact === true;
 
-  const sections = (calculation.sections || []).map((section) => {
+  let sections = (calculation.sections || []).map((section) => {
     const visible = section.lines.filter(
       (line) =>
         isEstimateLayerIncluded(section, line, options) &&
@@ -205,6 +205,14 @@ export function buildClientEstimate(calculation, options = {}) {
   }).filter((section) => section.lines.length)
     .map(section => maximumCompact ? { ...section, lines: mergeIdenticalEstimateLines(section.lines) } : section);
 
+  if (options.mergeConstructionMaterials) {
+    const collected=[];
+    sections=sections.map(section=>({...section,lines:section.lines.filter(line=>{
+      if(line.kind!=='material'||!(/сип-панел|доск|брус|пиломатериал|стропил|мауэрлат|обреш[её]тк/iu.test(line.name)))return true;
+      collected.push({...line,name:String(line.name).split(' · ')[0],estimateGroup:''});return false;
+    })})).filter(section=>section.lines.length);
+    if(collected.length)sections.unshift({key:'merged-materials',title:'Сводные панели и пиломатериал',lines:mergeIdenticalEstimateLines(collected)});
+  }
   const totals = sections.reduce(
     (sum, section) => {
       section.lines.forEach((line) => {
