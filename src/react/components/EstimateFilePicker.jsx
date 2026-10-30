@@ -1,3 +1,6 @@
+import FileThumbnail from './FileThumbnail.jsx';
+import {estimateFileUrl} from '../state/estimate-files.js';
+import {resolveEftApiUrl} from '../../shared/team-api.js';
 import { useEffect, useState } from 'react';
 import { ChevronRight, File, FileImage, Folder, X } from 'lucide-react';
 import { eftApi } from '../../shared/team-api.js';
@@ -56,7 +59,7 @@ export default function EstimateFilePicker({ onSelect, onClose, selectedFiles = 
           {folders.map(item => <button type="button" key={item.id} onClick={() => { setFolder(item.id); setQuery(''); }}><Folder /> {item.name}</button>)}
           {files.map(file => {
             const added = selectedFiles.some(item => item.source === file.source && item.sourceId === file.id);
-            return <button type="button" key={`${file.source}:${file.id}`} disabled={busyId !== '' || added} onClick={() => select(file)}>{isImage(file) ? <FileImage /> : <File />}<span>{file.original_name}<small>{file.source === 'crm' ? 'CRM · ' : ''}{isImage(file) ? 'Изображение в смету' : 'Ссылка на документ'}</small></span><strong>{added ? 'Добавлено' : busyId === file.id ? 'Добавляю…' : 'Добавить'}</strong></button>;
+            return <button type="button" key={`${file.source}:${file.id}`} disabled={busyId !== '' || added} onClick={() => select(file)}><FileThumbnail url={estimateFileUrl({source:file.source,sourceId:String(file.id)},resolveEftApiUrl())} mime={file.mime_type} name={file.original_name}/><span>{file.original_name}<small>{file.source === 'crm' ? 'CRM · ' : ''}{isImage(file) ? 'Изображение в смету' : 'Ссылка на документ'}</small></span><strong>{added ? 'Добавлено' : busyId === file.id ? 'Добавляю…' : 'Добавить'}</strong></button>;
           })}
           {!folders.length && !files.length && !(data?.questionnaireCount && !folder) ? <p>В этой папке файлов нет.</p> : null}
         </div>}

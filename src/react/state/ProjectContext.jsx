@@ -1,3 +1,4 @@
+import { readWorkspace, writeWorkspace } from './workspace-storage.js';
 import {
   createContext,
   useCallback,
@@ -30,8 +31,8 @@ export function ProjectProvider({ children }) {
       return saved?.owner === 'local' ? restoreProjectWorkspace(saved, fallback) : createProjectWorkspace(fallback);
     } catch { return createProjectWorkspace(fallback); }
   });
-  const [hydrated, setHydrated] = useState(!team.required);
-  const ownerRef = useRef(team.required ? null : 'local');
+  const [hydrated, setHydrated] = useState(false);
+  const ownerRef = useRef(null);
   const activeTab = workspace.tabs.find((tab) => tab.id === workspace.activeId) || workspace.tabs[0];
   const history = activeTab.history;
   const [saveState, setSaveState] = useState({
@@ -46,41 +47,33 @@ export function ProjectProvider({ children }) {
 
   useEffect(() => {
     if (!team.ready) return;
-    const owner = String(team.user?.id || 'local');
-    if (ownerRef.current === owner) return;
-    ownerRef.current = owner;
-    try {
-      const fallback = team.required ? createDefaultProject() : loadInitialProject();
-      const saved = JSON.parse(localStorage.getItem(`${PROJECT_TABS_KEY}:${owner}`) || 'null');
-      dispatch({ type: 'hydrate', saved: saved?.owner === owner ? saved : null, fallback });
-    } catch { dispatch({ type: 'hydrate', saved: null, fallback: team.required ? createDefaultProject() : loadInitialProject() }); }
-    setHydrated(true);
-  }, [team.ready, team.user?.id]);
+    const owner=String(team.user?.id||'local');
+    let active=true;
+    setHydrated(false);
+    readWorkspace(owner,`${PROJECT_TABS_KEY}:${owner}`).then(saved=>{
+      if(!active)return;
+      dispatch({type:'hydrate',saved,fallback:team.required?createDefaultProject():loadInitialProject()});
+      ownerRef.current=owner;
+      setHydrated(true);
+    });
+    return ()=>{active=false;};
+  },[team.ready,team.user?.id]);
 
   useEffect(() => {
-    if (!hydrated) return undefined;
-    const timer = window.setTimeout(() => {
-      try {
-        const snapshot = {
-          ...project,
-          savedAt: new Date().toISOString(),
-        };
-        const owner = String(team.user?.id || 'local');
-        localStorage.setItem(`${PROJECT_TABS_KEY}:${owner}`, JSON.stringify(serializeProjectWorkspace(workspace, owner)));
-        localStorage.setItem(REACT_AUTOSAVE_KEY, JSON.stringify(snapshot));
-        setSaveState({
-          status: "saved",
-          message: `Сохранено ${new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`,
-        });
-      } catch (error) {
-        setSaveState({
-          status: "error",
-          message: `Автосохранение недоступно: ${error.message}`,
-        });
-      }
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [workspace, project, hydrated, team.user?.id]);
+    const owner=String(team.user?.id||'local');
+    if(!hydrated||ownerRef.current!==owner)return;
+    let active=true;
+    const snapshot={...serializeProjectWorkspace(workspace,owner),savedAt:Date.now()};
+    const persist=()=>writeWorkspace(snapshot,`${PROJECT_TABS_KEY}:${owner}`);
+    persist().then(()=>{if(active)setSaveState({status:'saved',message:`Сохранено ${new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}`});}).catch(error=>{if(active)setSaveState({status:'error',message:`Не удалось сохранить рабочие проекты: ${error.message}`});});
+    // Legacy single-project recovery is best effort; full workspace is stored above.
+    try{localStorage.setItem(REACT_AUTOSAVE_KEY,JSON.stringify({...project,savedAt:new Date().toISOString()}));}catch{}
+    const flush=()=>{persist().catch(()=>{});};
+    const visibility=()=>{if(document.visibilityState==='hidden')flush();};
+    window.addEventListener('pagehide',flush);
+    document.addEventListener('visibilitychange',visibility);
+    return ()=>{active=false;window.removeEventListener('pagehide',flush);document.removeEventListener('visibilitychange',visibility);};
+  },[workspace,project,hydrated,team.user?.id]);
 
   useEffect(() => {
     if (!hydrated || !team.user || !team.current || team.current.id !== activeTab.serverId) return undefined;
