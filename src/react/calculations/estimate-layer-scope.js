@@ -23,7 +23,7 @@ function roleForLine(section, line) {
   if (isEstimateCutting(line)) return 'cutting';
   if (line.kind === 'labor') return 'labor';
   if (isEstimateAccessory(line)) return 'accessory';
-  if (section.key === 'sip' && /(?:^|:)panel-|сип-панел/iu.test(`${line.id} ${line.name}`)) return 'panel';
+  if (/сип-панел|(?:^|:)panel-|sip-panel/iu.test(`${line.id} ${line.name}`)) return 'panel';
   if (TIMBER.test(String(line.name || ''))) return 'timber';
   return 'material';
 }
@@ -43,7 +43,7 @@ export function estimateLayerStages(calculation) {
   for (const section of calculation.sections || []) for (const line of section.lines || []) {
     if (!(Number(line.qty) > 0)) continue;
     const [key,title] = stageForLine(section,line), role=roleForLine(section,line);
-    if (!stages.has(key)) stages.set(key,{key,title,sectionKey:section.key,layers:new Map()});
+    if (!stages.has(key)) stages.set(key,{key,title,sectionKey:key.startsWith('roof:')?'roof':section.key,layers:new Map()});
     const stage=stages.get(key);
     if (!stage.layers.has(role)) stage.layers.set(role,{id:`${key}|${role}`,title:ROLE_LABELS[role],count:0,amount:0});
     const layer=stage.layers.get(role);

@@ -38,3 +38,12 @@ test('gable selection is independent and material consolidation preserves quanti
  assert.equal(result.totals.total,1500);
  assert.equal(result.sections[0].lines.find(l=>l.catalogId==='wood').qty,5);
 });
+
+test('warm SIP roofing panels remain priced in client estimate and have a panel layer',()=>{
+ const p=createDefaultProject();p.settings.roof.type='sip';
+ const c=calculateProject(p),roof=c.sections.find(s=>s.key==='roof');
+ const panel=roof.lines.find(l=>l.id==='roof:sip-panel');
+ assert.ok(panel.qty>0&&panel.price>0);
+ assert.ok(estimateLayerId(roof,panel).endsWith('|panel'));
+ assert.ok(buildClientEstimate(c).sections.find(s=>s.key==='roof').lines.some(l=>l.id===panel.id));
+});

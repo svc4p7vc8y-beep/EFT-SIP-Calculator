@@ -727,7 +727,7 @@ export function App() {
         <button className="project-tab-add" onClick={newProject} title="Новый проект в отдельной вкладке" aria-label="Новая вкладка проекта"><Plus /><span>Новый проект</span></button>
         {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
       </div>
-      <div className={`app-layout${['plan', 'placement'].includes(active) ? ' plan-app-layout' : ''}${active === 'placement' ? ' placement-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      <div className={`app-layout${['plan', 'placement', 'estimate'].includes(active) ? ' plan-app-layout' : ''}${active === 'placement' ? ' placement-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <button className="sidebar-desktop-toggle" onClick={() => setSidebarCollapsed(value => !value)} title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <ChevronRight/> : <ChevronLeft/>}<span>{sidebarCollapsed ? 'Развернуть' : 'Свернуть'}</span></button>
           <div className="sidebar-mobile-head">
@@ -872,7 +872,7 @@ export function App() {
             </Suspense>
           </ScreenErrorBoundary>
         </main>
-        {['plan', 'placement'].includes(active) || (team.user && team.priceCatalog.status !== 'ready') ? null : <ProjectSummarySidebar
+        {['plan', 'placement', 'estimate'].includes(active) || (team.user && team.priceCatalog.status !== 'ready') ? null : <ProjectSummarySidebar
           project={project}
           calculation={calculation}
           onNavigate={setActive}
