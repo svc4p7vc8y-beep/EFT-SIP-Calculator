@@ -3806,7 +3806,6 @@ select,
 .team-user-edit-dialog .team-user-active { display: flex; align-items: center; gap: 9px; }
 .team-user-edit-dialog .password-input { width: 100%; }
 @media (max-width: 700px) { .estimate-images-grid { grid-template-columns: 1fr; } }
-@page estimate-image-landscape { size: A4 landscape; margin: 10mm; }
 @media print {
   .estimate-images:has(.estimate-images-grid) { break-before: page; page-break-before: always; }
   .estimate-images-grid:has(.is-full-page) { display: block; }
@@ -3814,19 +3813,18 @@ select,
   .estimate-images figure { margin: 0 0 8mm; }
   .estimate-images figure img { max-height: 95mm; }
   .estimate-images figure.is-full-page {
-    page: estimate-image-landscape;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     justify-content: center;
     width: 100%;
-    height: 185mm;
+    height: 267mm;
     margin: 0;
     padding: 3mm;
     break-before: page;
     break-after: page;
   }
-  .estimate-images figure.is-full-page img { width: 100%; max-height: 167mm; object-fit: contain; }
+  .estimate-images figure.is-full-page img { width: 100%; max-height: 249mm; object-fit: contain; }
   .estimate-images figure.is-full-page figcaption { flex: none; margin-top: 2mm; font-size: 10pt; }
 }
 .print-diagram-options small { display: block; color: var(--muted); margin-top: 4px; font-size: 11px; }
@@ -7465,3 +7463,25 @@ select,
 .estimate-pdf-export .pdf-section-total{display:flex;justify-content:space-between;padding:7px 5px;border-top:1px solid #c8d8ca;background:#edf5ee;font-size:10px;font-weight:800}
 .estimate-pdf-export .pdf-section-total strong{flex:none;white-space:nowrap}
 @media print{.estimate-screen .print-title{display:grid;grid-template-columns:minmax(0,1fr) 85mm;align-items:start;gap:3mm}.estimate-screen .print-title h1{line-height:1.25;margin:0 0 2mm}.estimate-screen .print-title>div:last-child>strong{display:block;line-height:1.35}.estimate-screen .estimate-section{break-inside:auto}.estimate-screen .estimate-section h2{break-after:avoid}.estimate-screen .estimate-preview-table thead{display:table-header-group}.estimate-screen .estimate-preview-table tr{break-inside:avoid;page-break-inside:avoid}}
+
+.estimate-layer-controls{margin:0 0 16px;padding:16px;border:1px solid #bed3bd;border-radius:13px;background:#f7faf5}
+.estimate-layer-controls>header{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px}
+.estimate-layer-controls>header strong{font-size:16px}.estimate-layer-controls>header p{margin:4px 0 0;font-size:12px;color:var(--muted);line-height:1.4}
+.estimate-layer-total{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;white-space:nowrap}.estimate-layer-total>span{font-size:11px;color:#526b53}.estimate-layer-total>strong{font-size:16px;color:#285e37}
+.estimate-layer-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.estimate-layer-stage{min-width:0;border:1px solid #d1decf;border-radius:9px;background:#fff}
+.estimate-layer-stage summary{display:flex;align-items:center;gap:10px;padding:11px;cursor:pointer;list-style:none}
+.estimate-layer-stage summary::-webkit-details-marker{display:none}.estimate-layer-stage summary:after{content:'⌄';font-size:18px;color:#52764c}.estimate-layer-stage[open] summary:after{transform:rotate(180deg)}
+.estimate-layer-stage summary>span{display:grid;gap:2px;min-width:0;flex:1}.estimate-layer-stage summary strong{font-size:13px}.estimate-layer-stage summary small,.estimate-layer-roles small{font-size:11px;color:#667b69}.estimate-layer-stage summary b{font-size:13px;white-space:nowrap}
+.estimate-layer-stage input{width:18px;height:18px;accent-color:#548238;flex:none}.estimate-layer-roles{padding:0 10px 10px;border-top:1px solid #e7eee5}
+.estimate-layer-roles label{display:flex;align-items:center;gap:9px;padding:8px 1px;border-bottom:1px solid #edf1eb;min-height:38px}.estimate-layer-roles label:last-child{border-bottom:0}.estimate-layer-roles label span{display:grid;flex:1;font-size:12px;min-width:0}.estimate-layer-roles label strong{white-space:nowrap;font-size:12px}
+@media(max-width:850px){.estimate-layer-list{grid-template-columns:1fr}}@media(max-width:430px){.estimate-layer-controls>header{flex-direction:column}.estimate-layer-stage summary b{font-size:11px}}
+.estimate-screen .print-title{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center;padding:20px 22px;border:0;border-radius:10px;background:linear-gradient(120deg,#173c31,#286348);color:#fff;break-inside:avoid}
+.estimate-screen .print-brand{align-items:center}.estimate-screen .print-brand img{width:82px;height:62px;object-fit:contain;background:#fff;border-radius:7px;padding:5px}
+.estimate-screen .print-brand strong{font-size:15px;line-height:1.2}.estimate-screen .print-brand span,.estimate-screen .print-title-project>span,.estimate-screen .print-brand-contacts span{color:#d9e9dc;font-size:11px}
+.estimate-screen .print-title-project{text-align:right}.estimate-screen .print-title-project h1{font-size:21px;line-height:1.18;margin:4px 0;color:#fff}.estimate-screen .print-title-project strong{font-size:12px}
+.estimate-screen .print-brand-contacts{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:12px;border-top:1px solid #77a18b;text-align:left!important}.estimate-screen .print-brand-contacts strong{font-size:12px}.estimate-screen .print-brand-contacts span:last-child{font-size:12px;color:#fff}
+.estimate-screen .print-brand-contacts strong,.estimate-screen .print-brand-contacts span:last-child{white-space:nowrap}.estimate-pdf-export .print-brand-contacts strong{font-size:10px}
+@media(max-width:600px){.estimate-screen .print-title{grid-template-columns:1fr}.estimate-screen .print-title-project{text-align:left}.estimate-screen .print-brand-contacts{display:grid}}
+.estimate-pdf-export .print-title{grid-template-columns:1fr 1fr}.estimate-pdf-export .print-title>div:last-child{text-align:left}.estimate-pdf-export .print-title h1{font-size:21px;color:#fff}
+@media print{.estimate-screen .print-title{grid-template-columns:1fr 1fr;gap:3mm;padding:5mm;border-radius:2mm}.estimate-screen .print-brand-contacts{grid-column:1/-1}.estimate-screen .print-title h1{font-size:15pt;color:#fff}}

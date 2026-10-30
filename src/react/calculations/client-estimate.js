@@ -1,13 +1,6 @@
-const ACCESSORY_ID_PARTS = [
-  ":foam-",
-  ":fasteners-",
-  ":seam-screws-",
-  ":edge-screws-",
-  ":spiral-",
-];
-
-const ACCESSORY_NAME =
-  /(саморез|гвозд|глухар|анкер|болт|гайк|шайб|дюбел|(?:^|[^\p{L}])скоб(?:а|ы|у|ой|ами|ок)(?:$|[^\p{L}])|уголок|пластин|креп[её]ж|пеноклей|монтажн(?:ая|ой) пен|герметик|уплотнител|уплотнительн.*лент)/iu;
+import { isEstimateLayerIncluded } from './estimate-layer-scope.js';
+import { isEstimateAccessory, isEstimateCutting } from './estimate-line-types.js';
+export { isEstimateAccessory, isEstimateCutting } from './estimate-line-types.js';
 
 const KIT_NAMES = {
   "Пол": "Комплект для сборки пола",
@@ -20,27 +13,15 @@ const KIT_NAMES = {
   "Перегородки 2 этажа": "Комплект для сборки перегородок 2 этажа",
 };
 
-export function isEstimateAccessory(line = {}) {
-  if (line.kind !== "material") return false;
-  const id = String(line.id || "");
-  return (
-    ACCESSORY_ID_PARTS.some((part) => id.includes(part)) ||
-    ACCESSORY_NAME.test(String(line.name || ""))
-  );
-}
-
-export function isEstimateCutting(line = {}) {
-  return /раскрой/iu.test(String(line.name || '')) || /(?:^|:)cut-|sip-cut/.test(String(line.id || ''));
-}
-
 // Validate final project prices before grouping, and only for rows sent to the client.
 export function unpricedClientLines(calculation, options = {}) {
-  return (calculation.lines || []).filter((line) =>
+  return (calculation.sections || [{key:'',title:'',lines:calculation.lines||[]}]).flatMap(section => section.lines.filter((line) =>
     Number(line.qty) > 0 &&
+    isEstimateLayerIncluded(section, line, options) &&
     (options.includeLabor !== false || line.kind !== 'labor' || isEstimateCutting(line)) &&
     (options.includeAccessories !== false || !isEstimateAccessory(line)) &&
     (!Number.isFinite(Number(line.price)) || Number(line.price) <= 0)
-  );
+  ));
 }
 
 const kitName = (section, group) =>
@@ -181,6 +162,7 @@ export function buildClientEstimate(calculation, options = {}) {
   const sections = (calculation.sections || []).map((section) => {
     const visible = section.lines.filter(
       (line) =>
+        isEstimateLayerIncluded(section, line, options) &&
         (includeLabor || line.kind !== "labor" || isEstimateCutting(line)) &&
         (includeAccessories || !isEstimateAccessory(line)),
     );

@@ -2,6 +2,7 @@ import { formatMoney, formatNumber } from '../utils/format.js';
 import { EXTERIOR_TYPES } from './exterior-model.js';
 import { isInteriorDoor } from './opening-types.js';
 import { buildClientEstimate, isEstimateAccessory, isEstimateCutting } from './client-estimate.js';
+import { isEstimateLayerIncluded } from './estimate-layer-scope.js';
 import { constructionDescription, internalDescription } from './proposal-description.js';
 
 const ROOF_TYPES = { cold: 'холодная', sip: 'тёплая SIP', combo: 'комбинированная' };
@@ -195,10 +196,13 @@ export function buildCommercialScope(project, calculation, options = {}) {
   const clientSections = new Map(buildClientEstimate(calculation, options).sections.map(section => [section.key, section]));
   return calculation.sections.map(section => ({ ...section, lines: section.lines.filter(line =>
     Number(line.qty) > 0 &&
+    isEstimateLayerIncluded(section, line, options) &&
     (options.includeLabor !== false || line.kind !== 'labor' || isEstimateCutting(line)) &&
     (options.includeAccessories !== false || !isEstimateAccessory(line))
   ) })).filter((section) => section.lines.length).map((section) => {
-    const description = scopeDescription(section.key, project, calculation, section.lines.length, section.lines);
+    const description = options.excludedEstimateLayers?.length
+      ? { summary: section.lines.slice(0,3).map(line=>line.name).join(' · ') + (section.lines.length>3 ? ` · ещё ${section.lines.length-3} поз.` : ''), details: 'Состав ограничен выбранными слоями сметы; точные количества и цены приведены в позициях ниже.' }
+      : scopeDescription(section.key, project, calculation, section.lines.length, section.lines);
     const estimateGroups = section.key === 'sip' ? [...new Set(section.lines.map((line) => line.estimateGroup).filter(Boolean))] : [];
     const groups = [...new Set(section.lines.map(line => line.estimateGroup).filter(Boolean))];
     const materials = section.lines.filter(line => line.kind !== 'labor');

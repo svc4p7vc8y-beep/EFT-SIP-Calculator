@@ -6,11 +6,13 @@ import { calculateProject } from '../calculations/estimate-engine.js';
 import { adjustedEstimateCalculation } from '../calculations/price-adjustments.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
 import { buildClientEstimate, isEstimateCutting, unpricedClientLines } from '../calculations/client-estimate.js';
+import { estimateLayerStages } from '../calculations/estimate-layer-scope.js';
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
 import { estimatePdfTitle } from '../export/estimate-pdf-title.js';
 import { downloadEstimatePdf } from '../export/download-estimate-pdf.js';
 import { EditableEstimateTable, PreviewTable, ScreenHeader, Stat } from '../components/ui.jsx';
 import { PrintProjectDiagrams } from '../components/PrintProjectDiagrams.jsx';
+import { EstimateLayerControls } from '../components/EstimateLayerControls.jsx';
 import { ProposalOverview } from '../components/ProposalOverview.jsx';
 import { formatMoney, formatNumber } from '../utils/format.js';
 import { addEstimateGroup, addEstimateLine, changeEstimateLine, removeEmptyEstimateGroup, removeEstimateLine, renameEstimateGroup, resetEstimateLine, resetEstimateSection } from '../state/estimate-edits.js';
@@ -124,7 +126,15 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
     return next;
   });
   const printOptions = project.settings.print || {};
-  const commercialScope = useMemo(() => buildCommercialScope(project, calculation, printOptions), [project, calculation, printOptions]);
+  const setExcludedLayers = (excluded, ids=[], enabled=false) => commit(next => {
+    next.settings.print = { ...(next.settings.print || {}), excludedEstimateLayers: excluded };
+    if (!excluded.length) { next.settings.print.includeLabor = true; next.settings.print.includeAccessories = true; }
+    if (enabled && ids.some(id=>id.endsWith('|labor'))) next.settings.print.includeLabor = true;
+    if (enabled && ids.some(id=>id.endsWith('|accessory'))) next.settings.print.includeAccessories = true;
+    return next;
+  });
+  const layerStages = useMemo(() => estimateLayerStages(adjustedCalculation), [adjustedCalculation]);
+  const commercialScope = useMemo(() => buildCommercialScope(project, adjustedCalculation, printOptions), [project, adjustedCalculation, printOptions]);
   const clientEstimate = useMemo(
     () => buildClientEstimate(adjustedCalculation, printOptions),
     [adjustedCalculation, printOptions],
@@ -254,8 +264,9 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
     <label className="super-compact-option no-print"><input type="checkbox" checked={printOptions.superCompact === true} onChange={event => setPrintOption('superCompact', event.target.checked)} /><span><strong>Суперкомпактное предложение</strong><small>Шапка, стоимость, схемы и состав комплектации. Без перечня номенклатуры.</small></span></label>
     {pendingClientPrices.length ? <div className="estimate-price-warning no-print"><AlertTriangle /><div><strong>В предложении есть позиции без цены</strong><span>{pendingClientPrices.map((line) => line.name).join(' · ')}. Укажите цену своей позиции в смете, либо выберите позицию общего прайса, либо исключите строку из предложения.</span></div></div> : null}
     <section className="print-diagram-options no-print" aria-label="Настройки предложения"><div><strong>Смета для клиента</strong></div><div className="print-option-group"><label className="maximum-compact-option"><input type="checkbox" checked={printOptions.maximumCompact === true} onChange={(event) => setPrintOption('maximumCompact', event.target.checked)} />Максимально компактная смета</label><label><input type="checkbox" checked={printOptions.includeLabor !== false} onChange={(event) => setPrintOption('includeLabor', event.target.checked)} />Включить работы</label><label><input type="checkbox" checked={printOptions.includeAccessories !== false} onChange={(event) => setPrintOption('includeAccessories', event.target.checked)} />Включить крепёж и сопутствующие товары</label><label><input type="checkbox" checked={printOptions.compactAccessories !== false} onChange={(event) => setPrintOption('compactAccessories', event.target.checked)} />Сгруппировать их в монтажные комплекты</label></div><div><strong>Планы из редактора дома</strong><small>Планы этажей формируются из текущего проекта и обновляются вместе с ним.</small></div><div className="print-option-group"><label><input type="checkbox" checked={printOptions.includePlan !== false} onChange={(event) => setPrintOption('includePlan', event.target.checked)} />Планы этажей в смете</label><label><input type="checkbox" checked={printOptions.separatePlanSheets !== false} disabled={printOptions.includePlan === false} onChange={(event) => setPrintOption('separatePlanSheets', event.target.checked)} />Каждый этаж отдельным листом</label><label><input type="checkbox" checked={printOptions.includeRoof === true} onChange={(event) => setPrintOption('includeRoof', event.target.checked)} />Крыша на контуре дома</label><label><input type="checkbox" checked={printOptions.separatePileSheet === true} onChange={(event) => setPrintOption('separatePileSheet', event.target.checked)} />Свайное поле отдельным листом</label><label><input type="checkbox" checked={printOptions.separateRoofSheet !== false} disabled={printOptions.includeRoof !== true} onChange={(event) => setPrintOption('separateRoofSheet', event.target.checked)} />Крыша отдельным листом</label></div>{printOptions.includePlan !== false ? <div className="print-option-group plan-layers"><span>Слои плана:</span>{planLayers.map(([key, label]) => <label key={key}><input type="checkbox" checked={printOptions[key] !== false} onChange={(event) => setPrintOption(key, event.target.checked)} />{label}</label>)}</div> : null}</section>
+    <EstimateLayerControls stages={layerStages} options={printOptions} total={clientEstimate.totals.total} onChange={setExcludedLayers} />
     {printOptions.maximumCompact === true && !printOptions.superCompact ? <section className="compact-estimate-preview no-print"><header><div><strong>Предпросмотр компактной сметы</strong><span>Одинаковые позиции всех разделов объединены. Исходная ведомость для правок сохранена ниже.</span></div><strong>{clientEstimate.compactLines.length} строк</strong></header><PreviewTable lines={clientEstimate.compactLines} /></section> : null}
-    <section className="print-sheet"><header className="print-title"><div className="print-brand"><img src="./icons/eft-logo.png" alt="ЭФТ" /><div><strong>ЭнергоЭффективные Технологии</strong><span>Расчёт комплектации дома</span></div></div><div><h1>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1><strong>Проект № {project.meta.projectNum || '—'}</strong></div></header>
+    <section className="print-sheet"><header className="print-title"><div className="print-brand"><img src="./icons/eft-logo.png" alt="Логотип ЭФТ" /><div><strong>ЭнергоЭффективные Технологии</strong><span>Проектирование и комплектация SIP-домов</span></div></div><div className="print-title-project"><span>СМЕТА · КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</span><h1>{project.meta.projectName || 'Проект дома'}</h1><strong>Проект № {project.meta.projectNum || '—'} · {formationDate}</strong></div><div className="print-brand-contacts"><span>Связаться с нами</span><strong>+7 (495) 745-99-11 · +7 (901) 523-23-11</strong><span>eftsip.ru · info@eftsip.ru</span></div></header>
       <div className="project-summary">
         <dl>
           <div><dt>Заказчик</dt><dd>{project.meta.customer || 'Не указан'}</dd></div>

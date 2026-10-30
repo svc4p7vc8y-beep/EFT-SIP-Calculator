@@ -26,7 +26,7 @@ export async function downloadEstimatePdf(source, filename, { save = true } = {}
   const newPage = () => { pdf.addPage(); y = margin; };
   const resumePortrait = () => {
     if (!imagePage) return;
-    pdf.addPage('a4', 'portrait');
+    pdf.addPage('a4','portrait');
     y = margin;
     imagePage = false;
   };
@@ -111,11 +111,10 @@ export async function downloadEstimatePdf(source, filename, { save = true } = {}
     const image = figure.querySelector('img');
     if (!image) return;
     await image.decode?.();
-    const landscape = image.naturalWidth >= image.naturalHeight;
     const page = document.createElement('div');
     page.style.cssText = 'width:800px;background:#fff;text-align:center;';
     const copy = image.cloneNode(true);
-    copy.style.cssText = `display:block;width:800px;height:${landscape ? 490 : 1020}px;object-fit:contain;background:#fff;`;
+    copy.style.cssText = 'display:block;width:800px;height:auto;max-height:1070px;object-fit:contain;background:#fff;';
     page.append(copy);
     const caption = figure.querySelector('figcaption .print-only')?.textContent;
     if (caption) {
@@ -125,12 +124,10 @@ export async function downloadEstimatePdf(source, filename, { save = true } = {}
       page.append(label);
     }
     const canvas = await render(page);
-    pdf.addPage('a4', landscape ? 'landscape' : 'portrait');
-    const sheetWidth = landscape ? 297 : 210;
-    const sheetHeight = landscape ? 210 : 297;
-    const width = sheetWidth - margin * 2;
-    const height = canvas.height / canvas.width * width;
-    pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', margin, (sheetHeight - height) / 2, width, height, undefined, 'FAST');
+    pdf.addPage('a4', 'portrait');
+    const scale = Math.min((pageWidth - margin*2)/canvas.width,(pageHeight - margin*2)/canvas.height);
+    const width = canvas.width*scale,height = canvas.height*scale;
+    pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', (pageWidth-width)/2, (pageHeight-height)/2, width, height, undefined, 'FAST');
     imagePage = true;
   };
   try {
