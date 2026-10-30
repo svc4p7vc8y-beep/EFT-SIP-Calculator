@@ -1,4 +1,4 @@
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 export async function openPreviewPdf(source) {
   const pdf=await import('pdfjs-dist/build/pdf.mjs');
   pdf.GlobalWorkerOptions.workerSrc=workerUrl;
