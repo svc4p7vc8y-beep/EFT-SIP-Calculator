@@ -1,3 +1,5 @@
+import {partitionTopFit,partitionProfileArea,partitionProfileTopLength} from './partition-top-fit.js';
+import {roofProject} from './roof-project.js';
 import {
   calculateGridContourCutLength,
   calculatePlanMetrics,
@@ -12,7 +14,7 @@ import { clearGapPositions } from './clear-gap-framing.js';
 import { roofLathRows } from './roof-lathing.js';
 import { gluedRidgeLayout } from './roof-glued-ridge.js';
 import { exteriorWallConstruction, wallTrimLength } from './wall-construction.js';
-import { partitionReinforcements, reinforcementBoardCount } from './partition-construction.js';
+import { partitionSegments, partitionReinforcements, reinforcementBoardCount } from './partition-construction.js';
 import { projectOpeningInserts } from './sip-opening-inserts.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation, calculateConcreteBase } from "./foundation-model.js";
@@ -777,6 +779,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         partitionLength,
         f,
         partitionFrameSection,
+        metrics.partitionFits?.[floorIndex+1],
       );
       const linearMode = sip.partitionCalculationMode !== "area";
       const boardVolume = linearMode
@@ -828,7 +831,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       );
     });
     const extras=new Map();
-    for(const item of metrics.floorPlans)for(const member of partitionReinforcements(project,item.plan,item.floor,detailed)){
+    for(const item of metrics.floorPlans)for(const member of partitionReinforcements(project,item.plan,item.floor,detailed,metrics.partitionFitContext)){
       const key=member.profile,group=extras.get(key)||{length:0,count:0,members:[]};group.length+=member.cutLength/1000;group.count++;group.members.push(member);extras.set(key,group);
     }
     for(const [profile,group]of extras){
@@ -3367,6 +3370,35 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
     if (inputs.links.internalFinishFromPlan) {
       inputs.internal.ceilingArea = metrics.atticRoofFinishArea || 0;
       inputs.internal.wallArea += metrics.atticGableFinishArea;
+    }
+  }
+  // One roof plane model supplies both purchasing and the production partition tops.
+  const contour=houseContourPoints(topFloor.plan).map(point=>[point.x*1000,point.y*1000]);
+  const xs=contour.map(point=>point[0]),ys=contour.map(point=>point[1]);
+  const bounds={x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys)};
+  const fitCalculation={metrics,roof};
+  const fitAssembly={floors:metrics.floorPlans.map(item=>({contour:houseContourPoints(item.plan).map(p=>[p.x*1000,p.y*1000])})),bounds,axis:roof.ridgeAxis||'x'};
+  const fitModel=roofProject(project,fitCalculation,fitAssembly);
+  const fitContext={model:fitModel,calculation:fitCalculation,bounds,floorCount:metrics.floorCount};
+  Object.defineProperty(metrics,'partitionFitContext',{value:fitContext});
+  // Avoid a cyclic metrics object in saved reports and Worker messages.
+  fitContext.calculation={roof,metrics:{ceilingArea:metrics.ceilingArea}};
+  metrics.partitionFits={};
+  if(project.services.partitions&&topFloor.plan.floorType!=='attic'){
+    let delta=0,grossArea=0,topLength=0,changed=false;
+    for(const [a,b] of partitionSegments(topFloor.plan)){
+      const A=[a.x*1000,a.y*1000],B=[b.x*1000,b.y*1000],width=Math.hypot(B[0]-A[0],B[1]-A[1]),height=partitionHeight(topFloor.plan)*1000;
+      const profile=partitionTopFit(project,topFloor.plan,topFloor.floor,fitContext,A,B,height);
+      const area=profile?partitionProfileArea(profile):width*height/1e6;
+      grossArea+=area;topLength+=profile?partitionProfileTopLength(profile):width/1000;
+      if(profile){delta+=area-width*height/1e6;changed=true;}
+    }
+    if(changed){
+      const key=topFloor.floor===1?'firstFloorPartitionNetArea':'secondFloorPartitionNetArea';
+      metrics[key]=Math.max(0,metrics[key]+delta);metrics.partitionNetArea=Math.max(0,metrics.partitionNetArea+delta);
+      topFloor.metrics.partitionNetArea=Math.max(0,topFloor.metrics.partitionNetArea+delta);
+      metrics.partitionFits[topFloor.floor]={grossArea,topLength};
+      if(inputs.links.internalFinishFromPlan)inputs.internal.wallArea+=delta*2;
     }
   }
   const sip = sipSection(project, metrics, index, inputs, roof);

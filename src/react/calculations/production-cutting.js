@@ -1,3 +1,4 @@
+import {partitionTopFit} from './partition-top-fit.js';
 import clipping from 'polygon-clipping';
 import { refreshPartitionNotches } from './partition-geometry.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
@@ -592,8 +593,7 @@ export function calculateProductionCutting(project, calculation) {
       const heightStart=edge.outer?mm(edge.heightStart)+addition:baseHeight+addition;
       const heightEnd=edge.outer?mm(edge.heightEnd)+addition:baseHeight+addition;
       const width = mm(edge.outer?edge.length:Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y));
-      const topProfile=!edge.outer&&plan.floorType==='attic'&&floorIndex===plans.length-1&&services.roof&&roofGeometryMatches
-        ?atticPartitionProfile(assembly.roofModel,[mm(edge.a.x),mm(edge.a.y)],[mm(edge.b.x),mm(edge.b.y)],productionLevels(project,plans.length).bases[floorIndex],baseHeight+addition):null;
+      const topProfile=!edge.outer&&roofGeometryMatches?partitionTopFit(project,plan,floor,{model:assembly.roofModel,calculation,bounds:assembly.bounds,floorCount:plans.length},[mm(edge.a.x),mm(edge.a.y)],[mm(edge.b.x),mm(edge.b.y)],baseHeight+addition,addition):null;
       const height = topProfile?Math.max(...topProfile.map(p=>p[1])):Math.max(heightStart,heightEnd);
       const selectedOrigin=edge.outer?mm(edge.trimStart):0;
       if (edge.outer && height === 0 && !assigned.get(edge.id).length) continue;

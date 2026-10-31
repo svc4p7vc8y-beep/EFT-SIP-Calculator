@@ -1,3 +1,4 @@
+import {partitionTopFit} from './partition-top-fit.js';
 import { partitionRuns, partitionDepth } from '../planner/geometry.js';
 import { bearingForSegment, splitAtBearingEdges } from './bearing-walls.js';
 import { partitionHeight } from '../../calculations/floor-height.js';
@@ -53,7 +54,7 @@ export function partitionJunctionStuds(plan,a,b,segments=partitionSegments(plan)
 }
 // Shared with production: all=true returns the complete detailed frame;
 // all=false returns only the additions to the legacy allowance.
-export function partitionReinforcements(project,plan,floor=1,all=false) {
+export function partitionReinforcements(project,plan,floor=1,all=false,fitContext=null) {
   if(!project.services.partitions||project.settings.sip.partitionType==='sip')return [];
   const settings=normalizeProductionCutting(project.settings.productionCutting),segments=partitionSegments(plan),members=[];
   const contour=houseContourPoints(plan),edges=[...contour.map((a,i)=>({a,b:contour[(i+1)%contour.length],outer:true})),...segments.map(([a,b],i)=>({a,b,outer:false,index:i}))];
@@ -76,6 +77,9 @@ export function partitionReinforcements(project,plan,floor=1,all=false) {
     openings.push(...assigned.get(i));
     const id=`Э${floor}-ПГ${i+1}`,start=[a.x,a.y].map(v=>Math.round(v*1000)),end=[b.x,b.y].map(v=>Math.round(v*1000)),wallKey=`${id}@${start.join(',')}:${end.join(',')}`;
     const s={id,name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(bearing?.profile||localWallSettings(plan,a,b)?.frameProfile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
+    const addition=Number(settings.wallAdditions[wallKey])||0;
+    s.topProfile=partitionTopFit(project,plan,floor,fitContext,start,end,s.height,addition);
+    if(s.topProfile)s.height=Math.max(...s.topProfile.map(point=>point[1]));
     s.junctionStuds=partitionJunctionStuds(plan,a,b,segments);
     openings.filter(o=>o.gap).forEach(o=>o.height=s.height);
     if(!Number.isFinite(s.width)||!Number.isFinite(s.height)||blocked.has(i)||openings.some(o=>o.x< -1||o.x+o.width>s.width+1||!(o.width>0&&o.height>0)||o.sill===''||!Number.isFinite(Number(o.sill))||Number(o.sill)<0||Number(o.sill)+o.height>s.height+1))return;

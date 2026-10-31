@@ -1,6 +1,7 @@
 import { boundsOf, houseContourPoints } from '../planner/geometry.js';
 import { exteriorHeight } from '../../calculations/floor-height.js';
 import { existingWallEdge } from '../planner/existing-building.js';
+import {highFlatWall} from './flat-wall-height.js';
 
 // External house contour is never edited. Assembly lengths use a consistent
 // clockwise butt corner: horizontal runs through, vertical runs between them.
@@ -10,7 +11,8 @@ export function exteriorWallConstruction(plan, sip={}, roof={}, topFloor=true, e
   const structural=enabled&&topFloor&&roof.shape==='flat'&&roof.flatSlopeMode==='structural';
   const slope=structural?Math.min(20,Math.max(0,Number(roof.flatSlopePercent)||0))/100:0;
   const direction=roof.flatSlopeDirection||'back',base=exteriorHeight(plan);
-  const riseAt=p=>slope*(direction==='left'?p.x-bounds.x:direction==='right'?bounds.x+bounds.w-p.x:direction==='front'?p.y-bounds.y:bounds.y+bounds.h-p.y);
+  const drop=slope*(['left','right'].includes(direction)?bounds.w:bounds.h);
+  const riseAt=p=>slope*(direction==='left'?p.x-bounds.x:direction==='right'?bounds.x+bounds.w-p.x:direction==='front'?p.y-bounds.y:bounds.y+bounds.h-p.y)-(highFlatWall(roof)?drop:0);
   return points.map((a,i)=>{
     const b=points[(i+1)%points.length],prev=points[(i+points.length-1)%points.length],next=points[(i+2)%points.length];
     if(existingWallEdge(plan,a,b))return null;

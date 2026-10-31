@@ -2,6 +2,7 @@ import { houseContourPoints } from '../planner/geometry.js';
 import { productionLevels } from './production-levels.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { isAxisAlignedRectangleContour } from './roof-contour.js';
+import {highFlatWall} from './flat-wall-height.js';
 
 export const MAUERLAT_PROFILES = {
   '100x150': { profile: '100×150', heightMm: 100, widthMm: 150, catalogName: 'Брус ест.влажн. сосна 100×150 мм' },
@@ -25,7 +26,7 @@ export function structuralFlatRoofRise(project, calculation, bounds, point) {
   const span = acrossY ? bounds.height : bounds.width;
   const position = (acrossY ? point[1] : point[0]) - start;
   const reverse = ['back', 'right'].includes(calculation.roof.flatSlopeDirection);
-  return (reverse ? span - position : position) * Math.max(0, Number(project.settings.roof.flatSlopePercent) || 0) / 100;
+  return ((reverse ? span - position : position)-(highFlatWall(project.settings.roof)?span:0)) * Math.max(0, Number(project.settings.roof.flatSlopePercent) || 0) / 100;
 }
 
 export function roofBaseElevation(project, calculation, floorCount, spanMm, shape) {
@@ -51,13 +52,14 @@ export function roofBaseElevation(project, calculation, floorCount, spanMm, shap
   const taperedFrameBase = ceiling.topZ + profile.heightMm + depth * 1.5
     + Math.max(0, Number(settings.eaveOverhang) || 0) * 1000 * Math.max(0, Number(settings.flatSlopePercent) || 0) / 100;
   const fullyWarm = settings.type === 'sip' || settings.type === 'combo' && Number(settings.warmPercent) >= 100;
+  const datumDrop=shape==='flat'&&settings.flatSlopeMode==='structural'&&highFlatWall(settings)?spanMm*Math.max(0,Number(settings.flatSlopePercent)||0)/100:0;
   return design.baseZ !== '' && design.baseZ != null && Number.isFinite(Number(design.baseZ))
     ? Number(design.baseZ)
-    : fullyWarm ? ceiling.topZ + depth / 2
+    : (fullyWarm ? ceiling.topZ + depth / 2
     : shape === 'flat' && settings.type === 'cold' && calculation.roof?.mauerlatLength > 0
       ? calculation.roof?.flatSlopeMode === 'tapered' ? taperedFrameBase : flatAligned
     : ceiling.hasCeiling && ['gable', 'hip'].includes(shape) && calculation.roof?.mauerlatLength > 0
-      ? aligned : defaultBase;
+      ? aligned : defaultBase)-datumDrop;
 }
 
 const cross = (a, b) => a[0] * b[1] - a[1] * b[0];

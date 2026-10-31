@@ -201,9 +201,9 @@ const openingStructuralFastenerCount = (plan, spacing, formulas = {}) =>
     return sum + Math.ceil(base * multiplier);
   }, 0);
 
-export function calculateFramePartitionAssembly(plan, partitionLength, formulas = {}, section = "50x100") {
+export function calculateFramePartitionAssembly(plan, partitionLength, formulas = {}, section = "50x100", fit = null) {
   const length = Math.max(0, Number(partitionLength) || 0);
-  const wallHeight = partitionHeight(plan);
+  const wallHeight = fit&&length>0?fit.grossArea/length:partitionHeight(plan);
   const dimensions=section.split(/[x×х]/).map(Number);
   const boardWidth = dimensions[0]>0?dimensions[0]/1000:0.05;
   const boardDepth = dimensions[1]>0?dimensions[1]/1000:0.1;
@@ -223,7 +223,7 @@ export function calculateFramePartitionAssembly(plan, partitionLength, formulas 
     const width = Math.max(0, Number(opening.width) || 0);
     return sum + width * (opening.type === "window" ? 2 : 1);
   }, 0);
-  const plateLength = length * (1 + topPlateLayers);
+  const plateLength = length + (fit?.topLength??length) * topPlateLayers;
   const requiredLength =
     (baseStudCount + openingStudCount) * wallHeight + plateLength + openingTrimLength;
   const boardCount = requiredLength ? Math.ceil(requiredLength / stockLength) : 0;

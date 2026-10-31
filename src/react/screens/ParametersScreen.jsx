@@ -1,3 +1,4 @@
+import {flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
 import { useMemo, useState } from "react";
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import OpeningMiniPlan from '../components/OpeningMiniPlan.jsx';
@@ -228,10 +229,6 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
       }
       if (path === "plan.wallThickness") {
         const millimeters = Number(value) || 174;
-        next.plan.wallThickness = millimeters / 1000;
-        (next.upperFloors || []).forEach((floorPlan) => {
-          floorPlan.wallThickness = millimeters / 1000;
-        });
         next.settings.sip.wallThickness = String(millimeters);
         synchronizeWallThickness(next, 'wallThickness');
         return next;
@@ -271,6 +268,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           calculation.lines.find((line) => line.id === sipLineByPath[path]),
         );
       }
+      if(path==='settings.roof.flatWallDropM'){setFlatWallDrop(next,value);releasePlanLinkedQuantityOverrides(next);return next;}
       const keys = path.split(".");
       let target = next;
       keys.slice(0, -1).forEach((key) => {
@@ -278,6 +276,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
       });
       if (path === 'settings.roof.shape') Object.assign(next.settings.roof,roofFormPatch(next.settings.roof,value));
       else target[keys.at(-1)] = value;
+      if((path==='settings.roof.flatSlopeMode'&&value==='structural')||(path==='settings.roof.flatSlopePercent'&&next.settings.roof.flatSlopeMode==='structural'))next.settings.roof.flatWallHeightReference='high';
       if (path.startsWith('settings.productionCutting.')) next.settings.productionCutting = normalizeProductionCutting(next.settings.productionCutting);
       if (path === "settings.roof.includeCovering") {
         next.settings.roof.showRoofCover = value;
@@ -892,6 +891,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "sip", label: "SIP-панели" },
                 ],
               },
+              {path:'settings.sip.partitionTopMode',type:'select',label:'Верх перегородок',value:project.settings.sip.partitionTopMode||'auto',options:[{value:'auto',label:'Примыкание к потолку / SIP-кровле'},{value:'manual',label:'По заданной высоте перегородки'}]},
               project.settings.sip.partitionType === "sip" && {
                 path: "settings.sip.partitionPanelFamily",
                 label: "Тип панели перегородок",
@@ -1071,6 +1071,8 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 20,
                 step: 0.5,
               },
+              project.settings.roof.shape === 'flat' && project.settings.roof.flatSlopeMode === 'structural' && {path:'settings.roof.flatWallDropM',label:'Перепад высоты стен',value:flatWallDrop(project),suffix:'м',min:0,step:.01},
+              project.settings.roof.shape === 'flat' && project.settings.roof.flatSlopeMode === 'structural' && {path:'settings.roof.flatWallHeightReference',type:'select',label:'Заданная высота стены',value:project.settings.roof.flatWallHeightReference||'low',options:[{value:'high',label:'По высокому краю · подрезка целых панелей'},{value:'low',label:'По низкому краю · наращивание сверху'}]},
               project.settings.roof.shape === "flat" && project.settings.roof.type === "cold" && {
                 path: "settings.roof.flatFrameDepthMm",
                 label: "Глубина каркаса с нижним поясом",
