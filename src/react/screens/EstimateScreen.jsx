@@ -23,6 +23,7 @@ import { useCurrentPriceAction } from '../cloud/useCurrentPriceAction.js';
 import { resolveEftApiUrl } from '../../shared/team-api.js';
 import { eftApi } from '../../shared/team-api.js';
 import { useTeam } from '../cloud/TeamContext.jsx';
+import { saveSharedFile } from '../cloud/save-shared-file.js';
 import { ALEXEY_EMAIL, estimateMailContent } from '../export/estimate-mail.js';
 
 const LocalEstimateFilePicker = lazy(() => import('../components/LocalEstimateFilePicker.jsx'));
@@ -76,6 +77,8 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
   const [pdfError, setPdfError] = useState('');
   const [mailSending,setMailSending]=useState(false);
   const [mailNotice,setMailNotice]=useState('');
+  const [fileSaving,setFileSaving]=useState(false);
+  const fileSavingRef=useRef(false);
   const estimateImages = project.estimateImages || [];
   const estimateFiles = project.estimateFiles || [];
   const appendImages = async (files, caption = '', { fullPage = false } = {}) => {
@@ -274,6 +277,16 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
       }
     } catch (error) { if (error.name !== 'AbortError') setMailNotice(error.message || 'Не удалось поделиться сметой.'); }
   });
+  const saveEstimateFile = useCurrentPriceAction(async () => {
+    if(fileSavingRef.current)return;
+    if(!team.user || team.user.role==='viewer'){setMailNotice('Войдите в командный режим с правом сохранения файлов.');return;}
+    fileSavingRef.current=true;setFileSaving(true);setMailNotice('Формирую PDF и сохраняю в файлы…');
+    try{
+      await saveSharedFile(await makePdfFile(),'Сметы',team.csrf);
+      setMailNotice('PDF-смета сохранена: Файлы → Сметы. Её можно выбрать в CRM для отправки.');
+    }catch(error){setMailNotice(error.message || 'Не удалось сохранить PDF-смету в файлы.');}
+    finally{fileSavingRef.current=false;setFileSaving(false);}
+  });
   const sendEstimateToAlexey = useCurrentPriceAction(async () => {
     if (mailSending) return;
     if (!team.user || team.user.role === 'viewer') { setMailNotice('Войдите в командный режим с правом отправки почты.'); return; }
@@ -291,7 +304,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
     ['showOpenings', 'Окна и двери'], ['showPlatforms', 'Терраса и крыльцо'],
     ['showPiles', project.settings.piles?.pileType === 'concreteBlock' ? 'Блоки' : 'Сваи'], ['showBinding', 'Обвязка'], ['showDimensions', 'Размеры'],
   ];
-  return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent} disabled={printPreparing}><Printer />{printPreparing ? 'Подготовка…' : 'Печать'}</button><button className="button primary no-print estimate-download-pdf" onClick={downloadPdf} disabled={pdfPreparing}><FileDown />{pdfPreparing ? 'Создаю PDF…' : 'PDF ↓'}</button><button type="button" className="button secondary no-print" onClick={shareEstimate}><Share2 />Поделиться</button><button type="button" className="button primary no-print" onClick={sendEstimateToAlexey} disabled={mailSending}><Send />{mailSending?'Отправляю…':'Отправить Алексею'}</button></>} />
+  return <div className={`screen estimate-screen${printOptions.maximumCompact === true ? ' maximum-compact' : ''}${printOptions.superCompact ? ' super-compact' : ''}`}><ScreenHeader title="Смета проекта" description={project.sharedPriceCatalog ? `Общий прайс · версия ${project.sharedPriceCatalog.revision}` : ''} actions={<><button className="button secondary no-print" onClick={exportCurrent}><FileSpreadsheet />Скачать Excel</button><button className="button primary no-print" onClick={printCurrent} disabled={printPreparing}><Printer />{printPreparing ? 'Подготовка…' : 'Печать'}</button><button className="button primary no-print estimate-download-pdf" onClick={downloadPdf} disabled={pdfPreparing}><FileDown />{pdfPreparing ? 'Создаю PDF…' : 'PDF ↓'}</button><button type="button" className="button secondary no-print" onClick={saveEstimateFile} disabled={fileSaving}><FolderOpen />{fileSaving?'Сохраняю PDF…':'PDF в файлы'}</button><button type="button" className="button secondary no-print" onClick={shareEstimate}><Share2 />Поделиться</button><button type="button" className="button primary no-print" onClick={sendEstimateToAlexey} disabled={mailSending}><Send />{mailSending?'Отправляю…':'Отправить Алексею'}</button></>} />
     {mailNotice ? <p className="notice no-print" role="status">{mailNotice}</p> : null}
     {pdfError ? <p className="estimate-pdf-error no-print" role="alert">{pdfError}</p> : null}
     <div className="estimate-workspace" style={{'--estimate-settings-width':`${settingsWidth}px`}}><div className="estimate-settings-resizer" role="separator" aria-label="Ширина настроек сметы" aria-orientation="vertical" tabIndex={0} onPointerDown={resizeSettings} onKeyDown={event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();setSettingsWidth(width=>Math.max(300,Math.min(620,width+(event.key==='ArrowLeft'?20:-20))));}}}/><aside className="estimate-settings-column no-print">
