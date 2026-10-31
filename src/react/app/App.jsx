@@ -1,3 +1,4 @@
+import AppChromeMetrics from '../components/AppChromeMetrics.jsx';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeAlert,
@@ -586,6 +587,7 @@ export function App() {
         "--eft-watermark": `url("${new URL("./icons/eft-logo.png", document.baseURI).href}")`,
       }}
     >
+      <AppChromeMetrics/>
       <header className="app-header">
         <div className="brand">
           <img src="./icons/eft-logo.png" alt="Логотип ЭФТ" />

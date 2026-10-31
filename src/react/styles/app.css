@@ -7503,3 +7503,10 @@ select,
 .plan-screen-v2 .planner-shell.is-fullscreen .plan-3d-pane{padding-top:54px}
 
 .plan-screen-v2 .planner-shell .plan-3d-pane{grid-template-columns:auto auto minmax(0,1fr)}.plan-3d-pane .plan-3d-pane-head>strong{display:none!important}.plan-3d-pane .production-3d-toolbar{grid-column:1;justify-self:start}.plan-3d-pane .plan-3d-view-switch{grid-column:2;justify-self:start}.plan-3d-pane .plan-3d-pane-head>div{grid-column:3;justify-self:end}
+
+/* Keep the plan actions below the actual (responsive) application chrome. */
+.project-tabbar{top:var(--app-header-height,76px);background:var(--panel)}
+.plan-screen-v2>.screen-header{position:sticky;top:var(--app-chrome-height,135px);z-index:28;background:var(--panel);padding:8px 0;margin-bottom:8px;align-items:center;border-bottom:1px solid var(--line)}
+.plan-screen-v2>.screen-header .screen-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.plan-screen-v2>.plan-status-bar:not(:has(+ .planner-shell.is-fullscreen)){position:sticky;top:calc(var(--app-chrome-height,135px) + var(--plan-actions-height,60px) + 8px);z-index:27;background:var(--panel)}
+@media print{.project-tabbar{display:none!important}.plan-screen-v2>.plan-status-bar{position:static!important}}

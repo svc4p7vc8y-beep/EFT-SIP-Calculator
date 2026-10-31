@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
@@ -5122,7 +5122,14 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [plan3DPlacement,setPlan3DPlacement]=useState('dock');
   const [inspectorWidth,setInspectorWidth]=useState(()=>{try{return Math.min(620,Math.max(280,Number(localStorage.getItem('eft-plan-inspector-width'))||360));}catch{return 360;}});
   const [modelWidth,setModelWidth]=useState(()=>{try{return Math.min(620,Math.max(240,Number(localStorage.getItem('eft-plan-3d-width'))||340));}catch{return 340;}});
-  const plannerShellRef=useRef(null),paneResizeRef=useRef(null);
+  const planHeaderRootRef=useRef(null),plannerShellRef=useRef(null),paneResizeRef=useRef(null);
+  useLayoutEffect(()=>{
+    const root=planHeaderRootRef.current,header=root?.querySelector(':scope > .screen-header');
+    if(!root||!header)return;
+    const measure=()=>root.style.setProperty('--plan-actions-height',`${header.getBoundingClientRect().height}px`);
+    const observer=new ResizeObserver(measure);observer.observe(header);measure();
+    return ()=>observer.disconnect();
+  },[mobilePlanEditing]);
   const startPaneResize=(event,side)=>{if(event.button!==0)return;event.preventDefault();paneResizeRef.current={side,x:event.clientX,width:side==='inspector'?inspectorWidth:modelWidth};event.currentTarget.setPointerCapture(event.pointerId);};
   const movePaneResize=event=>{const drag=paneResizeRef.current;if(!drag)return;const shellWidth=plannerShellRef.current?.clientWidth||1200,delta=event.clientX-drag.x;const sideBySide=typeof window!=='undefined'&&window.matchMedia('(min-width: 1401px)').matches;const modelSpace=plan3DPlacement==='split'&&sideBySide?modelWidth+8:0;const limit=drag.side==='inspector'?shellWidth-100-modelSpace-320:shellWidth-100-inspectorWidth-320-16;const value=Math.round(Math.max(drag.side==='inspector'?280:240,Math.min(Math.max(drag.side==='inspector'?280:240,limit),drag.width+(drag.side==='inspector'?-delta:delta))));if(drag.side==='inspector')setInspectorWidth(value);else setModelWidth(value);};
   const finishPaneResize=()=>{paneResizeRef.current=null;};
@@ -6192,7 +6199,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     </div>
   );
   return (
-    <div className={`desktop-plan-editor screen plan-screen-v2${mobilePlanEditing ? ' mobile-plan-editing' : ''}`}>
+    <div ref={planHeaderRootRef} className={`desktop-plan-editor screen plan-screen-v2${mobilePlanEditing ? ' mobile-plan-editing' : ''}`}>
       <ScreenHeader
         title="План дома"
         actions={
