@@ -7501,3 +7501,5 @@ select,
 
 .plan-screen-v2 .planner-shell .plan-3d-pane{container-type:inline-size}
 .plan-screen-v2 .planner-shell.is-fullscreen .plan-3d-pane{padding-top:54px}
+
+.plan-screen-v2 .planner-shell .plan-3d-pane{grid-template-columns:auto auto minmax(0,1fr)}.plan-3d-pane .plan-3d-pane-head>strong{display:none!important}.plan-3d-pane .production-3d-toolbar{grid-column:1;justify-self:start}.plan-3d-pane .plan-3d-view-switch{grid-column:2;justify-self:start}.plan-3d-pane .plan-3d-pane-head>div{grid-column:3;justify-self:end}
