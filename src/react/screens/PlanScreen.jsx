@@ -1,3 +1,5 @@
+import {roofSupportPlanGroups,movePlanRoofGroup} from '../planner/roof-support-plan.js';
+import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
@@ -53,6 +55,7 @@ import {
   ZoomOut,
   ChevronLeft,
   ChevronDown,
+  ChevronsUp,
   Grid3X3,
   Box,
   Copy,
@@ -116,6 +119,7 @@ const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
 const CalculationSettingsPanel=lazy(()=>import('./CalculationSettingsScreen.jsx'));
+const PlanRoofSupports=lazy(()=>import('./PlanRoofSupports.jsx'));
 const InlineWindowConfigurator=lazy(()=>import('./WindowConfigurator.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
 import {
@@ -249,7 +253,7 @@ function layoutFor(plan) {
 }
 
 function previewPlan(source, gesture) {
-  if (!gesture || gesture.kind === "draw") return source;
+  if (!gesture || gesture.kind === "draw" || gesture.type==='roofSupport') return source;
   const plan = structuredClone(source);
   const end = gesture.end;
   const dx = end.x - gesture.start.x;
@@ -1316,6 +1320,9 @@ function PlanCanvas({
   onSelected,
   floorKey = 1,
   sourceFocus = null,
+  roofSupportGroups = [],
+  onMoveRoofSupport,
+  onDeleteRoofSupport,
 }) {
   const svgRef = useRef(null);
   const wallClipId=useId().replace(/:/g,'');
@@ -1501,7 +1508,7 @@ function PlanCanvas({
     });
   };
   const deleteObject = (type, id) =>
-    commitPlan((next) => {
+    type==='roofSupport'?onDeleteRoofSupport?.(id):commitPlan((next) => {
       if(type==='room'&&next.layoutMode==='walls'){
         window.alert('В режиме построения стенами комната определяется стенами. Для объединения комнат выберите и удалите разделяющую стену.');
         return;
@@ -1979,6 +1986,8 @@ function PlanCanvas({
         ),
       );
       }
+    } else if(current.type==='roofSupport'){
+      onMoveRoofSupport?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y);
     } else {
       const next = previewPlan(plan, finalGesture);
       if (JSON.stringify(next) !== JSON.stringify(plan)) {
@@ -2554,6 +2563,7 @@ function PlanCanvas({
             );
           })
         : null}
+
       {visibleLayers.plan
         ? (shownPlan.wallGaps || []).map((gap) => (
             <g
@@ -2914,6 +2924,11 @@ function PlanCanvas({
             </g>
           ))
         : null}
+      {visibleLayers.plan?roofSupportGroups.map(group=>{
+        const moved=gesture?.type==='roofSupport'&&gesture.id===group.id,dx=moved?gesture.end.x-gesture.start.x:0,dy=moved?gesture.end.y-gesture.start.y:0;
+        const a=p(group.a.x+dx,group.a.y+dy),b=p(group.b.x+dx,group.b.y+dy);
+        return <g key={group.id} className="planner-object" data-roof-support-group={group.id} onPointerDown={event=>objectDown(event,'roofSupport',group.id)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><line pointerEvents="none" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={selected?.type==='roofSupport'&&selected.id===group.id?'#a44cdd':'#4866bf'} strokeWidth="7" strokeDasharray="14 5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-10} fontSize="14" fill="#263e87" stroke="#fff" strokeWidth="3" paintOrder="stroke" pointerEvents="none">{group.name}</text></g>;
+      }):null}
       {gesture?.kind === "draw"
         ? (() => {
             const a = p(gesture.start.x, gesture.start.y);
@@ -6553,6 +6568,18 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           <PlanCanvas
+            roofSupportGroups={activeFloor===floorCount?roofSupportPlanGroups(project.settings.productionCutting.roofSupports):[]}
+            onDeleteRoofSupport={id=>commit(next=>{const group=roofSupportPlanGroups(next.settings.productionCutting.roofSupports).find(item=>item.id===id);const ids=new Set(group?.members.map(item=>item.id)||[]);next.settings.productionCutting.roofSupports=windowSupportHeaders(next,next.settings.productionCutting.roofSupports.filter(item=>!ids.has(item.id))).items;return next;})}
+            onMoveRoofSupport={async(id,dx,dy)=>{
+              try{
+                const {calculateProductionCutting}=await import('../calculations/production-cutting.js');
+                const report=calculateProductionCutting(project,projectCalculation);
+                const preview=structuredClone(project);preview.settings.productionCutting.windowSupportHeaders={...preview.settings.productionCutting.windowSupportHeaders,enabled:true};
+                if(windowSupportHeaders(preview,movePlanRoofGroup(preview.settings.productionCutting.roofSupports,id,dx,dy,report.assembly.roofModel)).items.length>200)throw new Error('Превышен лимит 200 деталей опор. Существующая схема сохранена.');
+                commit(next=>{next.settings.productionCutting.windowSupportHeaders={...next.settings.productionCutting.windowSupportHeaders,enabled:true};const moved=movePlanRoofGroup(next.settings.productionCutting.roofSupports,id,dx,dy,report.assembly.roofModel);next.settings.productionCutting.roofSupports=windowSupportHeaders(next,moved).items;return next;});
+                setTransferStatus('Опора перемещена на плане. Усиления над окнами обновлены; опирание и рабочие узлы проверьте в деталировке.');
+              }catch(error){setTransferStatus(`Не удалось переместить опору: ${error.message}`);}
+            }}
             sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
             stairPreset={stairPreset}
             pileSettings={project.settings.piles}
@@ -6613,18 +6640,21 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}
             </div> : null}
           </div>:null}
-          <div className="plan-right-tabs" role="group" aria-label="Настройки справа">
+          <div className="plan-right-tabs" style={{gridTemplateColumns:"30px minmax(0,1fr) minmax(0,1fr)"}} role="group" aria-label="Настройки справа">
+            <button type="button" style={{flex:'0 0 30px',padding:0}} aria-label="Свернуть все разделы параметров" title="Свернуть все разделы" onClick={()=>{inspectorRef.current?.querySelectorAll('details[open]').forEach(section=>{section.open=false;});if(inspectorRef.current)inspectorRef.current.scrollTop=0;}}><ChevronsUp size={16}/></button>
             <button type="button" aria-pressed={inspectorTab === 'house'} onClick={() => setInspectorTab('house')}>Параметры дома</button>
             <button type="button" aria-pressed={inspectorTab === 'element'} onClick={() => setInspectorTab('element')}>Конструкция / элемент</button>
           </div>
           <div className="planner-inspector-detail" hidden={inspectorTab !== 'house'}>
             <div className="plan-right-house">
+              <Suspense fallback={<p>Загружаю опоры…</p>}><PlanRoofSupports project={project} calculation={projectCalculation} onSelect={id=>{setSelected({type:'roofSupport',id});setTool('select');}}/></Suspense>
         <details className="plan-top-advanced">
           <summary><Grid3X3 aria-hidden="true" /> План и раскладка <ChevronDown aria-hidden="true" /></summary>
         <div className="plan-house-fields">
           <div style={{gridColumn:'1 / -1'}}>
             <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
             <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions==='butt'} onChange={value=>commitPlan(next=>{next.partitionJunctions=value?'butt':'axes';})}/>
+            <NumberField label="Минимальная ширина детали SIP" suffix="мм" min={1} max={1250} step={10} value={project.settings.productionCutting.minPanelWidthMm??250} onChange={value=>commit(next=>{next.settings.productionCutting.minPanelWidthMm=value;return next;})} hint="По умолчанию 250 мм. Проектное изменение влияет на раскладку, блокировки узких деталей и производственную ведомость."/>
             <p className="inspector-note">Примыкающая перегородка заканчивается у грани непрерывной перегородки или внутренней грани наружной SIP-стены. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются.</p>
             {plan.wallLayoutIssue?<p className="assembly-warning">{plan.wallLayoutIssue}</p>:null}
             {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{

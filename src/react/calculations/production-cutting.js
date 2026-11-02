@@ -68,7 +68,7 @@ function roofSupportWallPositions(surface, supports) {
   return [...new Set(positions)].sort((x, y) => x - y);
 }
 export const MIN_PANEL_WIDTH_MM = 250;
-const narrowPanelError = label => Object.assign(new Error(`${label}: деталь уже ${MIN_PANEL_WIDTH_MM} мм; измените шаг, сетку или положение проёма.`), { code:'MIN_PANEL_WIDTH' });
+const narrowPanelError = (label,minimum=MIN_PANEL_WIDTH_MM,blocker=null) => Object.assign(new Error(`${label}: деталь уже ${minimum} мм; измените шаг, сетку или положение проёма.`), { code:'MIN_PANEL_WIDTH',blocker });
 function balancedCells(start, end, maximum, minimum = MIN_PANEL_WIDTH_MM) {
   const length = end - start;
   const count = Math.max(1, Math.ceil(length / maximum));
@@ -78,6 +78,7 @@ function balancedCells(start, end, maximum, minimum = MIN_PANEL_WIDTH_MM) {
 // Keep full stock pieces; rebalance only the last pair if its remainder is too narrow.
 export function stockCells(start,end,maximum,minimum=MIN_PANEL_WIDTH_MM) {
   const length=end-start;
+  if(maximum<minimum)return null;
   if(length<minimum-.001) return null;
   const widths=[];let remaining=length;
   while(remaining>maximum+.001){widths.push(maximum);remaining-=maximum;}
@@ -86,6 +87,7 @@ export function stockCells(start,end,maximum,minimum=MIN_PANEL_WIDTH_MM) {
   let x=start;return widths.map(width=>{const cell={x,width};x+=width;return cell;});
 }
 function tileStockWall(surface,panelWidth,panelLength) {
+  const minimum=surface.minPanelWidthMm??MIN_PANEL_WIDTH_MM;
   const bounds=polygonBounds(surface.geometry.flat());
   const anchors=[...new Set([bounds.x,bounds.x+bounds.width,...(surface.partitionSeams||[]),...(surface.roofSupportSeams||[]),...(surface.openings||[]).flatMap(o=>[o.x,o.x+o.width])])].sort((a,b)=>a-b);
   const parts=[];
@@ -98,14 +100,14 @@ function tileStockWall(surface,panelWidth,panelLength) {
     for(const [bottom,top] of spans){
       const direction=holes.length ? surface.layout.openingDirections?.[holes[0].key]||surface.layout.direction : surface.layout.direction;
       const options=direction==='y'?[true]:direction==='x'||!holes.length?[false]:[false,true];
-      const candidates=options.map(rotated=>({rotated,columns:stockCells(left,right,rotated?panelLength:panelWidth),rows:stockCells(bottom,top,rotated?panelWidth:panelLength)})).filter(c=>c.columns&&c.rows);
+      const candidates=options.map(rotated=>({rotated,columns:stockCells(left,right,rotated?panelLength:panelWidth,minimum),rows:stockCells(bottom,top,rotated?panelWidth:panelLength,minimum)})).filter(c=>c.columns&&c.rows);
       candidates.sort((a,b)=>a.columns.length*a.rows.length-b.columns.length*b.rows.length);
-      const best=candidates[0];if(!best)throw narrowPanelError(surface.name);
+      const best=candidates[0];if(!best)throw narrowPanelError(surface.name,minimum,{kind:'panel',name:`Полоса у проёма: ${Math.round(right-left)} × ${Math.round(top-bottom)} мм`,shape:rect(left,bottom,right-left,top-bottom)});
       for(const column of best.columns){
       const localHigh=surface.topProfile?Math.max(profileHeight(surface.topProfile,column.x),profileHeight(surface.topProfile,column.x+column.width),...surface.topProfile.filter(p=>p[0]>=column.x&&p[0]<=column.x+column.width).map(p=>p[1])):surface.heightStart!=null&&surface.heightEnd!==surface.heightStart?
         Math.max(surface.heightStart+(surface.heightEnd-surface.heightStart)*column.x/surface.width,surface.heightStart+(surface.heightEnd-surface.heightStart)*(column.x+column.width)/surface.width):top;
-      const rows=Math.abs(top-bounds.y-bounds.height)<.01?stockCells(bottom,Math.min(top,localHigh),best.rotated?panelWidth:panelLength):best.rows;
-      if(!rows)throw narrowPanelError(surface.name);
+      const rows=Math.abs(top-bounds.y-bounds.height)<.01?stockCells(bottom,Math.min(top,localHigh),best.rotated?panelWidth:panelLength,minimum):best.rows;
+      if(!rows)throw narrowPanelError(surface.name,minimum);
       for(const row of rows){
         for(const shape of clipping.intersection(surface.geometry,rect(column.x,row.x,column.width,row.width))){
         const box=polygonBounds(shape);if(polygonAreaMm(shape)<1)continue;
@@ -118,7 +120,7 @@ function tileStockWall(surface,panelWidth,panelLength) {
       }
     }
   }
-  return mergeNarrowParts(parts,panelWidth,panelLength,surface.name);
+  return mergeNarrowParts(parts,panelWidth,panelLength,surface.name,minimum);
 }
 export const polygonAreaMm = poly => poly.reduce((sum, ring, index) => {
   const area = Math.abs(ring.reduce((a, p, i) => { const q = ring[(i + 1) % ring.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
@@ -134,7 +136,7 @@ const subtract = (shape, holes) => holes.length ? clipping.difference(shape, ...
 
 // Joints land on both jambs where the minimum panel size permits. Remaining bays are balanced
 // between fixed points and never exceed the selected frame step.
-export function wallPanelColumns(bounds, step, openings = []) {
+export function wallPanelColumns(bounds, step, openings = [], minimum=MIN_PANEL_WIDTH_MM) {
   const start = bounds.x, end = bounds.x + bounds.width;
   const anchors = [start, end];
   const distanceToGrid = value => {
@@ -149,13 +151,13 @@ export function wallPanelColumns(bounds, step, openings = []) {
       const score = value => distanceToGrid(value) + (Math.min(...anchors.map(anchor => Math.abs(value-anchor))) < step * .25 ? step : 0);
       return score(a) - score(b);
     });
-    for(const chosen of candidates) if (anchors.every(value => Math.abs(value - chosen) >= MIN_PANEL_WIDTH_MM)) anchors.push(chosen);
+    for(const chosen of candidates) if (anchors.every(value => Math.abs(value - chosen) >= minimum)) anchors.push(chosen);
   }
   anchors.sort((a,b) => a-b);
   const columns = [];
   for (let index=0; index<anchors.length-1; index++) {
     const left=anchors[index], right=anchors[index+1];
-    const pieces = balancedCells(left, right, step);
+    const pieces = balancedCells(left, right, step,minimum);
     if (!pieces) return [];
     columns.push(...pieces);
   }
@@ -165,6 +167,7 @@ export function wallPanelColumns(bounds, step, openings = []) {
 // Horizontal wall panels are cut as bands at the sill and lintel levels.
 // This avoids long, narrow L-shaped remnants around doors and windows.
 function tileHorizontalWall(surface, panelWidth, panelLength) {
+  const minimum=surface.minPanelWidthMm??MIN_PANEL_WIDTH_MM;
   const bounds = polygonBounds(surface.geometry.flat());
   const bottom = bounds.y, top = bounds.y + bounds.height;
   const levels = [...new Set([bottom, top, ...surface.openings.flatMap(opening => [Number(opening.sill), Number(opening.sill) + opening.height])])]
@@ -172,8 +175,8 @@ function tileHorizontalWall(surface, panelWidth, panelLength) {
   const parts = [];
   for (let band = 0; band < levels.length - 1; band++) {
     const y1 = levels[band], y2 = levels[band + 1];
-    const rows = balancedCells(y1, y2, panelWidth);
-    if (!rows) throw narrowPanelError(surface.name);
+    const rows = balancedCells(y1, y2, panelWidth,minimum);
+    if (!rows) throw narrowPanelError(surface.name,minimum);
     const active = surface.openings.filter(opening => Number(opening.sill) < (y1+y2)/2 && Number(opening.sill)+opening.height > (y1+y2)/2)
       .map(opening => [opening.x, opening.x+opening.width]).sort((a,b)=>a[0]-b[0]);
     const spans = [];
@@ -181,8 +184,8 @@ function tileHorizontalWall(surface, panelWidth, panelLength) {
     for (const [left,right] of active) { if (left > cursor + .001) spans.push([cursor,left]); cursor = Math.max(cursor,right); }
     if (cursor < bounds.x+bounds.width-.001) spans.push([cursor,bounds.x+bounds.width]);
     for (const [left,right] of spans) {
-      const columns = balancedCells(left,right,panelLength);
-      if (!columns) throw narrowPanelError(surface.name);
+      const columns = balancedCells(left,right,panelLength,minimum);
+      if (!columns) throw narrowPanelError(surface.name,minimum);
       for (const row of rows) for (const column of columns) {
         const shape = rect(column.x,row.x,column.width,row.width);
         const box = polygonBounds(shape);
@@ -195,10 +198,10 @@ function tileHorizontalWall(surface, panelWidth, panelLength) {
   return parts;
 }
 
-function mergeNarrowParts(parts, panelWidth, panelLength, label) {
+function mergeNarrowParts(parts, panelWidth, panelLength, label, minimum=MIN_PANEL_WIDTH_MM) {
   const result = [...parts];
   for (let attempts = 0; attempts < parts.length; attempts++) {
-    const index = result.findIndex(part => Math.min(part.width,part.height) < MIN_PANEL_WIDTH_MM-.001);
+    const index = result.findIndex(part => Math.min(part.width,part.height) < minimum-.001);
     if (index < 0) return result;
     const thin = result[index];
     let best = null;
@@ -214,12 +217,12 @@ function mergeNarrowParts(parts, panelWidth, panelLength, label) {
       const score=box.width*box.height - thin.width*thin.height - other.width*other.height;
       if (!best || score<best.score) best={otherIndex,shape:shape[0],box,score};
     }
-    if (!best) throw narrowPanelError(label);
+    if (!best) throw narrowPanelError(label,minimum,{kind:'panel',name:`Узкая деталь ${Math.round(Math.min(thin.width,thin.height))} мм`,shape:thin.shape});
     const survivor=result[best.otherIndex];
     result[best.otherIndex]={...survivor,shape:best.shape,...best.box,area:polygonAreaMm(best.shape),upperCourse:survivor.upperCourse||thin.upperCourse};
     result.splice(index,1);
   }
-  if (result.some(part=>Math.min(part.width,part.height)<MIN_PANEL_WIDTH_MM-.001)) throw narrowPanelError(label);
+  if (result.some(part=>Math.min(part.width,part.height)<minimum-.001)) throw narrowPanelError(label,minimum);
   return result;
 }
 
@@ -251,20 +254,21 @@ const mergeWalls = segments => {
 // Each connected polygon is a separate labelled part, including concave cuts
 // and holes. A stock blank is its bounding rectangle, never its net area.
 export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
+  const minimum=surface.minPanelWidthMm??MIN_PANEL_WIDTH_MM;
   if (surface.blocked || surface.frameOnly || !surface.geometry.length) return [];
   if(surface.gableColumns?.length){
     const bounds=polygonBounds(surface.geometry.flat()),result=[];
     for(const [index,column]of surface.gableColumns.entries()){
       const rotated=column.width>panelWidth+.01;
-      if(column.width>(rotated?panelLength:panelWidth)+.01||rotated&&!surface.gableAllowRotation)throw narrowPanelError(surface.name+' · ширина между стойками стены не помещается в панель');
-      const height=rotated?panelWidth:panelLength,rows=balancedCells(bounds.y,bounds.y+bounds.height,height);
-      if(!rows)throw narrowPanelError(surface.name);
+      if(column.width>(rotated?panelLength:panelWidth)+.01||rotated&&!surface.gableAllowRotation)throw narrowPanelError(surface.name+' · ширина между стойками стены не помещается в панель',minimum);
+      const height=rotated?panelWidth:panelLength,rows=balancedCells(bounds.y,bounds.y+bounds.height,height,minimum);
+      if(!rows)throw narrowPanelError(surface.name,minimum);
       const pieces=[];
       for(const [row,cell]of rows.entries())for(const shape of clipping.intersection(surface.geometry,rect(column.x,cell.x,column.width,cell.width))){
         const box=polygonBounds(shape),area=polygonAreaMm(shape);if(area<1)continue;
         pieces.push({id:`${surface.id}-P${index+1}.${row+1}.${pieces.length+1}`,surfaceId:surface.id,surface:surface.name,floor:surface.floor,thickness:surface.thickness,family:surface.family,shape,...box,area,blankWidth:rotated?box.height:box.width,blankHeight:rotated?box.width:box.height,orientation:rotated?'Горизонтально':'Вертикально',upperCourse:row>0});
       }
-      result.push(...mergeNarrowParts(pieces,rotated?panelLength:panelWidth,height,surface.name));
+      result.push(...mergeNarrowParts(pieces,rotated?panelLength:panelWidth,height,surface.name,minimum));
     }
     return result;
   }
@@ -281,7 +285,7 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
       const zone={...surface,bearingTiled:true,geometry,layout:{...surface.layout,originX:undefined,originY:undefined}};
       parts.push(...tileSurface(zone,panelWidth,panelLength,step,staggered).map(p=>({...p,id:`${surface.id}-P${parts.length+1}-${i+1}.${j+1}-${p.id.split('-P')[1]}`})));
     }
-    if(parts.some(p=>Math.min(p.width,p.height)<MIN_PANEL_WIDTH_MM-.01))throw narrowPanelError(surface.name);
+    if(parts.some(p=>Math.min(p.width,p.height)<minimum-.01))throw narrowPanelError(surface.name,minimum);
     return parts;
   }
   if(surface.stockWall && !presentNumber(surface.layout?.originX) && !presentNumber(surface.layout?.originY) && !presentNumber(surface.layout?.step))
@@ -303,21 +307,21 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
   const originY = presentNumber(surface.layout?.originY) ? Number(surface.layout.originY) : bounds.y;
   const firstColumn = Math.floor((bounds.x - originX) / width);
   const adaptive = !surface.horizontal && surface.openings?.length && !presentNumber(surface.layout?.originX)
-    ? wallPanelColumns(bounds, width, surface.openings) : null;
+    ? wallPanelColumns(bounds, width, surface.openings,minimum) : null;
   const firstX = originX + firstColumn * width;
-  const columns = adaptive || (!presentNumber(surface.layout?.originX) ? balancedCells(bounds.x,bounds.x+bounds.width,width) : null) || Array.from({ length: Math.ceil((bounds.x + bounds.width - firstX) / width) }, (_, index) => ({
+  const columns = adaptive || (!presentNumber(surface.layout?.originX) ? balancedCells(bounds.x,bounds.x+bounds.width,width,minimum) : null) || Array.from({ length: Math.ceil((bounds.x + bounds.width - firstX) / width) }, (_, index) => ({
     x: originX + (firstColumn + index) * width, width, column: firstColumn + index,
   })).filter(item => item.x < bounds.x + bounds.width - 0.01);
-  if (!columns.length) throw narrowPanelError(surface.name);
+  if (!columns.length) throw narrowPanelError(surface.name,minimum);
   for (let index = 0; index < columns.length; index++) {
     const { x, width: cellWidth } = columns[index];
     const column = columns[index].column ?? index;
     const shift = staggered && surface.horizontal && surface.staggered !== false && column % 2 ? panelLength / 2 : 0;
     const firstRow = Math.floor((bounds.y - originY + shift) / panelLength);
     const rows = !presentNumber(surface.layout?.originY) && !shift && !surface.horizontal
-      ? balancedCells(bounds.y,bounds.y+bounds.height,panelLength)?.map((cell,i)=>({y:cell.x,height:cell.width,row:i}))
+      ? balancedCells(bounds.y,bounds.y+bounds.height,panelLength,minimum)?.map((cell,i)=>({y:cell.x,height:cell.width,row:i}))
       : null;
-    if (!rows && !surface.horizontal && !presentNumber(surface.layout?.originY) && !shift) throw narrowPanelError(surface.name);
+    if (!rows && !surface.horizontal && !presentNumber(surface.layout?.originY) && !shift) throw narrowPanelError(surface.name,minimum);
     const rowCells = rows || Array.from({ length: Math.ceil((bounds.y+bounds.height-(originY+firstRow*panelLength-shift))/panelLength) }, (_,i)=>({y:originY+(firstRow+i)*panelLength-shift,height:panelLength,row:firstRow+i}));
     for (const {y,height,row} of rowCells) {
       const pieces = clipping.intersection(surface.geometry, rect(x, y, cellWidth, height));
@@ -329,12 +333,13 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
       });
     }
   }
-  return mergeNarrowParts(parts,panelWidth,panelLength,surface.name);
+  return mergeNarrowParts(parts,panelWidth,panelLength,surface.name,minimum);
 }
 
 // A failed automatic horizontal layout may use the other stock orientation.
 // Explicit project grids/directions are never overridden.
 export function tileProductionSurface(surface, panelWidth, panelLength, step, staggered) {
+  const minimum=surface.minPanelWidthMm??MIN_PANEL_WIDTH_MM;
   try { return tileSurface(surface,panelWidth,panelLength,step,staggered); }
   catch(error) {
     const layout=surface.layout||{};
@@ -359,7 +364,7 @@ export function tileProductionSurface(surface, panelWidth, panelLength, step, st
       // A triangular hip can leave a sub-250 mm tip on both default axes.
       // Move only an automatic grid; project-set grids remain untouched.
       const bounds=polygonBounds(surface.geometry.flat()),width=Math.min(panelWidth,surface.layoutWidth||panelWidth,step);
-      const offsets=(size)=>[0,MIN_PANEL_WIDTH_MM,size/4,size/2,3*size/4].filter((value,index,list)=>value<size&&list.indexOf(value)===index);
+      const offsets=(size)=>[0,minimum,size/4,size/2,3*size/4].filter((value,index,list)=>value<size&&list.indexOf(value)===index);
       let best=null;
       for(const direction of ['x','y'])for(const dx of offsets(width))for(const dy of offsets(panelLength)){
         let parts;
@@ -524,12 +529,13 @@ export function packMembers(members, stockLength, kerf) {
 
 export function calculateProductionCutting(project, calculation) {
   const settings = normalizeProductionCutting(project.settings?.productionCutting);
+  const minimum=settings.minPanelWidthMm;
   validateProductionSettings(settings);
   const f = project.settings?.formulas || {}, sip = project.settings?.sip || {}, services = project.services || {};
   const panelWidth = mm(f.panelWidth || 1.25), panelLength = mm(f.panelLength || 2.5);
   if (!(panelWidth >= 100 && panelWidth <= 10000 && panelLength >= 100 && panelLength <= 20000)) throw new Error('Проверьте формат панели в формулах проекта: ширина 100–10 000 мм, длина 100–20 000 мм.');
   const surfaces = [], issues = [], openings = [], walls = [],gableOpeningTransfers=new Map();
-  const issue = (code, message, target = '') => issues.push({ code, message, target });
+  const issue = (code, message, target = '',details={}) => issues.push({ code, message, target,...details });
   if (settings.kerfMm === '') issue('KERF', 'Укажите ширину пропила оборудования, мм.');
   if (settings.endAllowanceMm === '') issue('ALLOWANCE', 'Укажите припуск на каждый торец соединительного элемента, мм (0 — без припуска).');
   const plans = calculation.metrics?.floorPlans?.map(item => item.plan) || [project.plan];
@@ -538,7 +544,7 @@ export function calculateProductionCutting(project, calculation) {
   if (calculation.metrics?.floorPlans?.some(item => item.plan.floorType === 'attic' && item.metrics.partitionLength > 0) && services.partitions)
     issue('ATTIC_PARTITIONS', 'Мансарда: при однозначной геометрии скатов раскрой перегородок ограничен ими и заданной высотой. Смета сохраняет прямоугольные заготовки; верхние соединения, сечения и опирание требуют рабочего узла.');
   const addSurface = data => {
-    const surface = { family: 'pps', ...data };
+    const surface = { family: 'pps', minPanelWidthMm:minimum, ...data };
     const bounds=polygonBounds(surface.geometry.flat());
     surface.width??=bounds.width;surface.height??=bounds.height;
     surface.layoutKey = `${surface.id}:${cuttingRevision([surface.geometry, surface.planStart, surface.planEnd])}`;
@@ -621,6 +627,15 @@ export function calculateProductionCutting(project, calculation) {
           issue('OPENING_OVERLAP', `${edge.id}: проёмы пересекаются. Исправьте их положение до раскроя.`, edge.id); blocked = true;
         }
         holes.push(hole);
+      }
+      if(edge.outer)for(const o of selectedOpenings){
+        const header=settings.roofSupports.find(item=>item.autoWindowHeader&&item.headerOpeningId===o.id&&Number(item.headerFloor)===floor);
+        if(!header)continue;
+        const bearing=Number(header.headerBearingMm),bottom=Number(o.sill)+o.height;
+        const pocket=rect(o.x-bearing,bottom,o.width+2*bearing,150);
+        if(o.x-bearing<-.01||o.x+o.width+bearing>width+.01||clipping.difference(pocket,wallShape).reduce((sum,shape)=>sum+polygonAreaMm(shape),0)>1){
+          blocked=true;issue('HEADER_BEARING',`${o.name}: пакет 3×50×150 с опиранием по ${bearing} мм не помещается над проёмом. Измените геометрию или задайте рабочий узел.`,edge.id,{blockers:[{kind:'header',name:'Пакет усиления не помещается в стене',shape:pocket}]});
+        }else holes.push(pocket);
       }
       const geometry = subtract(wallShape, holes);
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
@@ -801,12 +816,12 @@ export function calculateProductionCutting(project, calculation) {
     surface.requiredRoofSupportSeams=roofSupportWallPositions(surface,wallBearingSupports);
     const manualGrid=['originX','originY','step'].some(k=>presentNumber(surface.layout[k]))||surface.layout.direction&&surface.layout.direction!=='auto'||settings.wallPanelMode!=='full';
     const closeOpening=x=>(surface.openings||[]).find(o=>!o.gap&&['window','door'].includes(o.type)&&
-      x>o.x-MIN_PANEL_WIDTH_MM+.01&&x<o.x+o.width+MIN_PANEL_WIDTH_MM-.01);
+      x>o.x-minimum+.01&&x<o.x+o.width+minimum-.01);
     surface.roofOpeningHeaders=[...new Map(surface.requiredRoofSupportSeams.filter(x=>closeOpening(x)).map(x=>{
       const opening=closeOpening(x);return [opening.key,{opening,supportPositions:surface.requiredRoofSupportSeams.filter(position=>closeOpening(position)?.key===opening.key)}];
     })).values()];
     surface.roofSupportSeams=manualGrid?[]:surface.requiredRoofSupportSeams.filter(x=>!closeOpening(x));
-    for(const {opening} of surface.roofOpeningHeaders)issue('ROOF_OPENING_HEADER_CHECK',`${surface.name}: над проёмом «${opening.name}» предусмотрен пакет 3×50×150 мм на ребро. Опирание пакета, нагрузки и путь усилий до фундамента требуют расчёта; отдельная цена пакета в смету не добавлена. Проём не перемещён.`,surface.id);
+    for(const {opening} of surface.roofOpeningHeaders)issue('ROOF_OPENING_HEADER_CHECK',settings.roofSupports.some(item=>item.autoWindowHeader&&item.headerOpeningId===opening.id&&Number(item.headerFloor)===surface.floor)?`${surface.name}: над «${opening.name}» добавлены 3 доски 50×150 с опиранием по ${settings.roofSupports.find(item=>item.autoWindowHeader&&item.headerOpeningId===opening.id&&Number(item.headerFloor)===surface.floor)?.headerBearingMm} мм. Материал включается по назначенной позиции прайса; прочность и узлы требуют проектной проверки.`:`${surface.name}: над проёмом «${opening.name}» предусмотрен пакет 3×50×150 мм на ребро. Опирание пакета, нагрузки и путь усилий до фундамента требуют расчёта; отдельная цена пакета в смету не добавлена. Проём не перемещён.`,surface.id);
     if(surface.requiredRoofSupportSeams.length&&manualGrid)issue('ROOF_WALL_ALIGNMENT',`${surface.name}: ручная сетка сохранена; совместите соединители под опорами кровли.`,surface.id);
     if(surface.roofSupportSeams.length)issue('ROOF_WALL_SUPPORT_CHECK',`${surface.name}: шов SIP и соединительный брус совмещены с прогоном. Сечение, стык по высоте и путь нагрузки до фундамента требуют проверки конструктора.`,surface.id);
   }
@@ -839,10 +854,17 @@ export function calculateProductionCutting(project, calculation) {
       surface.panelLayoutIncomplete = true;
       const seamConflict=(surface.roofSupportSeams||[]).flatMap(seam=>(surface.openings||[]).flatMap(opening=>{
         const edges=[opening.x,opening.x+opening.width],distance=Math.min(...edges.map(edge=>Math.abs(seam-edge)));
-        return distance>0&&distance<MIN_PANEL_WIDTH_MM?[{seam,opening,distance}]:[];
+        return distance>0&&distance<minimum?[{seam,opening,distance}]:[];
       })).sort((a,b)=>a.distance-b.distance)[0];
       const detail=seamConflict?` Шов под прогоном на ${seamConflict.seam} мм расположен в ${Math.round(seamConflict.distance)} мм от края проёма ${seamConflict.opening.name}; требуется изменить положение шва, проёма или согласовать отдельный узел.`:'';
-      issue(error.code,`${error.message}${detail}`,surface.id);
+      const blockers=[];
+      if(error.blocker)blockers.push(error.blocker);
+      if(seamConflict){
+        blockers.push({kind:'seam',name:`Шов под прогоном · ${Math.round(seamConflict.seam)} мм`,shape:rect(seamConflict.seam-15,0,30,surface.height||surface.width)});
+        const o=seamConflict.opening;
+        blockers.push({kind:'opening',elementId:o.key,name:o.name||'Проём',shape:rect(o.x,Number(o.sill),o.width,o.height)});
+      }
+      issue(error.code,`${error.message}${detail}`,surface.id,{blockers});
     }
     if(surface.automaticGableDirection)issue('GABLE_ALIGNMENT',`${surface.name}: для полного раскроя стыки SIP-фронтона смещены относительно стены. Соединители и опирание подтвердите в рабочем узле.`,surface.id);
   }
@@ -859,7 +881,7 @@ export function calculateProductionCutting(project, calculation) {
       const geometry = subtract(outer, holes);
       if (geometry.length !== 1 || polygonAreaMm(geometry[0]) < 1) throw new Error('Панель должна быть одной связной деталью ненулевой площади');
       const manualBounds=polygonBounds(geometry[0]);
-      if(Math.min(manualBounds.width,manualBounds.height)<MIN_PANEL_WIDTH_MM-.001)throw narrowPanelError(item.name);
+      if(Math.min(manualBounds.width,manualBounds.height)<minimum-.001)throw narrowPanelError(item.name,minimum);
       for (let i=0;i<quantity;i++) {
         const id = `РП-${settings.manualPanels.indexOf(item)+1}-${i+1}`;
         addSurface({ id, name: item.name, thickness: Number(item.thickness), family: item.family, geometry, horizontal: true, manual: true });
@@ -946,6 +968,7 @@ export function calculateProductionCutting(project, calculation) {
   for(const surface of surfaces.filter(s=>!s.frameOnly&&!s.horizontal))for(const key of completeSipOpeningBoards(surface,members,settings,issue))overrideKeys.add(key);
   for(const surface of surfaces.filter(s=>s.exterior&&!s.frameOnly&&!s.horizontal))for(const member of sipOpeningInserts(surface,settings,issue)){members.push(member);overrideKeys.add(member.key);}
   for(const surface of surfaces.filter(s=>s.exterior&&!s.frameOnly&&!s.horizontal&&!s.blocked))for(const {opening,supportPositions} of surface.roofOpeningHeaders||[]){
+    if(settings.roofSupports.some(item=>item.autoWindowHeader&&item.headerOpeningId===opening.id&&Number(item.headerFloor)===surface.floor))continue;
     const bottom=Number(opening.sill)+opening.height;
     if(bottom+150>surface.height+.01){issue('ROOF_OPENING_HEADER_CHECK',`${surface.name}: над «${opening.name}» нет 150 мм для пакета; требуется рабочий узел усиления.`,surface.id);continue;}
     const length=opening.width,key=`roof-opening-header:${surface.layoutKey}:${opening.key}`,override=settings.memberOverrides[key]||{};

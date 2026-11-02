@@ -67,6 +67,17 @@ export function productionScene(report,project,{includePlatforms=report.settings
   // Invalid manufacturing surfaces remain visible as warning previews, never
   // as fabricated panels or purchasable stock.
   const previews=report.surfaces.filter(s=>s.blocked&&placements.has(s.id)).flatMap(s=>s.geometry.map((shape,i)=>({id:`preview:${s.id}:${i}`,surfaceId:s.id,layer:placements.get(s.id).layer,shape,placement:placements.get(s.id),thickness:s.thickness,preview:true})));
+  const blockers=(report.issues||[]).flatMap((issue,i)=>{
+    const placement=placements.get(issue.target);
+    const direct=placement?(issue.blockers||[]).filter(blocker=>blocker.shape).map((blocker,j)=>({id:`blocker:${i}:${j}`,surfaceId:issue.target,elementId:blocker.elementId,name:blocker.name,shape:blocker.shape,placement,thickness:8,layer:'blockers',blocker:true,sourceMessage:issue.message})):[];
+    if(direct.length)return direct;
+    if(!['OPENING_WALL','OPENING_SIZE','OPENING_SILL','OPENING_OVERLAP','GABLE_OPENING'].includes(issue.code))return [];
+    const row=report.openings?.find(item=>item.key===issue.target);if(!row)return [];
+    const floor=Math.max(1,Number(row.key.split(':')[0])||1),raw=plans[floor-1]?.openings?.find(item=>item.id===row.id);if(!raw)return [];
+    const width=Number(row.width)>0?Number(row.width):300,height=Number(row.height)>0?Number(row.height):300,sill=Number(row.sill)||0,vertical=raw.orientation==='v';
+    const origin=[Number(raw.x)*1000-(vertical?0:width/2),Number(raw.y)*1000-(vertical?width/2:0),bases[floor-1]||0];
+    return [{id:`blocker:${i}:opening`,surfaceId:row.wallId||issue.target,elementId:row.key,name:`${row.name} · ${issue.code}`,shape:[[[0,sill],[width,sill],[width,sill+height],[0,sill+height]]],placement:{origin,u:vertical?[0,1,0]:[1,0,0],v:[0,0,1],normal:vertical?[1,0,0]:[0,-1,0]},thickness:8,layer:'blockers',blocker:true,sourceMessage:issue.message}];
+  });
   const surfaceMap=new Map(report.surfaces.map(s=>[s.id,s])),cutters=report.members.filter(m=>['brace','edge-board'].includes(m.role));
   const boards=report.members.filter(m=>!m.excluded&&!m.worldA&&m.a&&m.b).flatMap(m=>{const p=placements.get(m.surfaceId);if(!p)return [];const surface=surfaceMap.get(m.surfaceId),depth=framingDepth(m),offset=framingNormalOffset(m,surface),notches=spatialNotches(m,surface,cutters);
     return boardSectionLayers({...m,notches},depth).map((slice,i)=>({id:m.id,layer:p.layer,shape:slice.shape,placement:{...p,origin:p.origin.map((n,k)=>n+p.normal[k]*(offset+slice.normalOffsetMm))},thickness:slice.thickness,timber:true,notchContours:i===0?notches.filter(n=>!(Number(n.depthMm)>0)).flatMap(n=>n.shape.flat()):[],notchFaceOffsetMm:depth/2-slice.normalOffsetMm}));});
@@ -204,5 +215,5 @@ export function productionScene(report,project,{includePlatforms=report.settings
     return length>1?{id:`existing:${host.id||'building'}:wall:${i}`,layer:'existingBuilding',referenceOnly:true,shape:[[[0,0],[length,0],[length,hostHeight||40],[0,hostHeight||40]]],placement:{origin:[a.x*1000,a.y*1000,hostBase],u:[dx/length,dy/length,0],v:[0,0,1],normal:[dy/length,-dx/length,0]},thickness:20}:null;
   }).filter(Boolean):[];
   const sceneBeams=beams.filter(visible).flatMap(item=>displayContour&&['rafters','laths','counterLaths'].includes(item.layer)?clipFlatRoofBeam(item,displayContour):[item]);
-  return {panels:[...panels.filter(visible),...windowPanels,...coldRoofSurfaces,...roofSheetPanels,...flatSheetCover,...parapetPanels,...edgePanels,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,beams:[...sceneBeams,...flatLathBeams,...drainBeams,...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,parapetRequirement,platforms,missing,world,roofBase,bases,placements};
+  return {panels:[...panels.filter(visible),...windowPanels,...coldRoofSurfaces,...roofSheetPanels,...flatSheetCover,...parapetPanels,...edgePanels,...boards.filter(visible),...platformPanels,...foundation.filter(p=>p.known).map(p=>({...p,timber:true})),...hostPanels],foundation,previews,blockers,beams:[...sceneBeams,...flatLathBeams,...drainBeams,...platforms.flatMap(p=>[...p.posts,...p.ties,...p.frameMembers,...p.stringers])],bearingPoints,parapetRequirement,platforms,missing,world,roofBase,bases,placements};
 }

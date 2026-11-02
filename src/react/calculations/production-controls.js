@@ -8,7 +8,7 @@ export function cuttingRevision(value) {
 }
 
 export const productionLimits = {
-  frameStepMm: [100, 2500], kerfMm: [0, 20], endAllowanceMm: [0, 100],
+  minPanelWidthMm:[1,1250], frameStepMm: [100, 2500], kerfMm: [0, 20], endAllowanceMm: [0, 100],
   stockLengthMm: [500, 15000], splineWidthMm: [20, 300], edgeWidthMm: [20, 300],
 };
 

@@ -10,12 +10,16 @@ const crossing=(a,b,c,d)=>{
   const t=((c[0]-a[0])*ey-(c[1]-a[1])*ex)/den,u=((c[0]-a[0])*dy-(c[1]-a[1])*dx)/den;
   return t>=0&&t<=1&&u>=0&&u<=1?t:null;
 };
-export function roofSupportOpeningAt(project,x,y,section){
+export function roofSupportOpeningAt(project,x,y,section,type=null){
   const plan=project.upperFloors?.at(-1)||project.plan;
   return (plan.openings||[]).some(o=>{
+    if(type==='window'&&(o.type!=='window'||o.outer===false)||type==='other'&&o.type==='window')return false;
     const cx=Number(o.x)*1000,cy=Number(o.y)*1000,half=Number(o.width)*500+Number(section.split('×')[0])/2;
     return Number.isFinite(cx)&&Number.isFinite(cy)&&Number.isFinite(half)&&half>0&&(o.orientation==='v'?Math.abs(x-cx)<100&&Math.abs(y-cy)<half:Math.abs(y-cy)<100&&Math.abs(x-cx)<half);
   });
+}
+export function roofSupportOpeningCanBridge(project,x,y,section){
+  return project.settings.productionCutting.windowSupportHeaders?.enabled===true&&roofSupportOpeningAt(project,x,y,section,'window')&&!roofSupportOpeningAt(project,x,y,section,'other');
 }
 
 function intervalsAt(polygon,v){
@@ -58,7 +62,7 @@ export function facetSupportProposal(project,report,config,{groups='all'}={}){
         const postTs=verified.length>=2?verified:Array.from({length:count},(_,i)=>.1+.8*i/(count-1));
         const posts=postTs.map((t,j)=>{
           const top=a.map((n,k)=>round(n+(b[k]-n)*t));
-          if(roofSupportOpeningAt(project,top[0],top[1],config.postProfile)){warnings.push(`${face.id}: стойка попадает на проём; позиция пропущена.`);return null;}
+          if(roofSupportOpeningAt(project,top[0],top[1],config.postProfile)&&!roofSupportOpeningCanBridge(project,top[0],top[1],config.postProfile)){warnings.push(`${face.id}: стойка попадает на проём; позиция пропущена.`);return null;}
           if(top[2]<=baseZ){warnings.push(`${face.id}: стойка ${j+1} не помещается под прогоном.`);return null;}
           return {id:`${id}-s${j+1}`,type:'post',name:`${face.id} · стойка ${index+1}.${j+1}`,profile:config.postProfile,nodeRef:config.nodeRef||'',x1:top[0],y1:top[1],z1:baseZ,x2:top[0],y2:top[1],z2:top[2],upperSupport:id,startSupport:'',endSupport:'',foundationRef:'',faceId:face.id,autoLayout:'roof-purlins',estimateCatalogId:config.postCatalogId||'',estimateEnabled:config.estimateEnabled===true&&!!config.postCatalogId};
         }).filter(Boolean);

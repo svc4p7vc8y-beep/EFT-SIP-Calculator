@@ -13,7 +13,7 @@ export function blockedSurfaceReasons(report, surfaceId) {
 export function blockedSurfaceSummary(report, surfaceId) {
   const reason = blockedSurfaceReasons(report, surfaceId)[0] || 'раскрой заблокирован';
   const seam = reason.match(/Шов под прогоном на \d+ мм расположен в (\d+) мм от края проёма ([^;]+);/);
-  if (seam) return `${surfaceId}: шов под прогоном в ${seam[1]} мм от ${seam[2]} (минимум 250 мм)`;
+  if (seam) return `${surfaceId}: шов под прогоном в ${seam[1]} мм от ${seam[2]} (минимум ${report.settings?.minPanelWidthMm??250} мм)`;
   return `${surfaceId}: ${reason.split('.')[0]}`;
 }
 

@@ -1547,6 +1547,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           <Section id="production" number="11" title="Производство и раскрой" description="Общие настройки деталировки. Индивидуальные панели и узлы остаются в рабочем чертеже.">
             <p className="inspector-note">Размеры и допуски изменяют производственную деталировку. Проверьте их по рабочему проекту перед выпуском в работу.</p>
             {fields([
+              { path: 'settings.productionCutting.minPanelWidthMm', label: 'Минимальная ширина детали SIP', suffix: 'мм', min: 1, max: 1250, step: 10 },
               { path: 'settings.productionCutting.wallPanelMode', label: 'Раскладка стен', type: 'select', options: [{ value: 'full', label: 'Целые панели у проёмов' }, { value: 'grid', label: 'По шагу каркаса' }] },
               { path: 'settings.productionCutting.profileMode', label: 'Сечения деталей', type: 'select', options: [{ value: 'saved', label: 'Сохранённые в проекте' }, { value: 'estimate', label: 'Из расчётной сметы' }] },
               { path: 'settings.productionCutting.frameStepMm', label: 'Шаг силового каркаса', suffix: 'мм', min: 100, max: 2500, step: 1 },

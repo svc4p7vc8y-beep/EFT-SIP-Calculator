@@ -1,7 +1,7 @@
 import { productionLevels } from './production-levels.js';
 import { productionScene } from './production-scene.js';
 import {roofAt} from './roof-project.js';
-import {facetSupportProposal,roofSupportOpeningAt} from './roof-facet-supports.js';
+import {facetSupportProposal,roofSupportOpeningAt,roofSupportOpeningCanBridge} from './roof-facet-supports.js';
 import {houseContourPoints} from '../planner/geometry.js';
 import {roofTrussTemplate} from './roof-truss-template.js';
 import {roofGeometrySignature} from './roof-detailing.js';
@@ -73,7 +73,7 @@ export function generateRoofSupportLayout(project,report,value) {
     }else positions=Array.from({length:config.postCount},(_,i)=>i/(config.postCount-1));
     const posts=positions.map((t,i)=>{
       const [x,y]=xy(length*t).map(Math.round),topZ=Math.round(z+(zEnd-z)*t);
-      if(roofSupportOpeningAt(project,x,y,config.postProfile)){errors.push(`Прогон ${index+1}: стойка ${i+1} попадает на проём. Измените схему опирания или положение стойки.`);return null;}
+      if(roofSupportOpeningAt(project,x,y,config.postProfile)&&!roofSupportOpeningCanBridge(project,x,y,config.postProfile)){errors.push(`Прогон ${index+1}: стойка ${i+1} попадает на проём. Измените схему опирания или положение стойки.`);return null;}
       if(topZ<=baseZ){errors.push(`Прогон ${index+1}: нижняя отметка стойки должна быть ниже прогона.`);return null;}
       return {id:`${beamId}-s${i+1}`,type:'post',name:`Стойка ${index+1}.${i+1}`,profile:config.postProfile,nodeRef:config.nodeRef,
         x1:x,y1:y,z1:baseZ,x2:x,y2:y,z2:topZ,upperSupport:beamId,startSupport:'',endSupport:'',foundationRef:'',autoLayout:AUTO_ROOF_LAYOUT,
