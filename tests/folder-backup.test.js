@@ -4,6 +4,7 @@ import {appendFolderBackups,readFolderBackup,readBackupCatalog,contentHash,proje
 import {downloadMissingServerBackups} from '../src/react/cloud/backup-server.js';
 import {createDefaultProject} from '../src/react/state/project-model.js';
 import {validateImportedProject} from '../src/react/state/project-import.js';
+import {workspaceBackupEntries,orderedBackupRecords} from '../src/react/storage/backup-workspace.js';
 
 class Directory {
   constructor(name='backup'){this.name=name;this.dirs=new Map();this.files=new Map();this.writes=[];this.fail=false;}
@@ -101,4 +102,21 @@ test('malformed server responses are not marked as valid backups',async()=>{
   await assert.rejects(downloadMissingServerBackups(directory,async()=>({ok:true})),/некорректный список/);
   await assert.rejects(downloadMissingServerBackups(directory,async action=>action==='backup-index'?{projects:[],library:[],priceRevision:1}:{revision:1,payload:{}}),/неполный прайс/);
   assert.equal((await readBackupCatalog(directory)).catalog.records.length,0);
+});
+
+test('Anton is backed up from the live open tab into every newly selected folder',async()=>{
+  const anton={...project,meta:{...project.meta,projectName:'Антон',projectNum:'96775'}};
+  const old={...anton,meta:{...anton.meta,projectName:'Старая копия'}};
+  const tabs=[{id:'anton',meta:anton.meta}];
+  const collect=()=>workspaceBackupEntries(tabs,'anton',anton,()=>old);
+  const first=new Directory('first'),second=new Directory('second');
+  await appendFolderBackups(first,collect());
+  // The old destination has already drained the queue. The live tab must still be collected anew.
+  const saved=await appendFolderBackups(second,collect());
+  assert.equal(saved.records[0].name,'96775 Антон');
+  assert.equal((await readFolderBackup(second,saved.records[0])).meta.projectName,'Антон');
+  assert.equal((await appendFolderBackups(second,collect())).added,0);
+  const manyLibraryPlans=Array.from({length:70},(_,i)=>({key:`library:${i}`,savedAt:'2026-11-02T12:00:00Z'}));
+  const ordered=orderedBackupRecords([...saved.records,...manyLibraryPlans],collect()[0].key);
+  assert.equal(ordered[0].name,'96775 Антон');
 });

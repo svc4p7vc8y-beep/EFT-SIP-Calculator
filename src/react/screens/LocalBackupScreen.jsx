@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {FolderOpen,RefreshCw,HardDriveDownload} from 'lucide-react';
 import {useLocalBackup} from '../storage/LocalBackupContext.jsx';
 import {readFolderBackup} from '../storage/folder-backup.js';
+import {orderedBackupRecords} from '../storage/backup-workspace.js';
 import {useProject} from '../state/ProjectContext.jsx';
 import {migrateProject} from '../state/project-model.js';
 import {validateImportedProject} from '../state/project-import.js';
@@ -17,8 +18,14 @@ export default function LocalBackupScreen(){
     try{const data=await readFolderBackup(backup.handle,record);validateImportedProject(data);openTab(migrateProject(data));setError('Проект открыт в новой вкладке. Перейдите в «План дома».');}
     catch(failure){setError(failure.message);}finally{setOpening(false);}
   };
-  const records=[...backup.records].reverse();
+  const records=orderedBackupRecords(backup.records,backup.currentKey);
   return <div className="screen local-backup-screen"><ScreenHeader title="Резервные копии" description="Проекты и прайс в папке на вашем компьютере"/>
+    <section className={`panel local-backup-panel current-project-backup ${backup.currentSaved?'is-saved':''}`} aria-label="Резерв текущего проекта">
+      <h2>Текущий проект: {backup.currentName}</h2>
+      <p role="status">{backup.currentSaved?`Текущая версия сохранена в папку на устройстве. Файл проверен ${new Date(backup.currentCheckedAt).toLocaleTimeString('ru-RU')}.`:!backup.handle?'Для файловой резервной копии выберите папку ниже. Рабочая вкладка сохраняется отдельно в браузере.':backup.permission!=='granted'?'Разрешите запись в папку для сохранения этого проекта.':'Текущая версия ещё не подтверждена в папке. Выполняется автоматическое сохранение; можно сохранить сейчас.'}</p>
+      {backup.currentRecord?<p className="local-backup-path"><strong>Файл:</strong> {backup.handle.name} / EFT-резерв / Проекты / {backup.currentRecord.filename}</p>:null}
+      <button type="button" className="button primary" onClick={backup.saveCurrent} disabled={!hydrated||!backup.handle||backup.permission!=='granted'||backup.busy}><HardDriveDownload/>Сохранить текущий проект на устройство</button>
+    </section>
     <section className="panel local-backup-panel">
       <h2><HardDriveDownload/>Автосохранение в папку</h2>
       <p>После выбора папки калькулятор сохраняет изменения открытых проектов, библиотеку планов и прайс. Новая версия получает отдельный файл; предыдущие копии остаются.</p>
@@ -34,7 +41,7 @@ export default function LocalBackupScreen(){
     </section>
     {error?<p className="notice" role="status">{error}</p>:null}
     <section className="panel local-backup-panel"><h2>Сохранённые версии</h2><p>Проекты можно открыть здесь или через «Открыть план» → файл .eft.json из резервной папки. Прайсы сохраняются отдельно и внутри рабочих проектов. Файлы изображений и PDF на сервере в этот резерв не входят.</p>
-      <div className="local-backup-list">{records.slice(0,60).map(record=><div className="local-backup-row" key={`${record.key}:${record.hash}`}><div><strong>{record.name}</strong><small>{kinds[record.kind]} · {new Date(record.savedAt).toLocaleString('ru-RU')}</small></div>{['project','library','server'].includes(record.kind)?<button className="button secondary" onClick={()=>open(record)} disabled={opening||!hydrated||backup.permission!=='granted'}>Открыть проект</button>:null}</div>)}</div>
+      <div className="local-backup-list">{records.slice(0,60).map(record=><div className="local-backup-row" key={`${record.key}:${record.hash}:${record.sourceVersion}`}><div><strong>{record.name}</strong><small>{record.key===backup.currentKey?'Текущий проект · ':''}{kinds[record.kind]} · {new Date(record.savedAt).toLocaleString('ru-RU')}</small></div>{['project','library','server'].includes(record.kind)?<button className="button secondary" onClick={()=>open(record)} disabled={opening||!hydrated||backup.permission!=='granted'}>Открыть проект</button>:null}</div>)}</div>
       {!records.length?<p>После подключения папки здесь появятся резервные копии.</p>:null}{records.length>60?<p>Показаны последние 60 файлов. Остальные версии находятся в выбранной папке.</p>:null}
     </section>
   </div>;

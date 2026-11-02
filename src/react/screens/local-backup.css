@@ -7,4 +7,7 @@
 .local-backup-row>div{min-width:0;overflow-wrap:anywhere;}
 .local-backup-row small{display:block;margin-top:5px;opacity:.75;}
 .local-backup-row button{flex-shrink:0;}
+.current-project-backup{border-left:4px solid #b88328;}
+.current-project-backup.is-saved{border-left-color:#5d8e35;}
+.local-backup-path{font-size:12px;overflow-wrap:anywhere;}
 @media(max-width:520px){.local-backup-panel{padding:14px;}.local-backup-row{align-items:flex-start;flex-direction:column;}}

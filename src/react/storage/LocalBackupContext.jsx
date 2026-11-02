@@ -1,9 +1,10 @@
-import {createContext,useContext,useEffect,useRef,useState} from 'react';
+import {createContext,useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {useProject} from '../state/ProjectContext.jsx';
 import {useTeam} from '../cloud/TeamContext.jsx';
 import {standaloneCalculator} from '../../shared/team-api.js';
 import {readPlanLibrary} from './plan-library.js';
-import {appendFolderBackups,libraryBackupEntries,projectBackupData,readBackupCatalog} from './folder-backup.js';
+import {appendFolderBackups,contentHash,libraryBackupEntries,readBackupCatalog} from './folder-backup.js';
+import {workspaceBackupEntries} from './backup-workspace.js';
 import {loadFolderHandle,storeFolderHandle,forgetFolderHandle} from './folder-handle.js';
 import {downloadMissingServerBackups} from '../cloud/backup-server.js';
 import {REACT_PROJECT_VERSION} from '../state/project-model.js';
@@ -18,26 +19,41 @@ export function LocalBackupProvider({children}) {
   const [message,setMessage]=useState('Выберите папку для автоматических резервных копий.');
   const [serverMessage,setServerMessage]=useState('');
   const [pending,setPending]=useState(0);
+  const [confirmed,setConfirmed]=useState(null);
+  const owner=String(team.user?.id||'local');
+  const workspaceEntries=useMemo(()=>workspaceBackupEntries(tabs,activeTabId,project,getTabProject,owner),[tabs,activeTabId,project,getTabProject,owner]);
+  const currentKey=`workspace:${owner}:${activeTabId}`;
+  const currentEntry=workspaceEntries.find(entry=>entry.key===currentKey);
   const queue=useRef(new Map()),running=useRef(false),syncing=useRef(false),latest=useRef(null);
-  latest.current={handle,permission,team,hydrated};
+  latest.current={handle,permission,team,hydrated,workspaceEntries,currentEntry,project,owner};
   const enqueue=entries=>{for(const entry of entries)queue.current.set(entry.key,entry);setPending(queue.current.size);};
   const runRef=useRef(null);
   const run=async(withServer=false)=>{
     const current=latest.current;
     if(!current.handle||current.permission!=='granted'||!current.hydrated||running.current)return;
-    running.current=true;setBusy(true);
+    running.current=true;setBusy(true);setConfirmed(null);
     let localSaved=false;
     try{
       if(await current.handle.queryPermission({mode:'readwrite'})!=='granted'){
         setPermission('prompt');throw new Error('Подтвердите доступ к папке кнопкой «Разрешить запись».');
       }
+      // Rebuild the live snapshot on every check, even after the queue was drained
+      // or another destination folder was selected.
+      enqueue([
+        ...current.workspaceEntries,
+        {key:`local-price:${current.owner}`,kind:'price',name:'Прайс на устройстве',data:{format:'eft-price-backup',appVersion:REACT_PROJECT_VERSION,priceMat:current.project.priceMat,priceLab:current.project.priceLab}},
+        ...libraryBackupEntries(readPlanLibrary(),current.project,`local-library:${current.owner}`),
+      ]);
       const entries=[...queue.current.values()];
       const result=await appendFolderBackups(current.handle,entries);
       for(const entry of entries)if(queue.current.get(entry.key)===entry)queue.current.delete(entry.key);
       setRecords(result.records);setPending(queue.current.size);
       localSaved=true;
+      const hash=await contentHash(current.currentEntry.data);
+      const record=result.records.find(item=>item.key===current.currentEntry.key&&item.hash===hash);
+      setConfirmed(record?{handle:current.handle,entry:current.currentEntry,record,checkedAt:new Date().toISOString()}:null);
       setMessage(`Локальная копия проверена ${new Date().toLocaleTimeString('ru-RU')}. Новых файлов: ${result.added}.`);
-    }catch(error){setMessage(`Запись в папку не завершена: ${error.message}. Изменения остаются в очереди.`);}
+    }catch(error){setConfirmed(null);setMessage(`Запись в папку не завершена: ${error.message}. Изменения остаются в очереди.`);}
     finally{running.current=false;setBusy(syncing.current);if(localSaved&&queue.current.size)setTimeout(()=>runRef.current(false),1000);}
     // A slow server must never hold the local write queue.
     if(withServer&&localSaved&&!syncing.current){
@@ -68,12 +84,11 @@ export function LocalBackupProvider({children}) {
   },[supported]);
   useEffect(()=>{
     if(!hydrated)return;
-    const owner=String(team.user?.id||'local');
-    enqueue(tabs.map(tab=>({key:`workspace:${owner}:${tab.id}`,kind:'project',name:`${tab.meta?.projectNum||''} ${tab.meta?.projectName||'Проект'}`.trim(),data:projectBackupData(tab.id===activeTabId?project:getTabProject(tab.id))})));
+    enqueue(workspaceEntries);
     enqueue([{key:`local-price:${owner}`,kind:'price',name:'Прайс на устройстве',data:{format:'eft-price-backup',appVersion:REACT_PROJECT_VERSION,priceMat:project.priceMat,priceLab:project.priceLab}}]);
     const timer=setTimeout(()=>runRef.current(false),1500);
     return()=>clearTimeout(timer);
-  },[project,tabs,activeTabId,getTabProject,hydrated,team.user?.id]);
+  },[project,workspaceEntries,hydrated,owner]);
   useEffect(()=>{
     const collect=()=>{
       if(!hydrated)return;
@@ -110,5 +125,6 @@ export function LocalBackupProvider({children}) {
     try{await forgetFolderHandle();setHandle(null);setRecords([]);setMessage('Копирование отключено. Файлы в папке сохранены.');}
     catch(error){setMessage(`Не удалось отключить папку: ${error.message}`);}
   };
-  return <Context.Provider value={{supported,handle,permission,records,busy,message,serverMessage,pending,choose,authorize,disconnect,saveNow:()=>run(true)}}>{children}</Context.Provider>;
+  const currentSaved=permission==='granted'&&confirmed?.handle===handle&&confirmed?.entry===currentEntry;
+  return <Context.Provider value={{supported,handle,permission,records,busy,message,serverMessage,pending,choose,authorize,disconnect,saveNow:()=>run(true),saveCurrent:()=>run(false),currentKey,currentName:currentEntry?.name||'Проект',currentSaved,currentRecord:currentSaved?confirmed.record:null,currentCheckedAt:currentSaved?confirmed.checkedAt:null}}>{children}</Context.Provider>;
 }
