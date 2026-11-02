@@ -520,18 +520,10 @@ export function App() {
 
   const openTeamProject = async (id, destination = 'plan') => {
     try {
-      const existing = tabs.find((tab) => tab.serverId === id);
-      if (existing) {
-        await switchProjectTab(existing.id);
-        const opened = getTabProject(existing.id);
-        if (opened) rememberOpenedProject(opened);
-        setActive(destination);
-        return;
-      }
       await saveBeforeSwitch();
       const result = await team.openProject(id);
       const opened = migrateProject(validateImportedProject(result.payload));
-      openTab(opened, result.id, result.name, result.revision);
+      openTab(opened, result.id, result.name, result.revision,null,{forceNew:true});
       rememberOpenedProject(opened);
       setActive(destination);
       setNotice(`Открыт общий проект «${result.name}»`);
@@ -876,8 +868,7 @@ export function App() {
                   onRestoreVersion: restoreTeamVersion,
                   onEditProject: (id) => openTeamProject(id, 'parameters'),
                   onCreatedProject: (created) => {
-                    replaceTab(activeTabId, created.payload);
-                    attachServer(activeTabId, created.id, created.name, created.revision);
+                    openTab(created.payload, created.id, created.name, created.revision,null,{forceNew:true});
                   },
                   onImportIntake: importTeamIntake,
                   focusTab: teamFocus,

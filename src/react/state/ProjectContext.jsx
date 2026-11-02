@@ -42,8 +42,8 @@ export function ProjectProvider({ children }) {
   const project = useMemo(() => applySharedPriceCatalog(history.present, team.user ? team.priceCatalog.payload : null, team.priceCatalog.revision), [history.present, team.user?.id, team.priceCatalog.payload, team.priceCatalog.revision]);
 
   useEffect(() => {
-    if (team.current?.id && team.current.revision) dispatch({ type: 'server-revision', serverId: team.current.id, revision: team.current.revision, name: team.current.name });
-  }, [team.current?.id, team.current?.revision, team.current?.name]);
+    if (team.current?.id && team.current.revision && activeTab.serverId===team.current.id) dispatch({ type: 'server-revision',tabId:activeTab.id, serverId: team.current.id, revision: team.current.revision, name: team.current.name });
+  }, [team.current?.id, team.current?.revision, team.current?.name,activeTab.id,activeTab.serverId]);
 
   useEffect(() => {
     if (!team.ready) return;
@@ -95,12 +95,12 @@ export function ProjectProvider({ children }) {
   );
   const undo = useCallback(() => dispatch({ type: "undo", tabId: workspace.activeId }), [workspace.activeId]);
   const redo = useCallback(() => dispatch({ type: "redo", tabId: workspace.activeId }), [workspace.activeId]);
-  const openTab = useCallback((nextProject, serverId = null, serverName = '', serverRevision = 0, libraryId = null) => {
+  const openTab = useCallback((nextProject, serverId = null, serverName = '', serverRevision = 0, libraryId = null, {forceNew=false}={}) => {
     validateImportedProject(nextProject);
     const existing = workspace.tabs.find(tab => (serverId && tab.serverId === serverId) || (libraryId && tab.libraryId === libraryId));
-    if (existing) { dispatch({ type: 'activate-tab', id: existing.id }); return existing.id; }
+    if (existing&&!forceNew) { dispatch({ type: 'activate-tab', id: existing.id }); return existing.id; }
     const id = globalThis.crypto?.randomUUID?.() || `tab-${Date.now()}-${Math.random()}`;
-    dispatch({ type: 'open-tab', id, project: nextProject, serverId, libraryId, serverName, serverRevision });
+    dispatch({ type: 'open-tab', id, project: nextProject, serverId, libraryId, serverName, serverRevision,forceNew });
     return id;
   }, [workspace.tabs]);
   const rememberOpenedProject = useCallback((openedProject) => {

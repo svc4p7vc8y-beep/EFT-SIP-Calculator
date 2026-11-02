@@ -2,6 +2,7 @@ import { normalizeStairDirection } from "./stair-steps.js";
 import clipping from 'polygon-clipping';
 import { gapFragments } from '../calculations/gap-fragments.js';
 import { existingWallEdge } from './existing-building.js';
+import {gapEndpoints} from './gap-endpoints.js';
 
 const EPS = 0.035;
 
@@ -118,6 +119,7 @@ export function collectSnapAxes(plan, excludeRoomId) {
     for (const point of roomPoints(room)) addPoint(point);
   }
   for (const wallLine of plan.walls || []) { addPoint({ x: wallLine.x1, y: wallLine.y1 }); addPoint({ x: wallLine.x2, y: wallLine.y2 }); }
+  for (const gap of plan.wallGaps || []) if(gap.include!==false)gapEndpoints(gap).forEach(addPoint);
   for (const row of plan.pileRows || []) { addPoint({ x: row.x1, y: row.y1 }); addPoint({ x: row.x2, y: row.y2 }); }
   for (const binding of plan.bindingLines || []) { addPoint({ x: binding.x1, y: binding.y1 }); addPoint({ x: binding.x2, y: binding.y2 }); }
   for (const dimension of plan.dimensions || []) { addPoint({ x: dimension.x1, y: dimension.y1 }); addPoint({ x: dimension.x2, y: dimension.y2 }); }

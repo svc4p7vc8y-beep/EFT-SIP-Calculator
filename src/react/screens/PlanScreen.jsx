@@ -5,6 +5,10 @@ import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
 import { roomBearingEdges } from '../calculations/bearing-walls.js';
 import { convertToWallLayout, rebuildWallRooms, addRoomWalls, wallDepth } from '../planner/wall-layout.js';
+import {gapEndpoints} from '../planner/gap-endpoints.js';
+import {resizeWallGap} from '../planner/wall-gap-handles.js';
+import {limitDiagonalPartition} from '../planner/diagonal-partition.js';
+import {projectFromPlanFile} from '../storage/plan-transfer.js';
 import BearingRoomControls from './BearingRoomControls.jsx';
 import { normalizeTieredRoof } from '../calculations/tiered-roof.js';
 import { stairStepGeometry, stairOpeningPolygon, STAIR_TYPES, normalizeStairType } from '../planner/stair-steps.js';
@@ -115,7 +119,6 @@ const CalculationSettingsPanel=lazy(()=>import('./CalculationSettingsScreen.jsx'
 const InlineWindowConfigurator=lazy(()=>import('./WindowConfigurator.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
 import {
-  applyPlanTransfer,
   downloadPlanTransfer,
   sharePlanTransfer,
 } from "../storage/plan-transfer.js";
@@ -256,6 +259,11 @@ function previewPlan(source, gesture) {
     gesture.type === "room" ? gesture.id : null,
   );
   const itemFor = (key) => plan[key].find((item) => item.id === gesture.id);
+  if(gesture.kind==='gapEndpoint'){
+    const gap=itemFor('wallGaps');
+    if(gap)Object.assign(gap,resizeWallGap(plan,gap,gesture.index,end,gesture.snapTolerance));
+    return plan;
+  }
   if(gesture.kind==='rowPile'){
     const row=(plan.pileRows||[]).find(item=>item.id===gesture.rowId);
     if(row){const offset=pileOffsetAlongRow(row,gesture.index,end);if(offset!=null)row.pileOffsets={...(row.pileOffsets||{}),[gesture.index]:offset};}
@@ -291,7 +299,8 @@ function previewPlan(source, gesture) {
             ? "bindingLines"
             : "pileRows";
     const item = itemFor(key);
-    const point = snapPoint(end, axes);
+    let point = snapPoint(end, axes);
+    if(item&&gesture.type==='wall')point=limitDiagonalPartition(gesture.index===0?{x:item.x2,y:item.y2}:{x:item.x1,y:item.y1},point);
     if (item) {
       item[`x${gesture.index + 1}`] = point.x;
       item[`y${gesture.index + 1}`] = point.y;
@@ -1466,10 +1475,16 @@ function PlanCanvas({
     }
     const axisTolerance = Math.max(0.03, Math.min(0.18, 10 / layout.scale));
     const nodeTolerance = Math.max(0.05, Math.min(0.24, 16 / layout.scale));
-    return snapPointDetails(raw, axes, {
+    const resolved=snapPointDetails(raw, axes, {
       tolerance: axisTolerance,
       pointTolerance: nodeTolerance,
     });
+    if(current?.type==='wall'&&['draw','endpoint'].includes(current.kind)){
+      const item=(plan.walls||[]).find(w=>w.id===current.id);
+      const anchor=current.kind==='draw'?current.start:current.index===0?{x:item?.x2,y:item?.y2}:{x:item?.x1,y:item?.y1};
+      if(anchor){const point=limitDiagonalPartition(anchor,resolved.point);if(point.x!==resolved.point.x||point.y!==resolved.point.y)return {point,snap:null};}
+    }
+    return resolved;
   };
   const toPlan = (event) => resolvePlanPoint(event).point;
   const begin = (event, value) => {
@@ -1578,7 +1593,7 @@ function PlanCanvas({
       return;
     }
     selectExisting({ type, id });
-    begin(event, { kind: extra.kind || "move", type, id, index: extra.index, rowId: extra.rowId });
+    begin(event, { kind: extra.kind || "move", type, id, index: extra.index, rowId: extra.rowId,snapTolerance:Math.max(.03,Math.min(.2,12/layout.scale)) });
   };
   const addAt = (point, type) => {
     if (type === "pile") {
@@ -1599,7 +1614,9 @@ function PlanCanvas({
       y: segment.axis === "v" ? segment.projected : segment.fixed,
     };
     if (type === "gap") {
-      commitPlan((next) => next.wallGaps.push({ ...common, width: 1 }));
+      const width=Math.min(1,segment.end-segment.start);
+      const center=Math.max(segment.start+width/2,Math.min(segment.end-width/2,segment.projected));
+      commitPlan((next) => next.wallGaps.push({ ...common, width, x:segment.axis==='v'?segment.fixed:center,y:segment.axis==='v'?center:segment.fixed }));
       selectCreated({ type: "gap", id });
     } else {
       const isGarage = type === "garage";
@@ -2548,6 +2565,7 @@ function PlanCanvas({
                 gap,
                 `wall-gap ${selected?.id === gap.id ? "selected" : ""}`,
               )}
+              {selected?.type==='gap'&&selected.id===gap.id?gapEndpoints(gap).map((point,index)=>{const q=p(point.x,point.y);return <circle key={index} className="endpoint-handle gap-endpoint" data-gap-endpoint={index} aria-label={`Край разрыва ${index+1}`} cx={q.x} cy={q.y} r="8" onPointerDown={event=>objectDown(event,'gap',gap.id,{kind:'gapEndpoint',index})}/>;}):null}
             </g>
           ))
         : null}
@@ -4146,7 +4164,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           <Toggle label="Несущая перегородка" checked={!!wall.bearing} onChange={value=>update('walls',item=>{item.bearing=value;})}/>
           <DraftText label="Сечение каркаса, мм · толщина × глубина" value={wall.bearing?wall.bearingProfile||'':wall.frameProfile||''} placeholder="Пусто — общие параметры; 50×100 или 45×145" onChange={raw=>{const value=raw.replace(/\s/g,'').replace(/[×х]/g,'x');if(value!==''&&(!/^\d+x\d+$/.test(value)||!value.split('x').every(n=>Number(n)>0)))return;update('walls',item=>{if(item.bearing)item.bearingProfile=value;else item.frameProfile=value;});}}/>
           <p className="inspector-note">Сечение каркасной перегородки задаёт её толщину на плане. Несущая способность и узлы — по проекту. SIP-перегородки задаются в разделе SIP.</p>
-          <div className="form-grid">{['x1','y1','x2','y2'].map(key=><NumberField key={key} label={`${key.toUpperCase()} · ось`} value={wall[key]} suffix="м" step={.001} onChange={value=>update('walls',item=>{item[key]=value;})}/>)}</div>
+          <div className="form-grid">{['x1','y1','x2','y2'].map(key=><NumberField key={key} label={`${key.toUpperCase()} · ось`} value={wall[key]} suffix="м" step={.001} onChange={value=>update('walls',item=>{item[key]=value;const index=key.endsWith('1')?1:2,other=index===1?2:1;const point=limitDiagonalPartition({x:item[`x${other}`],y:item[`y${other}`]},{x:item[`x${index}`],y:item[`y${index}`]});item[`x${index}`]=point.x;item[`y${index}`]=point.y;})}/>)}</div>
           <div className="readout"><span>Изготовляемая длина</span><strong>{formatNumber(partitionRuns(plan).filter(([a,b])=>Math.abs((wall.x2-wall.x1)*((a.y+b.y)/2-wall.y1)-(wall.y2-wall.y1)*((a.x+b.x)/2-wall.x1))<.001&&Math.min(wall.x1,wall.x2)-.001<=(a.x+b.x)/2&&Math.max(wall.x1,wall.x2)+.001>=(a.x+b.x)/2&&Math.min(wall.y1,wall.y2)-.001<=(a.y+b.y)/2&&Math.max(wall.y1,wall.y2)+.001>=(a.y+b.y)/2).reduce((sum,[a,b])=>sum+Math.hypot(b.x-a.x,b.y-a.y),0))} м</strong></div>
           {(plan.openings||[]).filter(o=>o.wallRef===`wall:${wall.id}`).map(o=><button key={o.id} className="button secondary" onClick={()=>setSelected({type:'opening',id:o.id})}>{o.type==='door'?'Дверь':'Окно'} · от начала {formatNumber(Math.hypot(o.x-wall.x1,o.y-wall.y1))} м</button>)}
         </>:null}
@@ -4159,7 +4177,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
         {dimension ? <NumberField label="Размер шрифта" value={dimension.fontSize || 16} suffix="px" min={10} max={48} step={1} onChange={value => update("dimensions", item => { item.fontSize = value; })} /> : null}
         <p className="inspector-note">
           {wall
-            ? "Тяните перегородку целиком поперёк её оси — примыкающие перегородки подтянутся и сохранят общий узел. Зелёные концы изменяют длину вручную."
+            ? "Тяните перегородку целиком поперёк её оси — примыкающие перегородки подтянутся и сохранят общий узел. Зелёные концы изменяют длину вручную. Диагональная перегородка — не более 3000 мм."
             : "Линию можно двигать целиком; зелёные концы изменяют длину и направление."}
         </p>
         <button className="button danger-button" onClick={remove}>
@@ -4195,7 +4213,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           }
         />
         {segment?<button type="button" className="button" onClick={()=>setRange(0,segment.end-segment.start)}>Убрать всю стену</button>:null}
-        <p className="inspector-note">Выберите стену и задайте границы разрыва от её начальной точки. Разрыв можно также перетащить на плане.</p>
+        <p className="inspector-note">Выберите стену и задайте границы разрыва от её начальной точки. Разрыв можно перетаскивать целиком; две точки по краям меняют границы и прилипают к углам стены.</p>
         <button className="button danger-button" onClick={remove}>
           <Trash2 />
           Удалить разрыв
@@ -5558,7 +5576,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const openLibraryPlan = (entry, editAfterOpen = false) => {
     if (!entry || entry.kind === 'folder' || entry.deletedAt) return;
     const nextProject = restorePlanLibraryEntry(project, entry);
-    const nextTabId = openTab(nextProject, null, entry.name, 0, entry.id);
+    const nextTabId = openTab(nextProject, null, entry.name, 0, entry.id, {forceNew:true});
     if (editAfterOpen && !entry.preset) setEditingLibraryIds(current => ({ ...current, [nextTabId]: entry.id }));
     setActiveFloor(1);
     setLibraryOpen(false);
@@ -5679,12 +5697,14 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     if (!file) return;
     try {
       const payload = JSON.parse(await file.text());
-      commit((next) => applyPlanTransfer(next, payload));
+      const opened=projectFromPlanFile(project,payload);
+      openTab(opened,null,opened.meta?.projectName||file.name);
+      setActiveFloor(1);
       setSelected(null);
       setTool("select");
       setPolygonDraft([]);
       setTransferStatus(
-        `Загружен план: ${file.name}. Калькуляторы пересчитаны.`,
+        `План ${file.name} открыт в новой вкладке.`,
       );
     } catch (error) {
       setTransferStatus(`Не удалось открыть план: ${error.message}`);
@@ -6327,8 +6347,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </button>
           ) : !transferStatus.startsWith("Чистый план") && !transferStatus.startsWith("Чистый проект") ? (
             <small>
-              Файл плана не содержит прайс-лист, данные заказчика и ручные правки
-              сметы.
+              Файл .eft-plan.json передаёт план и настройки. Полный .eft.json
+              также сохраняет прайс и ручные правки сметы.
             </small>
           ) : null}
         </div>

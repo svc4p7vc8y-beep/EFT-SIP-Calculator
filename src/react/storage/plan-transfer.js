@@ -1,4 +1,13 @@
-import { ensureProjectFloorCount, normalizePlan, REACT_PROJECT_VERSION } from '../state/project-model.js';
+import { createProjectWithCurrentPrices, migrateProject, ensureProjectFloorCount, normalizePlan, REACT_PROJECT_VERSION } from '../state/project-model.js';
+import {validateImportedProject} from '../state/project-import.js';
+
+export function projectFromPlanFile(currentProject,raw) {
+  if(raw?.format==='eft-project'||Array.isArray(raw?.priceMat)&&Array.isArray(raw?.priceLab))return migrateProject(validateImportedProject(raw));
+  const incoming=validatePlanTransfer(raw);
+  const next=applyPlanTransfer(createProjectWithCurrentPrices(currentProject),raw);
+  next.meta={...next.meta,...structuredClone(incoming.meta)};
+  return migrateProject(next);
+}
 
 export function createPlanTransfer(project) {
   return {

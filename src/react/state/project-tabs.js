@@ -54,7 +54,7 @@ export function projectWorkspaceReducer(state, action) {
   if (action.type === 'hydrate') return restoreProjectWorkspace(action.saved, action.fallback);
   if (action.type === 'open-tab') {
     const existing = state.tabs.find((tab) => (action.serverId && tab.serverId === action.serverId) || (action.libraryId && tab.libraryId === action.libraryId));
-    if (existing) return { ...state, activeId: existing.id };
+    if (existing&&!action.forceNew) return { ...state, activeId: existing.id };
     return {
       activeId: action.id,
       tabs: [...state.tabs, {
@@ -67,7 +67,7 @@ export function projectWorkspaceReducer(state, action) {
     return state.tabs.some((tab) => tab.id === action.id) ? { ...state, activeId: action.id } : state;
   }
   if (action.type === 'server-revision') {
-    const index = state.tabs.findIndex((tab) => tab.serverId === action.serverId);
+    const index = state.tabs.findIndex((tab) => tab.serverId === action.serverId&&(!action.tabId||tab.id===action.tabId));
     if (index < 0 || (state.tabs[index].serverRevision === action.revision && state.tabs[index].serverName === action.name)) return state;
     const tabs = state.tabs.slice();
     tabs[index] = { ...tabs[index], serverRevision: action.revision, serverName: action.name };
