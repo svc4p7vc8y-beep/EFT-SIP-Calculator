@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { eftApi } from "../../shared/team-api.js";
+import { eftApi, standaloneCalculator } from "../../shared/team-api.js";
 import {
   listKnowledgeArticles,
   replaceKnowledgeArticles,
@@ -21,8 +21,8 @@ import { useSharedPriceCatalog } from './useSharedPriceCatalog.js';
 
 const TeamContext = createContext(null);
 const isProductionCalculator = () =>
-  (location.hostname === "calc.eftsip.ru" && import.meta.env.VITE_TEAM_ENABLED === 'true') ||
-  new URLSearchParams(location.search).get("cloud") === "1";
+  !standaloneCalculator && ((location.hostname === "calc.eftsip.ru" && import.meta.env.VITE_TEAM_ENABLED === 'true') ||
+  new URLSearchParams(location.search).get("cloud") === "1");
 
 export function TeamProvider({ children }) {
   const [session, setSession] = useState({

@@ -1,7 +1,7 @@
 import FileThumbnail from '../components/FileThumbnail.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronRight, Copy, Download, File, FileImage, Folder, FolderPlus, HardDrive, MoveRight, RefreshCw, Trash2, Upload } from "lucide-react";
-import { eftApi, resolveEftApiUrl } from "../../shared/team-api.js";
+import { eftApi, resolveEftApiUrl, standaloneCalculator } from "../../shared/team-api.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { PLAN_LIBRARY_KEY, readPlanLibrary } from "../storage/plan-library.js";
 
@@ -38,6 +38,7 @@ export default function FilesScreen({ onOpenLibraryPlan }) {
   const canWrite = Boolean(team.user && team.user.role !== "viewer" && folderId !== "questionnaires" && !inPlanLibrary);
   const apiBase = useMemo(() => resolveEftApiUrl(), []);
   const loadCrm = useCallback(async () => {
+    if (standaloneCalculator) return;
     try {
       const session = await fetch(`${CRM_API}?action=session`, { credentials: "include" }).then((response) => response.json());
       if (!session.authenticated) { setCrmConnected(false); setCrmFiles([]); return; }

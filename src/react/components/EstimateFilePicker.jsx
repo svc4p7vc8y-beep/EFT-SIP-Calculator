@@ -1,6 +1,6 @@
 import FileThumbnail from './FileThumbnail.jsx';
 import {estimateFileUrl} from '../state/estimate-files.js';
-import {resolveEftApiUrl} from '../../shared/team-api.js';
+import {resolveEftApiUrl, standaloneCalculator} from '../../shared/team-api.js';
 import { useEffect, useState } from 'react';
 import { ChevronRight, File, FileImage, Folder, X } from 'lucide-react';
 import { eftApi } from '../../shared/team-api.js';
@@ -31,6 +31,7 @@ export default function EstimateFilePicker({ onSelect, onClose, selectedFiles = 
   useEffect(() => {
     if (!team.user) return;
     let active = true;
+    if (standaloneCalculator) return;
     const base = 'https://crm.eftsip.ru/api/api.php';
     fetch(`${base}?action=session`, { credentials: 'include' }).then(response => response.json()).then(session => {
       if (!session.authenticated) return null;

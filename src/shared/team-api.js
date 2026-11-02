@@ -1,4 +1,5 @@
 const PRODUCTION_API = "https://eftsip.ru/api/api.php";
+export const standaloneCalculator = import.meta.env?.VITE_EFT_STANDALONE === 'true';
 
 export class EftApiError extends Error {
   constructor(message, code = "request_failed", status = 0, details = {}) {
@@ -25,6 +26,7 @@ export async function eftApi(
   action,
   { method = "GET", body, csrf = "", signal, query = {} } = {},
 ) {
+  if (standaloneCalculator) throw new EftApiError('В резервной версии доступны локальные проекты. Серверные функции подключаются на calc.eftsip.ru после восстановления хостинга.', 'standalone_mode');
   const endpoint = resolveEftApiUrl();
   const separator = endpoint.includes("?") ? "&" : "?";
   const parameters = new URLSearchParams({ action, ...query });

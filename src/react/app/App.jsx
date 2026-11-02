@@ -63,7 +63,7 @@ import ScreenErrorBoundary from "../components/ScreenErrorBoundary.jsx";
 import NewProjectDialog from "../components/NewProjectDialog.jsx";
 import TeamLogin from "../components/TeamLogin.jsx";
 import { useTeam } from "../cloud/TeamContext.jsx";
-import { resolveEftApiUrl } from "../../shared/team-api.js";
+import { resolveEftApiUrl, standaloneCalculator } from "../../shared/team-api.js";
 import {
   clientBriefSummary,
   createProjectFromClientBrief,
@@ -133,7 +133,7 @@ const NAV_ITEMS = [
     group: "data",
   },
   { id: "estimate", label: "Смета", icon: Calculator, group: "data" },
-];
+].filter(item => !standaloneCalculator || item.group !== 'team');
 
 function createProjectFile(project, requestedName) {
   const payload = {
@@ -153,7 +153,7 @@ async function downloadProject(project, requestedName) {
     type: "application/json;charset=utf-8",
   });
   const filename = file.name;
-  if (typeof window.showSaveFilePicker === 'function') {
+  if (!standaloneCalculator && typeof window.showSaveFilePicker === 'function') {
     const handle = await window.showSaveFilePicker({
       suggestedName: filename,
       types: [{ description: 'Проект EFT', accept: { 'application/json': ['.json'] } }],
@@ -593,7 +593,7 @@ export function App() {
           <img src="./icons/eft-logo.png" alt="Логотип ЭФТ" />
           <div>
             <strong>ЭнергоЭффективные Технологии</strong>
-            <span>React-конструктор СИП-домов</span>
+            <span>{standaloneCalculator ? 'Резервный калькулятор · GitHub' : 'React-конструктор СИП-домов'}</span>
           </div>
           <span className="version-badge" title={`Сборка ${import.meta.env.VITE_BUILD_REVISION?.slice(0, 7) || 'локальная'}; формат файла проекта ${REACT_PROJECT_VERSION}`}>Версия {APP_VERSION}{import.meta.env.VITE_BUILD_REVISION ? ` · ${import.meta.env.VITE_BUILD_REVISION.slice(0, 7)}` : ''}</span>
         </div>
@@ -815,6 +815,7 @@ export function App() {
           />
         ) : null}
         <main className="workspace">
+          {standaloneCalculator ? <div className="notice no-print" role="status"><strong>Резервная версия · сохранение на этом устройстве.</strong> Общие проекты и файлы сервера не подключены. Цены — из сборки калькулятора или загруженного проекта. <button className="button secondary" onClick={saveProject}>Скачать .eft.json</button></div> : null}
           {selectedTab?.serverId && team.user?.role !== 'viewer' ? <div className="team-apply-bar no-print"><span>Общий проект · {selectedTab.serverName || project.meta.customer || `№ ${project.meta.projectNum}`}</span><button className="button primary" onClick={applyTeamProjectChanges} disabled={applyProjectBusy || team.current?.id !== selectedTab.serverId}>{applyProjectBusy ? 'Применяю…' : 'Применить изменения'}</button></div> : null}
           {team.projectSaveConflict && team.current ? <div className="notice no-print" role="alert">{team.projectSaveConflict} <button className="button secondary" onClick={saveProject}>Скачать копию проекта</button><button className="button secondary" onClick={() => { setTeamFocus('projects'); setActive('team'); }}>Открыть общие проекты</button></div> : null}
           {team.user && team.priceCatalog.status !== 'ready' ? <div className="notice no-print" role="alert">Не удалось подтвердить актуальные цены: {team.priceCatalog.error}. Планы доступны; смета станет доступна после обновления прайса. <button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Обновить прайс</button></div> : null}
@@ -895,10 +896,10 @@ export function App() {
       </nav>
       {saveFileOpen ? <div className="modal-backdrop project-save-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saveFileBusy) setSaveFileOpen(false); }}>
         <form className="modal project-save-dialog" role="dialog" aria-modal="true" aria-label="Сохранить проект как" onSubmit={event => { event.preventDefault(); confirmSaveProject(); }}>
-          <header><div><h2>Сохранить проект как</h2><p>Укажите имя файла. В поддерживаемом браузере затем выберите папку сохранения.</p></div><button type="button" className="icon-button" aria-label="Закрыть" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}><X/></button></header>
+          <header><div><h2>Сохранить проект как</h2><p>{standaloneCalculator ? 'Укажите имя файла. Проект скачается через загрузки браузера.' : 'Укажите имя файла. В поддерживаемом браузере затем выберите папку сохранения.'}</p></div><button type="button" className="icon-button" aria-label="Закрыть" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}><X/></button></header>
           <label>Название файла<input autoFocus value={saveFileName} onChange={event => setSaveFileName(event.target.value)} aria-label="Название файла проекта"/></label>
           {saveFileError ? <p role="alert">{saveFileError}</p> : null}
-          <footer><button type="button" className="button secondary" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}>Отмена</button><button type="submit" className="button" disabled={saveFileBusy}>{saveFileBusy ? 'Сохранение…' : 'Выбрать место и сохранить'}</button></footer>
+          <footer><button type="button" className="button secondary" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}>Отмена</button><button type="submit" className="button" disabled={saveFileBusy}>{saveFileBusy ? 'Сохранение…' : (standaloneCalculator ? 'Скачать файл' : 'Выбрать место и сохранить')}</button></footer>
         </form>
       </div> : null}
       {closingTabId ? <div className="modal-backdrop project-save-backdrop">

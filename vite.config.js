@@ -3,7 +3,12 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'eft-standalone-build-marker',
+    generateBundle() {
+      if (process.env.VITE_EFT_STANDALONE === 'true') this.emitFile({ type: 'asset', fileName: 'standalone-build.json', source: JSON.stringify({ standalone: true }) });
+    },
+  }],
   base: './',
   server: {
     proxy: {

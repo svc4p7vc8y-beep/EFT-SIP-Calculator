@@ -29,6 +29,14 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm test
       - run: npm run build:public
+      - name: Build standalone reserve calculator
+        env:
+          VITE_EFT_STANDALONE: 'true'
+          VITE_TEAM_ENABLED: 'false'
+          VITE_BUILD_REVISION: ${{ github.sha }}
+        run: npm run build
+      - name: Add reserve calculator to Pages
+        run: node scripts/prepare-github-reserve.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
