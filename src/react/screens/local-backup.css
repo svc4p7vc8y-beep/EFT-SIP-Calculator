@@ -1,0 +1,10 @@
+.local-backup-panel{padding:20px;margin-bottom:16px;min-width:0;}
+.local-backup-panel h2{display:flex;align-items:center;gap:10px;font-size:18px;}
+.local-backup-panel p{line-height:1.55;overflow-wrap:anywhere;}
+.local-backup-actions{display:flex;flex-wrap:wrap;gap:8px;}
+.local-backup-list{display:grid;gap:8px;}
+.local-backup-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #dce5d8;padding:12px 0;}
+.local-backup-row>div{min-width:0;overflow-wrap:anywhere;}
+.local-backup-row small{display:block;margin-top:5px;opacity:.75;}
+.local-backup-row button{flex-shrink:0;}
+@media(max-width:520px){.local-backup-panel{padding:14px;}.local-backup-row{align-items:flex-start;flex-direction:column;}}

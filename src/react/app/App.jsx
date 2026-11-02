@@ -94,6 +94,7 @@ const TeamWorkspaceScreen = lazy(
 );
 const MailScreen = lazy(() => import("../screens/MailScreen.jsx"));
 const FilesScreen = lazy(() => import("../screens/FilesScreen.jsx"));
+const LocalBackupScreen = lazy(() => import('../screens/LocalBackupScreen.jsx'));
 
 const NAV_ITEMS = [
   { id: "team", label: "Общие проекты", icon: Cloud, group: "team" },
@@ -119,6 +120,7 @@ const NAV_ITEMS = [
   },
   { id: "delivery", label: "Доставка", icon: Truck, group: "calculate" },
   { id: "price", label: "Прайс-лист", icon: Tags, group: "data" },
+  { id: "local-backup", label: "Резервные копии", icon: Save, group: "data" },
   { id: "request", label: "Заявка", icon: ClipboardCheck, group: "data" },
   {
     id: "knowledge",
@@ -178,6 +180,7 @@ function Screen({ active, calculation, teamProps, onNavigate, onOpenLibraryPlan,
   if (active === "placement") return <PlacementScreen onNavigate={onNavigate} />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
+  if (active === 'local-backup') return <LocalBackupScreen />;
   if (active === "request") return <RequestScreen />;
   if (active === "estimate") return <EstimateScreen />;
   if (active === "knowledge") return <KnowledgeLibraryScreen />;
@@ -737,7 +740,7 @@ export function App() {
         <button className="project-tab-add" onClick={newProject} title="Новый проект в отдельной вкладке" aria-label="Новая вкладка проекта"><Plus /><span>Новый проект</span></button>
         {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
       </div>
-      <div className={`app-layout${['plan', 'placement', 'estimate'].includes(active) ? ' plan-app-layout' : ''}${active === 'placement' ? ' placement-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      <div className={`app-layout${['plan', 'placement', 'estimate', 'local-backup'].includes(active) ? ' plan-app-layout' : ''}${active === 'placement' ? ' placement-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <button className="sidebar-desktop-toggle" onClick={() => setSidebarCollapsed(value => !value)} title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <ChevronRight/> : <ChevronLeft/>}<span>{sidebarCollapsed ? 'Развернуть' : 'Свернуть'}</span></button>
           <div className="sidebar-mobile-head">
@@ -860,7 +863,7 @@ export function App() {
             <Suspense
               fallback={<div className="screen-loader">Загружаю раздел…</div>}
             >
-              {team.user && team.priceCatalog.status !== 'ready' && !['plan','parameters','team','files','mail','knowledge','sip-guide','price','cutting'].includes(active) ? <div className="notice">Для расчёта и печати необходимо получить актуальный серверный прайс.</div> : <Screen
+              {team.user && team.priceCatalog.status !== 'ready' && !['plan','parameters','team','files','mail','knowledge','sip-guide','price','cutting','local-backup'].includes(active) ? <div className="notice">Для расчёта и печати необходимо получить актуальный серверный прайс.</div> : <Screen
                 active={active}
                 planCommand={planCommand}
                 onPlanCommandHandled={() => setPlanCommand(null)}
@@ -883,7 +886,7 @@ export function App() {
             </Suspense>
           </ScreenErrorBoundary>
         </main>
-        {['plan', 'placement', 'estimate'].includes(active) || (team.user && team.priceCatalog.status !== 'ready') ? null : <ProjectSummarySidebar
+        {['plan', 'placement', 'estimate', 'local-backup'].includes(active) || (team.user && team.priceCatalog.status !== 'ready') ? null : <ProjectSummarySidebar
           project={project}
           calculation={calculation}
           onNavigate={setActive}

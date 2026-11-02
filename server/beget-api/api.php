@@ -462,6 +462,32 @@ if ($action === 'file-manage' && $method === 'POST') {
     eft_json(['ok' => true, 'id' => $newId ?? $id]);
 }
 
+// Read-only backup catalogue. Payloads are downloaded individually only when absent locally.
+if ($action === 'backup-index' && $method === 'GET') {
+    $projects = $pdo->query("SELECT id, name, revision, updated_at FROM eft_projects ORDER BY updated_at DESC")->fetchAll();
+    $statement = $pdo->query("SELECT document_key, revision, CASE WHEN document_key = 'plan-library' THEN payload ELSE NULL END AS payload FROM eft_shared_documents WHERE document_key IN ('plan-library','price-catalog')");
+    $library = []; $priceRevision = 0;
+    foreach ($statement->fetchAll() as $document) {
+        if ($document['document_key'] === 'price-catalog') { $priceRevision = (int)$document['revision']; continue; }
+        foreach ((array)json_decode((string)$document['payload'], true) as $entry) {
+            if (!is_array($entry) || empty($entry['id'])) continue;
+            $library[] = ['id' => $entry['id'], 'name' => $entry['name'] ?? '', 'kind' => $entry['kind'] ?? 'plan', 'hash' => hash('sha256', json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))];
+        }
+    }
+    eft_json(['ok' => true, 'projects' => $projects, 'library' => $library, 'priceRevision' => $priceRevision]);
+}
+
+if ($action === 'backup-library-entry' && $method === 'GET') {
+    $payload = $pdo->query("SELECT payload FROM eft_shared_documents WHERE document_key = 'plan-library' LIMIT 1")->fetchColumn();
+    foreach ((array)json_decode((string)$payload, true) as $entry) {
+        if (!is_array($entry) || (string)($entry['id'] ?? '') !== (string)($_GET['id'] ?? '')) continue;
+        $hash = hash('sha256', json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        if (!hash_equals($hash, (string)($_GET['hash'] ?? ''))) eft_json(['ok' => false, 'message' => 'План изменился во время сверки. Повторите сверку.'], 409);
+        eft_json(['ok' => true, 'entry' => $entry]);
+    }
+    eft_json(['ok' => false, 'message' => 'План библиотеки не найден.'], 404);
+}
+
 if ($action === 'projects' && $method === 'GET') {
     $rows = $pdo->query("SELECT p.id, p.name, p.status, p.revision, p.payload, p.created_at, p.updated_at, u.display_name AS updated_by FROM eft_projects p JOIN eft_users u ON u.id = p.updated_by WHERE p.status <> 'archived' ORDER BY p.updated_at DESC LIMIT 250")->fetchAll();
     foreach ($rows as &$row) {

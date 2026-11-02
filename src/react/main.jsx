@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App.jsx";
 import { ProjectProvider } from "./state/ProjectContext.jsx";
 import { TeamProvider } from "./cloud/TeamContext.jsx";
+import { LocalBackupProvider } from './storage/LocalBackupContext.jsx';
 import "./styles/app.css";
 import "./styles/black-ink.css";
 
@@ -26,7 +27,7 @@ createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <TeamProvider>
       <ProjectProvider>
-        <App />
+        <LocalBackupProvider><App /></LocalBackupProvider>
       </ProjectProvider>
     </TeamProvider>
   </React.StrictMode>,
