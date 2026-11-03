@@ -1,5 +1,5 @@
 import {flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import OpeningMiniPlan from '../components/OpeningMiniPlan.jsx';
 import { synchronizeWallThickness } from '../state/wall-thickness.js';
@@ -95,6 +95,7 @@ const sectionAppearance = {
   scope: { icon: ListChecks, color: 'slate' },
   foundation: { icon: Layers3, color: 'amber' },
   sip: { icon: PanelsTopLeft, color: 'teal' },
+  partitions: { icon: LayoutGrid, color: 'green' },
   roof: { icon: Home, color: 'terracotta' },
   extensions: { icon: HousePlus, color: 'violet' },
   openings: { icon: DoorOpen, color: 'sky' },
@@ -103,9 +104,10 @@ const sectionAppearance = {
   production: { icon: PanelsTopLeft, color: 'teal' },
 };
 
-function Section({ id, number, title, description, children }) {
+function Section({ id, number, title, description, children, active = false }) {
   const { icon: Icon, color } = sectionAppearance[id];
-  const [expanded, setExpanded] = useState(id === 'house');
+  const [expanded, setExpanded] = useState(id === 'house' || active);
+  useEffect(()=>{if(active)setExpanded(true);},[active]);
   return (
     <details className={`parameter-section theme-${color}`} id={`parameter-${id}`} open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
       <summary>
@@ -168,7 +170,7 @@ function AutoLink({ label, checked, onChange, hint }) {
   );
 }
 
-export default function ParametersScreen({ embedded = false, suppliedCalculation = null }) {
+export default function ParametersScreen({ embedded = false, suppliedCalculation = null, hideSectionJump = false, activeSection = '', partitionPlanControls = null, roofPlanControls = null, productionPlanControls = null }) {
   const [focusedOpeningId, setFocusedOpeningId] = useState('');
   const { project, commit, checkpoint } = useProject();
   const [presetOpen, setPresetOpen] = useState(false);
@@ -398,6 +400,12 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
       note: `${project.settings.sip.floorThickness}/${project.settings.sip.wallThickness}/${project.settings.sip.ceilingThickness} мм`,
     },
     {
+      id: "partitions",
+      title: "Перегородки",
+      ready: Boolean(project.settings.sip.partitionType),
+      note: project.settings.sip.partitionType === "sip" ? `SIP · ${project.settings.sip.partitionThickness} мм` : `каркас · ${project.settings.sip.partitionFrameSection}`,
+    },
+    {
       id: "roof",
       title: "Кровля",
       ready:
@@ -448,7 +456,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
 
   return (
     <div className={`screen parameters-master-screen${embedded ? ' parameters-embedded' : ''}`}>
-      {embedded ? <label className="parameter-section-jump">Раздел параметров
+      {embedded && !hideSectionJump ? <label className="parameter-section-jump">Раздел параметров
         <select defaultValue="" onChange={event => {
           const section = document.getElementById(`parameter-${event.target.value}`);
           if (section) {
@@ -581,20 +589,6 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 type: "select",
                 value: String(Math.round(project.plan.wallThickness * 1000)),
                 options: thicknesses,
-              },
-              {
-                path: "plan.partitionThickness",
-                label: "Перегородка",
-                type: "select",
-                value: String(
-                  Math.round(project.plan.partitionThickness * 1000),
-                ),
-                options: [
-                  { value: "100", label: "100 мм · каркасная" },
-                  { value: "150", label: "150 мм · каркасная 50×150" },
-                  {value:"95",label:"95 мм · строганая 45×95"},{value:"145",label:"145 мм · строганая 45×145"},{value:"195",label:"195 мм · строганая 45×195"},
-                  ...thicknesses,
-                ],
               },
             ])}
             {floorCount > 1 && project.upperFloors?.[0] ? <UpperFloorControls plan={project.upperFloors[0]} onChange={patch => commit(next => {
@@ -885,41 +879,6 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 options: thicknesses,
               },
               {
-                path: "settings.sip.partitionType",
-                label: "Тип перегородок",
-                type: "select",
-                options: [
-                  { value: "frame", label: "Каркасные" },
-                  { value: "sip", label: "SIP-панели" },
-                ],
-              },
-              {path:'settings.sip.partitionTopMode',type:'select',label:'Верх перегородок',value:project.settings.sip.partitionTopMode||'auto',options:[{value:'auto',label:'Примыкание к потолку / SIP-кровле'},{value:'manual',label:'По заданной высоте перегородки'}]},
-              project.settings.sip.partitionType === "sip" && {
-                path: "settings.sip.partitionPanelFamily",
-                label: "Тип панели перегородок",
-                type: "select",
-                options: panelFamilies,
-              },
-              project.settings.sip.partitionType === "sip" && {
-                path: "settings.sip.partitionThickness",
-                label: "Толщина перегородок",
-                type: "select",
-                options: thicknesses,
-              },
-              project.settings.sip.partitionType !== "sip" && {
-                path: "settings.sip.partitionFrameSection",
-                label: "Доска каркаса перегородок",
-                type: "select",
-                options: [
-                  { value: "50x100", label: "50×100 мм" },
-                  { value: "50x150", label: "50×150 мм" },
-                  {value:"45x95",label:"45×95 мм · сухая строганая"},{value:"45x145",label:"45×145 мм · сухая строганая"},{value:"45x195",label:"45×195 мм · сухая строганая"},
-                ],
-              },
-              project.settings.sip.partitionType !== 'sip' && { path: 'settings.sip.partitionCalculationMode', label: 'Расчёт каркаса', type: 'select', options: [
-                { value: 'linear', label: 'По стойкам и обвязкам' }, { value: 'area', label: 'По площади · быстрый' },
-              ] },
-              {
                 path: "settings.sip.connectorType",
                 label: "Силовой каркас",
                 type: "select",
@@ -1004,11 +963,60 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             </div>
           </Section>
           <Section
-            id="roof"
+            id="partitions"
             number="06"
+            title="Перегородки"
+            description="Построение, несущие участки, доски каркаса и примыкание к потолку."
+            active={activeSection === 'partitions'}
+          >
+            {partitionPlanControls}
+            {fields([
+              {
+                path: "plan.partitionThickness",
+                label: "Толщина на плане",
+                type: "select",
+                value: String(Math.round(project.plan.partitionThickness * 1000)),
+                options: [
+                  { value: "100", label: "100 мм · каркасная" },
+                  { value: "150", label: "150 мм · каркасная 50×150" },
+                  {value:"95",label:"95 мм · строганая 45×95"},{value:"145",label:"145 мм · строганая 45×145"},{value:"195",label:"195 мм · строганая 45×195"},
+                  ...thicknesses,
+                ],
+              },
+              {
+                path: "settings.sip.partitionType",
+                label: "Тип перегородок",
+                type: "select",
+                options: [
+                  { value: "frame", label: "Каркасные" },
+                  { value: "sip", label: "SIP-панели" },
+                ],
+              },
+              {path:'settings.sip.partitionTopMode',type:'select',label:'Верх перегородок',value:project.settings.sip.partitionTopMode||'auto',options:[{value:'auto',label:'Примыкание к потолку / SIP-кровле'},{value:'manual',label:'По заданной высоте перегородки'}]},
+              project.settings.sip.partitionType === "sip" && { path: "settings.sip.partitionPanelFamily", label: "Тип панели перегородок", type: "select", options: panelFamilies },
+              project.settings.sip.partitionType === "sip" && { path: "settings.sip.partitionThickness", label: "Толщина перегородок", type: "select", options: thicknesses },
+              project.settings.sip.partitionType !== "sip" && {
+                path: "settings.sip.partitionFrameSection",
+                label: "Доска каркаса перегородок",
+                type: "select",
+                options: [
+                  { value: "50x100", label: "50×100 мм" },
+                  { value: "50x150", label: "50×150 мм" },
+                  {value:"45x95",label:"45×95 мм · сухая строганая"},{value:"45x145",label:"45×145 мм · сухая строганая"},{value:"45x195",label:"45×195 мм · сухая строганая"},
+                ],
+              },
+              project.settings.sip.partitionType !== 'sip' && { path: 'settings.sip.partitionCalculationMode', label: 'Расчёт каркаса', type: 'select', options: [
+                { value: 'linear', label: 'По стойкам и обвязкам' }, { value: 'area', label: 'По площади · быстрый' },
+              ] },
+            ])}
+          </Section>
+          <Section
+            id="roof"
+            number="07"
             title="Кровля"
             description="Форма, покрытие, свесы, стропильная система, обрешётка, фронтоны, доборы и слои."
           >
+            {roofPlanControls}
             <AutoLink
               label={project.settings.roof.shape==='flat'?'Длина кровли из плана':'Длина конька из плана'}
               checked={links.roofRidgeFromPlan !== false}
@@ -1317,7 +1325,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           </Section>
           <Section
             id="extensions"
-            number="07"
+            number="08"
             title="Террасы и крыльцо"
             description="Ступени, фундамент, обвязка, кровля, свесы, фронтоны и столбы каждой площадки."
           >
@@ -1343,7 +1351,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           </Section>
           <Section
             id="openings"
-            number="08"
+            number="09"
             title="Окна, двери и ворота"
             description="Размеры, включение в смету и вычеты SIP."
           >
@@ -1370,7 +1378,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           </Section>
           <Section
             id="engineering"
-            number="09"
+            number="10"
             title="Инженерия и отделка"
           >
             <div className="parameters-route-default"><label>Новые электрические трассы через комнату
@@ -1451,7 +1459,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           </Section>
           <Section
             id="delivery"
-            number="10"
+            number="11"
             title="Доставка и печать"
             description="Логистика и состав схем коммерческого предложения."
           >
@@ -1547,7 +1555,8 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
               ].map(([key, label, defaultOn]) => <Toggle key={key} label={label} checked={defaultOn ? project.settings.print[key] !== false : project.settings.print[key] === true} onChange={value => write(`settings.print.${key}`, value)} />)}
             </div></div>
           </Section>
-          <Section id="production" number="11" title="Производство и раскрой" description="Общие настройки деталировки. Индивидуальные панели и узлы остаются в рабочем чертеже.">
+          <Section id="production" number="12" title="Производство и раскрой" description="Общие настройки деталировки. Индивидуальные панели и узлы остаются в рабочем чертеже.">
+            {productionPlanControls}
             <p className="inspector-note">Размеры и допуски изменяют производственную деталировку. Проверьте их по рабочему проекту перед выпуском в работу.</p>
             {fields([
               { path: 'settings.productionCutting.minPanelWidthMm', label: 'Минимальная ширина детали SIP', suffix: 'мм', min: 1, max: 1250, step: 10 },

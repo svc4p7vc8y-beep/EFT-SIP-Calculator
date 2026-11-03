@@ -121,7 +121,6 @@ import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
 const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
-const CalculationSettingsPanel=lazy(()=>import('./CalculationSettingsScreen.jsx'));
 const PlanRoofSupports=lazy(()=>import('./PlanRoofSupports.jsx'));
 const InlineWindowConfigurator=lazy(()=>import('./WindowConfigurator.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
@@ -5201,7 +5200,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const finishPaneResize=()=>{paneResizeRef.current=null;};
   useEffect(()=>{try{localStorage.setItem('eft-plan-inspector-width',String(inspectorWidth));localStorage.setItem('eft-plan-3d-width',String(modelWidth));}catch{/* Layout remains usable without local storage. */}},[inspectorWidth,modelWidth]);
   const [inspectorTab,setInspectorTab]=useState('house');
-  const [calculationParametersOpen,setCalculationParametersOpen]=useState(false);
   const [directEstimatePrint,setDirectEstimatePrint]=useState(false);
   const finishEstimatePrint=useCallback(()=>setDirectEstimatePrint(false),[]);
   const [showFullscreenInspector,setShowFullscreenInspector]=useState(true);
@@ -5466,7 +5464,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       setTransferStatus("Сваи, обвязка, терраса и крыльцо редактируются на 1 этаже");
       return;
     }
-    if(id==='bearingWall'){setActiveLayer('plan');setSelected(null);commitPlan(next=>{next.showPlan=true;next.showRoof=false;});}
+    if(id==='bearingWall'){
+      setActiveLayer('plan');setSelected(null);setInspectorTab('house');commitPlan(next=>{next.showPlan=true;next.showRoof=false;});
+      requestAnimationFrame(()=>{const section=inspectorRef.current?.querySelector('#parameter-partitions');if(section){section.open=true;section.scrollIntoView({block:'nearest'});}});
+    }
     setTool(id);
     if (id === "stairOpening") scrollToPlanCanvas();
     if (!["polygon", "houseContour", "existingContour", "attachedContour"].includes(id)) setPolygonDraft([]);
@@ -6605,7 +6606,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           {activeLayer==='roof'?<div className="roof-axis-controls" role="group" aria-label="Линии опор кровли"><button type="button" className={`button ${tool==='roofAxis'?'primary':'secondary'}`} disabled={!roofAxes.length&&!project.settings.productionCutting.roofPlanLines?.enabled} onClick={()=>{setTool('roofAxis');setSelected(null);}}>Нарисовать прогон</button><button type="button" className="button secondary" onClick={()=>{setTool('select');setSelected(null);}}>Двигать линии</button><button type="button" className="button secondary" onClick={()=>commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;})}>Авторасстановка</button><span>Синие линии — опорные рамы. Тяните круг на линии. Оранжевая ось — подсказка симметрии.</span>{!roofAxes.length?<span>Автолинии доступны для наслонной двускатной кровли; проектные опоры добавляются справа.</span>:null}{roofAxes.filter(line=>selected?.type==='roofAxis'&&selected.id===line.id).map(line=><button type="button" className="button secondary" key={line.id} aria-label={`Удалить ${line.name}`} onClick={()=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(item=>item.id!==line.id)))}>× {line.name}</button>)}</div>:null}
-          {tool==='bearingWall'?<div className="bearing-selection-controls" role="group" aria-label="Доски и несущие стены"><strong>Выбрано участков: {bearingSelection.length}</strong><label><input type="checkbox" checked={bearingByLine} onChange={e=>setBearingByLine(e.target.checked)}/>Выбирать все участки на одной линии</label><label>Доска выбранных стен<select aria-label="Доска выбранных стен" value={bearingProfile} onChange={e=>setBearingProfile(e.target.value)}>{PARTITION_BOARD_PROFILES.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label><button className="button primary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignPartitionProfiles(next,bearingSelection,bearingProfile));setTransferStatus(`Доска ${partitionProfileLabel(bearingProfile)} назначена участкам: ${bearingSelection.length}.`);}}>Присвоить доску</button><button className="button secondary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignPartitionProfiles(next,bearingSelection,''));setTransferStatus('Для выбранных участков восстановлена общая доска проекта.');}}>Общая доска</button><button className="button secondary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignBearingEdges(next,bearingSelection,true,bearingProfile));setTransferStatus(`Назначено несущих участков: ${bearingSelection.length}. Доска ${partitionProfileLabel(bearingProfile)}.`);}}>Сделать несущими</button><button className="button secondary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignBearingEdges(next,bearingSelection,false,bearingProfile));setTransferStatus('Несущий статус выбранных участков снят; выбранная доска сохранена.');}}>Снять несущую</button><button className="button secondary" onClick={()=>setBearingSelection([])}>Сбросить выбор</button><div className="partition-profile-legend" aria-label="Цвета досок перегородок">{PARTITION_BOARD_PROFILES.map(item=><span key={item.id}><i style={{background:item.color}}/>{item.label}</span>)}</div><span>Нажимайте на стороны комнат. Жёлтая обводка — выбор; цвет линии показывает назначенную доску; пунктир внутри цветной линии — несущая стена.</span></div>:null}
           <PlanCanvas
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={(a,b)=>{
@@ -6699,94 +6699,42 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           <div className="planner-inspector-detail" hidden={inspectorTab !== 'house'}>
             <div className="plan-right-house">
-              <Suspense fallback={<p>Загружаю опоры…</p>}><PlanRoofSupports project={project} calculation={projectCalculation} onDraw={()=>{setActiveLayer("roof");setTool("select");setSelected(null);commitPlan(next=>{next.showRoof=true;});}} onSelect={id=>{setSelected({type:'roofSupport',id});setTool('select');}}/></Suspense>
-        <details className="plan-top-advanced">
-          <summary><Grid3X3 aria-hidden="true" /> План и раскладка <ChevronDown aria-hidden="true" /></summary>
-        <div className="plan-house-fields">
-          <div style={{gridColumn:'1 / -1'}}>
-            <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
-            <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions==='butt'} onChange={value=>commitPlan(next=>{next.partitionJunctions=value?'butt':'axes';})}/>
-            <NumberField label="Минимальная ширина детали SIP" suffix="мм" min={1} max={1250} step={10} value={project.settings.productionCutting.minPanelWidthMm??250} onChange={value=>commit(next=>{next.settings.productionCutting.minPanelWidthMm=value;return next;})} hint="По умолчанию 250 мм. Проектное изменение влияет на раскладку, блокировки узких деталей и производственную ведомость."/>
-            <p className="inspector-note">Примыкающая перегородка заканчивается у грани непрерывной перегородки или внутренней грани наружной SIP-стены. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются.</p>
-            {plan.wallLayoutIssue?<p className="assembly-warning">{plan.wallLayoutIssue}</p>:null}
-            {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{
-              if(!window.confirm('Преобразовать границы комнат в отдельные стены? Размеры дома сохранятся; комнаты будут определяться между стенами. Привязки раскроя нужно перепроверить. Исходная планировка сохранится в резерве, действие можно отменить.'))return;
-              try{commitPlan(next=>convertToWallLayout(next,()=>uid('wall')));setSelected(null);setTool('wall');}catch(error){window.alert(error.message);}
-            }}>Перейти к построению стенами</button>:<p className="inspector-note">Инструмент «Перегородка»: рисуйте стены, замкнутые комнаты определяются автоматически. Нажмите стену для настройки. Изменения можно отменять.</p>}
-          </div>
-          {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):Number(project.settings.sip.partitionFrameSection?.split(/[x×х]/)[1])||100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции в разделе SIP. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
-          {activeFloor === 2 ? (
-            <>
-            <NumberField label="Длина 2 этажа" value={plan.house.w} suffix="м" min={3} onChange={(value) => resizeHouse(value, plan.house.h)} />
-            <NumberField label="Ширина 2 этажа" value={plan.house.h} suffix="м" min={3} onChange={(value) => resizeHouse(plan.house.w, value)} />
-            <SelectField
-              label="Пол 2 этажа"
-              value={project.settings.sip.secondFloorPanelWidth || "1.25"}
-              options={[
-                { value: "1.25", label: "Стандарт · 1250 мм" },
-                { value: "0.625", label: "Усиленный · 625 мм" },
-              ]}
-              onChange={(value) =>
-                commit((next) => {
-                  next.settings.sip.secondFloorPanelWidth = value;
-                  return next;
-                })
-              }
-            />
-            </>
-          ) : null}
-          {floorCount > 1 ? (
-            <>
-              <NumberField
-                label="Проём лестницы — X"
-                value={floorOpening?.x || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, x: value })
-                }
-              />
-              <NumberField
-                label="Проём лестницы — Y"
-                value={floorOpening?.y || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, y: value })
-                }
-              />
-              <NumberField
-                label="Проём лестницы — ширина"
-                value={floorOpening?.width || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, width: value })
-                }
-              />
-              <NumberField
-                label="Проём лестницы — длина"
-                value={floorOpening?.length || 0}
-                suffix="м"
-                min={0}
-                step={0.1}
-                onChange={(value) =>
-                  commitFloorOpening({ ...floorOpening, length: value })
-                }
-              />
-            </>
-          ) : null}
-        </div>
-        </details>
-              <details className="plan-right-calculation-settings" onToggle={event => setCalculationParametersOpen(event.currentTarget.open)}>
-                <summary>Расчётные нормы, связи и наценки <ChevronDown aria-hidden="true" /></summary>
-                {calculationParametersOpen ? <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю расчётные параметры…</p>}><CalculationSettingsPanel embedded suppliedCalculation={projectCalculation} /></Suspense> : null}
-              </details>
               <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю параметры дома…</p>}>
-                <ParametersPanel embedded suppliedCalculation={projectCalculation} />
+                <ParametersPanel
+                  embedded
+                  hideSectionJump
+                  activeSection={tool==='bearingWall'?'partitions':''}
+                  suppliedCalculation={projectCalculation}
+                  partitionPlanControls={<div className="partition-inspector-controls" role="group" aria-label="Доски и несущие стены">
+                    <button type="button" className={tool==='bearingWall'?'button primary':'button secondary'} onClick={()=>selectTool('bearingWall')}>{tool==='bearingWall'?'Инструмент выбран':'Выбирать доски / несущие на плане'}</button>
+                    <strong>Выбрано участков: {bearingSelection.length}</strong>
+                    <label><input type="checkbox" checked={bearingByLine} onChange={event=>setBearingByLine(event.target.checked)}/> Выбирать все участки на одной линии</label>
+                    <label className="field">Доска выбранных стен<select aria-label="Доска выбранных стен" value={bearingProfile} onChange={event=>setBearingProfile(event.target.value)}>{PARTITION_BOARD_PROFILES.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+                    <div className="partition-inspector-actions">
+                      <button className="button primary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignPartitionProfiles(next,bearingSelection,bearingProfile));setTransferStatus(`Доска ${partitionProfileLabel(bearingProfile)} назначена участкам: ${bearingSelection.length}.`);}}>Присвоить доску</button>
+                      <button className="button secondary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignPartitionProfiles(next,bearingSelection,''));setTransferStatus('Для выбранных участков восстановлена общая доска проекта.');}}>Общая доска</button>
+                      <button className="button secondary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignBearingEdges(next,bearingSelection,true,bearingProfile));setTransferStatus(`Назначено несущих участков: ${bearingSelection.length}. Доска ${partitionProfileLabel(bearingProfile)}.`);}}>Сделать несущими</button>
+                      <button className="button secondary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignBearingEdges(next,bearingSelection,false,bearingProfile));setTransferStatus('Несущий статус выбранных участков снят; выбранная доска сохранена.');}}>Снять несущую</button>
+                      <button className="button secondary" onClick={()=>setBearingSelection([])}>Сбросить выбор</button>
+                    </div>
+                    <div className="partition-profile-legend" aria-label="Цвета досок перегородок">{PARTITION_BOARD_PROFILES.map(item=><span key={item.id}><i style={{background:item.color}}/>{item.label}</span>)}</div>
+                    <p className="inspector-note">Нажимайте на стороны комнат. Жёлтая обводка — выбор; цвет линии показывает назначенную доску; пунктир внутри цветной линии — несущая стена.</p>
+                  </div>}
+                  roofPlanControls={<Suspense fallback={<p>Загружаю опоры…</p>}><PlanRoofSupports embedded project={project} calculation={projectCalculation} onDraw={()=>{setActiveLayer("roof");setTool("select");setSelected(null);commitPlan(next=>{next.showRoof=true;});}} onSelect={id=>{setSelected({type:'roofSupport',id});setTool('select');}}/></Suspense>}
+                  productionPlanControls={<div className="plan-house-fields plan-layout-controls">
+                    <div style={{gridColumn:'1 / -1'}}>
+                      <h3><Grid3X3 aria-hidden="true" /> План и раскладка</h3>
+                      <strong>{plan.layoutMode==='walls'?'Планировка стенами':'Планировка комнатами'}</strong>
+                      <Toggle label="Сопряжения перегородок по граням" checked={plan.partitionJunctions==='butt'} onChange={value=>commitPlan(next=>{next.partitionJunctions=value?'butt':'axes';})}/>
+                      <p className="inspector-note">Примыкающая перегородка заканчивается у грани непрерывной перегородки или внутренней грани наружной SIP-стены. В прямоугольном углу горизонтальная проходит. Координаты осей сохраняются; изготовляемые длины пересчитываются.</p>
+                      {plan.wallLayoutIssue?<p className="assembly-warning">{plan.wallLayoutIssue}</p>:null}
+                      {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{if(!window.confirm('Преобразовать границы комнат в отдельные стены? Размеры дома сохранятся; комнаты будут определяться между стенами. Привязки раскроя нужно перепроверить. Исходная планировка сохранится в резерве, действие можно отменить.'))return;try{commitPlan(next=>convertToWallLayout(next,()=>uid('wall')));setSelected(null);setTool('wall');}catch(error){window.alert(error.message);}}}>Перейти к построению стенами</button>:<p className="inspector-note">Инструмент «Перегородка»: рисуйте стены, замкнутые комнаты определяются автоматически. Нажмите стену для настройки. Изменения можно отменять.</p>}
+                    </div>
+                    {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):Number(project.settings.sip.partitionFrameSection?.split(/[x×х]/)[1])||100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
+                    {activeFloor===2?<><NumberField label="Длина 2 этажа" value={plan.house.w} suffix="м" min={3} onChange={value=>resizeHouse(value,plan.house.h)}/><NumberField label="Ширина 2 этажа" value={plan.house.h} suffix="м" min={3} onChange={value=>resizeHouse(plan.house.w,value)}/><SelectField label="Пол 2 этажа" value={project.settings.sip.secondFloorPanelWidth||"1.25"} options={[{value:"1.25",label:"Стандарт · 1250 мм"},{value:"0.625",label:"Усиленный · 625 мм"}]} onChange={value=>commit(next=>{next.settings.sip.secondFloorPanelWidth=value;return next;})}/></>:null}
+                    {floorCount>1?<><NumberField label="Проём лестницы — X" value={floorOpening?.x||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,x:value})}/><NumberField label="Проём лестницы — Y" value={floorOpening?.y||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,y:value})}/><NumberField label="Проём лестницы — ширина" value={floorOpening?.width||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,width:value})}/><NumberField label="Проём лестницы — длина" value={floorOpening?.length||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,length:value})}/></>:null}
+                  </div>}
+                />
               </Suspense>
             </div>
           </div>

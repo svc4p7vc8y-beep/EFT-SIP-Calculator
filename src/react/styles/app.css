@@ -7526,6 +7526,16 @@ select,
 .partition-profile-legend{display:flex;flex:1 1 100%;flex-wrap:wrap;gap:5px 12px;padding-top:6px;border-top:1px solid #ccd8e6}
 .partition-profile-legend span{display:inline-flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;color:#294564}
 .partition-profile-legend i{display:inline-block;width:18px;height:6px;border:1px solid #fff;border-radius:4px;box-shadow:0 0 0 1px #8da0b3}
+.partition-inspector-controls{display:grid;gap:9px;margin-bottom:12px;padding:10px;border:1px solid #b9d7c4;border-radius:10px;background:#f7fbf5}
+.partition-inspector-controls>label:not(.field){display:flex;align-items:flex-start;gap:7px;font-size:12px;line-height:1.35}
+.partition-inspector-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.partition-inspector-actions .button:last-child{grid-column:1/-1}
+.partition-inspector-controls .partition-profile-legend{padding-top:8px}
+.plan-layout-controls{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #c9d8c5}
+.plan-layout-controls h3{display:flex;align-items:center;gap:7px;margin:0 0 8px;font-size:14px}
+.plan-layout-controls h3 svg{width:17px;height:17px}
+.plan-roof-support-controls{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e6bfae}
+@media(max-width:430px){.partition-inspector-actions{grid-template-columns:1fr}.partition-inspector-actions .button:last-child{grid-column:auto}}
 @media(max-width:700px){.roof-axis-controls,.bearing-selection-controls{gap:5px;padding:7px}.roof-axis-controls .button,.bearing-selection-controls .button{font-size:11px;padding:7px}.bearing-selection-controls label{flex-wrap:wrap;max-width:100%}}
 
 .planner-canvas>.roof-axis-controls,.planner-canvas>.bearing-selection-controls{position:absolute;z-index:8;top:70px;left:10px;right:10px;max-height:240px;overflow-y:auto;box-shadow:0 3px 10px #23456412}
