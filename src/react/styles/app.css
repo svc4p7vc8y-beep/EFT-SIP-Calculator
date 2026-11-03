@@ -7502,6 +7502,12 @@ select,
 .plan-screen-v2 .planner-shell .plan-3d-pane{container-type:inline-size}
 .plan-screen-v2 .planner-shell.is-fullscreen .plan-3d-pane{padding-top:54px}
 
+.production-3d-toolbar .render-package-button{display:inline-flex;align-items:center;gap:5px;background:#e9f4df;border-color:#72a451;color:#244f25;font-weight:700}
+.production-3d-toolbar .render-package-button:disabled{opacity:.65;cursor:wait}
+.render-package-status{display:block;padding:7px 9px;border:1px solid #b9cfaa;border-radius:6px;background:#f3f8ef;color:#31562d;line-height:1.35}
+.plan-3d-pane .render-package-status{grid-column:1/-1;font-size:10px}
+@container(max-width:620px){.plan-3d-pane .render-package-button span{display:none}.plan-3d-pane .render-package-button{padding:4px;min-width:28px}}
+
 .plan-screen-v2 .planner-shell .plan-3d-pane{grid-template-columns:auto auto minmax(0,1fr)}.plan-3d-pane .plan-3d-pane-head>strong{display:none!important}.plan-3d-pane .production-3d-toolbar{grid-column:1;justify-self:start}.plan-3d-pane .plan-3d-view-switch{grid-column:2;justify-self:start}.plan-3d-pane .plan-3d-pane-head>div{grid-column:3;justify-self:end}
 
 /* Keep the plan actions below the actual (responsive) application chrome. */
