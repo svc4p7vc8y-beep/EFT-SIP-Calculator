@@ -251,6 +251,13 @@ export function generateAutoPileRows(plan, spacing = 2.5, options = {}) {
 }
 
 export function calculateFoundation(plan, settings = {}) {
+  if (settings.pileType === 'slab') return {
+    foundationType: 'slab', points: [], bindingLines: [], platformBindingLines: [], bindingIssues: [],
+    totalPiles: 0, housePiles: 0, platformPiles: 0, sharedPiles: 0, sharedReuseDistance: 0,
+    houseBindingLength: 0, platformBindingLength: 0, bindingLength: 0, bindingLayers: 0,
+    bindingType: 'none', bindingProfile: '', boardStockLength: 6, requiredBoardLength: 0,
+    boardCount: 0, purchaseBoardLength: 0, boardWasteLength: 0, boardVolume: 0,
+  };
   const spacing = Math.max(0.5, Number(settings.spacing) || 2.5);
   const houseRows = (plan.pileRows || []).filter((row) => row.group !== 'platform');
   const housePoints = uniquePoints([houseRows.flatMap(pileRowPoints).concat((plan.piles || []).map((pile) => ({ ...pile, source: 'house' })))], 0.05);

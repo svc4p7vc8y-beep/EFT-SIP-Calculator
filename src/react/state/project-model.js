@@ -28,6 +28,7 @@ import { normalizeResidentialStandards } from './residential-standards.js';
 import { createPlacement, normalizePlacement } from './placement-model.js';
 import { normalizeEstimateFiles } from './estimate-files.js';
 import { normalizeWindowProducts, normalizeWindowPresets, normalizeWindowTariffs } from './window-products.js';
+import { normalizeFoundationSlab } from '../calculations/foundation-slab.js';
 
 export const REACT_PROJECT_VERSION = 237;
 // Keep the established storage namespace so upgrading the application does not
@@ -586,6 +587,7 @@ export function createDefaultProject() {
         boardStockLength: 6,
         concreteBase: { enabled: true, length: null, anchorSpacingM: 1.2, anchorCount: null },
       },
+      foundation: normalizeFoundationSlab(),
       sip: {
         floorThickness: "224",
         wallThickness: "174",
@@ -1067,6 +1069,7 @@ export function migrateProject(raw) {
           ? raw.settings.piles.screwPileVariant : (!Number.isFinite(savedVersion) || savedVersion < 235) ? 'legacy' : '108-2500',
         concreteBase: { ...base.settings.piles.concreteBase, ...(raw.settings?.piles?.concreteBase || {}) },
       },
+      foundation: normalizeFoundationSlab(raw.settings?.foundation),
       sip: {
         ...base.settings.sip,
         connectorType: 'thermal',

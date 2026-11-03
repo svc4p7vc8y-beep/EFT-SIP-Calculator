@@ -18,6 +18,7 @@ import { partitionSegments, partitionReinforcements, reinforcementBoardCount } f
 import { projectOpeningInserts } from './sip-opening-inserts.js';
 import { calculateTerraceRoof } from "../../calculations/terrace-model.js";
 import { calculateFoundation, calculateConcreteBase } from "./foundation-model.js";
+import { calculateFoundationSlab } from './foundation-slab.js';
 import { deriveLinkedInputs } from "./calculation-links.js";
 import { isInteriorDoor } from './opening-types.js';
 import { calculateExterior } from './exterior-model.js';
@@ -967,6 +968,58 @@ function foundationSection(project, index, inputs) {
       source: 'concrete-base',
     }),
   ]) };
+  if (project.settings.piles?.pileType === 'slab') {
+    const slab = calculateFoundationSlab(project.plan, project.settings.foundation);
+    foundation.slab = slab;
+    if (!slab.active) return { foundation, lines: [] };
+    return { foundation, lines: compact([
+      makeLine(index, 'foundation', 'Бетон B25 для фундаментной плиты', slab.concreteOrderM3, {
+        key: 'slab-concrete', catalogId: 'MAT-FOUNDATION-CONCRETE-B25', unit: 'м3', digits: 3,
+        estimateGroup: 'Фундаментная плита', source: 'foundation-slab',
+        name: `Бетон B25 · плита ${slab.settings.thicknessMm} мм · нетто ${slab.concreteNetM3} м³`,
+      }),
+      makeLine(index, 'foundation', 'Укладка бетона фундаментной плиты', slab.concreteNetM3, {
+        key: 'slab-concrete-work', catalogId: 'LAB-FOUNDATION-CONCRETE-PLACE', kind: 'labor', unit: 'м3', digits: 3,
+        estimateGroup: 'Фундаментная плита', source: 'foundation-slab',
+      }),
+      makeLine(index, 'foundation', 'Комплект опалубки фундаментной плиты', slab.perimeterM, {
+        key: 'slab-formwork', catalogId: 'MAT-FOUNDATION-FORMWORK', unit: 'м.п.',
+        estimateGroup: 'Фундаментная плита', source: 'foundation-slab',
+      }),
+      makeLine(index, 'foundation', 'Песок для подсыпки траншеи', slab.sandPurchaseM3, {
+        key: 'slab-sand', catalogId: 'MAT-154', unit: 'м3', digits: 3,
+        estimateGroup: 'Основание плиты', source: 'foundation-slab',
+        name: `Песок для основания · уплотнённый объём ${slab.sandCompactedM3} м³`,
+      }),
+      makeLine(index, 'foundation', 'Щебень для основания плиты', slab.stonePurchaseM3, {
+        key: 'slab-stone', catalogId: 'MAT-FOUNDATION-STONE', unit: 'м3', digits: 3,
+        estimateGroup: 'Основание плиты', source: 'foundation-slab',
+        name: `Щебень для основания · уплотнённый объём ${slab.stoneCompactedM3} м³`,
+      }),
+      makeLine(index, 'foundation', 'Геотекстиль', slab.geotextileAreaM2, {
+        key: 'slab-geotextile', catalogId: 'MAT-144', unit: 'м2',
+        estimateGroup: 'Основание плиты', source: 'foundation-slab',
+      }),
+      makeLine(index, 'foundation', 'Плёнка 200 мкм', slab.filmAreaM2, {
+        key: 'slab-film', catalogId: 'MAT-113', unit: 'м2',
+        estimateGroup: 'Основание плиты', source: 'foundation-slab',
+      }),
+      slab.settings.xpsEnabled && makeLine(index, 'foundation', 'XPS под фундаментную плиту', slab.xpsAreaM2, {
+        key: 'slab-xps', catalogId: 'MAT-FOUNDATION-XPS', unit: 'м2',
+        estimateGroup: 'Утепление плиты', source: 'foundation-slab',
+        name: `XPS под плиту ${slab.settings.xpsThicknessMm} мм`,
+      }),
+      slab.settings.blind.enabled && makeLine(index, 'foundation', 'Бетон B25 для фундаментной плиты', slab.blindConcreteOrderM3, {
+        key: 'blind-concrete', catalogId: 'MAT-FOUNDATION-CONCRETE-B25', unit: 'м3', digits: 3,
+        estimateGroup: 'Отмостка', source: 'foundation-slab',
+        name: `Бетон B25 · отмостка ${slab.settings.blind.thicknessMm} мм · нетто ${slab.blindConcreteNetM3} м³`,
+      }),
+      slab.settings.blind.enabled && makeLine(index, 'foundation', 'Укладка бетона фундаментной плиты', slab.blindConcreteNetM3, {
+        key: 'blind-concrete-work', catalogId: 'LAB-FOUNDATION-CONCRETE-PLACE', kind: 'labor', unit: 'м3', digits: 3,
+        estimateGroup: 'Отмостка', source: 'foundation-slab', name: 'Укладка бетона отмостки',
+      }),
+    ]) };
+  }
   const count = foundation.totalPiles;
   const concretePiles = project.settings.piles?.pileType === 'reinforcedConcrete';
   const blocks = project.settings.piles?.pileType === 'concreteBlock';
@@ -3425,7 +3478,7 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
   const sections = applyProjectEstimateEdits(project, [
     {
       key: "foundation",
-      title: project.services.foundation ? (project.settings.piles?.pileType==='concreteBlock' ? 'Фундамент на бетонных блоках и обвязка' : project.settings.piles?.pileType==='reinforcedConcrete' ? "Фундамент на железобетонных забивных сваях и обвязка" : "Свайно-винтовой фундамент и обвязка") : "Обвязка по готовому бетонному основанию",
+      title: project.services.foundation ? (project.settings.piles?.pileType==='slab' ? 'Фундаментная плита и основание' : project.settings.piles?.pileType==='concreteBlock' ? 'Фундамент на бетонных блоках и обвязка' : project.settings.piles?.pileType==='reinforcedConcrete' ? "Фундамент на железобетонных забивных сваях и обвязка" : "Свайно-винтовой фундамент и обвязка") : "Обвязка по готовому бетонному основанию",
       lines: foundation.lines,
     },
     { key: "sip", title: "СИП-конструкции и перегородки", lines: sip.lines },

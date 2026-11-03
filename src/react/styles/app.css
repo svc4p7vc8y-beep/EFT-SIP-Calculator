@@ -1204,6 +1204,32 @@ select,
   gap: 10px;
   margin-top: 12px;
 }
+
+.foundation-slab-editor { display:grid; gap:12px; min-width:0; }
+.foundation-slab-warning { display:grid; gap:3px; padding:12px 14px; border:1px solid #efc377; border-radius:12px; background:#fff8e8; color:#6d4300; }
+.foundation-slab-warning span { font-size:.78rem; line-height:1.4; }
+.foundation-slab-tabs { display:flex; flex-wrap:wrap; gap:6px; }
+.foundation-slab-tabs button { min-height:34px; padding:7px 10px; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text); cursor:pointer; }
+.foundation-slab-tabs button[aria-selected="true"] { border-color:var(--accent); background:var(--accent-soft); color:var(--accent-strong); font-weight:750; }
+.foundation-slab-pane { display:grid; gap:10px; min-width:0; padding:12px; border:1px solid var(--border); border-radius:12px; background:color-mix(in srgb, var(--surface) 92%, transparent); }
+.foundation-slab-preview { display:block; width:100%; min-height:230px; max-height:390px; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+.foundation-slab-preview polygon { vector-effect:non-scaling-stroke; }
+.foundation-slab-preview .house-outline { fill:#fffdf2; stroke:#17211b; stroke-width:2.5; }
+.foundation-slab-preview .slab-outline { fill:#d9dee2; stroke:#59666e; stroke-width:2; }
+.foundation-slab-preview .blind-outline { fill:#e8dec9; stroke:#9a7546; stroke-width:1.5; }
+.foundation-slab-legend { display:flex; flex-wrap:wrap; gap:14px; font-size:.78rem; }
+.foundation-slab-legend span { display:inline-flex; align-items:center; gap:6px; }
+.foundation-slab-legend i { width:18px; height:10px; border:2px solid currentColor; border-radius:2px; }
+.foundation-slab-legend .house { color:#17211b; background:#fffdf2; }
+.foundation-slab-legend .slab { color:#59666e; background:#d9dee2; }
+.foundation-slab-legend .blind { color:#9a7546; background:#e8dec9; }
+
+@media (max-width: 520px) {
+  .foundation-slab-tabs { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .foundation-slab-tabs button { width:100%; }
+  .foundation-slab-pane { padding:9px; }
+  .foundation-slab-preview { min-height:190px; }
+}
 .parameter-entity-list,
 .parameter-platform-list,
 .parameter-opening-list {

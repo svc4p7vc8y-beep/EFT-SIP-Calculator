@@ -13,6 +13,7 @@ import { SIP_JOINERY_TYPES } from "../calculations/sip-joinery.js";
 import { SCREW_PILE_KITS } from "../data/foundation-kits.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import DeliveryVolume from '../components/DeliveryVolume.jsx';
+import FoundationSlabEditor from '../components/FoundationSlabEditor.jsx';
 import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
 import { useProject } from "../state/ProjectContext.jsx";
 import FlatRoofAssemblyFields from '../components/FlatRoofAssemblyFields.jsx';
@@ -53,7 +54,7 @@ const serviceGroups = [
   [
     "Конструктив",
     [
-      ["foundation", "Сваи и обвязка"],
+      ["foundation", "Фундамент"],
       ["sipFloor", "SIP-пол"],
       ["sipSecondFloor", "Межэтажное перекрытие / пол 2 этажа"],
       ["sipWalls", "SIP-стены"],
@@ -382,11 +383,15 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
     },
     {
       id: "foundation",
-      title: "Сваи и обвязка",
+      title: "Фундамент",
       ready:
-        !project.services.foundation || calculation.foundation.totalPiles > 0,
+        !project.services.foundation || (project.settings.piles.pileType === 'slab'
+          ? calculation.foundation.slab?.active === true
+          : calculation.foundation.totalPiles > 0),
       note: project.services.foundation
-        ? `${calculation.foundation.totalPiles} свай · ${calculation.foundation.boardCount} досок`
+        ? project.settings.piles.pileType === 'slab'
+          ? `${formatNumber(calculation.foundation.slab?.areaM2 || 0)} м² · ${formatNumber(calculation.foundation.slab?.concreteOrderM3 || 0, 3)} м³ бетона`
+          : `${calculation.foundation.totalPiles} свай · ${calculation.foundation.boardCount} досок`
         : "отключено",
     },
     {
@@ -713,8 +718,10 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           <Section
             id="foundation"
             number="04"
-            title="Сваи и обвязка"
-            description="Шаг свай и сечение обвязки; ряды и линии рисуются на плане."
+            title="Фундамент"
+            description={project.settings.piles.pileType === 'slab'
+              ? 'Контур плиты следует за наружным контуром дома; объёмы основания и отмостки считаются отдельно.'
+              : 'Шаг свай и сечение обвязки; ряды и линии рисуются на плане.'}
           >
             {!project.services.foundation ? <p className="inspector-note">Бетонное основание считается готовым. Комплект лежачего бруса 100×150, отсечную гидроизоляцию, анкеры и монтаж настройте в разделе «Сваи → Готовое бетонное основание». Свайные работы не добавляются.</p> : null}
             {fields([
@@ -722,11 +729,19 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 { value: 'screw', label: 'Винтовые сваи' },
                 { value: 'reinforcedConcrete', label: 'Забивные ЖБ сваи' },
                 { value: 'concreteBlock', label: 'Бетонные блоки' },
+                { value: 'slab', label: 'Фундаментная плита' },
               ] },
-              { path: 'settings.piles.bindingType', label: 'Конструкция обвязки', type: 'select', options: [
+              project.settings.piles.pileType !== 'slab' && { path: 'settings.piles.bindingType', label: 'Конструкция обвязки', type: 'select', options: [
                 { value: 'boards', label: 'Пакет досок' }, { value: 'timber', label: 'Цельный брус 150×150' },
               ] },
             ])}
+            {project.settings.piles.pileType === 'slab' ? <FoundationSlabEditor
+              settings={project.settings.foundation}
+              result={calculation.foundation.slab}
+              estimateLines={calculation.sections.find(section => section.key === 'foundation')?.lines || []}
+              onChange={(path, value) => write(`settings.foundation.${path}`, value)}
+            /> : null}
+            {project.settings.piles.pileType !== 'slab' ? <>
             {project.settings.piles.pileType === 'screw' ? <>
               {fields([{ path: 'settings.piles.screwPileVariant', label: 'Комплект винтовой сваи', type: 'select', options: [...SCREW_PILE_KITS, {value:'legacy',label:'Старая схема · раздельный расчёт'}] }])}
               <p className="inspector-note">Комплект включает сваю, монтаж, оголовок и пескобетон. Разбивка осей фундамента остаётся отдельной позицией по числу свай.</p>
@@ -813,6 +828,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 </strong>
               </div>
             </div>
+            </> : null}
           </Section>
           <Section
             id="sip"

@@ -890,9 +890,57 @@
       "kind": "labor",
       "cat": "Кровля",
       "priceNote": "Расценка задана пользователем 29.10.2026; за оба слоя вместе."
+    },
+    {
+      "id": "LAB-FOUNDATION-CONCRETE-PLACE",
+      "name": "Укладка бетона фундаментной плиты",
+      "unit": "м3",
+      "price": 11000,
+      "kind": "labor",
+      "cat": "Фундаментная плита",
+      "priceNote": "Цена задана пользователем в пакете EFT Foundation Module 03.11.2026. Работа считается по геометрическому объёму без закупочного запаса."
     }
   ],
   "priceMat": [
+    {
+      "cat": "Фундаментная плита",
+      "id": "MAT-FOUNDATION-CONCRETE-B25",
+      "kind": "material",
+      "name": "Бетон B25 для фундаментной плиты",
+      "price": 8600,
+      "unit": "м3",
+      "priceNote": "Цена задана пользователем в пакете EFT Foundation Module 03.11.2026."
+    },
+    {
+      "cat": "Фундаментная плита",
+      "id": "MAT-FOUNDATION-STONE",
+      "kind": "material",
+      "name": "Щебень для основания плиты",
+      "price": 0,
+      "unit": "м3",
+      "pricePending": true,
+      "priceNote": "Позиция добавлена без цены: ориентир из пакета не заменяет действующий прайс."
+    },
+    {
+      "cat": "Фундаментная плита",
+      "id": "MAT-FOUNDATION-XPS",
+      "kind": "material",
+      "name": "XPS под фундаментную плиту",
+      "price": 0,
+      "unit": "м2",
+      "pricePending": true,
+      "priceNote": "Выберите марку и толщину и задайте проектную цену."
+    },
+    {
+      "cat": "Фундаментная плита",
+      "id": "MAT-FOUNDATION-FORMWORK",
+      "kind": "material",
+      "name": "Комплект опалубки фундаментной плиты",
+      "price": 0,
+      "unit": "м.п.",
+      "pricePending": true,
+      "priceNote": "Состав доски, укосин, крепежа и повторное использование задаются проектом."
+    },
     {
       "cat": "Фундамент",
       "id": "MAT-FOUNDATION-BLOCK",
