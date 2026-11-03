@@ -14,6 +14,7 @@ import { SCREW_PILE_KITS } from "../data/foundation-kits.js";
 import { ExteriorEditor } from '../components/ExteriorEditor.jsx';
 import DeliveryVolume from '../components/DeliveryVolume.jsx';
 import FoundationSlabEditor from '../components/FoundationSlabEditor.jsx';
+import StructuralEnginePanel from '../components/StructuralEnginePanel.jsx';
 import ResidentialPresetDialog from '../components/ResidentialPresetDialog.jsx';
 import { useProject } from "../state/ProjectContext.jsx";
 import FlatRoofAssemblyFields from '../components/FlatRoofAssemblyFields.jsx';
@@ -1323,6 +1324,14 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
               </details> : null}
             </div>
             {calculation.roof.layeredRidgeLength > 0 ? <div className="roof-cost-warning"><strong>Наслонная система: опоры — по проекту</strong><span>В смете учтены верхний и нижний ряды конькового прогона 100×50 мм и монтаж обоих рядов. Стойки, опирание и несущая способность прогона определяются конструктором и в автоматическую смету не включены. Количество и цену можно изменить в ведомости проекта.</span></div> : null}
+            <StructuralEnginePanel project={project} calculation={calculation} onChange={(path, value, invalidateLoads = false) => commit(next => {
+              const keys = path.split('.');
+              let target = next.settings.structuralEngine;
+              keys.slice(0, -1).forEach(key => { target = target[key]; });
+              target[keys.at(-1)] = value;
+              if (invalidateLoads) next.settings.structuralEngine.inputsConfirmed = false;
+              return next;
+            })} />
             {roofVisibility.showMainAccessories ? <div className="toggle-grid parameter-roof-toggles">
               {[
                 roofVisibility.showEaveTrim && ["includeEaveTrim", "Карнизные планки"],

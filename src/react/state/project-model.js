@@ -29,6 +29,7 @@ import { createPlacement, normalizePlacement } from './placement-model.js';
 import { normalizeEstimateFiles } from './estimate-files.js';
 import { normalizeWindowProducts, normalizeWindowPresets, normalizeWindowTariffs } from './window-products.js';
 import { normalizeFoundationSlab } from '../calculations/foundation-slab.js';
+import { normalizeStructuralEngine } from './structural-engine.js';
 
 export const REACT_PROJECT_VERSION = 237;
 // Keep the established storage namespace so upgrading the application does not
@@ -588,6 +589,7 @@ export function createDefaultProject() {
         concreteBase: { enabled: true, length: null, anchorSpacingM: 1.2, anchorCount: null },
       },
       foundation: normalizeFoundationSlab(),
+      structuralEngine: normalizeStructuralEngine(),
       sip: {
         floorThickness: "224",
         wallThickness: "174",
@@ -1070,6 +1072,7 @@ export function migrateProject(raw) {
         concreteBase: { ...base.settings.piles.concreteBase, ...(raw.settings?.piles?.concreteBase || {}) },
       },
       foundation: normalizeFoundationSlab(raw.settings?.foundation),
+      structuralEngine: normalizeStructuralEngine(raw.settings?.structuralEngine),
       sip: {
         ...base.settings.sip,
         connectorType: 'thermal',
