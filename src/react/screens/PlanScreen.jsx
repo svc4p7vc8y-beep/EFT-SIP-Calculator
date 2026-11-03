@@ -1,6 +1,7 @@
 import {roofPlanLines,snapRoofLineOffset,saveRoofLines} from '../planner/roof-lines.js';
-import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges,assignPartitionProfiles} from '../planner/bearing-selection.js';
+import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges,assignPartitionProfiles,assignSipThickness} from '../planner/bearing-selection.js';
 import {PARTITION_BOARD_PROFILES,partitionProfileColor,partitionProfileLabel} from '../data/partition-profiles.js';
+import {resizeRoomFromExterior} from '../planner/resize-room.js';
 import {roofSupportPlanGroups,movePlanRoofGroup} from '../planner/roof-support-plan.js';
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
@@ -20,7 +21,7 @@ import { stairStepGeometry, stairOpeningPolygon, STAIR_TYPES, normalizeStairType
 import PlanLabelLeader from '../components/PlanLabelLeader.jsx';
 import { floorOpenings as getFloorOpenings, replaceFloorOpening, floorOpeningSummary } from '../planner/floor-openings.js';
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
-import { guideFromOuterWall, moveTemporaryGuide } from '../planner/temporary-guides.js';
+import { guideFromOuterWall, moveTemporaryGuide, guideFromGuide } from '../planner/temporary-guides.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
 import { isInteriorDoor } from '../calculations/opening-types.js';
@@ -672,6 +673,7 @@ function TemporaryGuide({ guide, p, active, selected, onPointerDown }) {
     <line className="temporary-guide-measure" x1={vertical ? origin.x : anchor.x} y1={vertical ? anchor.y : origin.y} x2={vertical ? target.x : anchor.x} y2={vertical ? anchor.y : target.y} />
     <text className="temporary-guide-distance" x={vertical ? (origin.x + target.x) / 2 : anchor.x + 15} y={vertical ? anchor.y - 10 : (origin.y + target.y) / 2}>{distance} мм</text>
     <line className="temporary-guide-hit" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} style={{ pointerEvents: active ? 'stroke' : 'none' }} onPointerDown={active ? onPointerDown : undefined} />
+    {active&&selected?<circle cx={vertical?target.x:anchor.x} cy={vertical?anchor.y:target.y} r="10" fill="#fff" stroke="#568b32" strokeWidth="3" pointerEvents="all" onPointerDown={event=>onPointerDown?.(event,true)}><title>Переместить направляющую</title></circle>:null}
   </g>;
 }
 
@@ -3021,7 +3023,7 @@ function PlanCanvas({
           })}
         </g>
       ) : null}
-      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} selected={selectedGuideId===guide.id} active={tool === 'guide'} onPointerDown={(event) => { event.stopPropagation();if(event.button!==0)return;if(selectedGuideId!==guide.id){setSelectedGuideId(guide.id);return;}begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id }); }} />)}
+      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} selected={selectedGuideId===guide.id} active={tool === 'guide'} onPointerDown={(event, move = false) => { event.stopPropagation();if(event.button!==0)return;setSelectedGuideId(guide.id);begin(event, event.altKey||move ? { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id } : { kind: 'temporaryGuide', type: 'guide', guideBase: guideFromGuide(guide, rawPlanPoint(event)) }); }} />)}
       {gesture?.kind === 'temporaryGuide' && !gesture.guideId ? <TemporaryGuide guide={moveTemporaryGuide(gesture.guideBase, gesture.end)} p={p} active={false} /> : null}
       {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={VIEW.width - 183} y="55" width="171" height="31" rx="7" /><text x={VIEW.width - 98} y="76">Очистить направляющие</text></g> : null}
       {["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool) ? (
@@ -3604,14 +3606,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
     const area = polygonArea(roomPoints(room));
     const resize = (axis, value) =>
       update("rooms", (item) => {
-        const old = boundsOf(roomPoints(item));
-        const sx = axis === "w" ? value / Math.max(0.1, old.w) : 1;
-        const sy = axis === "h" ? value / Math.max(0.1, old.h) : 1;
-        item.points = roomPoints(item).map((point) => ({
-          x: roundCoord(old.x + (point.x - old.x) * sx),
-          y: roundCoord(old.y + (point.y - old.y) * sy),
-        }));
-        Object.assign(item, boundsOf(item.points));
+        resizeRoomFromExterior(plan,item,axis,value);
       });
     return (
       <div className="inspector-form">
@@ -4497,13 +4492,7 @@ function MobileSelectionAdjuster({
     update("rooms", (item) => {
       const old = boundsOf(roomPoints(item));
       const target = Math.max(0.5, (axis === "w" ? old.w : old.h) + delta);
-      const sx = axis === "w" ? target / Math.max(0.1, old.w) : 1;
-      const sy = axis === "h" ? target / Math.max(0.1, old.h) : 1;
-      item.points = roomPoints(item).map((point) => ({
-        x: roundCoord(old.x + (point.x - old.x) * sx),
-        y: roundCoord(old.y + (point.y - old.y) * sy),
-      }));
-      Object.assign(item, boundsOf(item.points));
+      resizeRoomFromExterior(plan,item,axis,target);
     });
   };
   const resizeLine = (key, delta) =>
@@ -5984,7 +5973,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           : tool === "dimension"
             ? "Нажмите первую точку, затем вторую. Размер автоматически вынесется за контур дома и займёт свободный уровень."
             : tool === 'guide'
-              ? 'Протяните от наружной стены внутрь дома. Видно расстояние; к линии привязываются комнаты. Направляющую можно передвинуть или очистить на плане.'
+              ? 'Протяните от наружной стены или существующей направляющей. Alt + перетаскивание — переместить направляющую. К линиям привязываются комнаты.'
             : tool === "annotation"
               ? "Щёлкните на плане, введите свой текст и перетащите зелёную точку стрелки к нужному месту."
             : tool === "stairOpening"
@@ -6708,6 +6697,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                   partitionPlanControls={<div className="partition-inspector-controls" role="group" aria-label="Доски и несущие стены">
                     <button type="button" className={tool==='bearingWall'?'button primary':'button secondary'} onClick={()=>selectTool('bearingWall')}>{tool==='bearingWall'?'Инструмент выбран':'Выбирать доски / несущие на плане'}</button>
                     <strong>Выбрано участков: {bearingSelection.length}</strong>
+                    {project.settings.sip.partitionType==='sip'?<label className="field">SIP выбранных стен<select key={bearingSelection.join('|')} aria-label="SIP выбранных стен" defaultValue="" onChange={event=>{const value=event.target.value;commitPlan(next=>assignSipThickness(next,bearingSelection,value));}} disabled={!bearingSelection.length}><option value="">Общая толщина проекта</option>{[124,174,224].map(value=><option key={value} value={value}>{value} мм</option>)}</select></label>:null}
                     <label><input type="checkbox" checked={bearingByLine} onChange={event=>setBearingByLine(event.target.checked)}/> Выбирать все участки на одной линии</label>
                     <label className="field">Доска выбранных стен<select aria-label="Доска выбранных стен" value={bearingProfile} onChange={event=>setBearingProfile(event.target.value)}>{PARTITION_BOARD_PROFILES.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
                     <div className="partition-inspector-actions">

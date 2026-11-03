@@ -50,11 +50,12 @@ export function productionScene(report,project,{includePlatforms=report.settings
     const wall=placements.get(surface.id);
     if(!wall||surface.blocked||!['walls','partitions'].includes(wall.layer))return [];
     const face={...wall,origin:wall.origin.map((value,index)=>value+wall.normal[index]*(Number(surface.thickness)/2+5))};
-    return (surface.openings||[]).filter(opening=>opening.type==='window'&&!opening.gap).flatMap(opening=>{
+    return (surface.openings||[]).filter(opening=>!opening.gap&&(opening.type==='window'||opening.type==='door'&&surface.exterior&&project.services.openings!==false)).flatMap(opening=>{
       const x=Number(opening.x),y=Number(opening.sill),width=Number(opening.width),height=Number(opening.height),border=Math.min(45,width/8,height/8);
       if(![x,y,width,height].every(Number.isFinite)||width<=0||height<=0)return [];
       const rect=(left,bottom,right,top)=>[[[left,bottom],[right,bottom],[right,top],[left,top]]];
       const id=`window:${opening.id}`;
+      if(opening.type==='door')return [{id:`door:${opening.id}`,layer:'doors',shape:rect(x,y,x+width,y+height),placement:face,thickness:60,referenceOnly:true,doorLeaf:true}];
       const glass={id,layer:'windows',shape:rect(x+border,y+border,x+width-border,y+height-border),placement:face,thickness:6,referenceOnly:true,windowGlass:true};
       const frame=[[x,y,x+width,y+border],[x,y+height-border,x+width,y+height],[x,y+border,x+border,y+height-border],[x+width-border,y+border,x+width,y+height-border]].map(([left,bottom,right,top],index)=>({id:`${id}:frame:${index}`,layer:'windows',shape:rect(left,bottom,right,top),placement:face,thickness:35,referenceOnly:true,windowFrame:true}));
       const product=windowProducts.get(opening.id),sectionCount=product?.sections?.length||1;

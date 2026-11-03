@@ -418,9 +418,16 @@ export function partitionRuns(plan, rawAxes = false) {
 }
 
 export function partitionDepth(plan,a,b){
+  const selected=[];
+  const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+  const matches=(u,v)=>{const dx=v.x-u.x,dy=v.y-u.y,L=Math.hypot(dx,dy),t=((mid.x-u.x)*dx+(mid.y-u.y)*dy)/(L*L||1);return L>0&&t>=0&&t<=1&&Math.abs(dx*(mid.y-u.y)-dy*(mid.x-u.x))/L<.015&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))/(L*Math.hypot(b.x-a.x,b.y-a.y)||1)<.001;};
+  if([.124,.174,.224].includes(Number(plan.partitionThickness))){
+    for(const wall of plan.walls||[])if(wall.include!==false&&matches({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}))selected.push(Number(wall.sipThickness));
+    for(const room of plan.rooms||[])if(room.include!==false){const points=roomPoints(room);points.forEach((p,i)=>{const q=points[(i+1)%points.length];if(matches(p,q))selected.push(Number(room.bearingWalls?.[edgeKey(p,q)]?.sipThickness));});}
+    return Math.max(0,...selected.filter(n=>[124,174,224].includes(n)))/1000||Number(plan.partitionThickness);
+  }
   // Supported finished SIP thicknesses are not replaced by a frame board depth.
   if([.124,.174,.224].includes(Number(plan.partitionThickness)))return Number(plan.partitionThickness);
-  const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
   const covers=(u,v)=>{const dx=v.x-u.x,dy=v.y-u.y,l=Math.hypot(dx,dy),L=Math.hypot(b.x-a.x,b.y-a.y),t=((mid.x-u.x)*dx+(mid.y-u.y)*dy)/(l*l||1);return l>0&&t>=0&&t<=1&&Math.abs(dx*(mid.y-u.y)-dy*(mid.x-u.x))/l<.015&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))/(l*L||1)<.001;};
   const profiles=[];
   for(const w of plan.walls||[])if(w.include!==false&&covers({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}))profiles.push(w.bearing?w.bearingProfile:w.frameProfile);

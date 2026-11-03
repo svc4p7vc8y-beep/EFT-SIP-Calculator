@@ -9,6 +9,7 @@ import {planPointToThree,planDirectionToThree} from '../calculations/plan-3d-ori
 import { Box,Frame,Scan,Layers,RotateCcw,Camera,Download } from 'lucide-react';
 
 const layers={blockers:'Ошибки раскроя',existingBuilding:'Существующее здание · справочно',foundation:'Фундамент',walls:'Стены',windows:'Окна',partitions:'Перегородки',gables:'Фронтоны',floor:'Пол',interfloor:'Межэтажное перекрытие',ceiling:'Потолок',roof:'SIP-крыша',roofSurface:'Плоскости холодных скатов',sheetCover:'Листовое покрытие плоской кровли',flatOsb:'Настил ОСБ',flatCsp:'Основание ЦСП',waterproofing:'Рулонная гидроизоляция',flashing:'Примыкание листовой кровли',parapet:'Парапет',drains:'Парапетные воронки · схема',rafters:'Стропила',roofTimbers:'Мауэрлат, конёк и ригели',laths:'Обрешётка',counterLaths:'Контробрешётка',supports:'Опоры',trussTemplates:'Фермы · эскиз',binding:'Обвязка',platforms:'Настил, ступени и стойки площадок',platformRoof:'Крыши площадок · схема'};
+layers.doors='Двери входные';
 const sortedLayers=Object.entries(layers).sort((a,b)=>a[1].localeCompare(b[1],'ru'));
 const roofCoverLayers=['roofSurface','sheetCover','flatOsb','flatCsp','waterproofing','flashing','drains','laths','counterLaths'];
 const vector=point=>new THREE.Vector3(...planPointToThree(point));

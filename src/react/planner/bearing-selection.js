@@ -25,3 +25,12 @@ export function assignPartitionProfiles(plan,keys,profile) {
  for(const wall of plan.walls||[])if(chosen.has(bearingWallKey({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}))){wall.frameProfile=profile;if(wall.bearing)wall.bearingProfile=profile;}
  return plan;
 }
+
+export function assignSipThickness(plan, keys, thickness) {
+ const chosen=new Set(keys),value=[124,174,224].includes(Number(thickness))?Number(thickness):null;
+ for(const room of plan.rooms||[])for(const edge of roomBearingEdges(room))if(chosen.has(edge.key)){
+  room.bearingWalls={...room.bearingWalls,[edge.key]:{...room.bearingWalls?.[edge.key],sipThickness:value}};
+ }
+ for(const wall of plan.walls||[])if(chosen.has(bearingWallKey({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2})))wall.sipThickness=value;
+ return plan;
+}

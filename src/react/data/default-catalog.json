@@ -902,6 +902,9 @@
     }
   ],
   "priceMat": [
+    {"cat":"СИП-панели и термобрус","id":"MAT-SIP-2800-124","kind":"material","name":"СИП-панель PPS 2800×1250×124 мм","price":7787,"unit":"шт"},
+    {"cat":"СИП-панели и термобрус","id":"MAT-SIP-2800-174","kind":"material","name":"СИП-панель PPS 2800×1250×174 мм","price":8822,"unit":"шт"},
+    {"cat":"СИП-панели и термобрус","id":"MAT-SIP-2800-224","kind":"material","name":"СИП-панель PPS 2800×1250×224 мм","price":9857,"unit":"шт"},
     {
       "cat": "Фундаментная плита",
       "id": "MAT-FOUNDATION-CONCRETE-B25",

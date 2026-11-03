@@ -107,7 +107,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
     points.forEach((p, index) => index ? outline.lineTo(p.x - cx, p.y - cy) : outline.moveTo(p.x - cx, p.y - cy));
     outline.closePath();
     const panelLength = Math.max(0.5, Number(project.settings?.formulas?.panelLength) || 2.5);
-    const addPanelSurface = (target, seamTarget, elevation, width, color) => {
+    const addPanelSurface = (target, seamTarget, elevation, width, color, floorPlan) => {
       const panel = new THREE.Mesh(new THREE.ShapeGeometry(outline), new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.84, roughness: 0.88 }));
       panel.rotation.x = Math.PI / 2;
       panel.position.y = elevation;
@@ -129,10 +129,10 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
           }
         }
       }
-      const floorPoints=contour(item.plan);
+      const floorPoints=points;
       floorPoints.forEach((start, index) => {
         const end = floorPoints[(index + 1) % floorPoints.length];
-        if(existingWallEdge(item.plan,start,end))return;
+        if(existingWallEdge(floorPlan,start,end))return;
         addBeam(seamTarget, [start.x - cx, elevation + 0.035, start.y - cy], [end.x - cx, elevation + 0.035, end.y - cy], 0.065, timber);
       });
     };
@@ -140,7 +140,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
     plans.forEach((item, floorIndex) => {
       const floorHeight = heights[floorIndex];
       const floorWidth = floorIndex ? project.settings?.sip?.secondFloorPanelWidth : project.settings?.sip?.floorPanelWidth;
-      if (floorIndex || project.services?.sipFloor !== false) addPanelSurface(groups.floor, details.floor, level + 0.06, floorWidth, floorIndex ? 0xc7d9c7 : 0xb9d2bc);
+      if (floorIndex || project.services?.sipFloor !== false) addPanelSurface(groups.floor, details.floor, level + 0.06, floorWidth, floorIndex ? 0xc7d9c7 : 0xb9d2bc,item.plan);
       points.forEach((start, index) => {
         const end = points[(index + 1) % points.length];
         const dx = end.x - start.x, dy = end.y - start.y;
@@ -163,7 +163,7 @@ export default function NodeHouse3D({ project, floorPlans, nodes, selectedId, on
           addBeam(details.walls, [x, level, z], [x, level + floorHeight, z], 0.065, timberLight);
         }
       });
-      if (floorIndex === plans.length - 1 && project.services?.sipCeiling !== false && hasHorizontalCeiling(item.plan)) addPanelSurface(groups.ceiling, details.ceiling, level + floorHeight, project.settings?.sip?.ceilingPanelWidth, 0xdce5d2);
+      if (floorIndex === plans.length - 1 && project.services?.sipCeiling !== false && hasHorizontalCeiling(item.plan)) addPanelSurface(groups.ceiling, details.ceiling, level + floorHeight, project.settings?.sip?.ceilingPanelWidth, 0xdce5d2,item.plan);
       level += floorHeight;
     });
     for(const m of platformModel.binding)addBeam(groups.foundation,[m.a[0]/1000-cx,-.16,m.a[1]/1000-cy],[m.b[0]/1000-cx,-.16,m.b[1]/1000-cy],.15,timber);

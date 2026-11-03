@@ -624,10 +624,11 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
               </div>
             </div>
             {floorRooms.length ? (
-              <div className="parameter-entity-list">
-                <h3>Помещения всех этажей</h3>
+              <details className="parameter-entity-list">
+                <summary>Помещения всех этажей</summary>
                 {floorRooms.map(({ room, floor }) => (
-                  <article key={`${floor}-${room.id}`}>
+                  <details key={`${floor}-${room.id}`}>
+                    <summary>{room.name || 'Комната'} · {floor} этаж</summary>
                     <Field label={`Название · ${floor} этаж`}>
                       <input
                         value={room.name}
@@ -685,9 +686,9 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                         )
                       }
                     />
-                  </article>
+                  </details>
                 ))}
-              </div>
+              </details>
             ) : (
               <div className="parameter-info-note">
                 Комнат нет. Пол и потолок считаются по полной площади.
@@ -1598,6 +1599,8 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             <Toggle label="Поворот заготовок на 90°" checked={project.settings.productionCutting.allowRotation === true} onChange={value => write('settings.productionCutting.allowRotation', value)} />
             <Toggle label="Деталировка каркаса перегородок в смете" checked={project.settings.productionCutting.detailedFrameEstimate !== false} onChange={value => write('settings.productionCutting.detailedFrameEstimate', value)} />
             <Toggle label="Привязка потолка к несущим стенам" checked={project.settings.productionCutting.ceilingBearingAlignment !== false} onChange={value => write('settings.productionCutting.ceilingBearingAlignment', value)} />
+            <SelectField label="Длина закупаемых SIP-панелей" value={project.settings.sip.panelStockMode==='mixed'?'mixed':String(project.settings.formulas.panelLength||2.5)} options={[{value:'2.5',label:'2500 × 1250 мм'},{value:'2.8',label:'2800 × 1250 мм · PPS'},{value:'mixed',label:'Комбинированный · 2500 / 2800 мм'}]} onChange={value=>commit(next=>{next.settings.sip.panelStockMode=value==='mixed'?'mixed':'fixed';if(value!=='mixed'){next.settings.formulas.panelLength=Number(value);next.settings.formulas.panelArea=Number(value)*(Number(next.settings.formulas.panelWidth)||1.25);}return next;})} />
+            {project.settings.sip.panelStockMode==='mixed'||calculation.sip.stockSelection?<p className="inspector-note">{project.settings.sip.panelStockMode==='mixed'?'Подбор PPS по фактическим деталям раскроя: сравниваются варианты упаковки в 2500 и 2800 мм по стоимости панелей.':'Локальные толщины SIP учтены по фактическим деталям раскроя.'} Ручная геометрия сохраняется. {calculation.sip.stockSelection?.status==='incomplete'?'Подбор не завершён: устраните ошибки раскроя; в смете пока предварительное количество панелей.':'Закупка объединена по толщине и формату с сохранением запаса проекта.'}</p>:null}
             <Toggle label="Стыки SIP по примыканиям перегородок" checked={project.settings.productionCutting.partitionSipAlignment !== false} onChange={value => write('settings.productionCutting.partitionSipAlignment', value)} />
             <Toggle label="Стыки пола вдоль перегородок" checked={project.settings.productionCutting.floorPartitionAlignment === true} onChange={value => write('settings.productionCutting.floorPartitionAlignment', value)} />
             <Toggle label="Показывать пристройки в раскрое" checked={project.settings.productionCutting.showPlatforms !== false} onChange={value => write('settings.productionCutting.showPlatforms', value)} />

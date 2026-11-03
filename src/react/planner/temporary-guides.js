@@ -28,5 +28,10 @@ export function guideFromOuterWall(plan, point, tolerance = 0.2) {
 
 export function moveTemporaryGuide(guide, point) {
   const value = Math.round(Number(point[guide.axis]) * 10) / 10;
-  return { ...guide, target: roundCoord(guide.inward > 0 ? Math.max(guide.origin, value) : Math.min(guide.origin, value)) };
+  return { ...guide, target: roundCoord(guide.inward === 0 ? value : guide.inward > 0 ? Math.max(guide.origin, value) : Math.min(guide.origin, value)) };
+}
+
+export function guideFromGuide(guide, point) {
+  return { axis: guide.axis, origin: guide.target, target: guide.target,
+    anchor: roundCoord(point[guide.axis === 'x' ? 'y' : 'x']), inward: 0 };
 }

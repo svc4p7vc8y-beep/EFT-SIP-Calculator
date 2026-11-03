@@ -1,10 +1,11 @@
 import {partitionTopFit} from './partition-top-fit.js';
+import {mixedPanelStock} from './mixed-panel-stock.js';
 import clipping from 'polygon-clipping';
 import { refreshPartitionNotches } from './partition-geometry.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { bearingEdges, bearingForSegment, partitionProfileForSegment, splitAtBearingEdges, splitConnectorsAtBearing } from './bearing-walls.js';
 import { partitionFrameMembers } from './partition-cutting.js';
-import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints, planIssues } from '../planner/geometry.js';
+import { houseContourPoints, roomPoints, unifiedWallSegments, lineEndpoints, planIssues, partitionDepth } from '../planner/geometry.js';
 import { sipTimberProfile } from './sip-joinery.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
 import { cuttingRevision, validateProductionSettings, parseManualPanel, reconcileCutting } from './production-controls.js';
@@ -531,7 +532,7 @@ export function calculateProductionCutting(project, calculation) {
   const settings = normalizeProductionCutting(project.settings?.productionCutting);
   const minimum=settings.minPanelWidthMm;
   validateProductionSettings(settings);
-  const f = project.settings?.formulas || {}, sip = project.settings?.sip || {}, services = project.services || {};
+  const f = calculation.inputs?.formulas || project.settings?.formulas || {}, sip = project.settings?.sip || {}, services = project.services || {};
   const panelWidth = mm(f.panelWidth || 1.25), panelLength = mm(f.panelLength || 2.5);
   if (!(panelWidth >= 100 && panelWidth <= 10000 && panelLength >= 100 && panelLength <= 20000)) throw new Error('Проверьте формат панели в формулах проекта: ширина 100–10 000 мм, длина 100–20 000 мм.');
   const surfaces = [], issues = [], openings = [], walls = [],gableOpeningTransfers=new Map();
@@ -640,6 +641,7 @@ export function calculateProductionCutting(project, calculation) {
       const geometry = subtract(wallShape, holes);
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
       const source=constructionSource(plan,edge,settings.constructionSources,floor);
+      if(!edge.outer&&sip.partitionType==='sip'){const selected=Math.round(partitionDepth(plan,edge.a,edge.b)*1000);source.thickness=[124,174,224].includes(selected)?selected:Number(sip.partitionThickness);}
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm((edge.outer?(edge.start||edge.a):edge.a).x), mm((edge.outer?(edge.start||edge.a):edge.a).y)], planEnd: [mm((edge.outer?(edge.end||edge.b):edge.b).x), mm((edge.outer?(edge.end||edge.b):edge.b).y)], externalLength:edge.outer?mm(edge.externalLength):width,heightStart:topProfile?.[0][1]??heightStart,heightEnd:topProfile?.at(-1)[1]??heightEnd,requestedHeight:baseHeight+addition, thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings,
         exterior:!!edge.outer,topProfile,...source,...(!edge.outer?{...partitionBacking(plan,edge.a,edge.b),junctionStuds:partitionJunctionStuds(plan,edge.a,edge.b)}:{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(partitionProfileForSegment(plan,edge.a,edge.b)||(!edge.outer&&localWallSettings(plan,edge.a,edge.b)?.frameProfile)||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
@@ -1067,7 +1069,7 @@ export function calculateProductionCutting(project, calculation) {
   for(const [mauerlatId,count]of missingBearings)issue('ROOF_BEARING',`${mauerlatId}: участок мауэрлата исключён из производства; опирание ${count} стропильных элементов не подтверждено.`,mauerlatId);
   if(settings.roofSupports.some(s=>s.autoLayout===FRAME_LAYOUT)&&settings.roofFrameConfig?.sourceKey&&settings.roofFrameConfig.sourceKey!==roofFrameSource(project,assembly,settings))issue('STALE_ROOF_FRAME','Геометрия крыши или заготовка изменена после размещения каркаса. Откройте «Элементы» и повторно примените опорный каркас; ручные и закреплённые детали сохранятся.');
   for(const support of assembly.supports)support.displayMark=marked.get(support.mark)||support.mark;
-  const panelStock = packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
+  const panelStock = sip.panelStockMode==='mixed'?mixedPanelStock(parts,panelWidth,Number(settings.kerfMm||0),settings.allowRotation,packPanelBlanks,project.priceMat||[]):packPanelBlanks(parts, panelWidth, panelLength, Number(settings.kerfMm || 0), settings.allowRotation);
   const fabrication=stockJointPieces(members,settings);
   issues.push(...fabrication.issues);
   const timberStock = packMembers(fabrication.pieces, settings.stockLengthMm, Number(settings.kerfMm || 0));

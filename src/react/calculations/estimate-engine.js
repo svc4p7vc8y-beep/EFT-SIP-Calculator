@@ -1,4 +1,6 @@
 import {partitionTopFit,partitionProfileArea,partitionProfileTopLength} from './partition-top-fit.js';
+import {sipPartitionShares} from './partition-sip-selection.js';
+import {calculateProductionCutting} from './production-cutting.js';
 import {roofProject} from './roof-project.js';
 import {
   calculateGridContourCutLength,
@@ -63,6 +65,7 @@ function catalogIndex(project) {
   const entries = [...project.priceMat, ...project.priceLab];
   return {
     entries,
+    panelLength:Number(project.settings.formulas.panelLength)||2.5,
     authoritative: project.sharedPriceCatalog?.source === 'server',
     byId: new Map(entries.map((item) => [item.id, item])),
     exact: new Map(
@@ -91,6 +94,10 @@ function frameCatalog(index,profile) {
 }
 
 function makeLine(index, section, query, qty, options = {}) {
+  if(index.panelLength===2.8&&query.startsWith('СИП-панель ')){
+    query=query.replace('2500×1250','2800×1250');
+    options={...options,...(options.name?{name:options.name.replace('2500×1250','2800×1250')}:{})};
+  }
   const amount = Math.max(0, Number(qty) || 0);
   if (!amount) return null;
   const item = options.catalogId ? index.byId.get(options.catalogId) : findCatalog(index, query, options.kind);
@@ -584,6 +591,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     sip,
     f,
     metrics,
+    project.settings.productionCutting,
   );
   const consumables = calculateSipConsumables(cutting, joinery, sip, f);
   const consumablesByKey = new Map(
@@ -597,9 +605,10 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       source: `sip-${key}`,
       estimateGroup: groupNames[key],
     };
-    lines.push(
-      makeLine(index, "sip", sipPanelName(thickness, family), row.panels, {
-        key: `panel-${key}`,
+    const panelShares=key.startsWith('partitions')?sipPartitionShares(key==='partitions'?firstPlan:secondPlan,thickness):[{thickness,share:1}];
+    for(const selected of panelShares)lines.push(
+      makeLine(index, "sip", sipPanelName(selected.thickness, family), panelShares.length===1?row.panels:Math.ceil(row.panels*selected.share), {
+        key: panelShares.length===1?`panel-${key}`:`panel-${key}-${selected.thickness}`,
         ...lineOptions,
       }),
     );
@@ -856,7 +865,17 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     const qty=['м.п.','м'].includes(unit)?boards*stock/1000:boards*stock*width*depth/1e9;
     lines.push(makeLine(index,'sip',`Доска сухая строганая ${profile} мм`,qty,{key:`opening-inserts-${profile}`,catalogId:item?.id,unit,digits:unit==='м3'||unit==='м³'?4:2,source:'sip-opening-inserts',estimateGroup:'Обрамление проёмов',name:`Дополнительные доски проёмов ${profile} мм · ${members.length} деталей · ${boards} шт × ${stock/1000} м`}));
   }
-  joinery.rows.forEach((row) => {
+  const timberRows=joinery.rows.flatMap(row=>{
+    if(!row.key.startsWith('partitions'))return [row];
+    const shares=sipPartitionShares(row.key==='partitions'?firstPlan:secondPlan,sip.partitionThickness);
+    if(shares.length===1&&Number(shares[0].thickness)===Number(row.panelThickness))return [row];
+    return shares.map(selected=>{
+      const jointLength=row.jointLength*selected.share,endBoardLength=row.endBoardLength*selected.share;
+      const jointStockPieces=Math.ceil(jointLength/row.stockLength),endBoardStockPieces=Math.ceil(endBoardLength/row.stockLength);
+      return {...row,...sipTimberProfile(selected.thickness),baseKey:row.key,key:`${row.key}-${selected.thickness}`,jointLength,endBoardLength,jointStockPieces,endBoardStockPieces,jointPurchaseLength:jointStockPieces*row.stockLength,endBoardPurchaseLength:endBoardStockPieces*row.stockLength};
+    });
+  });
+  timberRows.forEach((row) => {
     const key = `${row.key}-connector`;
     if (joinery.type === "thermal") {
       const query = `Термобрус 95×${row.thermalDepth} мм`;
@@ -871,7 +890,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
             unit: "м.п.",
             name: `${query} · ${row.jointStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
             source: `sip-${row.key}-joints`,
-            estimateGroup: groupNames[row.key],
+            estimateGroup: groupNames[row.baseKey||row.key],
           },
         ),
       );
@@ -890,7 +909,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
             unit: "м.п.",
             name: `${query} · ${row.jointStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
             source: `sip-${row.key}-joints`,
-            estimateGroup: groupNames[row.key],
+            estimateGroup: groupNames[row.baseKey||row.key],
           },
         ),
       );
@@ -902,7 +921,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
           unit: "м.п.",
           name: `${query} · ${row.jointStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
           source: `sip-${row.key}-joints`,
-          estimateGroup: groupNames[row.key],
+          estimateGroup: groupNames[row.baseKey||row.key],
         }),
       );
     }
@@ -918,7 +937,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
           unit: "м.п.",
           name: `${edgeQuery} · ${row.endBoardStockPieces} шт × ${formatNumberForName(row.stockLength)} м`,
           source: `sip-${row.key}-edges`,
-          estimateGroup: groupNames[row.key],
+          estimateGroup: groupNames[row.baseKey||row.key],
         },
       ),
     );
@@ -3406,10 +3425,17 @@ function deliverySection(project, index, inputs) {
   };
 }
 
-export function calculateProject(project, { nodeTypeRules = {} } = {}) {
+export function calculateProject(project, { nodeTypeRules = {}, stockCandidate = false } = {}) {
+  if(project.settings.sip.panelStockMode==='mixed'&&!stockCandidate){
+    const candidates=[2.5,2.8].map(length=>calculateProject({...project,settings:{...project.settings,formulas:{...project.settings.formulas,panelLength:length,panelArea:length*(Number(project.settings.formulas.panelWidth)||1.25)}}},{nodeTypeRules,stockCandidate:true}));
+    candidates.sort((a,b)=>Number(b.sip.stockSelection?.status==='calculated')-Number(a.sip.stockSelection?.status==='calculated')||a.totals.total-b.totals.total);
+    candidates[0].sip.stockSelection.baseLength=candidates[0].inputs.formulas.panelLength;
+    return candidates[0];
+  }
   const metrics = calculateBuildingMetrics(project);
   const inputs = deriveLinkedInputs(project, metrics);
   const index = catalogIndex(project);
+  index.panelLength=inputs.formulas.panelLength;
   const foundation = foundationSection(project, index, inputs);
   const roof = roofSection(project, metrics, index, inputs);
   const topFloor = metrics.floorPlans.at(-1);
@@ -3535,6 +3561,25 @@ export function calculateProject(project, { nodeTypeRules = {} } = {}) {
     lines,
     totals,
   };
+  const localSipThickness=project.settings.sip.partitionType==='sip'&&[project.plan,...(project.upperFloors||[])].some(plan=>(plan.walls||[]).some(wall=>[124,174,224].includes(Number(wall.sipThickness)))||(plan.rooms||[]).some(room=>Object.values(room.bearingWalls||{}).some(value=>[124,174,224].includes(Number(value.sipThickness)))));
+  if(project.settings.sip.panelStockMode==='mixed'||localSipThickness){
+    const production=calculateProductionCutting(project,result);
+    const incomplete=production.surfaces.some(s=>s.blocked)||production.panelStock.unplaced.length>0;
+    result.sip.stockSelection={status:incomplete?'incomplete':'calculated',formats:[2500,2800],wastePercent:production.panelStock.wastePercent};
+    if(!incomplete){
+      const groups=new Map(),reserve=1+Math.max(0,Number(project.settings.sip.wastePercent)||0)/100;
+      for(const sheet of production.panelStock.sheets){const key=`${sheet.family}:${sheet.thickness}:${sheet.height}`;const row=groups.get(key)||{sheet,count:0};row.count++;groups.set(key,row);}
+      const procurement=[...groups.values()].map(({sheet,count})=>makeLine({...index,panelLength:sheet.height/1000},'sip',sipPanelName(sheet.thickness,sheet.family).replace('2500×1250',`${sheet.height}×1250`),Math.ceil(count*reserve),{key:`mixed-panel-${sheet.family}-${sheet.thickness}-${sheet.height}`,source:'sip-mixed-stock',estimateGroup:'SIP-панели · общая закупка по раскрою',exactQuantity:true})).filter(Boolean);
+      const isPanel=line=>!line.custom&&/^СИП-панель /.test(index.byId.get(line.catalogId)?.name||line.name);
+      const protectedCatalogs=new Set(result.lines.filter(line=>isPanel(line)&&line.projectOverride).map(line=>line.catalogId));
+      const editableProcurement=applyProjectEstimateEdits({...project,customEstimateLines:[],customEstimateGroups:[]},[{key:'panel-procurement',lines:procurement.filter(line=>!protectedCatalogs.has(line.catalogId))}])[0].lines;
+      const revised=result.sections.map(section=>({...section,lines:[...section.lines.filter(line=>!isPanel(line)||line.projectOverride),...(section.key==='sip'?editableProcurement:[])]}));
+      result.sections=revised;result.lines=revised.flatMap(section=>section.lines);
+      result.sip.lines=revised.find(section=>section.key==='sip')?.lines||[];
+      result.roof.lines=revised.find(section=>section.key==='roof')?.lines||[];
+      result.totals=result.lines.reduce((sum,line)=>{sum[line.kind==='labor'?'labor':'materials']+=line.qty*line.price;return sum;},{materials:0,labor:0});result.totals.total=result.totals.materials+result.totals.labor;
+    }
+  }
   result.nodeFasteners = calculateConstructionNodes(project, result, nodeTypeRules);
   return result;
 }

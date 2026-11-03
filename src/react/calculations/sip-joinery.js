@@ -1,5 +1,6 @@
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { floorOpeningSummary } from '../planner/floor-openings.js';
+import { partitionRuns } from '../planner/geometry.js';
 const round = (value, digits = 3) => {
   const factor = 10 ** digits;
   return Math.round((Number(value) || 0) * factor) / factor;
@@ -515,6 +516,7 @@ export function calculateSipJoinery(
   sipSettings,
   formulas = {},
   metrics = {},
+  productionSettings = {},
 ) {
   const width = Math.max(0, Number(plan.house?.w) || 0);
   const height = Math.max(0, Number(plan.house?.h) || 0);
@@ -595,7 +597,19 @@ export function calculateSipJoinery(
         joints: construction?.length?construction.reduce((sum,w)=>{
           const top=x=>w.heightStart+(w.heightEnd-w.heightStart)*x/w.length;
           let joints=0;
-          for(let x=panelWidth;x<w.length-.001;x+=panelWidth)joints+=Math.max(0,top(x));
+          const anchors=[0,w.length];
+          if(productionSettings.partitionSipAlignment!==false){
+            const a=w.start||w.a,b=w.end||w.b,dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy);
+            for(const endpoints of partitionRuns(currentPlan))for(const p of endpoints){
+              const x=p.x-a.x,y=p.y-a.y,along=(x*dx+y*dy)/(L||1),distance=Math.abs(dx*y-dy*x)/(L||1);
+              if(along>.001&&along<w.length-.001&&distance<=(Number(currentPlan.wallThickness)||.174)+.015)anchors.push(along);
+            }
+          }
+          const sorted=[...new Set(anchors.map(x=>Math.round(x*1000)/1000))].sort((a,b)=>a-b);
+          for(let i=1;i<sorted.length;i++){
+            if(i>1)joints+=Math.max(0,top(sorted[i-1]));
+            for(let x=sorted[i-1]+panelWidth;x<sorted[i]-.001;x+=panelWidth)joints+=Math.max(0,top(x));
+          }
           for(let y=panelLength;y<Math.max(w.heightStart,w.heightEnd)-.001;y+=panelLength){
             const low=Math.min(w.heightStart,w.heightEnd),high=Math.max(w.heightStart,w.heightEnd);
             joints+=y<=low?w.length:w.length*(high-y)/(high-low);
