@@ -7517,6 +7517,9 @@ select,
 .roof-axis-controls,.bearing-selection-controls{display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:10px;background:#f3f7fc;border:1px solid #b9cbdf;border-radius:8px;min-width:0}
 .roof-axis-controls>span,.bearing-selection-controls>span{font-size:12px;line-height:1.4;flex:1 1 260px;color:#294564}
 .bearing-selection-controls label{display:flex;align-items:center;gap:6px;font-size:12px}.bearing-selection-controls select{max-width:240px}
+.partition-profile-legend{display:flex;flex:1 1 100%;flex-wrap:wrap;gap:5px 12px;padding-top:6px;border-top:1px solid #ccd8e6}
+.partition-profile-legend span{display:inline-flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;color:#294564}
+.partition-profile-legend i{display:inline-block;width:18px;height:6px;border:1px solid #fff;border-radius:4px;box-shadow:0 0 0 1px #8da0b3}
 @media(max-width:700px){.roof-axis-controls,.bearing-selection-controls{gap:5px;padding:7px}.roof-axis-controls .button,.bearing-selection-controls .button{font-size:11px;padding:7px}.bearing-selection-controls label{flex-wrap:wrap;max-width:100%}}
 
 .planner-canvas>.roof-axis-controls,.planner-canvas>.bearing-selection-controls{position:absolute;z-index:8;top:70px;left:10px;right:10px;max-height:240px;overflow-y:auto;box-shadow:0 3px 10px #23456412}

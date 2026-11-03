@@ -16,3 +16,12 @@ export function assignBearingEdges(plan,keys,enabled,profile) {
  for(const wall of plan.walls||[])if(chosen.has(bearingWallKey({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}))){wall.bearing=enabled;wall.bearingProfile=profile;if(!enabled)wall.frameProfile=profile;}
  return plan;
 }
+export function assignPartitionProfiles(plan,keys,profile) {
+ const chosen=new Set(keys);
+ for(const room of plan.rooms||[])for(const edge of roomBearingEdges(room))if(chosen.has(edge.key)){
+  const current=room.bearingWalls?.[edge.key]||{};
+  room.bearingWalls={...room.bearingWalls,[edge.key]:{...current,enabled:current.enabled??room.bearing===true,profile}};
+ }
+ for(const wall of plan.walls||[])if(chosen.has(bearingWallKey({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}))){wall.frameProfile=profile;if(wall.bearing)wall.bearingProfile=profile;}
+ return plan;
+}

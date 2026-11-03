@@ -424,7 +424,7 @@ export function partitionDepth(plan,a,b){
   const covers=(u,v)=>{const dx=v.x-u.x,dy=v.y-u.y,l=Math.hypot(dx,dy),L=Math.hypot(b.x-a.x,b.y-a.y),t=((mid.x-u.x)*dx+(mid.y-u.y)*dy)/(l*l||1);return l>0&&t>=0&&t<=1&&Math.abs(dx*(mid.y-u.y)-dy*(mid.x-u.x))/l<.015&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))/(l*L||1)<.001;};
   const profiles=[];
   for(const w of plan.walls||[])if(w.include!==false&&covers({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}))profiles.push(w.bearing?w.bearingProfile:w.frameProfile);
-  for(const r of plan.rooms||[])if(r.include!==false){const points=roomPoints(r);points.forEach((p,i)=>{const q=points[(i+1)%points.length],setting=r.bearingWalls?.[edgeKey(p,q)];if(covers(p,q)&&(setting?.enabled??r.bearing))profiles.push(setting?.profile||r.bearingProfile);});}
+  for(const r of plan.rooms||[])if(r.include!==false){const points=roomPoints(r);points.forEach((p,i)=>{const q=points[(i+1)%points.length],setting=r.bearingWalls?.[edgeKey(p,q)];if(covers(p,q)&&setting?.profile)profiles.push(setting.profile);else if(covers(p,q)&&(setting?.enabled??r.bearing))profiles.push(r.bearingProfile);});}
   return Math.max(0,...profiles.map(p=>Number(String(p||'').split(/[×xх]/)[1])/1000||0))||Number(plan.partitionThickness)||.1;
 }
 

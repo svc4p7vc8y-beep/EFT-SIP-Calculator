@@ -19,16 +19,20 @@ export function roomBearingEdges(room) {
   }).filter(e=>Math.hypot(e.b.x-e.a.x,e.b.y-e.a.y)>.001);
 }
 export const bearingEdges=plan=>[...(plan.rooms||[]).filter(r=>r.include!==false).flatMap(roomBearingEdges),...(plan.walls||[]).filter(w=>w.include!==false).map(w=>({a:{x:w.x1,y:w.y1},b:{x:w.x2,y:w.y2},bearing:w.bearing,profile:w.bearingProfile||''}))].filter(e=>e.bearing);
+export const partitionProfileEdges=plan=>[...(plan.rooms||[]).filter(r=>r.include!==false).flatMap(roomBearingEdges),...(plan.walls||[]).filter(w=>w.include!==false).map(w=>({a:{x:w.x1,y:w.y1},b:{x:w.x2,y:w.y2},bearing:!!w.bearing,profile:(w.bearing?w.bearingProfile:w.frameProfile)||''}))].filter(e=>e.profile);
+const coversSegment=(edge,a,b)=>{
+  const length=Math.hypot(b.x-a.x,b.y-a.y),middle={x:(a.x+b.x)/2,y:(a.y+b.y)/2},dx=edge.b.x-edge.a.x,dy=edge.b.y-edge.a.y,l=Math.hypot(dx,dy);
+  return l>.001&&Math.abs(dx*(middle.y-edge.a.y)-dy*(middle.x-edge.a.x))/l<.015&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))/(l*length||1)<.001&&middle.x>=Math.min(edge.a.x,edge.b.x)-.001&&middle.x<=Math.max(edge.a.x,edge.b.x)+.001&&middle.y>=Math.min(edge.a.y,edge.b.y)-.001&&middle.y<=Math.max(edge.a.y,edge.b.y)+.001;
+};
 export function bearingForSegment(plan,a,b) {
-  const length=Math.hypot(b.x-a.x,b.y-a.y),middle={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
-  return bearingEdges(plan).filter(e=>{
-    const dx=e.b.x-e.a.x,dy=e.b.y-e.a.y,l=Math.hypot(dx,dy);
-    return l>.001&&Math.abs(dx*(middle.y-e.a.y)-dy*(middle.x-e.a.x))/l<.015&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))/(l*length||1)<.001&&middle.x>=Math.min(e.a.x,e.b.x)-.001&&middle.x<=Math.max(e.a.x,e.b.x)+.001&&middle.y>=Math.min(e.a.y,e.b.y)-.001&&middle.y<=Math.max(e.a.y,e.b.y)+.001;
-  }).sort((x,y)=>Number(y.profile.replace('×','x').split('x')[1]||0)-Number(x.profile.replace('×','x').split('x')[1]||0))[0];
+  return bearingEdges(plan).filter(e=>coversSegment(e,a,b)).sort((x,y)=>Number(y.profile.replace('×','x').split('x')[1]||0)-Number(x.profile.replace('×','x').split('x')[1]||0))[0];
+}
+export function partitionProfileForSegment(plan,a,b) {
+  return partitionProfileEdges(plan).filter(e=>coversSegment(e,a,b)).sort((x,y)=>Number(y.profile.replace('×','x').split('x')[1]||0)-Number(x.profile.replace('×','x').split('x')[1]||0))[0]?.profile||'';
 }
 
 export function splitAtBearingEdges(plan,segments,extraAnchors=[]) {
-  const anchors=[...bearingEdges(plan).flatMap(e=>[e.a,e.b]),...extraAnchors];
+  const anchors=[...bearingEdges(plan).flatMap(e=>[e.a,e.b]),...partitionProfileEdges(plan).flatMap(e=>[e.a,e.b]),...extraAnchors];
   return segments.flatMap(([a,b])=>{const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy);if(!L)return [];
     const cuts=[0,1];for(const p of anchors){const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/(L*L);if(t>.001&&t<.999&&Math.abs(dx*(p.y-a.y)-dy*(p.x-a.x))/L<.015)cuts.push(t);}
     const sorted=[...new Set(cuts)].sort((x,y)=>x-y);return sorted.slice(1).map((t,i)=>[{x:a.x+dx*sorted[i],y:a.y+dy*sorted[i]},{x:a.x+dx*t,y:a.y+dy*t}]);
@@ -40,7 +44,7 @@ export function partitionProfileShares(plan,defaultProfile) {
   const raw=partitionRuns(plan);
   const runs=splitAtBearingEdges(plan,raw,raw.flat());
   const lengths=new Map(),seen=new Set();
-  for(const [a,b]of runs){const key=bearingWallKey(a,b);if(seen.has(key))continue;seen.add(key);const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2},local=(plan.walls||[]).find(w=>w.include!==false&&Math.hypot(w.x2-w.x1,w.y2-w.y1)>0&&Math.abs((w.x2-w.x1)*(mid.y-w.y1)-(w.y2-w.y1)*(mid.x-w.x1))/Math.hypot(w.x2-w.x1,w.y2-w.y1)<.001&&mid.x>=Math.min(w.x1,w.x2)-.001&&mid.x<=Math.max(w.x1,w.x2)+.001&&mid.y>=Math.min(w.y1,w.y2)-.001&&mid.y<=Math.max(w.y1,w.y2)+.001);const selected=(bearingForSegment(plan,a,b)?.profile||local?.frameProfile)?.replace('×','x'),profile=/^\d+x\d+$/.test(selected||'')?selected:defaultProfile;lengths.set(profile,(lengths.get(profile)||0)+Math.hypot(b.x-a.x,b.y-a.y));}
+  for(const [a,b]of runs){const key=bearingWallKey(a,b);if(seen.has(key))continue;seen.add(key);const selected=partitionProfileForSegment(plan,a,b)?.replace('×','x'),profile=/^\d+x\d+$/.test(selected||'')?selected:defaultProfile;lengths.set(profile,(lengths.get(profile)||0)+Math.hypot(b.x-a.x,b.y-a.y));}
   const total=[...lengths.values()].reduce((s,n)=>s+n,0);
   return total?[...lengths].map(([profile,length])=>({profile,share:length/total})):[{profile:defaultProfile,share:1}];
 }
