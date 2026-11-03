@@ -4,7 +4,7 @@ import {roofSupportPlanGroups,copyPlanRoofGroup} from '../planner/roof-support-p
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 import {NumberField} from '../components/ui.jsx';
 
-export default function PlanRoofSupports({project,calculation,onSelect}) {
+export default function PlanRoofSupports({project,calculation,onSelect,onDraw}) {
   const {commit}=useProject();
   const [mode,setMode]=useState(()=>project.settings.roof.type==='sip'?'purlin':'frame'),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const groups=roofSupportPlanGroups(project.settings.productionCutting.roofSupports);
@@ -35,6 +35,7 @@ export default function PlanRoofSupports({project,calculation,onSelect}) {
   };
   const refreshHeaders=()=>{if(windowSupportHeaders({...project,settings:{...project.settings,productionCutting:{...project.settings.productionCutting,windowSupportHeaders:{...project.settings.productionCutting.windowSupportHeaders,enabled:true}}}}).items.length>200){setMessage('Превышен лимит 200 деталей опор. Существующие детали сохранены.');return;}commit(next=>{next.settings.productionCutting.windowSupportHeaders={bearingMm:150,...next.settings.productionCutting.windowSupportHeaders,enabled:true};next.settings.productionCutting.roofSupports=windowSupportHeaders(next).items;return next;});};
   return <details className="plan-top-advanced"><summary>Прогоны и опорные фермы</summary><div className="inspector-form">
+    {onDraw&&(calculation.roof.layeredFrame?.items>0||project.settings.productionCutting.roofPlanLines?.enabled)?<><button type="button" className="button primary" onClick={onDraw}>Нарисовать / передвинуть линии на крыше</button><p>Автоматические рамы уже показаны синими линиями в слое «Крыша». Рисуйте новые линии и тяните круг на существующей. Подсказка показывает симметрию.</p></>:null}
     <label className="field">Добавляемая опора<select aria-label="Добавляемая опора" value={mode} onChange={event=>setMode(event.target.value)}><option value="frame">Опорный каркас под стропилами</option><option value="purlin">Прогон со стойками / ферма выбранной системы</option></select></label>
     <button type="button" className="button primary" disabled={busy} onClick={add}>{busy?'Строю…':'Добавить прогон / ферму на план'}</button>
     <p>Сечения и раскладка берутся из существующих настроек каркаса. Размещение и смещение не являются проверкой прочности и пути нагрузки.</p>

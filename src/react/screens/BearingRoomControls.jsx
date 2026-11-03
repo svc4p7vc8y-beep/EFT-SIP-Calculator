@@ -8,7 +8,7 @@ export default function BearingRoomControls({room,onChange}) {
     {stale?<p>Контур изменился: прежние назначения сторон не применяются. Выберите несущие стены заново.</p>:null}
     {edges.map(edge=><div key={edge.key} style={{marginBottom:12}}>
       <label style={{display:'flex',gap:8,alignItems:'center',color:edge.bearing?'#006b3b':undefined}}><input type="checkbox" checked={edge.bearing} onChange={e=>onChange(edge.key,{enabled:e.target.checked,profile:edge.profile})}/><span>{edge.label}{edge.bearing?' · несущая':''}: ({edge.a.x}; {edge.a.y}) → ({edge.b.x}; {edge.b.y})</span></label>
-      {edge.bearing?<label>Доска · {edge.label}<select value={edge.profile||''} onChange={e=>onChange(edge.key,{enabled:true,profile:e.target.value})}><option value="">Общее сечение перегородок</option><option value="50x100">50×100 мм</option><option value="50x150">50×150 мм</option><option value="50x200">50×200 мм</option></select></label>:null}
+      {edge.bearing?<label>Доска · {edge.label}<select value={edge.profile||''} onChange={e=>onChange(edge.key,{enabled:true,profile:e.target.value})}><option value="">Общее сечение перегородок</option><option value="50x100">50×100 мм</option><option value="50x150">50×150 мм</option><option value="50x200">50×200 мм</option>{["45x95","45x145","45x195"].map(profile=><option key={profile} value={profile}>{profile.replace("x","×")} мм · строганая</option>)}</select></label>:null}
     </div>)}
   </details>;
 }

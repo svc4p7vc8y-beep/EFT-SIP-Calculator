@@ -7512,3 +7512,14 @@ select,
 @media print{.project-tabbar{display:none!important}.plan-screen-v2>.plan-status-bar{position:static!important}}
 
 .plan-right-3d-view{position:relative}.plan-3d-shot-notice{position:absolute;z-index:18;bottom:12px;left:12px;right:12px;display:flex;gap:8px;align-items:start;padding:10px;border:1px solid #adc59c;border-radius:7px;background:#f3f9ee;box-shadow:0 3px 12px #1d38152b;font-size:12px;line-height:1.4}.plan-3d-shot-notice span{flex:1}.plan-3d-shot-notice button{background:transparent;border:0;font-size:18px;cursor:pointer}.plan-3d-pane .production-3d-toolbar button[aria-label="Сохранить квадратный снимок 3D"]{background:#edf6e8;border-color:#759a60}@container(max-width:400px){.plan-3d-pane .plan-3d-view-switch button{padding:3px;font-size:9px}.plan-3d-pane .production-3d-toolbar{gap:3px}.plan-3d-pane .plan-3d-pane-head button{padding:3px;font-size:9px}.plan-3d-pane .production-3d-layer-menu>button{font-size:11px;padding:3px}}
+
+/* Plan axes and bearing assignment stay visible next to their drawing tools. */
+.roof-axis-controls,.bearing-selection-controls{display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:10px;background:#f3f7fc;border:1px solid #b9cbdf;border-radius:8px;min-width:0}
+.roof-axis-controls>span,.bearing-selection-controls>span{font-size:12px;line-height:1.4;flex:1 1 260px;color:#294564}
+.bearing-selection-controls label{display:flex;align-items:center;gap:6px;font-size:12px}.bearing-selection-controls select{max-width:240px}
+@media(max-width:700px){.roof-axis-controls,.bearing-selection-controls{gap:5px;padding:7px}.roof-axis-controls .button,.bearing-selection-controls .button{font-size:11px;padding:7px}.bearing-selection-controls label{flex-wrap:wrap;max-width:100%}}
+
+.planner-canvas>.roof-axis-controls,.planner-canvas>.bearing-selection-controls{position:absolute;z-index:8;top:70px;left:10px;right:10px;max-height:240px;overflow-y:auto;box-shadow:0 3px 10px #23456412}
+.planner-shell.is-fullscreen .planner-canvas>.roof-axis-controls,.planner-shell.is-fullscreen .planner-canvas>.bearing-selection-controls{top:122px}
+@media(max-width:1200px){.planner-canvas>.roof-axis-controls,.planner-canvas>.bearing-selection-controls{top:116px}.planner-shell.is-fullscreen .planner-canvas>.roof-axis-controls,.planner-shell.is-fullscreen .planner-canvas>.bearing-selection-controls{top:174px}}
+@media(max-width:1000px){.planner-shell.is-fullscreen .planner-canvas>.roof-axis-controls,.planner-shell.is-fullscreen .planner-canvas>.bearing-selection-controls{top:216px}}

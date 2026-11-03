@@ -1,3 +1,4 @@
+import {partitionProfileShares} from './bearing-walls.js';
 import { formatNumber } from '../utils/format.js';
 
 const PANEL_FAMILIES = { pps: 'ОСП с пенополистиролом', 'mineral-wool': 'ОСП с минеральной ватой', 'csp-pps': 'ЦСП с пенополистиролом' };
@@ -17,10 +18,12 @@ export function constructionDescription(project, lines) {
   for (const floor of [1, 2]) {
     const title = `Перегородки ${floor} этажа`;
     if (!groups.has(title)) continue;
-    const section = s.partitionFrameSection === '50x150' ? '50×150' : '50×100';
+    const plan=floor===1?project.plan:project.upperFloors?.[0]||project.plan;
+    const profiles=partitionProfileShares(plan,s.partitionFrameSection||'50x100').map(row=>row.profile);
+    const section=profiles.map(value=>value.replace(/[xх]/g,'×')).join(', ');
     blocks.push({ title, text: s.partitionType === 'sip'
       ? `${panel(s.partitionThickness, s.partitionPanelFamily)}. Отделка поверх панелей описана отдельно.`
-      : `Деревянный каркас из доски ${section} мм: вертикальные стойки, нижняя и верхняя обвязки, обрамление проёмов. Толщина каркаса ${s.partitionFrameSection === '50x150' ? 150 : 100} мм без обшивки. Обшивка и изоляция не входят в сам каркас: учитываются только при выборе в разделе внутренней отделки.` });
+      : `Деревянный каркас из доски ${section} мм: вертикальные стойки, нижняя и верхняя обвязки, обрамление проёмов. Толщина каркаса ${[...new Set(profiles.map(profile=>profile.split(/[x×х]/)[1]))].join(', ')} мм без обшивки. Сечения включают назначенные на плане несущие участки. Обшивка и изоляция не входят в сам каркас: учитываются только при выборе в разделе внутренней отделки.` });
   }
   return blocks;
 }

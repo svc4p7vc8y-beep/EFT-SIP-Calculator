@@ -10,6 +10,9 @@ export function windowSupportHeaders(project,items=project.settings.productionCu
   if(!plan)return {items:kept,headers:[],issues:[]};
   const contour=houseContourPoints(plan),base=productionLevels(project,floor).bases[floor-1]||0;
   const material=project.priceMat.find(row=>{const dims=row.name.match(/(\d+)\s*[×xх*]\s*(\d+)/)?.slice(1).map(Number);return ['м3','м³'].includes(row.unit)&&dims&&((dims[0]===50&&dims[1]===150)||(dims[0]===150&&dims[1]===50));});
+  const axes=project.settings.productionCutting.roofPlanLines;
+  const axis=project.settings.roof.ridgeAxis||axes?.axis||'x';
+  const virtual=axes?.enabled?(axes.lines||[]).map(line=>({id:line.id,type:'purlin',x1:(axis==='y'?line.offset:line.start)*1000,y1:(axis==='y'?line.start:line.offset)*1000,x2:(axis==='y'?line.offset:line.end)*1000,y2:(axis==='y'?line.end:line.offset)*1000})):[];
   const headers=[],issues=[];
   for(const opening of plan.openings||[]){
     if(opening.type!=='window'||opening.include===false||opening.outer===false)continue;
@@ -18,7 +21,7 @@ export function windowSupportHeaders(project,items=project.settings.productionCu
     const axis=vertical?1:0,fixed=1-axis,axisKey=axis?'y':'x',fixedKey=fixed?'y':'x';
     const boundary=contour.map((p,i)=>[p,contour[(i+1)%contour.length]]).find(([p,q])=>Math.abs(p[fixedKey]-q[fixedKey])<.001&&Math.abs(p[fixedKey]*1000-center[fixed])<=Number(plan.wallThickness)*1000+20&&center[axis]>=Math.min(p[axisKey],q[axisKey])*1000&&center[axis]<=Math.max(p[axisKey],q[axisKey])*1000);
     if(!boundary&&opening.outer!==true)continue;
-    const owners=kept.filter(item=>!item.autoWindowHeader&&(item.type==='purlin'||item.type==='beam'||item.trussRole==='lowerChord')).filter(item=>[[item.x1,item.y1],[item.x2,item.y2]].some(point=>Math.abs(point[fixed]-center[fixed])<=Number(plan.wallThickness)*1000+15&&Math.abs(point[axis]-center[axis])<=width/2+25));
+    const owners=[...kept,...virtual].filter(item=>!item.autoWindowHeader&&(item.type==='purlin'||item.type==='beam'||item.trussRole==='lowerChord')).filter(item=>[[item.x1,item.y1],[item.x2,item.y2]].some(point=>Math.abs(point[fixed]-center[fixed])<=Number(plan.wallThickness)*1000+15&&Math.abs(point[axis]-center[axis])<=width/2+25));
     if(!owners.length)continue;
     const bearing=Number(config.bearingMm);
     if(!Number.isFinite(bearing)||bearing<=0){issues.push({openingId:opening.id,message:'Укажите длину опирания усиления над окном.'});continue;}

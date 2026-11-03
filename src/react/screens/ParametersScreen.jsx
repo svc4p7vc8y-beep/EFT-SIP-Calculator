@@ -247,6 +247,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           next.settings.sip.partitionType = "frame";
           next.settings.sip.partitionFrameSection = millimeters === 150 ? "50x150" : "50x100";
         }
+        if([95,145,195].includes(millimeters)){next.settings.sip.partitionType='frame';next.settings.sip.partitionFrameSection=`45x${millimeters}`;}
         synchronizeWallThickness(next, 'partitionType');
         return next;
       }
@@ -591,6 +592,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 options: [
                   { value: "100", label: "100 мм · каркасная" },
                   { value: "150", label: "150 мм · каркасная 50×150" },
+                  {value:"95",label:"95 мм · строганая 45×95"},{value:"145",label:"145 мм · строганая 45×145"},{value:"195",label:"195 мм · строганая 45×195"},
                   ...thicknesses,
                 ],
               },
@@ -911,6 +913,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 options: [
                   { value: "50x100", label: "50×100 мм" },
                   { value: "50x150", label: "50×150 мм" },
+                  {value:"45x95",label:"45×95 мм · сухая строганая"},{value:"45x145",label:"45×145 мм · сухая строганая"},{value:"45x195",label:"45×195 мм · сухая строганая"},
                 ],
               },
               project.settings.sip.partitionType !== 'sip' && { path: 'settings.sip.partitionCalculationMode', label: 'Расчёт каркаса', type: 'select', options: [

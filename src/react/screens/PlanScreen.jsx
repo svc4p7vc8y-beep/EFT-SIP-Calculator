@@ -1,3 +1,5 @@
+import {roofPlanLines,snapRoofLineOffset,saveRoofLines} from '../planner/roof-lines.js';
+import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges} from '../planner/bearing-selection.js';
 import {roofSupportPlanGroups,movePlanRoofGroup} from '../planner/roof-support-plan.js';
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
@@ -184,6 +186,7 @@ const DRAW_TOOLS = new Set([
   "terrace",
   "porch",
   "stairOpening",
+  "roofAxis",
 ]);
 const TOOLS = [
   ["select", "Выбор", MousePointer2],
@@ -194,6 +197,7 @@ const TOOLS = [
   ["existingContour", "Существующее здание", Home],
   ["attachedContour", "Открытый контур пристройки", HousePlus],
   ["wall", "Перегородка", BrickWall],
+  ["bearingWall", "Несущие стены", BrickWall],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
@@ -253,7 +257,7 @@ function layoutFor(plan) {
 }
 
 function previewPlan(source, gesture) {
-  if (!gesture || gesture.kind === "draw" || gesture.type==='roofSupport') return source;
+  if (!gesture || gesture.kind === "draw" || ['roofSupport','roofAxis'].includes(gesture.type)) return source;
   const plan = structuredClone(source);
   const end = gesture.end;
   const dx = end.x - gesture.start.x;
@@ -1321,6 +1325,13 @@ function PlanCanvas({
   floorKey = 1,
   sourceFocus = null,
   roofSupportGroups = [],
+  roofAxes = [],
+  onDrawRoofAxis,
+  onMoveRoofAxis,
+  onDeleteRoofAxis,
+  bearingEdges = [],
+  bearingSelection = [],
+  onPickBearing,
   onMoveRoofSupport,
   onDeleteRoofSupport,
 }) {
@@ -1508,7 +1519,7 @@ function PlanCanvas({
     });
   };
   const deleteObject = (type, id) =>
-    type==='roofSupport'?onDeleteRoofSupport?.(id):commitPlan((next) => {
+    type==='roofAxis'?onDeleteRoofAxis?.(id):type==='roofSupport'?onDeleteRoofSupport?.(id):commitPlan((next) => {
       if(type==='room'&&next.layoutMode==='walls'){
         window.alert('В режиме построения стенами комната определяется стенами. Для объединения комнат выберите и удалите разделяющую стену.');
         return;
@@ -1571,6 +1582,7 @@ function PlanCanvas({
       setSelected(null);
       return;
     }
+    if(tool==='select'&&['roofAxis','roofSupport'].includes(type)){event.stopPropagation();selectExisting({type,id});begin(event,{kind:'move',type,id});return;}
     if (tool !== "select") return;
     if(type==='room'&&plan.layoutMode==='walls'){
       event.stopPropagation();selectExisting({type,id});return;
@@ -1697,6 +1709,7 @@ function PlanCanvas({
       if (wall) begin(event, { kind: 'temporaryGuide', type: 'guide', guideBase: wall });
       return;
     }
+    if(tool==='bearingWall')return;
     if (tool === "select") {
       setSelected(null);
       onSelected?.(null);
@@ -1876,7 +1889,8 @@ function PlanCanvas({
         finalGesture.end.x - finalGesture.start.x,
         finalGesture.end.y - finalGesture.start.y,
       );
-      if (["room", "extension", "terrace", "porch", "stairOpening"].includes(current.type)) {
+      if(current.type==='roofAxis'){if(distance>=.3)onDrawRoofAxis?.(finalGesture.start,finalGesture.end);
+      }else if (["room", "extension", "terrace", "porch", "stairOpening"].includes(current.type)) {
         const points = rectanglePoints(finalGesture.start, finalGesture.end);
         const bounds = boundsOf(points);
         if (bounds.w >= 0.5 && bounds.h >= 0.5) {
@@ -1986,6 +2000,8 @@ function PlanCanvas({
         ),
       );
       }
+    }else if(current.type==='roofAxis'){
+      onMoveRoofAxis?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y);
     } else if(current.type==='roofSupport'){
       onMoveRoofSupport?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y);
     } else {
@@ -2924,13 +2940,26 @@ function PlanCanvas({
             </g>
           ))
         : null}
-      {visibleLayers.plan?roofSupportGroups.map(group=>{
+      {(visibleLayers.plan||visibleLayers.roof)?roofSupportGroups.map(group=>{
         const moved=gesture?.type==='roofSupport'&&gesture.id===group.id,dx=moved?gesture.end.x-gesture.start.x:0,dy=moved?gesture.end.y-gesture.start.y:0;
         const a=p(group.a.x+dx,group.a.y+dy),b=p(group.b.x+dx,group.b.y+dy);
         return <g key={group.id} className="planner-object" data-roof-support-group={group.id} onPointerDown={event=>objectDown(event,'roofSupport',group.id)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><line pointerEvents="none" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={selected?.type==='roofSupport'&&selected.id===group.id?'#a44cdd':'#4866bf'} strokeWidth="7" strokeDasharray="14 5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-10} fontSize="14" fill="#263e87" stroke="#fff" strokeWidth="3" paintOrder="stroke" pointerEvents="none">{group.name}</text></g>;
       }):null}
+      {visibleLayers.roof?roofAxes.map(axis=>{
+        const moving=gesture?.type==='roofAxis'&&gesture.id===axis.id,delta=moving?(axis.axis==='x'?gesture.end.y-gesture.start.y:gesture.end.x-gesture.start.x):0;
+        const snap=snapRoofLineOffset(axis.offset+delta,axis.span,roofAxes.filter(other=>other.id!==axis.id).map(other=>other.offset));
+        const shift=moving?snap.offset-axis.offset:0,a=p(axis.a.x+(axis.axis==='y'?shift:0),axis.a.y+(axis.axis==='x'?shift:0)),b=p(axis.b.x+(axis.axis==='y'?shift:0),axis.b.y+(axis.axis==='x'?shift:0));
+        return <g key={axis.id} data-roof-axis={axis.id} onPointerDown={event=>objectDown(event,'roofAxis',axis.id)}><title>{axis.name}: потяните линию или круг. Прилипание к середине и зеркальному положению.</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#335dbe" strokeWidth="5" strokeDasharray="12 5" pointerEvents="none"/><circle cx={(a.x+b.x)/2} cy={(a.y+b.y)/2} r="9" fill="#fff" stroke="#335dbe" strokeWidth="3"/><text x={(a.x+b.x)/2+14} y={(a.y+b.y)/2-12} fontSize="15" fill="#183c8e" stroke="#fff" strokeWidth="4" paintOrder="stroke" pointerEvents="none">{axis.name}{moving&&snap.hint?` · ${snap.hint}`:''}</text>{moving&&snap.hint?<line x1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).x} y1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).y} x2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).x} y2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).y} stroke="#db8d12" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/>:null}</g>;
+      }):null}
+      {tool==='bearingWall'?bearingEdges.map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),chosen=bearingSelection.includes(edge.key);return <g key={edge.key} data-bearing-edge={edge.key} onPointerDown={event=>{event.preventDefault();event.stopPropagation();onPickBearing?.(edge.key);}}><title>{edge.name} · {edge.bearing?'несущая':'обычная'} · нажмите для выбора</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={chosen?'#dd9516':edge.bearing?'#138447':'#5083b7'} strokeWidth={chosen?7:4} strokeDasharray={chosen?undefined:'8 4'} pointerEvents="none"/></g>;}):null}
       {gesture?.kind === "draw"
         ? (() => {
+            if(gesture.type==='roofAxis'){
+              const axis=roofAxes[0]?.axis||roof.ridgeAxis||'x',along=axis==='x'?'x':'y',across=axis==='x'?'y':'x',span=axis==='x'?plan.house.h:plan.house.w;
+              const snap=snapRoofLineOffset((gesture.start[across]+gesture.end[across])/2,span,roofAxes.map(line=>line.offset));
+              const a=p(axis==='x'?gesture.start.x:snap.offset,axis==='x'?snap.offset:gesture.start.y),b=p(axis==='x'?gesture.end.x:snap.offset,axis==='x'?snap.offset:gesture.end.y);
+              return <g pointerEvents="none" aria-label="Подсказка линии прогона"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={snap.hint?'#db8d12':'#335dbe'} strokeWidth="5" strokeDasharray="10 5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-15} fontSize="15" stroke="#fff" strokeWidth="4" fill="#173564" paintOrder="stroke">{snap.hint||'Линия параллельна коньку'}</text></g>;
+            }
             const a = p(gesture.start.x, gesture.start.y);
             const b = p(gesture.end.x, gesture.end.y);
             const alignment = pileRowAlignment({
@@ -4177,6 +4206,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
         {wall ? <>
           <Toggle label="Учитывать перегородку" checked={wall.include!==false} onChange={value=>update('walls',item=>{item.include=value;})}/>
           <Toggle label="Несущая перегородка" checked={!!wall.bearing} onChange={value=>update('walls',item=>{item.bearing=value;})}/>
+          <label className="field">Доска каркаса стены<select aria-label="Доска каркаса стены" value={(wall.bearing?wall.bearingProfile:wall.frameProfile)||''} onChange={e=>update('walls',item=>{if(item.bearing)item.bearingProfile=e.target.value;else item.frameProfile=e.target.value;})}><option value="">Общая доска проекта</option>{['50x100','50x150','50x200','45x95','45x145','45x195'].map(profile=><option key={profile} value={profile}>{profile.replace('x','×')} мм{profile.startsWith('45')?' · строганая':''}</option>)}</select></label>
           <DraftText label="Сечение каркаса, мм · толщина × глубина" value={wall.bearing?wall.bearingProfile||'':wall.frameProfile||''} placeholder="Пусто — общие параметры; 50×100 или 45×145" onChange={raw=>{const value=raw.replace(/\s/g,'').replace(/[×х]/g,'x');if(value!==''&&(!/^\d+x\d+$/.test(value)||!value.split('x').every(n=>Number(n)>0)))return;update('walls',item=>{if(item.bearing)item.bearingProfile=value;else item.frameProfile=value;});}}/>
           <p className="inspector-note">Сечение каркасной перегородки задаёт её толщину на плане. Несущая способность и узлы — по проекту. SIP-перегородки задаются в разделе SIP.</p>
           <div className="form-grid">{['x1','y1','x2','y2'].map(key=><NumberField key={key} label={`${key.toUpperCase()} · ось`} value={wall[key]} suffix="м" step={.001} onChange={value=>update('walls',item=>{item[key]=value;const index=key.endsWith('1')?1:2,other=index===1?2:1;const point=limitDiagonalPartition({x:item[`x${other}`],y:item[`y${other}`]},{x:item[`x${index}`],y:item[`y${index}`]});item[`x${index}`]=point.x;item[`y${index}`]=point.y;})}/>)}</div>
@@ -4332,6 +4362,7 @@ const MOBILE_TOOLS = [
   ["existingContour", "Существующее здание", Home],
   ["attachedContour", "Пристройка контуром", HousePlus],
   ["wall", "Перегородка", BrickWall],
+  ["bearingWall", "Несущие стены", BrickWall],
   ["gap", "Разрыв", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь", DoorOpen],
@@ -5122,6 +5153,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const team = useTeam();
   const { project, activeTabId, openTab, attachLibrary, commit, undo, redo, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
+  const [bearingSelection,setBearingSelection]=useState([]),[bearingByLine,setBearingByLine]=useState(true),[bearingProfile,setBearingProfile]=useState("45x145");
   const [mobilePlanEditing, setMobilePlanEditing] = useState(false);
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
   const [activeFloor, setActiveFloor] = useState(1);
@@ -5302,6 +5334,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     [project.plan, project.settings.piles],
   );
   const projectCalculation = useMemo(() => calculateProject(project), [project]);
+  const roofAxes=roofPlanLines(project,projectCalculation);
+  const bearingChoices=useMemo(()=>selectableBearingEdges(plan),[plan]);
+  useEffect(()=>setBearingSelection([]),[activeFloor]);
   const estimateScope = useMemo(() => buildCommercialScope(project, projectCalculation, project.settings.print || {}), [project, projectCalculation]);
   const foundationPreview = useMemo(() => {
     const manualRows = (project.plan.pileRows || []).filter((row) => !row.auto);
@@ -5430,6 +5465,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       setTransferStatus("Сваи, обвязка, терраса и крыльцо редактируются на 1 этаже");
       return;
     }
+    if(id==='bearingWall'){setActiveLayer('plan');setSelected(null);commitPlan(next=>{next.showPlan=true;next.showRoof=false;});}
     setTool(id);
     if (id === "stairOpening") scrollToPlanCanvas();
     if (!["polygon", "houseContour", "existingContour", "attachedContour"].includes(id)) setPolygonDraft([]);
@@ -6567,7 +6603,22 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </button>
           </div>
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
+          {activeLayer==='roof'?<div className="roof-axis-controls" role="group" aria-label="Линии опор кровли"><button type="button" className={`button ${tool==='roofAxis'?'primary':'secondary'}`} disabled={!roofAxes.length&&!project.settings.productionCutting.roofPlanLines?.enabled} onClick={()=>{setTool('roofAxis');setSelected(null);}}>Нарисовать прогон</button><button type="button" className="button secondary" onClick={()=>{setTool('select');setSelected(null);}}>Двигать линии</button><button type="button" className="button secondary" onClick={()=>commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;})}>Авторасстановка</button><span>Синие линии — опорные рамы. Тяните круг на линии. Оранжевая ось — подсказка симметрии.</span>{!roofAxes.length?<span>Автолинии доступны для наслонной двускатной кровли; проектные опоры добавляются справа.</span>:null}{roofAxes.filter(line=>selected?.type==='roofAxis'&&selected.id===line.id).map(line=><button type="button" className="button secondary" key={line.id} aria-label={`Удалить ${line.name}`} onClick={()=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(item=>item.id!==line.id)))}>× {line.name}</button>)}</div>:null}
+          {tool==='bearingWall'?<div className="bearing-selection-controls" role="group" aria-label="Назначение несущих стен"><strong>Выбрано участков: {bearingSelection.length}</strong><label><input type="checkbox" checked={bearingByLine} onChange={e=>setBearingByLine(e.target.checked)}/>Выбирать все участки на одной линии</label><label>Доска выбранных стен<select aria-label="Доска выбранных стен" value={bearingProfile} onChange={e=>setBearingProfile(e.target.value)}>{['50x100','50x150','50x200','45x95','45x145','45x195'].map(profile=><option key={profile} value={profile}>{profile.replace('x','×')} мм{profile.startsWith('45')?' · строганая':''}</option>)}</select></label><button className="button primary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignBearingEdges(next,bearingSelection,true,bearingProfile));setTransferStatus(`Назначено несущих участков: ${bearingSelection.length}. Доска ${bearingProfile.replace('x','×')} мм.`);}}>Назначить несущими</button><button className="button secondary" disabled={!bearingSelection.length} onClick={()=>{commitPlan(next=>assignBearingEdges(next,bearingSelection,false,bearingProfile));setTransferStatus('Несущий статус выбранных участков снят.');}}>Снять несущую</button><button className="button secondary" onClick={()=>setBearingSelection([])}>Сбросить выбор</button><span>Нажимайте на стороны комнат. Жёлтый — выбранные, зелёный — назначенные несущими. Сечение выбирается по проекту.</span></div>:null}
           <PlanCanvas
+            roofAxes={activeFloor===floorCount?roofAxes:[]}
+            onDrawRoofAxis={(a,b)=>{
+              const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;
+              const along=axis==='x'?'x':'y',across=axis==='x'?'y':'x',start=Math.max(0,Math.min(length,Math.min(a[along],b[along]))),end=Math.max(0,Math.min(length,Math.max(a[along],b[along])));
+              if(end-start<.3||roofAxes.length>=24){setTransferStatus('Линия должна быть не короче 300 мм; максимум 24 линии.');return;}
+              const offset=snapRoofLineOffset((a[across]+b[across])/2,span,roofAxes.map(line=>line.offset)).offset;
+              commit(next=>saveRoofLines(next,projectCalculation,[...roofAxes,{id:`roof-axis-${crypto.randomUUID()}`,offset,start,end}]));setTransferStatus('Линия добавлена. Рисуйте следующую или включите «Выбор» и тяните круг на линии.');
+            }}
+            onDeleteRoofAxis={id=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(line=>line.id!==id)))}
+            onMoveRoofAxis={(id,dx,dy)=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.map(line=>{
+              if(line.id!==id)return line;const delta=line.axis==='x'?dy:dx,along=line.axis==='x'?dx:dy,shift=Math.max(-line.start,Math.min(line.length-line.end,along));return {...line,offset:snapRoofLineOffset(line.offset+delta,line.span,roofAxes.filter(other=>other.id!==id).map(other=>other.offset)).offset,start:line.start+shift,end:line.end+shift};
+            })))}
+            bearingEdges={bearingChoices} bearingSelection={bearingSelection} onPickBearing={key=>{const keys=bearingByLine?collinearBearingKeys(bearingChoices,key):[key];setBearingSelection(old=>keys.every(k=>old.includes(k))?old.filter(k=>!keys.includes(k)):[...new Set([...old,...keys])]);}}
             roofSupportGroups={activeFloor===floorCount?roofSupportPlanGroups(project.settings.productionCutting.roofSupports):[]}
             onDeleteRoofSupport={id=>commit(next=>{const group=roofSupportPlanGroups(next.settings.productionCutting.roofSupports).find(item=>item.id===id);const ids=new Set(group?.members.map(item=>item.id)||[]);next.settings.productionCutting.roofSupports=windowSupportHeaders(next,next.settings.productionCutting.roofSupports.filter(item=>!ids.has(item.id))).items;return next;})}
             onMoveRoofSupport={async(id,dx,dy)=>{
@@ -6647,7 +6698,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           <div className="planner-inspector-detail" hidden={inspectorTab !== 'house'}>
             <div className="plan-right-house">
-              <Suspense fallback={<p>Загружаю опоры…</p>}><PlanRoofSupports project={project} calculation={projectCalculation} onSelect={id=>{setSelected({type:'roofSupport',id});setTool('select');}}/></Suspense>
+              <Suspense fallback={<p>Загружаю опоры…</p>}><PlanRoofSupports project={project} calculation={projectCalculation} onDraw={()=>{setActiveLayer("roof");setTool("select");setSelected(null);commitPlan(next=>{next.showRoof=true;});}} onSelect={id=>{setSelected({type:'roofSupport',id});setTool('select');}}/></Suspense>
         <details className="plan-top-advanced">
           <summary><Grid3X3 aria-hidden="true" /> План и раскладка <ChevronDown aria-hidden="true" /></summary>
         <div className="plan-house-fields">
@@ -6662,7 +6713,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               try{commitPlan(next=>convertToWallLayout(next,()=>uid('wall')));setSelected(null);setTool('wall');}catch(error){window.alert(error.message);}
             }}>Перейти к построению стенами</button>:<p className="inspector-note">Инструмент «Перегородка»: рисуйте стены, замкнутые комнаты определяются автоматически. Нажмите стену для настройки. Изменения можно отменять.</p>}
           </div>
-          {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):project.settings.sip.partitionFrameSection==='50x150'?150:100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции в разделе SIP. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
+          {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):Number(project.settings.sip.partitionFrameSection?.split(/[x×х]/)[1])||100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции в разделе SIP. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
           {activeFloor === 2 ? (
             <>
             <NumberField label="Длина 2 этажа" value={plan.house.w} suffix="м" min={3} onChange={(value) => resizeHouse(value, plan.house.h)} />
