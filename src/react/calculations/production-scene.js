@@ -55,7 +55,20 @@ export function productionScene(report,project,{includePlatforms=report.settings
       if(![x,y,width,height].every(Number.isFinite)||width<=0||height<=0)return [];
       const rect=(left,bottom,right,top)=>[[[left,bottom],[right,bottom],[right,top],[left,top]]];
       const id=`window:${opening.id}`;
-      if(opening.type==='door')return [{id:`door:${opening.id}`,layer:'doors',shape:rect(x,y,x+width,y+height),placement:face,thickness:60,referenceOnly:true,doorLeaf:true}];
+      if(opening.type==='door'){
+        const doorId=`door:${opening.id}`,trim=Math.min(55,width/10,height/12);
+        const piece=(suffix,shape,thickness,color,placement=face)=>({id:`${doorId}:${suffix}`,layer:'doors',shape,placement,thickness,referenceOnly:true,doorLeaf:true,visualColor:color});
+        const result=[piece('leaf',rect(x+trim,y+trim,x+width-trim,y+height-trim),50,'#75442b')];
+        for(const [i,box] of [[x,y,x+trim,y+height],[x+width-trim,y,x+width,y+height],[x,y+height-trim,x+width,y+height],[x,y,x+width,y+trim]].entries())result.push(piece(`frame-${i}`,rect(...box),65,'#472c20'));
+        for(const sign of [-1,1]){
+          const exterior={...face,origin:face.origin.map((v,i)=>v+face.normal[i]*sign*29)};
+          for(const [i,range] of [[.12,.43],[.52,.87]].entries())result.push(piece(`recess-${sign}-${i}`,rect(x+width*.2,y+height*range[0],x+width*.8,y+height*range[1]),4,'#61371f',exterior));
+          const handleX=x+width*.85,handleY=y+height*.49;
+          result.push(piece(`lock-${sign}`,rect(handleX-15,handleY-65,handleX+15,handleY+65),10,'#a8aaab',exterior));
+          result.push(piece(`handle-${sign}`,rect(handleX-95,handleY,handleX+15,handleY+16),24,'#d5d6d7',exterior));
+        }
+        return result;
+      }
       const glass={id,layer:'windows',shape:rect(x+border,y+border,x+width-border,y+height-border),placement:face,thickness:6,referenceOnly:true,windowGlass:true};
       const frame=[[x,y,x+width,y+border],[x,y+height-border,x+width,y+height],[x,y+border,x+border,y+height-border],[x+width-border,y+border,x+width,y+height-border]].map(([left,bottom,right,top],index)=>({id:`${id}:frame:${index}`,layer:'windows',shape:rect(left,bottom,right,top),placement:face,thickness:35,referenceOnly:true,windowFrame:true}));
       const product=windowProducts.get(opening.id),sectionCount=product?.sections?.length||1;
