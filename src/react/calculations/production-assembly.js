@@ -69,7 +69,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for(let layer=1;layer<=layers;layer++)members.push({id:`ОБ-${index+1}-${layer}`,material:layers===1?'Брус обвязки':'Доска пакета обвязки',profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),surface:'Обвязка',source:'Линии обвязки плана',panels:[],processing:'Стыки на опорах и соединения по проекту'});
   }}
   const simple=['gable','flat','tiered'].includes(roof.mainRoofShape);
-  const rectangular=isAxisAlignedRectangleContour(contour);
+  const rectangular=!roof.footprint?.included.length&&isAxisAlignedRectangleContour(contour);
   const frame=roof.rafterStructure||{};
   const count=Number(frame.pairCount)||0;
   if(project.services.roof && roof.coldSlopeArea>0 && simple && rectangular && frame.system!=='truss' && count<=500){

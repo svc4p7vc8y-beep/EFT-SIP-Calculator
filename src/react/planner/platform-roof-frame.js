@@ -5,7 +5,7 @@ import { resolveRoofAxes } from '../../calculations/roof-orientation.js';
 export function platformRoofFrame(platform, house, requestedStep = 0.6, mainRoof = {}) {
   const normalized = resolveTerracePlatform(platform, mainRoof, house);
   const { roof } = normalized;
-  if (roof.mode === 'none') return null;
+  if (['none', 'shared'].includes(roof.mode)) return null;
   const result = calculateTerraceRoof(normalized, house);
   const horizontal = ['top', 'bottom'].includes(result.side);
   const step = Math.max(0.3, Math.min(1.2, Number(roof.inheritMainRoof && roof.shape === 'continuation' && Number(mainRoof.rafterStep) > 0 ? mainRoof.rafterStep : requestedStep) || 0.6));

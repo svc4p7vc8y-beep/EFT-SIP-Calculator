@@ -50,7 +50,8 @@ import { layeredFrameLayout, layeredFramePurchases } from './layered-frame.js';
 import { platformDeckFrame, PLATFORM_FRAME_BOARD_WIDTH_MM, PLATFORM_FRAME_BOARD_DEPTH_MM, PLATFORM_FRAME_RESERVE, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
 import { withSipGableRafters } from './gable-rafter-stations.js';
 import { contourRoofOutline, contourRoofStrip, contourProjectedArea, facetedRoofArea } from './contour-roof-geometry.js';
-import { lRoofFrame } from '../planner/l-roof-frame.js';
+import { pitchedContourRoof } from './pitched-contour-roof.js';
+import { sharedRoofFootprint } from './shared-roof-footprint.js';
 import { flatRoofFootprint, flatRoofParapetRuns, flatRoofProjectedArea } from './flat-roof-assembly.js';
 import { windowGeometry, windowPrice } from '../state/window-products.js';
 import { screwPileKit } from '../data/foundation-kits.js';
@@ -1134,7 +1135,7 @@ function foundationSection(project, index, inputs) {
   };
 }
 
-function roofSection(project, metrics, index, inputs) {
+function roofSection(project, metrics, index, inputs, footprint) {
   if (!project.services.roof || project.plan.house?.contourDefined === false)
     return {
       lines: [],
@@ -1158,7 +1159,8 @@ function roofSection(project, metrics, index, inputs) {
     };
   const { roof } = project.settings;
   const effectiveFlatDirection = roof.flatParapetMode === 'open' ? roof.flatOpenSide || 'back' : roof.flatSlopeDirection || 'back';
-  const roofAxes = resolveRoofAxes(project.plan, { ...roof, flatSlopeDirection: effectiveFlatDirection });
+  const axisPlan = footprint.included.length ? { house: { points: footprint.points } } : project.plan;
+  const roofAxes = resolveRoofAxes(axisPlan, { ...roof, flatSlopeDirection: effectiveFlatDirection });
   const covering = roofCoveringSpec(roof.covering);
   const includeCovering = roof.includeCovering !== false;
   const osbSheetArea = 1.25 * 2.5;
@@ -1189,19 +1191,25 @@ function roofSection(project, metrics, index, inputs) {
     slopePercent: flatSlopePercent,
     includeSlopeGables: hasStructuralFlatGables,
   });
+  let pitched = null;
+  let pitchedError = '';
   if (['flat', 'tiered', 'gable', 'hip'].includes(mainRoofShape)) {
-    const topPlan = metrics.floorPlans?.at(-1)?.plan || project.plan;
-    const contour = houseContourPoints(topPlan).map(point => [Number(point.x) * 1000, Number(point.y) * 1000]);
+    const contour = footprint.points.map(point => [Number(point.x) * 1000, Number(point.y) * 1000]);
     const xs = contour.map(point => point[0]), ys = contour.map(point => point[1]);
     const isRectangle = isAxisAlignedRectangleContour(contour);
-    if (!isRectangle && ['gable', 'hip'].includes(mainRoofShape) && !eaveOverhang && !gableOverhang && project.settings.productionCutting?.roofDesign?.hipGeometry?.mode !== 'contour') {
-      const frame = lRoofFrame(contour.map(([x, y]) => ({ x: x / 1000, y: y / 1000 })), mainRoofShape);
-      if (frame) {
-        const area = round(facetedRoofArea(frame, Number(roof.ridgeHeight) || 0), 2);
-        const projected = contourProjectedArea([contour]);
+    const design = project.settings.productionCutting?.roofDesign;
+    if ((!isRectangle || footprint.included.length) && ['gable', 'hip'].includes(mainRoofShape) && !design?.manualFaces?.length
+      && !(mainRoofShape === 'hip' && design?.hipGeometry?.mode === 'contour')) {
+      try {
+        pitched = pitchedContourRoof(footprint.points, {
+          shape: mainRoofShape, axis: roofAxes.ridgeAxis, eave: eaveOverhang, gable: gableOverhang,
+          ridgeHeight: Number(roof.ridgeHeight) || 0,
+        });
+        const area = round(facetedRoofArea({ ...pitched, maxHeight: 1 }, 1), 2);
+        const projected = contourProjectedArea(pitched.facets.map(f => f.vertices.map(p => [p.x * 1000, p.y * 1000])));
         geometry = { ...geometry, slopeArea: round(area / 2, 2), totalSlopeArea: area,
           slopeCoefficient: round(area / (projected || 1), 3) };
-      }
+      } catch (error) { pitchedError = error.message; }
     }
     if (!isRectangle && ['flat', 'tiered'].includes(mainRoofShape)) {
       try {
@@ -2870,6 +2878,9 @@ function roofSection(project, metrics, index, inputs) {
     lines,
     extensionLines,
     geometry,
+    footprint,
+    pitched,
+    pitchedError,
     tieredGables,
     tieredJoinPieces,
     snowGuards,
@@ -3435,10 +3446,19 @@ export function calculateProject(project, { nodeTypeRules = {}, stockCandidate =
   }
   const metrics = calculateBuildingMetrics(project);
   const inputs = deriveLinkedInputs(project, metrics);
+  const roofSettings = project.settings.roof;
+  const roofDesign = project.settings.productionCutting?.roofDesign;
+  const footprint = sharedRoofFootprint(metrics.floorPlans.at(-1).plan, {
+    enabled: metrics.floorCount === 1 && ['gable', 'hip'].includes(roofSettings.shape) &&
+      !roofDesign?.manualFaces?.length && !(roofSettings.shape === 'hip' && roofDesign?.hipGeometry?.mode === 'contour'),
+  });
+  if (footprint.included.length && inputs.links.roofRidgeFromPlan) {
+    inputs.roof.ridgeLength = resolveRoofAxes({ house: { points: footprint.points } }, roofSettings).ridgeBaseLength + inputs.formulas.roofRidgeExtra;
+  }
   const index = catalogIndex(project);
   index.panelLength=inputs.formulas.panelLength;
   const foundation = foundationSection(project, index, inputs);
-  const roof = roofSection(project, metrics, index, inputs);
+  const roof = roofSection(project, metrics, index, inputs, footprint);
   const topFloor = metrics.floorPlans.at(-1);
   if (topFloor.plan.floorType === 'attic' && !hasHorizontalCeiling(topFloor.plan)) {
     const contour = houseContourPoints(topFloor.plan);

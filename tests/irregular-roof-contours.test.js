@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDefaultProject } from '../src/react/state/project-model.js';
+import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting } from '../src/react/calculations/production-cutting.js';
+import { roofAt } from '../src/react/calculations/roof-project.js';
 
 const L = [[0, 0], [10, 0], [10, 4], [4, 4], [4, 8], [0, 8]];
 const project = (shape, type = 'cold', points = L) => {
@@ -85,4 +86,78 @@ test('U-shaped tiered roof splits disconnected wings without gaps', () => {
   assert.ok(report.assembly.roofModel.faces.length >= 3);
   assert.ok(Math.abs(report.assembly.roofModel.mainArea - calculation.roof.geometry.totalSlopeArea) < .01);
   assert.equal(report.assembly.roofModel.issues.some(issue => issue.code === 'ROOF_GAP'), false);
+});
+
+const tee = [[0,0],[10,0],[10,4],[7,4],[7,8],[3,8],[3,4],[0,4]];
+const bay = [[0,0],[10,0],[10,6],[6,6],[5.5,7],[4.5,7],[4,6],[0,6]];
+const frontBay = [[2,0],[2.5,-1],[3.5,-1],[4,0]];
+const recess = [[0,0],[8,0],[8,5],[2.5,5],[2.5,2.5],[0,2.5]];
+const deck = { id: 'deck', kind: 'terrace', x: 0, y: 2.5, w: 2.5, h: 2.5, roof: { mode: 'shared' } };
+const roofGeometryErrors = new Set(['ROOF_FORM', 'ROOF_FACE', 'ROOF_GAP', 'ROOF_AREA', 'ROOF_OVERLAP']);
+
+for (const shape of ['gable', 'hip']) {
+  for (const [form, points, valleys] of [['L', L, 1], ['T', tee, 2]]) {
+    test(`${form} ${shape} keeps its valleys with a chamfered bay`, () => {
+      const { calculation, report } = run(project(shape, 'cold', [points[0], ...frontBay, ...points.slice(1)]));
+      const model = report.assembly.roofModel;
+      assert.ok(roofAt(model, 3000, -800).length);
+      assert.equal(roofAt(model, 1000, -800).length, 0);
+      assert.ok(model.edges.filter(edge => edge.kind === 'valley').length >= valleys);
+      assert.ok(Math.abs(model.mainArea - calculation.roof.geometry.totalSlopeArea) < .01);
+      assert.ok(model.issues.every(issue => !roofGeometryErrors.has(issue.code)));
+    });
+  }
+
+  test(`pitched ${shape} follows a T with eaves and two valleys`, () => {
+    const p = project(shape, 'cold', tee);
+    p.settings.roof.eaveOverhang = .4;
+    p.settings.roof.gableOverhang = .25;
+    const { calculation, report } = run(p);
+    const model = report.assembly.roofModel;
+    assert.ok(model.edges.filter(edge => edge.kind === 'valley').length >= 2);
+    assert.equal(roofAt(model, 1000, 7000).length, 0);
+    assert.ok(roofAt(model, 5000, 7900).length);
+    assert.ok(Math.abs(model.mainArea - calculation.roof.geometry.totalSlopeArea) < .01);
+    assert.ok(model.issues.every(issue => !roofGeometryErrors.has(issue.code)));
+  });
+
+  test(`pitched ${shape} encloses the angled bay in plan and the model`, () => {
+    const { calculation, report } = run(project(shape, 'cold', bay));
+    const model = report.assembly.roofModel;
+    assert.ok(roofAt(model, 5000, 6800).length);
+    assert.equal(roofAt(model, 3800, 6800).length, 0);
+    assert.ok(Math.abs(model.projection - 61.5) < .001);
+    assert.ok(Math.abs(model.mainArea - calculation.roof.geometry.totalSlopeArea) < .01);
+    assert.ok(model.issues.every(issue => !roofGeometryErrors.has(issue.code)));
+  });
+
+  test(`shared ${shape} roof fills a terrace recess without a second roof or moving walls`, () => {
+    const p = project(shape, 'cold', recess);
+    p.plan.platforms = [deck];
+    p.settings.roof.eaveOverhang = .4;
+    p.settings.roof.gableOverhang = .25;
+    const reopened = migrateProject(JSON.parse(JSON.stringify(p)));
+    const before = JSON.stringify(reopened.plan);
+    const { calculation, report } = run(reopened);
+    const model = report.assembly.roofModel;
+    assert.equal(JSON.stringify(reopened.plan), before);
+    assert.deepEqual(calculation.roof.footprint.included, ['deck']);
+    assert.equal(calculation.roof.terraceRoofs[0].result.netArea, 0);
+    assert.equal(calculation.roof.extensionLines.length, 0);
+    assert.ok(model.faces.every(face => face.group === 'main'));
+    assert.ok(roofAt(model, 1200, 3700).length);
+    assert.ok(Math.abs(model.mainArea - calculation.roof.geometry.totalSlopeArea) < .01);
+    assert.ok(model.issues.every(issue => !roofGeometryErrors.has(issue.code)));
+    assert.ok(report.assembly.usesRoofPlanes);
+    assert.ok(model.issues.some(issue => issue.code === 'ROOF_SHARED_SUPPORT'));
+  });
+}
+
+test('a detached terrace stays outside the shared roof and receives a diagnostic', () => {
+  const p = project('gable', 'cold', recess);
+  p.plan.platforms = [{ ...deck, x: -5 }];
+  const { calculation, report } = run(p);
+  assert.deepEqual(calculation.roof.footprint.included, []);
+  assert.ok(report.assembly.roofModel.issues.some(issue => issue.code === 'ROOF_SHARED_FOOTPRINT' && issue.target === 'deck'));
+  assert.equal(roofAt(report.assembly.roofModel, -4000, 3700).length, 0);
 });

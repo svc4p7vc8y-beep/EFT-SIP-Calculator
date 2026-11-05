@@ -1621,7 +1621,8 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
 function PlatformEditor({ platform, index, project, update }) {
   const set = (path, value) => update("platforms", platform.id, path, value);
   const effective = resolveTerracePlatform(platform, project.settings.roof, project.plan.house).roof;
-  const inherited = platform.roof.shape === 'continuation' && platform.roof.mode !== 'none' && platform.roof.inheritMainRoof !== false;
+  const shared = platform.roof.mode === 'shared';
+  const inherited = platform.roof.shape === 'continuation' && !['none', 'shared'].includes(platform.roof.mode) && platform.roof.inheritMainRoof !== false;
   const roof = calculateTerraceRoof(platform, project.plan.house, {
     mainRoof: project.settings.roof,
     wallPanelThickness: Number(project.settings.sip.wallThickness),
@@ -1708,14 +1709,15 @@ function PlatformEditor({ platform, index, project, update }) {
           label="Кровля"
           value={effective.mode}
           onChange={(value) => set("roof.mode", value)}
-          disabled={inherited}
           options={[
             { value: "none", label: "Нет" },
+            { value: "shared", label: "Под общей кровлей" },
             { value: "cold", label: "Холодная" },
             { value: "warm", label: "Тёплая SIP" },
           ]}
         />
-        {effective.mode !== "none" ? (
+        {shared ? <p>Площадка входит в общий контур автоматической двускатной или вальмовой крыши одноэтажного дома, если примыкает по стороне. Опоры задаются отдельно.</p> : null}
+        {!shared && effective.mode !== "none" ? (
           <>
             <SelectField
               label="Форма кровли"

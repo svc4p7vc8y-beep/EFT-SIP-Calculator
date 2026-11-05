@@ -1,6 +1,6 @@
 const FOUNDATION_MODES = new Set(['shared', 'separate', 'none']);
 const BINDING_MODES = new Set(['shared', 'separate', 'none']);
-const ROOF_MODES = new Set(['none', 'cold', 'warm']);
+const ROOF_MODES = new Set(['none', 'cold', 'warm', 'shared']);
 const ROOF_SHAPES = new Set(['shed', 'continuation', 'gable']);
 const AREA_MODES = new Set(['auto', 'manual']);
 const GABLE_TYPES = new Set(['none', 'auto', 'cold', 'sip']);
@@ -74,7 +74,7 @@ export function normalizeTerracePlatform(platform = {}) {
 // The saved terrace values remain intact and can be restored with one switch.
 export function resolveTerracePlatform(platform = {}, mainRoof = {}, house = {}) {
   const normalized = normalizeTerracePlatform(platform);
-  if (normalized.roof.shape !== 'continuation' || normalized.roof.mode === 'none' || !normalized.roof.inheritMainRoof) return normalized;
+  if (normalized.roof.shape !== 'continuation' || ['none', 'shared'].includes(normalized.roof.mode) || !normalized.roof.inheritMainRoof) return normalized;
   const mainType = mainRoof.type;
   const side = terraceAttachmentSide(normalized, house);
   const gableEnd = mainRoof.shape === 'gable' && (mainRoof.ridgeAxis === 'y' ? side === 'top' || side === 'bottom' : side === 'left' || side === 'right');
@@ -110,7 +110,7 @@ export function terraceAttachmentSide(platform = {}, house = {}) {
 
 export function calculateTerraceRoof(platform = {}, house = {}, options = {}) {
   const normalized = resolveTerracePlatform(platform, options.mainRoof, house);
-  const { roof } = normalized;
+  const roof = normalized.roof.mode === 'shared' ? { ...normalized.roof, mode: 'none' } : normalized.roof;
   const side = terraceAttachmentSide(normalized, house);
   const horizontalAttachment = side === 'top' || side === 'bottom';
   const attachedLength = horizontalAttachment ? positive(normalized.w) : positive(normalized.h);

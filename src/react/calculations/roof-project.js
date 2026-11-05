@@ -1,6 +1,4 @@
-import {houseContourPoints} from '../planner/geometry.js';
 import {productionLevels} from './production-levels.js';
-import {lRoofFrame} from '../planner/l-roof-frame.js';
 import {platformRoofFrame} from '../planner/platform-roof-frame.js';
 import {resolveTerracePlatform} from '../../calculations/terrace-model.js';
 import clipping from 'polygon-clipping';
@@ -46,7 +44,11 @@ export function roofAt(model,x,y){return model.faces.filter(f=>inside([x,y],f.ve
 export function roofProject(project,calculation,assembly){
  const settings=project.settings.roof,design=project.settings.productionCutting?.roofDesign||{},g=calculation.roof.geometry||{},faces=[],issues=[];
  const issue=(code,message,target='')=>issues.push({code,message,target});
- const defaultBase=productionLevels(project,assembly.floors.length).roofBase,b=assembly.bounds,axis=assembly.axis==='x'?0:1,span=axis===0?b.height:b.width,L=axis===0?b.width:b.height;
+ const footprint=calculation.roof.footprint;
+ const contour=footprint?.included.length ? footprint.points.map(({x,y})=>[x*1000,y*1000]) : assembly.floors.at(-1).contour;
+ const xs=contour.map(([x])=>x),ys=contour.map(([,y])=>y);
+ const b=footprint?.included.length ? {x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys)} : assembly.bounds;
+ const defaultBase=productionLevels(project,assembly.floors.length).roofBase,axis=assembly.axis==='x'?0:1,span=axis===0?b.height:b.width,L=axis===0?b.width:b.height;
  const shape=calculation.roof.mainRoofShape;
  const roofBase=roofBaseElevation(project,calculation,assembly.floors.length,span,shape);
  const at=(a,c,z)=>axis===0?[b.x+a,b.y+c,roofBase+z]:[b.x+c,b.y+a,roofBase+z];
@@ -54,9 +56,14 @@ export function roofProject(project,calculation,assembly){
  // the SIP mode. Partial percentages still need explicit face boundaries.
  const warm=settings.type==='sip'||settings.type==='combo'&&Number(settings.warmPercent)>=100,e=Number(g.eaveOverhang||0)*1000,t=Number(g.gableOverhang||0)*1000,h=Number(settings.ridgeHeight||0)*1000;
  const add=(id,name,points,extra={})=>{try{if(!id||faces.some(f=>f.id===id))throw new Error(`${name}: пустая или повторная марка ската ${id}.`);const override=design.faceOverrides?.[id]||{};faces.push(roofFacet(id,name,points,{group:'main',warm,thickness:Number(project.settings.sip.ceilingThickness),...extra,...override}));}catch(error){issue('ROOF_FACE',error.message,id);}};
- const contour=assembly.floors.at(-1).contour,rectangle=isAxisAlignedRectangleContour(contour);
+ const rectangle=isAxisAlignedRectangleContour(contour);
  if(project.services.roof){
+ if(footprint?.included.length)issue('ROOF_SHARED_SUPPORT','Общая кровля над террасой: положение стоек и балок открытой части задайте по проекту.', 'main');
+ for(const id of footprint?.excluded||[])issue('ROOF_SHARED_FOOTPRINT','Общая кровля требует примыкания площадки по стороне без замкнутого выреза и автоматической двускатной или вальмовой крыши одноэтажного дома.', id);
  if(design.manualFaces?.length){for(const f of design.manualFaces)add(f.id,f.name,f.vertices,{group:f.group||'main',warm:f.warm===true,thickness:Number(f.thickness)||Number(project.settings.sip.ceilingThickness),manual:true,nodeRef:f.nodeRef||''});}
+ else if(calculation.roof.pitched){
+  calculation.roof.pitched.facets.forEach((f,i)=>add(rectangle?`КР-С${i+1}`:`КР-Г${i+1}`,`Крыша по контуру · скат ${i+1}`,f.vertices.map(p=>[p.x*1000,p.y*1000,roofBase+p.z*1000])));
+ }
  else if(rectangle&&shape==='gable'){
   const slope=h/(span/2||1),z=-e*slope;
   add('КР-С1','Первый скат',[at(-t,-e,z),at(L+t,-e,z),at(L+t,span/2,h),at(-t,span/2,h)]);
@@ -99,13 +106,7 @@ export function roofProject(project,calculation,assembly){
   add('КР-В1','Торцевая вальма 1',[P(-e,S+e,zE),P(-e,-e,zE),P(r1,S/2,h)]);
   add('КР-В2','Торцевая вальма 2',[P(A+e,-e,zE),P(A+e,S+e,zE),P(r2,S/2,h)]);
  }else{
-  const points=houseContourPoints(project.upperFloors?.at(-1)||project.plan),frame=lRoofFrame(points,shape,Number(calculation.roof.rafterStructure?.module)||.64);
-  if(frame){
-   // Existing equal-pitch L model now exposes its own height; no second skeleton formula.
-   const max=frame.maxHeight||1,slope=h/(max*1000);
-   frame.facets.forEach((f,i)=>add(`КР-Г${i+1}`,`Г-образная крыша · скат ${i+1}`,f.vertices.map(p=>[p.x*1000,p.y*1000,roofBase+p.z*1000*slope])));
-   if(e||t)issue('ROOF_L_EAVES','Г-образная крыша: модель по контуру стен; свесы задайте проектными скатами XYZ.');
-  }else issue('ROOF_FORM','Для этой формы задайте проектные скаты XYZ. Условный прямоугольник не заменяет реальный контур.');
+  issue('ROOF_FORM',calculation.roof.pitchedError||'Для этой формы задайте проектные скаты XYZ. Условный прямоугольник не заменяет реальный контур.');
  }
  }
  if(!design.manualFaces?.length)for(const {platform,result} of calculation.roof.terraceRoofs||[]){

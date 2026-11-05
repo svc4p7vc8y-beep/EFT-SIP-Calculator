@@ -100,7 +100,9 @@ function scopeDescription(key, project, calculation, lineCount, lines) {
     };
   }
   if (key === 'roof') {
-    const coveredPlatforms = platforms.filter((platform) => platform.roof?.mode && platform.roof.mode !== 'none').length;
+    const coveredPlatforms = platforms.filter(platform => platform.roof?.mode === 'shared'
+      ? roof.footprint?.included.includes(platform.id)
+      : platform.roof?.mode && platform.roof.mode !== 'none').length;
     return {
       summary: `${ROOF_SHAPES[project.settings.roof.shape] || 'двускатная'} ${ROOF_TYPES[project.settings.roof.type] || 'холодная'} кровля, ${project.settings.roof.shape === 'flat' && project.settings.roof.flatCoverSystem === 'bitumen' ? `обрешётка, ${project.settings.roof.flatDeckMaterial === 'osb' ? 'ОСБ' : 'ЦСП'} и два слоя рулонной гидроизоляции` : ROOF_COVERINGS[project.settings.roof.covering] || 'профлист С-21'}, ${formatNumber(roof.totalArea)} м²`,
       details: joinParts([

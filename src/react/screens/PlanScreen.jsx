@@ -23,7 +23,8 @@ import { floorOpenings as getFloorOpenings, replaceFloorOpening, floorOpeningSum
 import { calculateClearAreas } from '../calculations/plan-clear-area.js';
 import { guideFromOuterWall, moveTemporaryGuide, guideFromGuide } from '../planner/temporary-guides.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
-import { lRoofFrame } from '../planner/l-roof-frame.js';
+import { roofLineIntervals } from '../calculations/roof-fabrication.js';
+import { roofWorld } from '../calculations/roof-project.js';
 import { isInteriorDoor } from '../calculations/opening-types.js';
 import {
   AlertTriangle,
@@ -732,31 +733,39 @@ function PlatformRoofOverlay({ platform, house, p, mainRoof }) {
   </g>;
 }
 
-function RoofPlanOverlay({ plan, roof, p }) {
+function RoofPlanOverlay({ plan, roof, p, model }) {
+  if (model) return <ContourRoofPlanOverlay plan={plan} roof={roof} model={model} p={p} />;
   if (roof.shape === 'tiered') return <TieredRoofPlanOverlay plan={plan} roof={roof} p={p} />;
+  return <RectangularRoofPlanOverlay plan={plan} roof={roof} p={p} />;
+}
+
+function ContourRoofPlanOverlay({ plan, roof, model, p }) {
   const contour = houseContourPoints(plan);
-  const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
-  const bounds = boundsOf(contour);
-  const missing = [[bounds.x,bounds.y],[bounds.x2,bounds.y],[bounds.x,bounds.y2],[bounds.x2,bounds.y2]].find(([x,y])=>!contour.some(a=>Math.abs(a.x-x)<1e-7&&Math.abs(a.y-y)<1e-7));
-  const edgeOffsets = missing && roof.shape !== 'hip' ? contour.map((a,i)=> {
-    const b=contour[(i+1)%contour.length];
-    const gable = Math.abs(a.x-missing[0])<1e-7&&Math.abs(b.x-missing[0])<1e-7 || Math.abs(a.y-missing[1])<1e-7&&Math.abs(b.y-missing[1])<1e-7;
-    return gable ? Math.max(0, Number(roof.gableOverhang)||0) : overhang;
-  }) : undefined;
-  const outline = roofOutline(contour, overhang, overhang, edgeOffsets);
-  const complex = lRoofFrame(outline, roof.shape || 'gable', roof.rafterStep, roof.lathStep);
-  if (!complex) return <RectangularRoofPlanOverlay plan={plan} roof={roof} p={p} />;
-  const points = poly => poly.map(a => { const b=p(a.x,a.y);return `${b.x},${b.y}`; }).join(' ');
-  const segment = (pair,key,props={}) => {const a=p(pair[0].x,pair[0].y),b=p(pair[1].x,pair[1].y);return <line key={key} x1={a.x} y1={a.y} x2={b.x} y2={b.y} {...props} />;};
-  return <g className="roof-plan-overlay" pointerEvents="none" aria-label="Г-образная кровля: схема скатов и стропил">
-    <title>Равный уклон скатов. Ендовы — оранжевые пунктирные линии. Схема не является расчётом несущей способности.</title>
-    {roof.showRoofCover !== false ? <polygon className="roof-cover-plane" points={points(outline)} /> : null}
-    {roof.showMauerlat !== false ? <polygon className="roof-mauerlat" points={points(contour)} /> : null}
-    {roof.showLath !== false ? <g className="roof-lath">{complex.laths.map((pair,i)=>segment(pair,i))}</g> : null}
-    {roof.showRafters !== false ? <>
-      <g className="roof-rafters">{complex.rafters.map((pair,i)=>segment(pair,i))}</g>
-      {complex.creases.map((edge,i)=>segment(edge.points,i,{className:'roof-ridge',style:{stroke:edge.kind==='valley'?'#b45e22':'#476f62',strokeDasharray:edge.kind==='valley'?'6 3':undefined},'data-roof-edge':edge.kind}))}
-    </> : null}
+  const faces = model.faces.filter(face => face.group === 'main');
+  const ids = new Set(faces.map(face => face.id));
+  const points = poly => poly.map(([x,y]) => { const q = p(x/1000,y/1000); return `${q.x},${q.y}`; }).join(' ');
+  const segment = (a,b,key,props={}) => {
+    const start = p(a[0]/1000,a[1]/1000), end = p(b[0]/1000,b[1]/1000);
+    return <line key={key} x1={start.x} y1={start.y} x2={end.x} y2={end.y} {...props} />;
+  };
+  const lines = (lath, interval) => faces.flatMap(face => {
+    const polygon = lath ? face.polygon.map(([x,y])=>[y,x]) : face.polygon;
+    const axis = polygon.map(point=>point[0]), min = Math.min(...axis), max = Math.max(...axis);
+    const result = [];
+    for (let x = min + interval; x < max; x += interval) {
+      for (const [a,b] of roofLineIntervals(polygon,x)) result.push(segment(
+        roofWorld(face,lath?[a,x]:[x,a]), roofWorld(face,lath?[b,x]:[x,b]), `${face.id}-${result.length}`,
+      ));
+    }
+    return result;
+  });
+  return <g className="roof-plan-overlay" pointerEvents="none" aria-label="Кровля по контуру: схема скатов">
+    {roof.showRoofCover !== false ? faces.map(face=><polygon key={face.id} className="roof-cover-plane" points={points(face.vertices)} />) : null}
+    {roof.showMauerlat !== false && roof.type !== 'sip' ? <polygon className="roof-mauerlat" points={points(contour.map(({x,y})=>[x*1000,y*1000]))} /> : null}
+    {roof.showLath !== false ? <g className="roof-lath">{lines(true,Math.max(100,(Number(roof.lathStep)||.35)*1000))}</g> : null}
+    {roof.showRafters !== false ? <g className="roof-rafters">{lines(false,Math.max(300,(Number(roof.rafterStep)||.6)*1000))}</g> : null}
+    {model.edges.filter(edge=>edge.faces.every(id=>ids.has(id)) && edge.kind!=='joint').map(edge=>segment(edge.a,edge.b,edge.id,
+      {className:edge.faces.length===1?'roof-overhang-outline':'roof-ridge',style:edge.kind==='valley'?{stroke:'#b45e22',strokeDasharray:'6 3'}:undefined,'data-roof-edge':edge.kind}))}
   </g>;
 }
 
@@ -1271,12 +1280,11 @@ function RectangularRoofPlanOverlay({ plan, roof, p }) {
   );
 }
 
-function RoofPlanCaption({ plan, roof, p }) {
+function RoofPlanCaption({ plan, roof, p, model }) {
   const bounds = boundsOf(houseContourPoints(plan));
-  const shape = ["flat", "hip"].includes(roof.shape) ? roof.shape : "gable";
+  const shape = ["flat", "hip", "tiered"].includes(roof.shape) ? roof.shape : "gable";
   const caption = p(bounds.x + bounds.w / 2, bounds.y + 0.55);
-  const complex = lRoofFrame(houseContourPoints(plan), roof.shape || 'gable');
-  const label = shape === 'tiered' ? 'Два односкатных уровня' : complex ? 'Г-кровля · схема скатов' :
+  const label = shape === 'tiered' ? 'Два односкатных уровня' : model ? 'Кровля по контуру' :
     shape === "hip"
       ? "Вальмовая кровля"
       : shape === "flat"
@@ -1306,6 +1314,7 @@ function PlanCanvas({
   stairPreset = {},
   commitFloorOpening,
   roof,
+  roofModel,
   activeLayer = "plan",
   visibleLayers = { plan: true },
   tool,
@@ -2312,7 +2321,7 @@ function PlanCanvas({
       ) : null}
       {visibleLayers.plan?planIssues(shownPlan).filter(issue=>issue.point).map((issue,i)=>{const q=p(issue.point.x,issue.point.y);return <circle key={`gap-check-${i}`} cx={q.x} cy={q.y} r="7" stroke="#b91c1c" strokeWidth="2" fill="none" pointerEvents="none"><title>{issue.message}</title></circle>;}):null}
       {houseDefined && visibleLayers.roof ? (
-        <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} />
+        <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} model={roofModel} />
       ) : null}
       {(visibleLayers.plan || visibleLayers.roof) ? (shownPlan.platforms || []).filter(platform => platform.include !== false && platform.roof?.shape === 'continuation').map(platform =>
         <PlatformRoofOverlay key={`roof-${platform.id}`} platform={platform} house={shownPlan.house} p={p} mainRoof={roof} />
@@ -2496,7 +2505,7 @@ function PlanCanvas({
           )
         : null}
       {houseDefined && visibleLayers.roof ? (
-        <RoofPlanCaption plan={shownPlan} roof={roof || {}} p={p} />
+        <RoofPlanCaption plan={shownPlan} roof={roof || {}} p={p} model={roofModel} />
       ) : null}
       {selectedRoom ? (
         <g className="selected-room-overlay">
@@ -3422,7 +3431,7 @@ function DoorOrientationControls({ opening, onChange }) {
   );
 }
 
-function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {}, onNavigate, activeFloor = 1 }) {
+function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {}, roofFootprint, onNavigate, activeFloor = 1 }) {
   const { project, commit } = useProject();
   const get = (key) =>
     (plan[key] || []).find((item) => item.id === selected?.id);
@@ -3701,7 +3710,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
   }
   if (platform) {
     const roof = calculateTerraceRoof(platform, plan.house, { mainRoof });
-    const inherited = platform.roof.shape === 'continuation' && platform.roof.mode !== 'none' && platform.roof.inheritMainRoof !== false;
+    const shared = platform.roof.mode === 'shared';
+    const inherited = platform.roof.shape === 'continuation' && !['none', 'shared'].includes(platform.roof.mode) && platform.roof.inheritMainRoof !== false;
     const effectiveRoof = resolveTerracePlatform(platform, mainRoof, plan.house).roof;
     const change = (mutate) =>
       update("platforms", (item) => {
@@ -3838,7 +3848,6 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
         <SelectField
           label="Кровля"
           value={effectiveRoof.mode}
-          disabled={inherited}
           onChange={(value) =>
             change((item) => {
               item.roof.mode = value;
@@ -3846,11 +3855,15 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           }
           options={[
             { value: "none", label: "Без кровли" },
+            { value: "shared", label: "Под общей кровлей" },
             { value: "cold", label: "Холодная" },
             { value: "warm", label: "Тёплая СИП" },
           ]}
         />
-        {effectiveRoof.mode !== "none" ? (
+        {shared ? <p className="inspector-note">{roofFootprint?.included.includes(platform.id)
+          ? 'Площадка включена в общую кровлю. Опоры открытой части задаются отдельно.'
+          : 'Для общей кровли нужна включённая автоматическая двускатная или вальмовая крыша одноэтажного дома и примыкание площадки по стороне.'}</p> : null}
+        {!shared && effectiveRoof.mode !== "none" ? (
           <>
             <NumberField
               label="Шаг стропил на схеме"
@@ -6630,6 +6643,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             floorOpenings={stairOpenings}
             commitFloorOpening={commitFloorOpening}
             roof={project.settings.roof}
+            roofModel={activeFloor === floorCount && (projectCalculation.roof.pitched || projectCalculation.roof.footprint?.included.length)
+              ? projectCalculation.metrics.partitionFitContext?.model : null}
             activeLayer={activeLayer}
             visibleLayers={visibleLayers}
             tool={tool}
@@ -6765,6 +6780,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               activeFloor={activeFloor}
               onNavigate={onNavigate}
               mainRoof={project.settings.roof}
+              roofFootprint={projectCalculation.roof.footprint}
               selected={selected}
               setSelected={setSelected}
               commitPlan={commitPlan}

@@ -953,11 +953,13 @@ function RoofConstructionPanels({
                     }
                     options={[
                       { value: "none", label: "Без кровли" },
+                      { value: "shared", label: "Под общей кровлей" },
                       { value: "cold", label: "Холодная" },
                       { value: "warm", label: "Тёплая SIP" },
                     ]}
                   />
-                  {platform.roof.mode !== "none" ? (
+                  {platform.roof.mode === 'shared' ? <p>Площадь входит в основную кровлю при примыкании площадки по стороне.</p> : null}
+                  {!['none', 'shared'].includes(platform.roof.mode) ? (
                     <>
                       <SelectField
                         label="Форма"
@@ -1776,7 +1778,9 @@ export default function Calculators({ type, onNavigate }) {
                     {formatNumber(platform.w * platform.h)} м²
                   </strong>
                   <span>
-                    {platform.roof.mode === "none"
+                    {platform.roof.mode === "shared"
+                      ? calculation.roof.footprint?.included.includes(platform.id) ? "под общей кровлей" : "общая кровля недоступна"
+                      : platform.roof.mode === "none"
                       ? "без кровли"
                       : platform.roof.mode === "cold"
                         ? "холодная"
@@ -1784,10 +1788,10 @@ export default function Calculators({ type, onNavigate }) {
                   </span>
                 </div>
                 <strong>
-                  {formatNumber(result.netArea)} м²{" "}
+                  {platform.roof.mode === 'shared' ? '—' : <>{formatNumber(result.netArea)} м²{" "}
                   <small>
                     · с запасом {formatNumber(result.purchaseArea)} м²
-                  </small>
+                  </small></>}
                 </strong>
               </div>
             ))}
@@ -1864,7 +1868,9 @@ export default function Calculators({ type, onNavigate }) {
                     </span>
                   </div>
                   <strong>
-                    {platform.roof.mode === "none"
+                    {platform.roof.mode === "shared"
+                      ? calculation.roof.footprint?.included.includes(platform.id) ? "Под общей кровлей" : "Общая кровля недоступна"
+                      : platform.roof.mode === "none"
                       ? "Без кровли"
                       : `${formatNumber(result.netArea)} м² кровли`}
                   </strong>

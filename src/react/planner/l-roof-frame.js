@@ -39,12 +39,14 @@ export function lRoofFrame(points, shape='gable', step=0.6, lathStep=0.35) {
   const rectangles=[[{x:0,y:0},{x:W,y:0},{x:W,y:A},{x:0,y:A}],[{x:0,y:A},{x:B,y:A},{x:B,y:H},{x:0,y:H}]];
   const height=p=>Math.min(...outer.map(q=>value(q,p)),Math.max(...inner.map(q=>value(q,p))));
   const inside=p=>p.x>EPS&&p.y>EPS&&p.x<W-EPS&&p.y<H-EPS&&(p.x<B-EPS||p.y<A-EPS);
-  const patches=[];
+  const patches=[], regions=[];
+  const worldPlane=([a,b,c])=>[a*sx,b*sy,c-a*sx*ox-b*sy*oy];
   for(let k=0;k<2;k++) {
     const planes=[...outer,inner[k]];
-    for(const rect of rectangles) for(const plane of planes) {
-      let poly=clip(rect,subtract(inner[1-k],inner[k]));
-      for(const other of planes) poly=clip(poly,subtract(plane,other));
+    const planeRegions=planes.map(plane=>[plane,[subtract(inner[1-k],inner[k]),...planes.map(other=>subtract(plane,other))]]);
+    regions.push(...planeRegions.map(([plane,limits])=>[worldPlane(plane),limits.map(worldPlane)]));
+    for(const rect of rectangles) for(const [plane,limits] of planeRegions) {
+      const poly=limits.reduce(clip,rect);
       if(poly.length>2&&area(poly)>EPS) patches.push({poly,plane});
     }
   }
@@ -79,5 +81,5 @@ export function lRoofFrame(points, shape='gable', step=0.6, lathStep=0.35) {
     });
   }
   const facets=patches.map(({poly,plane})=>({vertices:poly.map(p=>({...restore(p),z:value(plane,p)}))}));
-  return { rafters, laths, creases, surfaces:patches.map(({poly})=>poly.map(restore)),facets,maxHeight:Math.max(...facets.flatMap(f=>f.vertices.map(p=>p.z))) };
+  return { rafters, laths, creases, regions, surfaces:patches.map(({poly})=>poly.map(restore)),facets,maxHeight:Math.max(...facets.flatMap(f=>f.vertices.map(p=>p.z))) };
 }
