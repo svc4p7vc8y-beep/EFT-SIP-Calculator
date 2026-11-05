@@ -161,6 +161,8 @@ export async function downloadEstimatePdf(source, filename, { save = true } = {}
           if (section.querySelector('tbody tr')) await addTableSection(section);
           else await addBlock(section.cloneNode(true));
         }
+      } else if (child.hasAttribute('data-pdf-table-section')) {
+        await addTableSection(child);
       } else await addBlock(child.cloneNode(true));
     }
     const blob = pdf.output('blob');

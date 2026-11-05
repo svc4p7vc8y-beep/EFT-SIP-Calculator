@@ -1,4 +1,5 @@
 import {partitionTopFit,partitionProfileArea,partitionProfileTopLength} from './partition-top-fit.js';
+import { SIP_ORDER_SECTION, SIP_ORDER_TITLE, sipPanelOrderLines } from './sip-panel-order.js';
 import {sipPartitionShares} from './partition-sip-selection.js';
 import {calculateProductionCutting} from './production-cutting.js';
 import {roofProject} from './roof-project.js';
@@ -3527,6 +3528,7 @@ export function calculateProject(project, { nodeTypeRules = {}, stockCandidate =
       lines: finishes.externalLines,
     },
     { key: "delivery", title: "Доставка и логистика", lines: delivery.lines },
+    { key: SIP_ORDER_SECTION, title: SIP_ORDER_TITLE, lines: sipPanelOrderLines(project) },
   ], roof.rafterStructure?.system).filter(
     (section) =>
       section.lines.length ||
@@ -3570,7 +3572,7 @@ export function calculateProject(project, { nodeTypeRules = {}, stockCandidate =
       const groups=new Map(),reserve=1+Math.max(0,Number(project.settings.sip.wastePercent)||0)/100;
       for(const sheet of production.panelStock.sheets){const key=`${sheet.family}:${sheet.thickness}:${sheet.height}`;const row=groups.get(key)||{sheet,count:0};row.count++;groups.set(key,row);}
       const procurement=[...groups.values()].map(({sheet,count})=>makeLine({...index,panelLength:sheet.height/1000},'sip',sipPanelName(sheet.thickness,sheet.family).replace('2500×1250',`${sheet.height}×1250`),Math.ceil(count*reserve),{key:`mixed-panel-${sheet.family}-${sheet.thickness}-${sheet.height}`,source:'sip-mixed-stock',estimateGroup:'SIP-панели · общая закупка по раскрою',exactQuantity:true})).filter(Boolean);
-      const isPanel=line=>!line.custom&&/^СИП-панель /.test(index.byId.get(line.catalogId)?.name||line.name);
+      const isPanel=line=>!line.custom&&line.section!==SIP_ORDER_SECTION&&/^СИП-панель /.test(index.byId.get(line.catalogId)?.name||line.name);
       const protectedCatalogs=new Set(result.lines.filter(line=>isPanel(line)&&line.projectOverride).map(line=>line.catalogId));
       const editableProcurement=applyProjectEstimateEdits({...project,customEstimateLines:[],customEstimateGroups:[]},[{key:'panel-procurement',lines:procurement.filter(line=>!protectedCatalogs.has(line.catalogId))}])[0].lines;
       const revised=result.sections.map(section=>({...section,lines:[...section.lines.filter(line=>!isPanel(line)||line.projectOverride),...(section.key==='sip'?editableProcurement:[])]}));

@@ -78,6 +78,7 @@ const Calculators = lazy(() => import("../screens/Calculators.jsx"));
 const PriceScreen = lazy(() => import("../screens/PriceScreen.jsx"));
 const RequestScreen = lazy(() => import("../screens/RequestScreen.jsx"));
 const EstimateScreen = lazy(() => import("../screens/EstimateScreen.jsx"));
+const SipPanelOrderScreen = lazy(() => import("../screens/SipPanelOrderScreen.jsx"));
 const CalculationSettingsScreen = lazy(
   () => import("../screens/CalculationSettingsScreen.jsx"),
 );
@@ -105,6 +106,7 @@ const NAV_ITEMS = [
   { id: "parameters", label: "Параметры", icon: Settings2, group: "project" },
   { id: "piles", label: "Сваи / фундамент", icon: ScrewPileIcon, group: "calculate" },
   { id: "sip", label: "СИП", icon: Layers3, group: "calculate" },
+  { id: "sip-panel-order", label: "Панели на заказ", icon: Layers3, group: "calculate" },
   { id: "nodes", label: "Метизы по узлам", icon: ScrewIcon, group: "calculate" },
   { id: "cutting", label: "Раскрой", icon: SawIcon, group: "calculate" },
   { id: "roof", label: "Кровля", icon: RoofIcon, group: "calculate" },
@@ -183,6 +185,7 @@ function Screen({ active, calculation, teamProps, onNavigate, onOpenLibraryPlan,
   if (active === 'local-backup') return <LocalBackupScreen />;
   if (active === "request") return <RequestScreen />;
   if (active === "estimate") return <EstimateScreen />;
+  if (active === "sip-panel-order") return <SipPanelOrderScreen calculation={calculation} onNavigate={onNavigate} />;
   if (active === "knowledge") return <KnowledgeLibraryScreen />;
   if (active === "sip-guide") return <SipGuideScreen />;
   if (active === "nodes")

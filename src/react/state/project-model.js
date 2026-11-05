@@ -1,6 +1,7 @@
 import { exteriorHeight, partitionHeight } from '../../calculations/floor-height.js';
 import { normalizeCargoVolumes } from '../calculations/delivery-volume.js';
 import catalog from "../data/default-catalog.json" with { type: "json" };
+import { normalizeSipPanelOrder } from '../calculations/sip-panel-order.js';
 import { normalizeStairDirection } from "../planner/stair-steps.js";
 import { EXTERIOR_MATERIALS, EXTERIOR_LABOR } from '../data/exterior-catalog.js';
 import { DEFAULT_EXTERIOR, normalizeExterior } from '../calculations/exterior-model.js';
@@ -737,6 +738,7 @@ export function createDefaultProject() {
       date: today(),
     }),
     estimateOverrides: [],
+    sipPanelOrder: normalizeSipPanelOrder(),
     customEstimateLines: [],
     customEstimateGroups: [],
   };
@@ -1151,6 +1153,7 @@ export function migrateProject(raw) {
     estimateOverrides: Array.isArray(raw.estimateOverrides)
       ? raw.estimateOverrides
       : [],
+    sipPanelOrder: normalizeSipPanelOrder(raw.sipPanelOrder),
     customEstimateLines: Array.isArray(raw.customEstimateLines)
       ? raw.customEstimateLines
       : [],

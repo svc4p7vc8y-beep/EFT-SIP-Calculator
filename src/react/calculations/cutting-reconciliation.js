@@ -1,3 +1,5 @@
+import { SIP_ORDER_SECTION } from './sip-panel-order.js';
+
 const profileOf = text => {
   const match=String(text).match(/\((\d+(?:\.\d+)?)\s*[×xх]\s*(\d+(?:\.\d+)?)\s*мм\)/i) || String(text).match(/(\d+(?:\.\d+)?)\s*[×xх]\s*(\d+(?:\.\d+)?)/i);
   return match ? [Number(match[1]),Number(match[2])].sort((a,b)=>a-b) : null;
@@ -36,7 +38,7 @@ export function reconcileCutting(report,calculation) {
   const unplaced=new Set(report.timberStock.unplaced);
   for(const member of report.fabricationMembers||report.members||[])if(!member.excluded&&unplaced.has(member.id)){const row=timberRow(member.material,member.profile);if(row)row.pendingCount++;}
   for(const line of calculation.lines||[]){
-    if(line.kind!=='material')continue;
+    if(line.kind!=='material'||line.source===SIP_ORDER_SECTION)continue;
     const panel=line.name.match(/СИП-панель\s+(CSP PPS|PPS|минвата)\s+\d+×\d+×(\d+)/i);
     if(panel){const family=panel[1].toLowerCase()==='минвата'?'mineral-wool':panel[1].toLowerCase().replace(' ','-');const row=panelRow(family,panel[2]);row.purchased+=Number(line.qty)||0;row.matched=true;continue;}
     const family=lineFamily(line.name),profile=profileOf(line.name);
