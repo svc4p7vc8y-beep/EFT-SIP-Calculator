@@ -9,6 +9,7 @@ import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import { roofOutline } from '../planner/roof-outline.js';
+import { flatRoofFootprint } from '../calculations/flat-roof-assembly.js';
 import { roomBearingEdges } from '../calculations/bearing-walls.js';
 import { convertToWallLayout, rebuildWallRooms, addRoomWalls, wallDepth } from '../planner/wall-layout.js';
 import {gapEndpoints} from '../planner/gap-endpoints.js';
@@ -846,7 +847,10 @@ function RectangularRoofPlanOverlay({ plan, roof, p }) {
     ? { x: centerX, y: shape === "hip" ? y2 - ridgeInset : y2 }
     : { x: shape === "hip" ? x2 - ridgeInset : x2, y: centerY };
   const roofRect = [p(x1, y1), p(x2, y1), p(x2, y2), p(x1, y2)];
-  const outline = roofOutline(contour, xOverhang, yOverhang).map(point => p(point.x, point.y));
+  const hasParapet = shape === 'flat' && ['flashing','closed','open'].includes(roof.flatParapetMode);
+  const outline = hasParapet
+    ? flatRoofFootprint(contour.map(({x,y})=>[x*1000,y*1000]),roof).map(([x,y])=>p(x/1000,y/1000))
+    : roofOutline(contour, xOverhang, yOverhang).map(point => p(point.x, point.y));
   const outlinePoints = outline.map(point => `${point.x},${point.y}`).join(' ');
   const ridge = [p(ridgeA.x, ridgeA.y), p(ridgeB.x, ridgeB.y)];
   const arrowInset = Math.min(Math.max(0.3, Math.min(x2 - x1, y2 - y1) * 0.18), 1.5);

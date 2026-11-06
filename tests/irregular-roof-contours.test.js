@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { createDefaultProject, migrateProject } from '../src/react/state/project-model.js';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting } from '../src/react/calculations/production-cutting.js';
-import { roofAt } from '../src/react/calculations/roof-project.js';
+import { roofAt, roofLocal } from '../src/react/calculations/roof-project.js';
 import { roofJunctionSketch } from '../src/react/calculations/roof-junction-sketch.js';
 import { productionScene } from '../src/react/calculations/production-scene.js';
+import { roofSupportFrame } from '../src/react/calculations/roof-support-frame.js';
+import { roofLathRows } from '../src/react/calculations/roof-lathing.js';
 
 const L = [[0, 0], [10, 0], [10, 4], [4, 4], [4, 8], [0, 8]];
 const project = (shape, type = 'cold', points = L) => {
@@ -193,6 +195,15 @@ test('junction sketch appears in 3D once, skips an opening and leaves estimate a
   assert.ok(posts.length>=2);
   assert.equal(new Set(posts.map(item=>`${item.x1},${item.y1}`)).size,posts.length);
   assert.ok(sketch.items.some(item=>item.type==='brace'));
+  const sleepers=sketch.items.filter(item=>item.type==='sleeper');
+  assert.ok(sleepers.length);
+  for(const sleeper of sleepers){
+    assert.equal(sleeper.flat,true);
+    assert.match(sleeper.name,/опора требует проверки/);
+    const top=sleeper.z1+Number(sleeper.profile.split('×')[0])/2;
+    assert.ok(posts.some(post=>post.x1===sleeper.x1&&post.y1===sleeper.y1&&post.z1===top));
+    assert.ok(posts.some(post=>post.x1===sleeper.x2&&post.y1===sleeper.y2&&post.z1===top));
+  }
   p.settings.productionCutting.roofSupports=sketch.items;
   const reopened=migrateProject(JSON.parse(JSON.stringify(p)));
   const saved=run(reopened);
@@ -202,3 +213,44 @@ test('junction sketch appears in 3D once, skips an opening and leaves estimate a
   reopened.settings.roof.ridgeHeight+=.2;
   assert.equal(productionScene(run(reopened).report,reopened).beams.filter(b=>b.roofJunctionSketch).length,0);
 });
+
+test('hip roof shows all lathing rows and keeps preliminary pieces out of cutting',()=>{
+  const p=project('hip','cold',tee);
+  p.settings.roof.includeCovering=true;
+  const {report}=run(p),{laths,roofModel}=report.assembly;
+  for(const face of roofModel.faces){
+    const ys=face.polygon.map(p=>p[1]),min=Math.min(...ys);
+    const rows=laths.filter(item=>item.faceId===face.id).map(item=>roofLocal(face,item.worldA)[1]);
+    assert.ok(roofLathRows(Math.max(...ys)-min,p.settings.roof.lathStep*1000).every(y=>rows.some(row=>Math.abs(row-min-y)<.01)));
+  }
+  const preview=laths.filter(item=>item.lathPreview);
+  assert.ok(preview.length);
+  assert.ok(preview.every(item=>!report.members.some(member=>member.id===item.id)));
+});
+
+test('the frame generator produces separately editable support groups on both T wings',()=>{
+  const p=project('gable','cold',tee);
+  const {report}=run(p),frame=roofSupportFrame(p,report,{variant:'single'});
+  assert.deepEqual(frame.errors,[]);
+  assert.ok(new Set(frame.items.map(item=>item.faceId)).size>=3);
+  const beams=frame.items.filter(item=>item.type==='purlin');
+  assert.ok(beams.some(item=>Math.abs(item.x2-item.x1)>100));
+  assert.ok(beams.some(item=>Math.abs(item.y2-item.y1)>100));
+});
+
+for(const [form,contour,gap] of [['L',L,[7000,6000]],['T',tee,[1000,6000]]]){
+  test(`${form} tapered flat parapet keeps rafters, horizontal chords, laths and deck inside the outline`,()=>{
+    const p=project('flat','cold',contour);
+    Object.assign(p.settings.roof,{flatSlopeMode:'tapered',flatParapetMode:'closed',flatCoverSystem:'bitumen',flatDeckMaterial:'csp',flatDeckLayers:2,includeCovering:true});
+    const {calculation,report}=run(p),assembly=report.assembly,scene=productionScene(report,p);
+    assert.equal(roofAt(assembly.roofModel,...gap).length,0);
+    assert.ok(assembly.rafters.some(item=>item.bearingStatus==='upper-chord'&&item.lowerChordJoinAngleDeg>0));
+    assert.ok(assembly.flatFrame.chordCount>0&&assembly.flatFrame.postCount>0);
+    const chords=assembly.roofTimbers.filter(item=>item.roofMemberKind==='flat-frame-chord');
+    assert.ok(chords.every(item=>item.worldA[2]===item.worldB[2]));
+    assert.ok(chords.some(item=>item.bearingStatus==='geometry-only'));
+    assert.ok(scene.beams.some(item=>item.layer==='laths'));
+    assert.ok(scene.panels.some(item=>item.layer==='flatCsp'));
+    assert.ok(Math.abs(assembly.roofModel.mainArea-calculation.roof.geometry.totalSlopeArea)<.01);
+  });
+}

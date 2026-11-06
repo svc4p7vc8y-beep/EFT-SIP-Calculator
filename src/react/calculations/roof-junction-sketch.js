@@ -63,11 +63,12 @@ export function roofJunctionSketch(project, calculation, report) {
       if (distance(a,b)<1 || !inside(mix(a,b,.5))) continue;
       const first=postAt(a,edge), last=postAt(b,edge);
       if (!first || !last) continue;
-      const sleeperDepth=Number(purlinProfile.split('×')[1]);
-      if (Math.min(first.z2,last.z2)>zBase+sleeperDepth+1 &&
-        floor.bearing.some(({a:start,b:end})=>onSegment(a,start,end,10)&&onSegment(b,start,end,10))) {
+      const [sleeperDepth,sleeperWidth]=purlinProfile.split('×').map(Number).sort((a,b)=>a-b);
+      if (Math.min(first.z2,last.z2)>zBase+sleeperDepth+1) {
+        const alongBearing=floor.bearing.some(({a:start,b:end})=>onSegment(a,start,end,10)&&onSegment(b,start,end,10));
         const z=zBase+sleeperDepth/2;
-        add('sleeper','Лежень по несущей линии',purlinProfile,[a[0],a[1],z],[b[0],b[1],z]);
+        const sleeper=add('sleeper',alongBearing?'Лежень по несущей линии':'Лежень · опора требует проверки',`${sleeperDepth}×${sleeperWidth}`,[a[0],a[1],z],[b[0],b[1],z]);
+        sleeper.flat=true;
         first.z1=last.z1=Math.round(zBase+sleeperDepth);
       }
       const depth=Number(postProfile.split('×')[0]);
