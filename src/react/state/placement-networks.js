@@ -25,6 +25,7 @@ export function normalizeNetworkRoutes(value) {
       fromId: typeof route.fromId === 'string' ? route.fromId : '',
       toId: typeof route.toId === 'string' ? route.toId : '',
       auto: route.auto === true,
+      bendAxis: route.bendAxis === "y" ? "y" : "x",
       plane: ['wall', 'floor', 'ceiling', 'service'].includes(route.plane) ? route.plane : 'service',
       wallRef: typeof route.wallRef === 'string' ? route.wallRef : '',
       routeLevel: route.routeLevel === '' || route.routeLevel == null ? null : finite(route.routeLevel),
@@ -41,11 +42,11 @@ export function normalizeNetworkRoutes(value) {
   ]));
 }
 
-export function proposedNetworkPoints(from, to, routeLevel = null) {
+export function proposedNetworkPoints(from, to, routeLevel = null, bendAxis = "x") {
   const level = routeLevel == null ? finite(from.height) : finite(routeLevel);
   const points = [point(from)];
   if (Math.abs(points[0].z - level) > .001) points.push(point(from, level));
-  if (Math.abs(from.x - to.x) > .001 && Math.abs(from.y - to.y) > .001) points.push({ x: to.x, y: from.y, z: level });
+  if (Math.abs(from.x - to.x) > .001 && Math.abs(from.y - to.y) > .001) points.push(bendAxis === "y" ? { x: from.x, y: to.y, z: level } : { x: to.x, y: from.y, z: level });
   points.push(point(to, level));
   if (Math.abs(finite(to.height) - level) > .001) points.push(point(to));
   return points.filter((p, i) => i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y, p.z - points[i - 1].z) > .001);
@@ -60,7 +61,7 @@ export function resolvedNetworkRoutes(placement, system, floor) {
     if (!from || !to) return null;
     const wallRef = from.wallRef && from.wallRef === to.wallRef ? from.wallRef : '';
     if (route.auto) {
-      const points = proposedNetworkPoints(from, to, system === 'sewer' ? null : route.routeLevel);
+      const points = proposedNetworkPoints(from, to, system === 'sewer' ? null : route.routeLevel, route.bendAxis);
       if (system === 'sewer' && route.medium === 'waste') {
         const total = networkPlanLength(points);
         let distance = 0;

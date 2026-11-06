@@ -39,7 +39,7 @@ const svgPosition = (svg, event) => {
   return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
 };
 
-export default function PlacementRoomUnfolding({ room, plan, items, visible = {}, onToggleLayer, elementsLocked, onToggleLock, onUndo, onRedo, onScreenshot, canUndo, canRedo, circuitColor, activePreset, selectedId, routeMode, onPlace, onMove, onSelect, dimensions = [], floor = 1, onDimensionCreate, onDimensionLabel, onDimensionDelete }) {
+export default function PlacementRoomUnfolding({ room, plan, items, visible = {}, onToggleLayer, elementsLocked, onToggleLock, onUndo, onRedo, onScreenshot, canUndo, canRedo, circuitColor, activePreset, selectedId, routeMode, onPlace, onMove, onSelect, onPickNode, onRoutePoint, dimensions = [], floor = 1, onDimensionCreate, onDimensionLabel, onDimensionDelete }) {
   const drag = useRef(null);
   const skipClick = useRef(false);
   const [itemPreview, setItemPreview] = useState(null);
@@ -113,7 +113,8 @@ export default function PlacementRoomUnfolding({ room, plan, items, visible = {}
       return;
     }
     if (activePreset) onPlace(target.position, target.elevation, edgeIndex);
-    else if (!routeMode && selectedId && !elementsLocked) onMove(selectedId, target.position, edgeIndex < 0 ? null : target.elevation, edgeIndex);
+    else if (routeMode) onRoutePoint?.(target.position, edgeIndex < 0 ? null : target.elevation);
+    else if (selectedId && !elementsLocked) onMove(selectedId, target.position, edgeIndex < 0 ? null : target.elevation, edgeIndex);
   };
   const handleDown = (event, item) => {
     if (elementsLocked || routeMode || activePreset || dimensionMode !== 'off') return;
@@ -149,11 +150,12 @@ export default function PlacementRoomUnfolding({ room, plan, items, visible = {}
       window.setTimeout(() => { skipClick.current = false; }, 0);
     }
   };
+  const selectItem = item => routeMode ? onPickNode?.(item) : onSelect(item.id);
   const mark = (item, x, y, surface = 'floor') => {
     const width = Math.max(26, Math.min(surface === 'wall' ? 65 : 999, (Number(item.width) || .1) * 100));
     const depth = Math.max(26, Math.min(surface === 'wall' ? 60 : 999, (Number(item.depth) || .1) * 100));
     return <g key={`${surface}-${item.id}`} data-room-item={item.id} className="placement-room-mark"
-      onPointerDown={event => handleDown(event, item)} onClick={event => { event.stopPropagation(); if (skipClick.current) { skipClick.current = false; return; } if (dimensionMode !== 'off') handleClick(event, surface === 'floor' ? -1 : assignments.get(item.id)?.edgeIndex); else onSelect(item.id); }}>
+      onPointerDown={event => handleDown(event, item)} onClick={event => { event.stopPropagation(); if (skipClick.current) { skipClick.current = false; return; } if (dimensionMode !== 'off') handleClick(event, surface === 'floor' ? -1 : assignments.get(item.id)?.edgeIndex); else selectItem(item); }}>
       {item.kind !== 'connection-port' ? <g transform={surface === 'floor' && item.rotation ? `rotate(${item.rotation} ${x} ${y})` : undefined}>
         <rect x={x - width / 2 - 2} y={y - depth / 2 - 2} width={width + 4} height={depth + 4} rx="4" fill="#fff" fillOpacity=".7" stroke={itemColor(item)} strokeWidth="1"/>
         <svg x={x - width / 2} y={y - depth / 2} width={width} height={depth} viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible"><PlacementSymbol kind={item.kind} system={item.layer} medium={item.connectionMedium}/></svg>
@@ -196,8 +198,8 @@ export default function PlacementRoomUnfolding({ room, plan, items, visible = {}
           <defs><clipPath id={`room-floor-${room.id}`}><path d={floorPath}/></clipPath></defs>
           <path d={floorPath} className="placement-room-floor-fill" fill="#eaf2e8" stroke="#628e73" strokeWidth="2"/>
           <g clipPath={`url(#room-floor-${room.id})`}>
-          {wallItems.map(item => { const anchor = anchorPositions.get(item.id) || item; return <g key={`anchor-${item.id}`} className="placement-room-anchor" onClick={event => { event.stopPropagation(); onSelect(item.id); }}><circle cx={(anchor.x - box.x) * 100} cy={(anchor.y - box.y) * 100} r={selectedId === item.id ? 9 : 6} fill={itemColor(item)} stroke="#fff" strokeWidth="2"/><title>{item.label} · стена {(assignments.get(item.id)?.edgeIndex ?? -1) + 1} · h={Number(item.height || 0).toFixed(2)} м</title></g>; })}
-          {wallItems.filter(item => item.kind === 'junction-box' && Number.isFinite(item.diagramX) && Number.isFinite(item.diagramY) && Math.hypot(item.diagramX - item.x, item.diagramY - item.y) >= .12).map(item => { const at = schematicPosition(item), x = (at.x - box.x) * 100, y = (at.y - box.y) * 100; return <g key={`diagram-${item.id}`} data-room-diagram={item.id} onPointerDown={event => handleDown(event, item)} onClick={event => { event.stopPropagation(); onSelect(item.id); }}><circle cx={x} cy={y} r="12" fill="#fff" stroke={itemColor(item)} strokeWidth="2.5"/><circle cx={x} cy={y} r="4" fill={itemColor(item)} pointerEvents="none"/><title>Распайка на схеме; фактическая установка на стене под потолком</title></g>; })}
+          {wallItems.map(item => { const anchor = anchorPositions.get(item.id) || item; return <g key={`anchor-${item.id}`} className="placement-room-anchor" onClick={event => { event.stopPropagation(); selectItem(item); }}><circle cx={(anchor.x - box.x) * 100} cy={(anchor.y - box.y) * 100} r={selectedId === item.id ? 9 : 6} fill={itemColor(item)} stroke="#fff" strokeWidth="2"/><title>{item.label} · стена {(assignments.get(item.id)?.edgeIndex ?? -1) + 1} · h={Number(item.height || 0).toFixed(2)} м</title></g>; })}
+          {wallItems.filter(item => item.kind === 'junction-box' && Number.isFinite(item.diagramX) && Number.isFinite(item.diagramY) && Math.hypot(item.diagramX - item.x, item.diagramY - item.y) >= .12).map(item => { const at = schematicPosition(item), x = (at.x - box.x) * 100, y = (at.y - box.y) * 100; return <g key={`diagram-${item.id}`} data-room-diagram={item.id} onPointerDown={event => handleDown(event, item)} onClick={event => { event.stopPropagation(); selectItem(item); }}><circle cx={x} cy={y} r="12" fill="#fff" stroke={itemColor(item)} strokeWidth="2.5"/><circle cx={x} cy={y} r="4" fill={itemColor(item)} pointerEvents="none"/><title>Распайка на схеме; фактическая установка на стене под потолком</title></g>; })}
           {floorItems.map(item => { const at = itemPreview?.id === item.id ? itemPreview.position : item; return mark(item, (at.x - box.x) * 100, (at.y - box.y) * 100); })}
           </g>
           {showAutoDimensions ? <><RoomDimensionMark points={[{ x: 0, y: 0 }, { x: box.w, y: 0 }]}/><RoomDimensionMark points={[{ x: 0, y: 0 }, { x: 0, y: box.h }]}/></> : null}
@@ -210,6 +212,6 @@ export default function PlacementRoomUnfolding({ room, plan, items, visible = {}
     {wallItems.length ? <div className="placement-room-point-list"><strong>Привязки к стенам · цветные точки на полу показывают место установки</strong><div>{wallItems.map(item => <button key={item.id} type="button" className={selectedId === item.id ? 'active' : ''} onClick={() => onSelect(item.id)}><i style={{ background: itemColor(item) }}/>{item.label} · стена {(assignments.get(item.id)?.edgeIndex ?? -1) + 1} · h={Number(item.height || 0).toFixed(2)} м</button>)}</div></div> : null}
     {floorItems.some(item => item.id === selectedId) ? <div className="placement-room-selected-label">Выбрано на полу: {floorItems.find(item => item.id === selectedId)?.label}</div> : null}
     {dimensions.length ? <div className="placement-room-dimension-list"><strong>Размеры комнаты</strong>{dimensions.map(entry => <div key={entry.id}><span>{entry.edgeIndex === -1 ? 'Пол' : `Стена ${entry.edgeIndex + 1}`} · {Math.hypot(entry.points[1].x - entry.points[0].x, entry.points[1].y - entry.points[0].y).toFixed(2)} м</span><input aria-label="Подпись размера" value={entry.label || ''} placeholder="Подпись" onChange={event => onDimensionLabel?.(entry.id, event.target.value)}/><button type="button" aria-label="Удалить размер" onClick={() => onDimensionDelete?.(entry.id)}><Trash2 size={16}/></button></div>)}</div> : null}
-    <p>Выберите инструмент размера и нажмите две точки на полу или стене. Точки инженерии и элементы размещаются как прежде. Трассы доступны на основном плане.</p>
+    <p>Выберите инструмент размера и нажмите две точки на полу или стене. Точки инженерии и элементы размещаются как прежде. Готовые трассы отображаются на плане этажа.</p>
   </section>;
 }

@@ -124,8 +124,10 @@ export default function PlacementScreen({ onNavigate }) {
   const [networkFromId, setNetworkFromId] = useState('');
   const [networkToId, setNetworkToId] = useState('');
   const [networkMedium, setNetworkMedium] = useState('cold');
+  const [networkAutoPicking, setNetworkAutoPicking] = useState(false);
   const [networkDrawing, setNetworkDrawing] = useState(false);
   const [networkPoints, setNetworkPoints] = useState([]);
+  const networkPicking = networkAutoPicking || networkDrawing;
   const [selectedNetworkRouteId, setSelectedNetworkRouteId] = useState(null);
   const [selectedWallRef, setSelectedWallRef] = useState('');
   const [selectedRoomId, setSelectedRoomId] = useState('');
@@ -197,6 +199,18 @@ export default function PlacementScreen({ onNavigate }) {
     }
   }, [fullscreen, compactViewport]);
   const svgRef = useRef(null);
+  const workspaceRef = useRef(null);
+  const resizeRef = useRef(null);
+  const [columnWidths, setColumnWidths] = useState({});
+  const columnWidth = side => workspaceRef.current?.querySelector(side === 'left' ? '.placement-sidebar' : '.placement-inspector')?.getBoundingClientRect().width;
+  const resizeColumn = (side, width) => {
+    const otherWidth = columnWidth(side === 'left' ? 'right' : 'left');
+    const workspaceWidth = workspaceRef.current?.clientWidth;
+    if (!workspaceWidth || !otherWidth || !Number.isFinite(width)) return;
+    const minWidth = side === 'left' ? 220 : 210;
+    const maxWidth = Math.max(minWidth, Math.min(520, workspaceWidth * (side === 'left' ? .4 : .32), workspaceWidth - otherWidth - 270));
+    setColumnWidths(current => ({ ...current, [side]: Math.round(Math.max(minWidth, Math.min(maxWidth, width))) }));
+  };
   const dragRef = useRef(null);
   const panRef = useRef(null);
   const touchPointersRef = useRef(new Map());
@@ -306,7 +320,7 @@ export default function PlacementScreen({ onNavigate }) {
     const onKeyDown = event => {
       if (event.key !== 'Escape' || event.defaultPrevented || event.target?.closest?.('dialog,[role="dialog"]')) return;
       if (fullscreen) { event.preventDefault(); leaveFullscreen(); return; }
-      const hasAction = drawingRoute || routePoints.length > 0 || routeStartId || networkDrawing || networkPoints.length > 0
+      const hasAction = drawingRoute || routePoints.length > 0 || routeStartId || networkPicking || networkPoints.length > 0
         || networkFromId || networkToId || drawingDimension || dimensionStart || assigningCircuit || presetId || annotationTool || dragRef.current;
       if (hasAction) {
         event.preventDefault();
@@ -315,14 +329,14 @@ export default function PlacementScreen({ onNavigate }) {
         if (pointerId != null && svgRef.current?.hasPointerCapture(pointerId)) svgRef.current.releasePointerCapture(pointerId);
         setDragPosition(null); setDragLabel(null);
         setDrawingRoute(false); setRoutePoints([]); setRouteStartId(''); setRouteCursor(null); setRouteNotice('');
-        setNetworkDrawing(false); setNetworkPoints([]); setNetworkFromId(''); setNetworkToId(''); setNetworkNotice('');
+        setNetworkAutoPicking(false); setNetworkDrawing(false); setNetworkPoints([]); setNetworkFromId(''); setNetworkToId(''); setNetworkNotice('');
         setDrawingDimension(false); setDimensionStart(null); setAssigningCircuit(false); setPresetId(null); setAnnotationTool(null);
         return;
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [fullscreen, drawingRoute, routePoints.length, routeStartId, networkDrawing, networkPoints.length, networkFromId, networkToId, drawingDimension, dimensionStart, assigningCircuit, presetId, annotationTool]);
+  }, [fullscreen, drawingRoute, routePoints.length, routeStartId, networkPicking, networkPoints.length, networkFromId, networkToId, drawingDimension, dimensionStart, assigningCircuit, presetId, annotationTool]);
 
   const change = useCallback(update => commit(next => {
     if (!next.placement) next.placement = createPlacement();
@@ -431,7 +445,7 @@ export default function PlacementScreen({ onNavigate }) {
   const onWallPosition = (station, height) => {
     if (!selectedWall) return;
     const facePoint = wallFacePoint(selectedWall, station);
-    if (networkDrawing) { setNetworkPoints(current => [...current, { ...facePoint, z: round(height) }]); return; }
+    if (networkPicking) { if (networkDrawing && networkFromId) setNetworkPoints(current => [...current, { ...facePoint, z: round(height) }]); return; }
     if (!activePreset || activePreset.surface === 'facade') return;
     const normal = selectedWall.normal;
     const half = (Math.abs(normal.x) * activePreset.width + Math.abs(normal.y) * activePreset.depth) / 2;
@@ -458,7 +472,7 @@ export default function PlacementScreen({ onNavigate }) {
       else if (routeMode === 'manual' && routeStartId) addSurfaceRoutePoint(point);
       return;
     }
-    if (networkDrawing) { if (insideWorkingArea(point)) setNetworkPoints(current => [...current, { ...point, z: Number(items.find(item => item.id === networkFromId)?.height) || 0 }]); return; }
+    if (networkPicking) { if (networkDrawing && networkFromId && insideWorkingArea(point)) addNetworkPlanPoint(point); return; }
     if (!activePreset) { setSelectedId(null); setSelectedRouteId(null); setSelectedNetworkRouteId(null); setSelectedWallRef(''); return; }
     const location = activePreset.surface === 'facade' ? snapToFacade(point, contour) : insideWorkingArea(point) ? itemPosition(point, activePreset) : null;
     if (!location || (activePreset.surface === 'facade' && location.distance > 1.5)) {
@@ -468,28 +482,38 @@ export default function PlacementScreen({ onNavigate }) {
     const nearestFace = wallFaces.map(face => ({ face, projection: projectToWallFace(face, location) })).sort((a, b) => a.projection.distance - b.projection.distance)[0];
     addPlacementItem(activePreset, location, activePreset.height || 0, nearestFace?.projection.distance < .35 ? nearestFace.face.ref : '');
   };
-  const addNetworkRoute = (auto, pair = false) => {
-    if (!isNetworkLayer(layer) || !networkFromId || !networkToId || networkFromId === networkToId) return;
-    const from = items.find(item => item.id === networkFromId), to = items.find(item => item.id === networkToId);
+  const addNetworkPlanPoint = point => setNetworkPoints(current => [...current, { ...gridPoint(point), z: current.at(-1)?.z ?? (Number(items.find(item => item.id === networkFromId)?.height) || 0) }]);
+  const cancelNetworkRoute = () => { setNetworkAutoPicking(false); setNetworkDrawing(false); setNetworkPoints([]); setNetworkNotice(''); };
+  const beginNetworkRoute = auto => {
+    setNetworkAutoPicking(auto); setNetworkDrawing(!auto); setNetworkPoints([]); setPresetId(null);
+    setDrawingDimension(false); setDrawingRoute(false); setAnnotationTool(null); setAssigningCircuit(false); setSelectedNetworkRouteId(null);
+    setVisible(current => ({ ...current, [layer]: true }));
+    setNetworkNotice(networkFromId ? (auto ? 'Укажите конец трассы.' : 'Нанесите повороты трассы и укажите её конец.') : 'Укажите начало трассы.');
+  };
+  const addNetworkRoute = (auto, pair = false, toId = networkToId) => {
+    if (!isNetworkLayer(layer) || !networkFromId || !toId || networkFromId === toId) return;
+    const from = items.find(item => item.id === networkFromId), to = items.find(item => item.id === toId);
     if (!from || !to) return;
     if (!pair && [from, to].some(item => item.connectionMedium && item.connectionMedium !== networkMedium)) { setNetworkNotice('Тип линии не совпадает с выбранным подключением прибора.'); return; }
     const id = createId();
     const sharedWall = from.wallRef && from.wallRef === to.wallRef ? from.wallRef : '';
     const directions = pair && layer === 'heating' ? [{ source: from, target: to, medium: 'supply', id }, { source: to, target: from, medium: 'return', id: createId() }] : [{ source: from, target: to, medium: NETWORK_SYSTEMS[layer].media.some(entry => entry.id === networkMedium) ? networkMedium : NETWORK_SYSTEMS[layer].media[0].id, id }];
     const pending = directions.filter(entry => !(placement.networks[layer] || []).some(route => route.floor === activeFloor && route.fromId === entry.source.id && route.toId === entry.target.id && route.medium === entry.medium));
-    if (!pending.length) { setSelectedNetworkRouteId(placement.networks[layer].find(route => route.floor === activeFloor && route.fromId === from.id && route.toId === to.id)?.id || null); setNetworkDrawing(false); setNetworkPoints([]); return; }
+    if (!pending.length) { setSelectedNetworkRouteId(placement.networks[layer].find(route => route.floor === activeFloor && route.fromId === from.id && route.toId === to.id)?.id || null); cancelNetworkRoute(); return; }
     change(data => pending.forEach(entry => data.networks[layer].push({
       id: entry.id, floor: activeFloor, medium: entry.medium,
       fromId: entry.source.id, toId: entry.target.id, auto, plane: sharedWall ? 'wall' : 'service', wallRef: sharedWall,
       routeLevel: null, diameterMm: null, material: '', slopePermille: null, flowM3h: null, note: '', accessories: [],
-      points: [{ x: entry.source.x, y: entry.source.y, z: entry.source.height || 0 }, ...networkPoints, { x: entry.target.x, y: entry.target.y, z: entry.target.height || 0 }],
+      points: [{ x: entry.source.x, y: entry.source.y, z: entry.source.height || 0 }, ...(auto ? [] : networkPoints), { x: entry.target.x, y: entry.target.y, z: entry.target.height || 0 }],
     })));
     setSelectedNetworkRouteId(pending[0].id);
-    setNetworkDrawing(false);
-    setNetworkPoints([]);
+    cancelNetworkRoute();
+    if (!pair) { setNetworkFromId(''); setNetworkToId(''); }
+    setSelectedId(null); setPresetId(null);
     setNetworkNotice('Трасса соединена с выбранными точками.');
   };
-  const updateNetworkRoute = (id, patch) => change(data => { const route = data.networks[layer]?.find(entry => entry.id === id); if (route) Object.assign(route, patch); });
+  const updateNetworkRoute = (id, patch, system = layer) => change(data => { const route = data.networks[system]?.find(entry => entry.id === id); if (route) Object.assign(route, patch); });
+  const editNetworkGeometry = (route, points) => { if (points) updateNetworkRoute(route.id, { points, auto: false }, route.system); };
   const addCircuit = () => {
     const id = createId();
     change(data => data.circuits.push({ id, name: `Группа ${data.circuits.length + 1}`, color: nextCircuitColor(data.circuits), lineStyle: defaultCircuitLineStyle(data.circuits.length), cable: '', protectionDevice: 'MCB', breaker: '', breakerAmps: null, breakerPoles: null, breakerKa: null, breakerModel: '', breakerQuantity: 1, note: '', accessories: [] }));
@@ -649,22 +673,22 @@ export default function PlacementScreen({ onNavigate }) {
   }, [drawingRoute, routeMode, endManualRoute]);
   const chooseNetworkNode = item => {
     if (item.layer !== layer) { setNetworkNotice('Выберите точку этой инженерной системы.'); return; }
-    if (!networkFromId || (networkToId && !networkDrawing)) {
+    if (!networkFromId) {
       setNetworkFromId(item.id); setNetworkToId('');
       if (item.connectionMedium) setNetworkMedium(item.connectionMedium);
-      setNetworkNotice('Начало выбрано. Укажите вторую точку на плане или развёртке комнаты.');
+      setNetworkNotice(networkDrawing ? 'Нанесите повороты и нажмите конечный узел.' : 'Нажмите конечный узел.');
       return;
     }
     if (item.id === networkFromId) { setNetworkNotice('Начало и конец трассы должны различаться.'); return; }
     if (item.connectionMedium && item.connectionMedium !== networkMedium) { setNetworkNotice('У этой точки другой тип подключения. Выберите соответствующую линию.'); return; }
     setNetworkToId(item.id);
-    setNetworkNotice('Конец выбран. Постройте маршрут автоматически или нанесите промежуточные точки вручную.');
+    addNetworkRoute(networkAutoPicking, false, item.id);
   };
   const chooseAnnotationTool = tool => {
     setAnnotationTool(current => current === tool ? null : tool);
     setPresetId(null);
     setDrawingRoute(false); setRoutePoints([]); setRouteStartId(''); setRouteCursor(null);
-    setNetworkDrawing(false); setNetworkPoints([]);
+    cancelNetworkRoute();
     setDrawingDimension(false); setDimensionStart(null);
     setAssigningCircuit(false);
     setSelectedId(null); setSelectedRouteId(null); setSelectedNetworkRouteId(null);
@@ -692,15 +716,15 @@ export default function PlacementScreen({ onNavigate }) {
       setSelectedId(item.id);
       return;
     }
-    if (isNetworkLayer(layer) && item.layer === layer && !activePreset) {
-      chooseNetworkNode(item); setSelectedId(item.id); return;
+    if (networkPicking && item.layer === layer && !activePreset) {
+      chooseNetworkNode(item); return;
     }
-    if (isNetworkLayer(layer) && !activePreset) {
+    if (networkPicking && !activePreset) {
       const ports = items.filter(entry => entry.linkedApplianceId === item.id && entry.layer === layer && entry.connectionMedium === networkMedium);
-      if (ports.length === 1) { chooseNetworkNode(ports[0]); setSelectedId(ports[0].id); return; }
+      if (ports.length === 1) { chooseNetworkNode(ports[0]); return; }
       if (ports.length > 1) setNetworkNotice('У прибора несколько подходящих выводов. Выберите цветную точку или вывод в свойствах.');
     }
-    setSelectedRouteId(null); setSelectedId(item.id); setPresetId(null);
+    setSelectedRouteId(null); setSelectedNetworkRouteId(null); setSelectedId(item.id); setPresetId(null);
   };
   const closestWallTo = position => wallFaces.map(face => ({ face, projection: projectToWallFace(face, position) })).sort((a, b) => a.projection.distance - b.projection.distance)[0];
   const roomPlace = (position, height, edgeIndex) => {
@@ -733,7 +757,10 @@ export default function PlacementScreen({ onNavigate }) {
     setSelectedId(itemId);
   };
   const roomRoutePoint = (position, height) => {
-    if (networkDrawing) setNetworkPoints(current => [...current, { ...position, z: height }]);
+    if (networkPicking) { if (networkDrawing && networkFromId) {
+      if (height == null) addNetworkPlanPoint(position);
+      else setNetworkPoints(current => [...current, { ...position, z: height }]);
+    } }
     else if (drawingRoute) {
       const target = routeNodeAt(position, .25);
       if (target) chooseRouteNode(target);
@@ -873,6 +900,7 @@ export default function PlacementScreen({ onNavigate }) {
   };
   const chooseDrawingElement = entry => {
     setAnnotationTool(null);
+    cancelNetworkRoute();
     setPresetId(current => current === entry.id ? null : entry.id);
     setLayer(entry.layer); setCategory('all'); setQuery('');
     setVisible(current => ({ ...current, [entry.layer]: true }));
@@ -881,7 +909,7 @@ export default function PlacementScreen({ onNavigate }) {
     setNetworkDrawing(false); setNetworkPoints([]);
   };
   const beginDrag = (event, item) => {
-    if (mobileViewer || annotationTool || elementsLocked || drawingRoute || drawingDimension || networkDrawing || assigningCircuit || (isNetworkLayer(layer) && !event.altKey)) return;
+    if (mobileViewer || annotationTool || elementsLocked || drawingRoute || drawingDimension || networkPicking || assigningCircuit || event.button !== 0) return;
     const point = pointFromEvent(event);
     if (!point) return;
     event.preventDefault();
@@ -890,16 +918,17 @@ export default function PlacementScreen({ onNavigate }) {
     const origin = schematicPosition(item);
     dragRef.current = { id: item.id, pointerId: event.pointerId, start: point, origin, last: origin, surface: item.surface };
     setSelectedId(item.id);
+    setSelectedNetworkRouteId(null);
     setPresetId(null);
   };
   const beginRouteSegmentDrag = (event, route, segmentIndex) => {
-    if (mobileViewer || linesLocked || drawingRoute || networkDrawing || activePreset) return;
-    setSelectedRouteSegment({ routeId: route.id, index: segmentIndex });
+    if (mobileViewer || linesLocked || drawingRoute || networkPicking || activePreset || event.button !== 0 || (route.system && annotationTool)) return;
+    if (!route.system) setSelectedRouteSegment({ routeId: route.id, index: segmentIndex });
     const start = pointFromEvent(event);
     if (!start) return;
     event.preventDefault(); event.stopPropagation();
     svgRef.current?.setPointerCapture(event.pointerId);
-    dragRef.current = { routeId: route.id, segmentIndex, points: route.points, pointerId: event.pointerId, start, origin: start, last: start, clientX: event.clientX, clientY: event.clientY, delta: 0 };
+    dragRef.current = { routeId: route.id, system: route.system, segmentIndex, points: route.points, pointerId: event.pointerId, start, origin: start, last: start, clientX: event.clientX, clientY: event.clientY, delta: 0 };
   };
   const beginLabelDrag = (event, item, labelKind = 'name') => {
     if (mobileViewer) return;
@@ -965,6 +994,12 @@ export default function PlacementScreen({ onNavigate }) {
       return;
     }
     if (drag.routeId) {
+      if (drag.system) {
+        if (!insideWorkingArea(point)) return;
+        drag.last = { ...gridPoint(point), z: drag.origin.z };
+        setDragPosition({ routeId: drag.routeId, points: drag.points.map((entry, index) => index === drag.index ? drag.last : entry) });
+        return;
+      }
       drag.last = gridPoint(point);
       const route = routes.find(entry => entry.id === drag.routeId);
       const routeNeighbors = route?.points.filter((_, index) => index !== drag.index) || [];
@@ -1007,11 +1042,17 @@ export default function PlacementScreen({ onNavigate }) {
     event.stopPropagation();
     if (svgRef.current?.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId);
     if (drag.segmentIndex != null) {
-      const route = routes.find(entry => entry.id === drag.routeId);
+      const route = (drag.system ? networkRoutes : routes).find(entry => entry.id === drag.routeId && (!drag.system || entry.system === drag.system));
       const travelled = Math.hypot(event.clientX - drag.clientX, event.clientY - drag.clientY);
       if (event.type !== 'pointercancel' && route && !linesLocked) {
-        if (travelled > 5 && Math.abs(drag.delta) >= .01) replaceRouteGeometry(route, shiftRouteSegment(drag.points, drag.segmentIndex, drag.delta));
-        else if (travelled <= 5 && event.shiftKey) insertRouteWaypointAt(route, drag.segmentIndex, drag.start);
+        if (travelled > 5 && Math.abs(drag.delta) >= .01) {
+          const points = shiftRouteSegment(drag.points, drag.segmentIndex, drag.delta);
+          if (drag.system) editNetworkGeometry(route, points);
+          else replaceRouteGeometry(route, points);
+        } else if (travelled <= 5 && event.shiftKey) {
+          if (drag.system) editNetworkGeometry(route, insertRoutePoint(drag.points, drag.segmentIndex, pointOnRouteSegment(drag.points, drag.segmentIndex, drag.start)));
+          else insertRouteWaypointAt(route, drag.segmentIndex, drag.start);
+        }
       }
       suppressClickRef.current = true;
       window.setTimeout(() => { suppressClickRef.current = false; }, 0);
@@ -1036,7 +1077,10 @@ export default function PlacementScreen({ onNavigate }) {
     const moved = drag.last.x !== drag.origin.x || drag.last.y !== drag.origin.y;
     if (moved && event.type !== 'pointercancel') {
       const location = drag.last;
-      if (drag.routeId) updateRoutePoint(drag.routeId, drag.index, location);
+      if (drag.routeId && drag.system) {
+        const route = networkRoutes.find(entry => entry.system === drag.system && entry.id === drag.routeId);
+        if (route && !linesLocked) editNetworkGeometry(route, drag.points.map((entry, index) => index === drag.index ? location : entry));
+      } else if (drag.routeId) updateRoutePoint(drag.routeId, drag.index, location);
       else
       change(data => { const target = data.items.find(item => item.id === drag.id); if (target) {
         const mount = !drag.label && target.kind === 'junction-box' ? junctionWallMount(plan, location, selectedRoom) : null;
@@ -1073,11 +1117,11 @@ export default function PlacementScreen({ onNavigate }) {
     setLayer(nextLayer); setSidebarTab('elements'); setCategory('all'); setQuery(''); setPresetId(null);
     setAssigningCircuit(false); setNetworkNotice('');
     setDrawingRoute(false); setRoutePoints([]); setRouteStartId(''); setRouteCursor(null); setRouteNotice(''); setSelectedRouteId(null); setDrawingDimension(false); setDimensionStart(null);
-    setNetworkDrawing(false); setNetworkPoints([]); setNetworkFromId(''); setNetworkToId(''); setSelectedNetworkRouteId(null);
+    cancelNetworkRoute(); setNetworkFromId(''); setNetworkToId(''); setSelectedNetworkRouteId(null);
     if (isNetworkLayer(nextLayer)) setNetworkMedium(NETWORK_SYSTEMS[nextLayer].media[0].id);
   };
   const beginPan = event => {
-    const touch = event.pointerType === 'touch' && (mobileViewer || !activePreset && !drawingDimension && !drawingRoute && !networkDrawing);
+    const touch = event.pointerType === 'touch' && (mobileViewer || !activePreset && !drawingDimension && !drawingRoute && !networkPicking);
     if (!touch && event.button !== 1 && !event.shiftKey) return;
     event.preventDefault();
     svgRef.current?.setPointerCapture(event.pointerId);
@@ -1249,7 +1293,24 @@ export default function PlacementScreen({ onNavigate }) {
   </div>;
   return <main className={`placement-screen${fullscreen ? ` placement-fullscreen placement-fullscreen-${fullscreenPanel || 'canvas'}` : ''}${selectedRoom ? ' placement-room-focused' : ''}`}>
     <header className="placement-heading"><div><h1>Инженерия</h1></div><div className="placement-heading-actions"><button className="placement-back-to-plan" onClick={() => onNavigate?.('plan')}>← План дома</button><button className="placement-fullscreen-exit" title="Свернуть полноэкранный план" onClick={leaveFullscreen}><Minimize2 size={16}/> Свернуть</button><div className="placement-fullscreen-panel-tools" role="group" aria-label="Панели полноэкранного плана"><button className={fullscreenPanel === 'library' ? 'active' : ''} aria-pressed={fullscreenPanel === 'library'} onClick={() => setFullscreenPanel(current => current === 'library' ? null : 'library')}><Boxes size={16}/> Библиотека</button><button className={fullscreenPanel === 'properties' ? 'active' : ''} aria-pressed={fullscreenPanel === 'properties'} onClick={() => setFullscreenPanel(current => current === 'properties' ? null : 'properties')}><Wrench size={16}/> Свойства</button></div><button onClick={printWorkerSheets} title="Комплект планов и ведомостей для печати или PDF"><Printer size={17}/> Планы для рабочих / PDF</button></div></header>
-    <div className="placement-workspace">
+    <div className="placement-workspace" ref={workspaceRef} style={{ '--placement-left-width': columnWidths.left && columnWidths.left + 'px', '--placement-right-width': columnWidths.right && columnWidths.right + 'px' }}>
+      {['left', 'right'].map(side => <div key={side} className={'placement-column-grip ' + side} role="separator" tabIndex={0} aria-orientation="vertical"
+        aria-label={side === 'left' ? 'Ширина левой колонки' : 'Ширина правой колонки'}
+        onPointerDown={event => {
+          if (event.button !== 0) return;
+          event.preventDefault(); event.currentTarget.focus({ preventScroll: true }); event.currentTarget.setPointerCapture(event.pointerId);
+          resizeRef.current = { pointerId: event.pointerId, x: event.clientX, width: columnWidth(side) };
+        }}
+        onPointerMove={event => {
+          const drag = resizeRef.current;
+          if (drag?.pointerId === event.pointerId) resizeColumn(side, drag.width + (event.clientX - drag.x) * (side === 'left' ? 1 : -1));
+        }}
+        onLostPointerCapture={() => { resizeRef.current = null; }}
+        onKeyDown={event => {
+          if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+          event.preventDefault();
+          resizeColumn(side, columnWidth(side) + (event.key === 'ArrowRight' ? 16 : -16) * (side === 'left' ? 1 : -1));
+        }}/>)}
       <aside className="placement-sidebar"><nav className="placement-sidebar-tabs" aria-label="Разделы инженерии">{[['elements', 'Элементы'], ['groups', 'Группы'], ['rooms', 'Комнаты'], ['bill', 'Ведомость']].map(([id, label]) => <button key={id} className={sidebarTab === id ? 'active' : ''} aria-pressed={sidebarTab === id} onClick={() => { setSidebarTab(id); if (id !== 'elements') setLayer('electric'); }}>{label}</button>)}</nav>
         {sidebarTab === 'elements' ? <div className="placement-sidebar-section"><h2>Библиотека элементов</h2>
         <div className="placement-catalog-search"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по всей библиотеке" aria-label="Поиск по библиотеке"/></div>
@@ -1257,7 +1318,7 @@ export default function PlacementScreen({ onNavigate }) {
         <div className="placement-palette-heading"><h3>{searchTerm ? 'Результаты поиска' : category === 'all' ? PLACEMENT_LAYERS.find(entry => entry.id === layer)?.label : PLACEMENT_GROUPS.find(entry => entry.id === category)?.label}</h3><small>{catalogItems.length} элементов</small></div>
         <div className="placement-palette">{catalogItems.map(entry => <button key={entry.id} className={presetId === entry.id ? 'active' : ''} title={entry.label} onClick={() => chooseDrawingElement(entry)}><CatalogSymbol preset={entry}/><span className="placement-card-copy"><strong>{entry.label}</strong><small>{Math.round(entry.width * 100)} × {Math.round(entry.depth * 100)} см{searchTerm ? ` · ${PLACEMENT_LAYERS.find(layerEntry => layerEntry.id === entry.layer)?.label}` : entry.surface === 'facade' ? ' · фасад' : ''}</small></span></button>)}</div>
         {!catalogItems.length ? <p className="placement-catalog-empty">По этому запросу элементов нет.</p> : null}</div></div>
-        {isNetworkLayer(layer) ? <PlacementNetworkPanel system={layer} floor={activeFloor} placement={placement} room={selectedRoom} notice={networkNotice} fromId={networkFromId} toId={networkToId} medium={networkMedium} onFrom={setNetworkFromId} onTo={setNetworkToId} onMedium={setNetworkMedium} onAuto={() => addNetworkRoute(true)} onPair={() => addNetworkRoute(true, true)} onBeginManual={() => { setNetworkDrawing(true); setNetworkPoints([]); setPresetId(null); setDrawingDimension(false); setDrawingRoute(false); }} onFinishManual={() => addNetworkRoute(false)} onCancelManual={() => { setNetworkDrawing(false); setNetworkPoints([]); }} drawing={networkDrawing} points={networkPoints} selectedRouteId={selectedNetworkRouteId} onSelectRoute={setSelectedNetworkRouteId} onUpdateRoute={updateNetworkRoute} onDeleteRoute={id => { change(data => { data.networks[layer] = data.networks[layer].filter(route => route.id !== id); }); setSelectedNetworkRouteId(null); }}/> : null}
+        {isNetworkLayer(layer) ? <PlacementNetworkPanel system={layer} floor={activeFloor} placement={placement} room={selectedRoom} notice={networkNotice} fromId={networkFromId} toId={networkToId} medium={networkMedium} onFrom={setNetworkFromId} onTo={setNetworkToId} onMedium={setNetworkMedium} onAuto={() => networkFromId && networkToId ? addNetworkRoute(true) : beginNetworkRoute(true)} onPair={() => addNetworkRoute(true, true)} onBeginManual={() => beginNetworkRoute(false)} onFinishManual={() => addNetworkRoute(false)} onCancel={() => { cancelNetworkRoute(); setNetworkFromId(''); setNetworkToId(''); }} autoPicking={networkAutoPicking} drawing={networkDrawing} linesLocked={linesLocked} points={networkPoints} selectedRouteId={selectedNetworkRouteId} onSelectRoute={setSelectedNetworkRouteId} onUpdateRoute={updateNetworkRoute} onDeleteRoute={id => { change(data => { data.networks[layer] = data.networks[layer].filter(route => route.id !== id); }); setSelectedNetworkRouteId(null); }}/> : null}
         </div> : null}
         {['groups', 'rooms'].includes(sidebarTab) ? <div className="placement-sidebar-section">
         {layer === 'electric' ? <div className="placement-circuits">
@@ -1301,7 +1362,7 @@ export default function PlacementScreen({ onNavigate }) {
         {rooms.map(room => { const points = roomPoints(room); const box = boundsOf(points); return <g key={room.id}><path d={pathData(points)} fill="rgba(219,233,230,.22)" stroke="none"/><text x={(box.x + box.w / 2) * 100} y={(box.y + box.h / 2) * 100} textAnchor="middle" className="placement-room-label">{room.name}</text></g>; })}
         {selectedRoom ? <path d={pathData(roomPoints(selectedRoom))} className="placement-room-mini-highlight" pointerEvents="none"/> : null}
         <PlacementWalls plan={plan} idPrefix={`placement-floor-${activeFloor}`}/>
-        {wallFaces.map(face => <g key={face.ref} onClick={event => { if (mobileViewer || annotationTool || activePreset || drawingRoute || drawingDimension || networkDrawing) return; event.stopPropagation(); openWallRoom(face); }}><line x1={face.a.x * 100} y1={face.a.y * 100} x2={face.b.x * 100} y2={face.b.y * 100} stroke={selectedWallRef === face.ref ? '#278b78' : 'transparent'} strokeWidth={selectedWallRef === face.ref ? 5 : 18} vectorEffect="non-scaling-stroke" className="placement-wall-face-target"><title>{face.label} · открыть комнату и её развёртку</title></line></g>)}
+        {wallFaces.map(face => <g key={face.ref} onClick={event => { if (mobileViewer || annotationTool || activePreset || drawingRoute || drawingDimension || networkPicking) return; event.stopPropagation(); openWallRoom(face); }}><line x1={face.a.x * 100} y1={face.a.y * 100} x2={face.b.x * 100} y2={face.b.y * 100} stroke={selectedWallRef === face.ref ? '#278b78' : 'transparent'} strokeWidth={selectedWallRef === face.ref ? 5 : 18} vectorEffect="non-scaling-stroke" className="placement-wall-face-target"><title>{face.label} · открыть комнату и её развёртку</title></line></g>)}
         {placement.showAutoDimensions && visible.electric ? <PlacementWallDimensions plan={plan} items={displayedItems.filter(item => item.layer === 'electric')}/> : null}
         {visible.electric ? displayedRoutes.map(route => { const shown = dragPosition?.routeId === route.id && dragPosition.segmentIndex != null && dragPosition.points ? dragPosition.points : route.points; const color = electricalGroupColor(route.circuitId, placement.circuits); return <g key={route.id} data-route-id={route.id} className={selectedCircuitId === route.circuitId ? 'placement-route-group-active' : ''} onClick={event => { if (mobileViewer || drawingRoute) return; event.stopPropagation(); if (annotationTool === 'name') { openAnnotationEditor('route', route); return; } if (annotationTool) return; setSelectedRouteId(route.id); setSelectedId(null); setLayer('electric'); }}>{shown.slice(0, -1).map((start, index) => { const end = shown[index + 1]; const vertical = Math.hypot(end.x - start.x, end.y - start.y) < .001 && Math.abs((end.z || 0) - (start.z || 0)) > .001; return vertical ? <circle key={index} cx={end.x * 100} cy={end.y * 100} r="8" fill="#fff" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke"><title>Подъём или спуск у стены · {Math.abs((end.z || 0) - (start.z || 0)).toFixed(2)} м</title></circle> : <line key={index} x1={start.x * 100} y1={start.y * 100} x2={end.x * 100} y2={end.y * 100} stroke={color} strokeWidth={selectedRouteId === route.id ? 3.5 : selectedCircuitId === route.circuitId ? 3 : 2.5} strokeLinecap="round" strokeDasharray={circuitLineDash(route.circuitId, placement.circuits)} vectorEffect="non-scaling-stroke"/>; })}<path d={routeData(shown)} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" vectorEffect="non-scaling-stroke"/><title>{placement.circuits.find(circuit => circuit.id === route.circuitId)?.name || 'Трасса'} · {electricalRouteLength3d(route.points).toFixed(2)} м</title></g>; }) : null}
         {visible.electric ? routeBundles.map((bundle, index) => <g key={`bundle-${index}`} className="placement-route-bundle" pointerEvents="none">
@@ -1317,10 +1378,46 @@ export default function PlacementScreen({ onNavigate }) {
         {drawingRoute && routePoints.length ? <path d={routeData(routePreview)} fill="none" stroke={electricalGroupColor(selectedCircuitId || items.find(item => item.id === routeStartId)?.circuitId, placement.circuits)} strokeWidth="2" strokeDasharray={circuitLineDash(selectedCircuitId || items.find(item => item.id === routeStartId)?.circuitId, placement.circuits)} vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
         <NeighborGuide guide={drawingRoute ? routeCursor?.neighborGuide : null}/>
         {drawingRoute && routeCursor ? <g className="placement-route-cursor" pointerEvents="none">{routeCursor.guides?.map((guide, index) => <line key={index} className="placement-manual-alignment-guide" x1={(guide.axis === 'x' ? guide.from.x : drawingBounds.x) * 100 - (guide.axis === 'y' ? margin : 0)} y1={(guide.axis === 'y' ? guide.from.y : drawingBounds.y) * 100 - (guide.axis === 'x' ? margin : 0)} x2={(guide.axis === 'x' ? guide.from.x : drawingBounds.x + drawingBounds.w) * 100 + (guide.axis === 'y' ? margin : 0)} y2={(guide.axis === 'y' ? guide.from.y : drawingBounds.y + drawingBounds.h) * 100 + (guide.axis === 'x' ? margin : 0)}/>)}<line x1={drawingBounds.x * 100 - margin} y1={routeCursor.y * 100} x2={(drawingBounds.x + drawingBounds.w) * 100 + margin} y2={routeCursor.y * 100}/><line x1={routeCursor.x * 100} y1={drawingBounds.y * 100 - margin} x2={routeCursor.x * 100} y2={(drawingBounds.y + drawingBounds.h) * 100 + margin}/><circle cx={routeCursor.x * 100} cy={routeCursor.y * 100} r="6"/><text x={routeCursor.x * 100 + 22} y={routeCursor.y * 100 - 14}>{routeCursor.x.toFixed(2)} · {routeCursor.y.toFixed(2)} м{routeCursor.snappedTo ? ` · ${routeCursor.snappedTo === 'wall' ? 'стена' : routeCursor.snappedTo === 'point' ? 'электроточка' : 'направляющая'}` : ''}</text></g> : null}
-        {networkRoutes.filter(route => visible[route.system]).map(route => <g key={route.id} onClick={event => { if (mobileViewer) return; event.stopPropagation(); if (annotationTool === 'name') { openAnnotationEditor('route', route, route.system); return; } if (annotationTool) return; setLayer(route.system); setSelectedNetworkRouteId(route.id); setPresetId(null); }}><path d={routeData(route.points)} fill="none" stroke={networkColors[route.system]} strokeWidth={selectedNetworkRouteId === route.id ? 6 : 4} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.auto ? '8 5' : undefined} vectorEffect="non-scaling-stroke"/><path d={routeData(route.points)} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" vectorEffect="non-scaling-stroke"/><title>{NETWORK_SYSTEMS[route.system].label} · {route.medium} · {networkLength3d(route.points).toFixed(2)} м</title></g>)}
+        {networkRoutes.filter(route => visible[route.system]).map(route => {
+          const selectedLine = selectedNetworkRouteId === route.id;
+          const points = dragPosition?.routeId === route.id && dragPosition.points ? dragPosition.points : route.points;
+          return <g key={route.id} data-network-route={route.id} onClick={event => {
+            if (mobileViewer || networkPicking || activePreset) return;
+            event.stopPropagation();
+            if (annotationTool === 'name') { openAnnotationEditor('route', route, route.system); return; }
+            if (annotationTool) return;
+            if (layer !== route.system) changeLayer(route.system);
+            setSidebarTab('elements'); setSelectedNetworkRouteId(route.id); setSelectedId(null); setSelectedRouteId(null);
+          }}>
+            <path d={routeData(points)} fill="none" stroke={networkColors[route.system]} strokeWidth={selectedLine ? 6 : 4}
+              strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.auto ? '8 5' : undefined} vectorEffect="non-scaling-stroke"/>
+            {!networkPicking && !activePreset ? <path d={routeData(route.points)} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke" vectorEffect="non-scaling-stroke"/> : null}
+            {selectedLine && !networkPicking && !linesLocked && !activePreset && !annotationTool ? route.points.slice(1).map((point, index) => {
+              const previous = route.points[index];
+              if (Math.hypot(point.x - previous.x, point.y - previous.y) < .001) return null;
+              return <path key={index} d={routeData([previous, point])} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke"
+                vectorEffect="non-scaling-stroke" className="placement-network-segment" onPointerDown={event => beginRouteSegmentDrag(event, route, index)}>
+                <title>Перетащить участок или нажать с Shift, чтобы добавить узел</title>
+              </path>;
+            }) : null}
+            {selectedLine && !route.auto && !networkPicking && !linesLocked && !activePreset && !annotationTool ? route.points.slice(1, -1).map((point, index) => {
+              if ([route.points[0], route.points.at(-1)].some(end => Math.hypot(end.x - point.x, end.y - point.y) < .001)) return null;
+              return <circle key={index} cx={points[index + 1].x * 100} cy={points[index + 1].y * 100} r="10" className="placement-route-handle"
+                onPointerDown={event => {
+                  if (mobileViewer || event.button !== 0) return;
+                  const start = pointFromEvent(event);
+                  if (!start) return;
+                  event.preventDefault(); event.stopPropagation();
+                  svgRef.current?.setPointerCapture(event.pointerId);
+                  dragRef.current = { routeId: route.id, system: route.system, index: index + 1, points: route.points, pointerId: event.pointerId, start, origin: point, last: point };
+                }}><title>Перетащить узел трассы</title></circle>;
+            }) : null}
+            <title>{NETWORK_SYSTEMS[route.system].label} · {route.medium} · {networkLength3d(route.points).toFixed(2)} м</title>
+          </g>;
+        })}
         {displayedRoutes.filter(route => route.showName).map(route => { const at = routeLabelPosition(route.points); const x = dragLabel?.routeId === route.id ? dragLabel.x * 100 : at?.x + (route.labelOffsetX ?? 0) * 100; const y = dragLabel?.routeId === route.id ? dragLabel.y * 100 : at?.y + (route.labelOffsetY ?? -.1) * 100; return at ? <g key={`route-label-${route.id}`} className="placement-route-callout" onPointerDown={event => beginRouteLabelDrag(event, route)}><line x1={at.x} y1={at.y} x2={x} y2={y}/><text className="placement-route-name" x={x} y={y} textAnchor="middle">{routeAnnotation(route)}</text><title>Перетащить подпись линии или нажать для редактирования</title></g> : null; })}
         {networkRoutes.filter(route => route.showName && visible[route.system]).map(route => { const at = routeLabelPosition(route.points); const x = dragLabel?.routeId === route.id ? dragLabel.x * 100 : at?.x + (route.labelOffsetX ?? 0) * 100; const y = dragLabel?.routeId === route.id ? dragLabel.y * 100 : at?.y + (route.labelOffsetY ?? -.1) * 100; return at ? <g key={`network-label-${route.system}-${route.id}`} className="placement-route-callout" onPointerDown={event => beginRouteLabelDrag(event, route, route.system)}><line x1={at.x} y1={at.y} x2={x} y2={y}/><text className="placement-route-name" x={x} y={y} textAnchor="middle">{routeAnnotation(route, route.system)}</text><title>Перетащить подпись линии или нажать для редактирования</title></g> : null; })}
-        {networkDrawing && networkPoints.length ? <path d={routeData(networkPoints)} fill="none" stroke={networkColors[layer] || '#d48a21'} strokeWidth="4" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
+        {networkDrawing && networkFromId && networkPoints.length ? <path d={routeData([items.find(item => item.id === networkFromId) || networkPoints[0], ...networkPoints])} fill="none" stroke={networkColors[layer] || '#d48a21'} strokeWidth="4" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" pointerEvents="none"/> : null}
         {dimensions.map(dimension => <DimensionLine key={dimension.id} points={dimension.points} label={dimension.label}/>)}
         {dimensionStart ? <circle cx={dimensionStart.x * 100} cy={dimensionStart.y * 100} r="7" fill="#497c7a" pointerEvents="none"/> : null}
         {displayedItems.filter(item => visible[item.layer] && !clusteredItemIds.has(item.id)).map(item => {
@@ -1328,8 +1425,8 @@ export default function PlacementScreen({ onNavigate }) {
           const electrical = item.layer === 'electric';
           const displayWidth = electrical ? Math.max(item.width * 100, 36) : item.kind === 'connection-port' ? 32 : item.width * 100;
           const displayDepth = electrical ? Math.max(item.depth * 100, 36) : item.kind === 'connection-port' ? 32 : item.depth * 100;
-          return <g key={item.id} data-placement-id={item.id} transform={`translate(${location.x * 100} ${location.y * 100}) rotate(${item.rotation || 0})`} className={`placement-object ${selectedId === item.id ? 'selected' : ''}`} onPointerDown={event => beginDrag(event, item)} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) suppressClickRef.current = false; pickCanvasItem(item); }}>
-            {(drawingRoute && electrical || assigningCircuit && electrical || isNetworkLayer(layer) && item.layer === layer && !activePreset) ? <circle r="23" fill="none" stroke={item.id === routeStartId || item.id === networkFromId ? '#e15f22' : item.id === networkToId ? '#a65bb6' : '#30a56e'} strokeWidth="2" strokeDasharray="4 3" pointerEvents="none"/> : null}
+          return <g key={item.id} data-placement-id={item.id} transform={`translate(${location.x * 100} ${location.y * 100}) rotate(${item.rotation || 0})`} className={`placement-object ${selectedId === item.id ? 'selected' : ''}`} onPointerDown={event => beginDrag(event, item)} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } pickCanvasItem(item); }}>
+            {(drawingRoute && electrical || assigningCircuit && electrical || networkPicking && item.layer === layer && !activePreset) ? <circle r="23" fill="none" stroke={item.id === routeStartId || item.id === networkFromId ? '#e15f22' : item.id === networkToId ? '#a65bb6' : '#30a56e'} strokeWidth="2" strokeDasharray="4 3" pointerEvents="none"/> : null}
             {item.surface === 'facade' ? <line x1={(item.anchorX - location.x) * 100} y1={(item.anchorY - location.y) * 100} x2="0" y2="0" stroke="#4a9e94" strokeWidth="3" strokeDasharray="4 3" pointerEvents="none"/> : null}
             <rect x={-displayWidth / 2} y={-displayDepth / 2} width={displayWidth} height={displayDepth} fill="transparent" stroke="none"/>
             <svg x={-displayWidth / 2} y={-displayDepth / 2} width={displayWidth} height={displayDepth} viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible"><PlacementSymbol kind={item.kind} system={item.layer} medium={item.connectionMedium}/></svg>
@@ -1366,7 +1463,7 @@ export default function PlacementScreen({ onNavigate }) {
           </g>;
         })}
       </svg></div>
-      {!selectedRoom ? <PlacementWallElevation wall={selectedWall} plan={plan} items={items} routes={networkRoutes} activePreset={activePreset} drawing={networkDrawing} points={networkPoints} onPosition={onWallPosition} onSelectItem={id => { setSelectedId(id); setPresetId(null); }}/> : null}
+      {!selectedRoom ? <PlacementWallElevation wall={selectedWall} plan={plan} items={items} routes={networkRoutes} activePreset={activePreset} drawing={networkDrawing} points={networkPoints} onPosition={onWallPosition} onSelectItem={id => { const item = items.find(entry => entry.id === id); if (item) pickCanvasItem(item); }}/> : null}
       <div className="placement-canvas-note" role={placementNotice ? 'status' : undefined}>{placementNotice || 'Выберите комнату, чтобы работать с её планом, полом и стенами. Точки приборов доступны для подключения линий; их высоты уточняются в свойствах. Автоматические размеры электроточек вынесены за контур дома. Масштаб меняется колёсиком, кнопками или двумя пальцами.'}</div></section>
       <aside className={`placement-inspector${selected?.layer === 'electric' && !showElectricDetails ? ' compact-electric' : ''}`}><div className="placement-inspector-heading"><h2>Свойства и размеры</h2>{selected ? <button onClick={() => setSelectedId(null)} aria-label="Закрыть свойства"><X size={17}/></button> : null}</div>
         {selectedRoute ? <div className="placement-route-editor"><h3>Трасса · {electricalRouteLength3d(selectedRoute.points).toFixed(2)} м</h3><p>Нажмите на участок, чтобы выбрать его плоскость. Shift + щелчок добавляет точку в указанном месте. Выбранную точку можно удалить. Участок линии можно перетащить поперёк него.</p><label>Начало<select value={selectedRoute.fromItemId || selectedRoute.panelItemId || ''} onChange={event => updateRoute(selectedRoute.id, { fromItemId: event.target.value, auto: false })}>{items.filter(item => item.layer === 'electric' && (item.kind === 'panel' || item.circuitId === selectedRoute.circuitId)).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Конец<select value={selectedRoute.targetItemId || ''} onChange={event => updateRoute(selectedRoute.id, { targetItemId: event.target.value, auto: false })}><option value="">Выберите элемент</option>{items.filter(item => item.layer === 'electric' && item.id !== selectedRoute.fromItemId && item.circuitId === selectedRoute.circuitId).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Группа<select value={selectedRoute.circuitId || ''} onChange={event => updateRoute(selectedRoute.id, { circuitId: event.target.value, auto: false })}>{placement.circuits.map(circuit => <option key={circuit.id} value={circuit.id}>{circuit.name}</option>)}</select></label><button onClick={() => addRouteWaypoint(selectedRoute)}>+ Промежуточная точка</button>{selectedRoute.points.slice(1, -1).map((point, index) => <div className={`placement-route-point${selectedWaypoint?.index === index + 1 ? ' selected' : ''}`} key={index}><button type="button" onClick={() => setSelectedRoutePoint({ routeId: selectedRoute.id, index: index + 1 })}>Точка {index + 1} · {point.surface === 'wall' ? 'стена' : point.surface === 'floor' ? 'пол' : 'потолок'}</button><button type="button" title={`Удалить точку ${index + 1}`} aria-label={`Удалить точку ${index + 1}`} onClick={() => removeRouteWaypoint(selectedRoute, index + 1)}><Trash2 size={15}/></button></div>)}<button className="placement-delete" onClick={() => { setSelectedRoutePoint(null); change(data => { data.routes = data.routes.filter(route => route.id !== selectedRoute.id); }); setSelectedRouteId(null); }}><Trash2 size={16}/> Удалить трассу</button></div> : null}
@@ -1390,10 +1487,10 @@ export default function PlacementScreen({ onNavigate }) {
         {selected ? <div className="placement-annotation-settings"><label>Плоскость на развёртке<select value={selected.displayPlane || 'auto'} onChange={event => updateItem({ displayPlane: event.target.value })} disabled={elementsLocked}><option value="auto">Автоматически</option><option value="floor">Пол</option><option value="wall">Ближайшая стена</option></select></label>{selected.layer === 'electric' ? <label>Размер от стены<select value={selected.dimensionSide || 'auto'} onChange={event => updateItem({ dimensionSide: event.target.value })}><option value="auto">Ближайшая слева или справа</option><option value="left">Слева</option><option value="right">Справа</option></select></label> : null}<label><input type="checkbox" checked={selected.showHeight === true} onChange={event => updateItem({ showHeight: event.target.checked })}/> Показывать высоту рядом</label><label><input type="checkbox" checked={selected.showName === true} onChange={event => updateItem({ showName: event.target.checked })}/> Выноска названия (перетащите на плане)</label></div> : null}
         {dimensions.length ? <div className="placement-dimension-list"><h3>Ручные размеры</h3>{dimensions.map((dimension, index) => <div key={dimension.id}><span>{index + 1}. {measureText(dimensionMetres(dimension.points))}</span><input aria-label={`Подпись размера ${index + 1}`} value={dimension.label || ''} placeholder="Подпись по замеру" onChange={event => change(data => { const target = data.dimensions.find(entry => entry.id === dimension.id); if (target) target.label = event.target.value; })}/><button aria-label={`Удалить размер ${index + 1}`} onClick={() => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== dimension.id); })}><Trash2 size={15}/></button></div>)}</div> : null}
       </aside>
-      {selectedRoom ? <PlacementRoomUnfolding room={selectedRoom} plan={plan} items={displayedItems} visible={visible} onToggleLayer={id => setVisible(current => ({ ...current, [id]: !current[id] }))} routes={[...networkRoutes, ...displayedRoutes.map(route => ({ ...route, system: 'electric' }))]} draftPoints={networkDrawing ? networkPoints : drawingRoute ? routePoints : []} draftSystem={layer} draftCircuitId={selectedCircuitId || items.find(item => item.id === routeStartId)?.circuitId} activePreset={activePreset} selectedId={selectedId} selectedRouteId={selectedRouteId} selectedRoutePointIndex={selectedWaypoint?.index} elementsLocked={elementsLocked} linesLocked={linesLocked} onToggleLock={() => setElementsLocked(value => !value)} onToggleLinesLock={() => setLinesLocked(value => !value)} onUndo={undo} onRedo={redo} onScreenshot={captureWorkspace} canUndo={canUndo} canRedo={canRedo} circuitColor={id => electricalGroupColor(id, placement.circuits)} routeMode={!activePreset && (networkDrawing || drawingRoute || assigningCircuit || isNetworkLayer(layer))} onPlace={roomPlace} onMove={roomMove} onSelect={id => { setSelectedId(id); setPresetId(null); }} onPickNode={pickCanvasItem} onRoutePoint={roomRoutePoint} onSelectRoute={route => { setLayer(route.system); setSelectedId(null); if (route.system === 'electric') setSelectedRouteId(route.id); else setSelectedNetworkRouteId(route.id); }} onSelectRoutePoint={(route, index) => { setSelectedRouteId(route.id); setSelectedRoutePoint({ routeId: route.id, index }); setSelectedId(null); setLayer("electric"); }} onInsertRoutePoint={(route, segmentIndex, point) => { const next = insertRoutePoint(route.points, segmentIndex, point); replaceRouteGeometry(route, next); setSelectedRoutePoint({ routeId: route.id, index: segmentIndex + 1 }); }} dimensions={roomDimensions} floor={activeFloor} onDimensionCreate={dimension => change(data => { data.dimensions.push(dimension); })} onDimensionLabel={(id, label) => change(data => { const dimension = data.dimensions.find(entry => entry.id === id); if (dimension) dimension.label = label; })} onDimensionDelete={id => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== id); })} onShiftRouteSegment={replaceRouteGeometry}/> : null}
+      {selectedRoom ? <PlacementRoomUnfolding room={selectedRoom} plan={plan} items={displayedItems} visible={visible} onToggleLayer={id => setVisible(current => ({ ...current, [id]: !current[id] }))} routes={[...networkRoutes, ...displayedRoutes.map(route => ({ ...route, system: 'electric' }))]} draftPoints={networkDrawing ? networkPoints : drawingRoute ? routePoints : []} draftSystem={layer} draftCircuitId={selectedCircuitId || items.find(item => item.id === routeStartId)?.circuitId} activePreset={activePreset} selectedId={selectedId} selectedRouteId={selectedRouteId} selectedRoutePointIndex={selectedWaypoint?.index} elementsLocked={elementsLocked} linesLocked={linesLocked} onToggleLock={() => setElementsLocked(value => !value)} onToggleLinesLock={() => setLinesLocked(value => !value)} onUndo={undo} onRedo={redo} onScreenshot={captureWorkspace} canUndo={canUndo} canRedo={canRedo} circuitColor={id => electricalGroupColor(id, placement.circuits)} routeMode={!activePreset && (networkPicking || drawingRoute || assigningCircuit)} onPlace={roomPlace} onMove={roomMove} onSelect={id => { setSelectedId(id); setPresetId(null); }} onPickNode={pickCanvasItem} onRoutePoint={roomRoutePoint} onSelectRoute={route => { setLayer(route.system); setSelectedId(null); if (route.system === 'electric') setSelectedRouteId(route.id); else setSelectedNetworkRouteId(route.id); }} onSelectRoutePoint={(route, index) => { setSelectedRouteId(route.id); setSelectedRoutePoint({ routeId: route.id, index }); setSelectedId(null); setLayer("electric"); }} onInsertRoutePoint={(route, segmentIndex, point) => { const next = insertRoutePoint(route.points, segmentIndex, point); replaceRouteGeometry(route, next); setSelectedRoutePoint({ routeId: route.id, index: segmentIndex + 1 }); }} dimensions={roomDimensions} floor={activeFloor} onDimensionCreate={dimension => change(data => { data.dimensions.push(dimension); })} onDimensionLabel={(id, label) => change(data => { const dimension = data.dimensions.find(entry => entry.id === id); if (dimension) dimension.label = label; })} onDimensionDelete={id => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== id); })} onShiftRouteSegment={replaceRouteGeometry}/> : null}
     </div>
     <div className="placement-toolbar">
-      <div className="placement-floor-tabs" aria-label="Этаж">{Array.from({ length: floorCount }, (_, index) => <button key={index} className={activeFloor === index + 1 ? 'active' : ''} onClick={() => { setFloor(index + 1); setSelectedRoomId(''); setSelectedWallRef(''); setSelectedId(null); setRoutePoints([]); setDimensionStart(null); }}>Этаж {index + 1}</button>)}</div>
+      <div className="placement-floor-tabs" aria-label="Этаж">{Array.from({ length: floorCount }, (_, index) => <button key={index} className={activeFloor === index + 1 ? 'active' : ''} onClick={() => { cancelNetworkRoute(); setNetworkFromId(''); setNetworkToId(''); setSelectedNetworkRouteId(null); setFloor(index + 1); setSelectedRoomId(''); setSelectedWallRef(''); setSelectedId(null); setRoutePoints([]); setDimensionStart(null); }}>Этаж {index + 1}</button>)}</div>
       <div className="placement-room-choices" role="group" aria-label="План этажа или развёртка комнаты"><button type="button" className={!selectedRoom ? 'active' : ''} aria-pressed={!selectedRoom} onClick={() => { setSelectedRoomId(''); setSelectedWallRef(''); resetView(); }}>Весь этаж</button>{rooms.map(room => <button type="button" key={room.id} className={selectedRoom?.id === room.id ? 'active' : ''} aria-pressed={selectedRoom?.id === room.id} title={room.name} onClick={() => { setSelectedRoomId(room.id); setSelectedWallRef(''); resetView(); }}>{room.name}</button>)}</div>
       <div className="placement-measure-tools"><button className={placement.showAutoDimensions ? 'active' : ''} onClick={() => change(data => { data.showAutoDimensions = !data.showAutoDimensions; })}><Ruler size={16}/> Авторазмеры электрики</button><button className={drawingDimension ? 'active' : ''} onClick={() => { setAnnotationTool(null); setDrawingDimension(current => !current); setDimensionStart(null); setDrawingRoute(false); setRoutePoints([]); setPresetId(null); }}><Plus size={16}/> Размер вручную</button></div>
     </div>

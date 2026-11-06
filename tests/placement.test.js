@@ -766,3 +766,36 @@ test('routes follow moved panel and points; BOM survives reopen without changing
   assert.equal(resolvedElectricalRoutes(reopened.placement, 1)[1].points[0].x, 2);
   assert.equal(calculateProject(reopened).totals.total, before);
 });
+
+test('automatic plumbing and heating preserve the elbow direction and follow moved endpoints', () => {
+  for (const [system, kinds, medium] of [
+    ['plumbing', ['water-source', 'cold-outlet'], 'cold'],
+    ['heating', ['heat-manifold', 'radiator-point'], 'supply'],
+  ]) {
+    const project = createDefaultProject();
+    project.placement.items.push(
+      { id: 'source', floor: 1, layer: system, kind: kinds[0], x: 1, y: 1, height: .5 },
+      { id: 'target', floor: 1, layer: system, kind: kinds[1], x: 4, y: 3, height: .8 },
+    );
+    project.placement.networks[system].push({
+      id: 'route', floor: 1, medium, fromId: 'source', toId: 'target', auto: true, routeLevel: 1.2,
+      points: [{ x: 1, y: 1, z: .5 }, { x: 4, y: 3, z: .8 }],
+    });
+    const reopened = migrateProject(JSON.parse(JSON.stringify(project)));
+    const route = reopened.placement.networks[system][0];
+    const resolve = () => resolvedNetworkRoutes(reopened.placement, system, 1)[0].points;
+    assert.deepEqual(resolve()[2], { x: 4, y: 1, z: 1.2 });
+    route.bendAxis = 'y';
+    const resaved = migrateProject(JSON.parse(JSON.stringify(reopened)));
+    assert.equal(resaved.placement.networks[system][0].bendAxis, 'y');
+    assert.deepEqual(resolve()[2], { x: 1, y: 3, z: 1.2 });
+    reopened.placement.items.find(item => item.id === 'target').y = 4;
+    assert.deepEqual(resolve()[2], { x: 1, y: 4, z: 1.2 });
+    assert.deepEqual(resolve().at(-1), { x: 4, y: 4, z: .8 });
+    route.points = resolve();
+    route.auto = false;
+    reopened.placement.items.find(item => item.id === 'target').y = 5;
+    assert.deepEqual(resolve()[2], { x: 1, y: 4, z: 1.2 });
+    assert.deepEqual(resolve().at(-1), { x: 4, y: 5, z: .8 });
+  }
+});
