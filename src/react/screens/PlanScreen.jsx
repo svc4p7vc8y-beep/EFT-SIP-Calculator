@@ -82,7 +82,7 @@ import {
   chooseDimensionSides,
   polygonArea,
 } from "../../calculations/plan-metrics.js";
-import { resolveRoofAxes, roofAxisLabel } from "../../calculations/roof-orientation.js";
+import { flatRoofSlopeDirection, resolveRoofAxes, roofAxisLabel } from "../../calculations/roof-orientation.js";
 import {
   calculateTerraceRoof,
   normalizeTerracePlatform,
@@ -820,12 +820,8 @@ function RectangularRoofPlanOverlay({ plan, roof, p }) {
   const bounds = boundsOf(contour);
   const overhang = Math.max(0, Number(roof.eaveOverhang) || 0);
   const shape = ["flat", "hip", "tiered"].includes(roof.shape) ? roof.shape : "gable";
-  const resolvedAxes = resolveRoofAxes(plan, roof);
-  const flatSlopeDirection = roof.flatSlopeDirection || "back";
-  const vertical =
-    shape === "flat"
-      ? ["left", "right"].includes(flatSlopeDirection)
-      : resolvedAxes.vertical;
+  const flatSlopeDirection = flatRoofSlopeDirection(roof);
+  const { vertical } = resolveRoofAxes(plan, { ...roof, flatSlopeDirection });
   const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
   const xOverhang =
     shape === "gable" ? (vertical ? overhang : gableOverhang) : overhang;
@@ -855,8 +851,8 @@ function RectangularRoofPlanOverlay({ plan, roof, p }) {
   const ridge = [p(ridgeA.x, ridgeA.y), p(ridgeB.x, ridgeB.y)];
   const arrowInset = Math.min(Math.max(0.3, Math.min(x2 - x1, y2 - y1) * 0.18), 1.5);
   const flatSlopeArrow = {
-    front: [p(centerX, y1 + arrowInset), p(centerX, y2 - arrowInset)],
-    back: [p(centerX, y2 - arrowInset), p(centerX, y1 + arrowInset)],
+    front: [p(centerX, y2 - arrowInset), p(centerX, y1 + arrowInset)],
+    back: [p(centerX, y1 + arrowInset), p(centerX, y2 - arrowInset)],
     left: [p(x2 - arrowInset, centerY), p(x1 + arrowInset, centerY)],
     right: [p(x1 + arrowInset, centerY), p(x2 - arrowInset, centerY)],
   }[flatSlopeDirection];

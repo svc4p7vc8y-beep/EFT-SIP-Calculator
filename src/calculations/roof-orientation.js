@@ -14,6 +14,10 @@ const dimensionBounds = (plan = {}) => {
   };
 };
 
+export function flatRoofSlopeDirection(roof = {}) {
+  return roof.flatParapetMode === 'open' ? roof.flatOpenSide || 'back' : roof.flatSlopeDirection || 'back';
+}
+
 export function resolveRoofAxes(plan = {}, roof = {}) {
   const { width, height } = dimensionBounds(plan);
   const flatSlopeDirection = ["front", "back", "left", "right"].includes(roof.flatSlopeDirection)

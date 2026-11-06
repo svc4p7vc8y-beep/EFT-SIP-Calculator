@@ -11,7 +11,7 @@ import {
   calculateWallCutLength,
   roofGeometry,
 } from "../../calculations/plan-metrics.js";
-import { resolveRoofAxes } from "../../calculations/roof-orientation.js";
+import { flatRoofSlopeDirection, resolveRoofAxes } from "../../calculations/roof-orientation.js";
 import { bearingEdges, partitionProfileShares } from './bearing-walls.js';
 import { clearGapPositions } from './clear-gap-framing.js';
 import { roofLathRows } from './roof-lathing.js';
@@ -1158,7 +1158,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
       mainVergeTrimPurchaseLength: 0,
     };
   const { roof } = project.settings;
-  const effectiveFlatDirection = roof.flatParapetMode === 'open' ? roof.flatOpenSide || 'back' : roof.flatSlopeDirection || 'back';
+  const effectiveFlatDirection = flatRoofSlopeDirection(roof);
   const axisPlan = footprint.included.length ? { house: { points: footprint.points } } : project.plan;
   const roofAxes = resolveRoofAxes(axisPlan, { ...roof, flatSlopeDirection: effectiveFlatDirection });
   const covering = roofCoveringSpec(roof.covering);
