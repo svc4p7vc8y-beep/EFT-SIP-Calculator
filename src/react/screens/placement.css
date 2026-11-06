@@ -524,3 +524,13 @@
   .placement-column-grip::after{content:"";position:absolute;inset:12px 4px;border-radius:4px;background:#b9cfc3}
   .placement-column-grip:hover::after,.placement-column-grip:focus-visible::after,.placement-column-grip:active::after{background:#4c816a}
 }
+
+.placement-pipe-equipment{margin:8px 0;padding:7px;border:1px solid #d7e5dc;border-radius:8px}
+.placement-pipe-equipment summary{cursor:pointer;font-weight:700}
+.placement-pipe-equipment label{grid-template-columns:minmax(0,1fr) 70px;align-items:center}
+.placement-boiler-connections label{grid-template-columns:minmax(0,1fr)}
+.placement-boiler-diagram{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px;margin:7px 0}
+.placement-boiler-diagram b{grid-row:1/3;align-self:center;padding:5px;background:#e8f1ec;border-radius:4px}
+.placement-boiler-diagram span{border-bottom:2px solid;color:#994429}
+.placement-boiler-diagram .return{color:#246488}
+.placement-network-custom-row{display:grid;grid-template-columns:minmax(0,1fr) 55px 50px auto;gap:4px;margin:5px 0}

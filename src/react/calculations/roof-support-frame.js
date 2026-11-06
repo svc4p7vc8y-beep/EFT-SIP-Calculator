@@ -56,7 +56,7 @@ export function roofSupportFrame(project,report,config={}) {
   while(breaks.at(-1)<L-.01){const from=breaks.at(-1),candidates=posts.map(p=>(p.x1-beam.x1)*ux+(p.y1-beam.y1)*uy).filter(x=>x>from+.1&&x-from<=maximum);const end=L-from<=maximum?L:candidates.at(-1);if(end==null)break;breaks.push(end);}
   if(breaks.at(-1)<L-.01){warnings.push(`${face?.name||beam.name}: нет стойки для стыка пояса в пределах длины заготовки.`);continue;}
   const chords=[];
-  for(let j=0;j<breaks.length-1;j++)for(const [suffix,z,type,title]of [['bottom',lowerZ,'beam','нижний пояс'],['top',upperZ,'purlin','верхний пояс']]){
+  for(let j=0;j<breaks.length-1;j++)for(const [suffix,z,type,title]of [['bottom',lowerZ,'sleeper','лежень (нижний пояс)'],['top',upperZ,'purlin','верхний пояс']]){
     const from=breaks[j],to=breaks[j+1],under=posts.filter(p=>{const x=(p.x1-beam.x1)*ux+(p.y1-beam.y1)*uy;return x>=from-.01&&x<=to+.01;});
     const piece={...(suffix==='bottom'?lowerShared:shared),id:`${id}-${suffix}${j||''}`,type,name:`Каркас ${i+1} · ${title} · участок ${j+1}`,flat:true,x1:beam.x1+ux*from,y1:beam.y1+uy*from,x2:beam.x1+ux*to,y2:beam.y1+uy*to,z1:z,z2:z,startSupport:suffix==='top'?under[0]?.id||'':'',endSupport:suffix==='top'?under.at(-1)?.id||'':'',foundationRef:''};
     chords.push(piece);for(const post of under)post[suffix==='top'?'upperSupport':'startSupport']=piece.id;

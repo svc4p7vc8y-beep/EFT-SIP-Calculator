@@ -57,7 +57,7 @@ export default function PlanRoofSupports({project,calculation,onSelect,onDraw,em
         current.settings.productionCutting.roofSupports=result.items;return current;
       });
       if(added.length===1)onSelect?.(items[0].planGroupId);
-      setMessage(`Добавлено групп опор: ${added.length}. Выберите цветную линию на плане. Пояса и стойки перемещаются вместе.`);
+      setMessage(`Добавлено групп опор: ${added.length}. Выберите цветную линию на плане. Прогоны, стойки и лежни перемещаются вместе. Материал показан в смете.`);
     }catch(error){setMessage(error.message);}finally{setBusy(false);}
   };
   const refreshHeaders=()=>{if(windowSupportHeaders({...project,settings:{...project.settings,productionCutting:{...project.settings.productionCutting,windowSupportHeaders:{...project.settings.productionCutting.windowSupportHeaders,enabled:true}}}}).items.length>200){setMessage('Превышен лимит 200 деталей опор. Существующие детали сохранены.');return;}commit(next=>{next.settings.productionCutting.windowSupportHeaders={bearingMm:150,...next.settings.productionCutting.windowSupportHeaders,enabled:true};next.settings.productionCutting.roofSupports=windowSupportHeaders(next).items;return next;});};
@@ -67,7 +67,7 @@ export default function PlanRoofSupports({project,calculation,onSelect,onDraw,em
     <button type="button" className="button primary" disabled={busy} onClick={add}>{busy?'Строю…':'Добавить прогон / ферму на план'}</button>
     {canSketch?<><button type="button" className="button secondary" disabled={busy} onClick={buildSketch}>{hasSketch?'Обновить схему опор коньков':'Показать схему опор коньков'}</button><p>Стойки, подкосы и лежни под коньками. Для лежней вне заданных несущих линий укажите рабочее основание. Схема видна в 3D и не входит в смету и раскрой.</p></>:null}
     {hasSketch?<button type="button" className="button secondary" disabled={busy} onClick={()=>commit(next=>{next.settings.productionCutting.roofSupports=next.settings.productionCutting.roofSupports.filter(item=>item.autoLayout!==ROOF_JUNCTION_SKETCH);return next;})}>Убрать схему опор коньков</button>:null}
-    <p>Сечения и раскладка берутся из существующих настроек каркаса. Размещение и смещение не являются проверкой прочности и пути нагрузки.</p>
+    <p>Проектные опоры с плана входят в смету по чистому объёму. Позиции без цены отмечены в ведомости. Сечения берутся из настроек каркаса. Размещение и смещение не являются проверкой прочности и пути нагрузки.</p>
     {groups.map(group=><div className="readout" key={group.id}><button type="button" className="button secondary" onClick={()=>onSelect?.(group.id)}>{group.name} · {group.members.length} деталей</button><button type="button" className="button secondary" onClick={()=>commit(next=>{const ids=new Set(group.members.map(item=>item.id));next.settings.productionCutting.roofSupports=windowSupportHeaders(next,next.settings.productionCutting.roofSupports.filter(item=>!ids.has(item.id))).items;return next;})}>Убрать</button></div>)}
     <p>Усиление над окном: 3 × 50×150 мм, опирание по 150 мм по умолчанию. Материал — чистый объём из текущего прайса; крепёж и рабочие узлы отдельно.</p>
     <NumberField label="Опирание усиления с каждой стороны" suffix="мм" min={1} max={1000} step={10} value={project.settings.productionCutting.windowSupportHeaders?.bearingMm??150} onChange={bearingMm=>commit(next=>{next.settings.productionCutting.windowSupportHeaders={...next.settings.productionCutting.windowSupportHeaders,bearingMm};return next;})}/>

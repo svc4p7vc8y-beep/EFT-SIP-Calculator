@@ -1,3 +1,5 @@
+import { addPipeBill, pipeEquipmentKind } from './placement-pipe-bill.js';
+import { orthogonalPipePath } from './placement-pipe-routing.js';
 export const NETWORK_SYSTEMS = {
   plumbing: { label: 'Водоснабжение', prefix: 'В', media: [{ id: 'cold', label: 'ХВС' }, { id: 'hot', label: 'ГВС' }, { id: 'recirculation', label: 'Рециркуляция ГВС' }] },
   heating: { label: 'Отопление', prefix: 'О', media: [{ id: 'supply', label: 'Подача' }, { id: 'return', label: 'Обратка' }] },
@@ -5,6 +7,7 @@ export const NETWORK_SYSTEMS = {
   ventilation: { label: 'Вентиляция', prefix: 'Вн', media: [{ id: 'supply-air', label: 'Приток' }, { id: 'extract-air', label: 'Вытяжка' }] },
 };
 
+export const isPipeSystem = system => system === "heating" || system === "plumbing";
 export const isNetworkLayer = layer => Boolean(NETWORK_SYSTEMS[layer]);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const optionalPositive = value => value === '' || value == null ? null : Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null;
@@ -25,6 +28,12 @@ export function normalizeNetworkRoutes(value) {
       fromId: typeof route.fromId === 'string' ? route.fromId : '',
       toId: typeof route.toId === 'string' ? route.toId : '',
       auto: route.auto === true,
+      routing: ['wall', 'orthogonal'].includes(route.routing) ? route.routing : 'legacy',
+      clearanceMm: Math.max(0, Math.min(300, finite(route.clearanceMm, 30))),
+      fastener: ['clip', 'clamp'].includes(route.fastener) ? route.fastener : '',
+      fastenerSpacingM: optionalPositive(route.fastenerSpacingM) == null ? null : Math.max(.05, Number(route.fastenerSpacingM)),
+      chainId: typeof route.chainId === 'string' ? route.chainId.slice(0, 120) : '',
+      bendFitting: route.bendFitting === 'sweep' ? 'sweep' : 'elbow',
       bendAxis: route.bendAxis === "y" ? "y" : "x",
       plane: ['wall', 'floor', 'ceiling', 'service'].includes(route.plane) ? route.plane : 'service',
       wallRef: typeof route.wallRef === 'string' ? route.wallRef : '',
@@ -52,7 +61,7 @@ export function proposedNetworkPoints(from, to, routeLevel = null, bendAxis = "x
   return points.filter((p, i) => i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y, p.z - points[i - 1].z) > .001);
 }
 
-export function resolvedNetworkRoutes(placement, system, floor) {
+export function resolvedNetworkRoutes(placement, system, floor, plan = null) {
   if (!isNetworkLayer(system)) return [];
   const items = (placement?.items || []).filter(item => item.floor === floor);
   return (placement?.networks?.[system] || []).filter(route => route.floor === floor).map(route => {
@@ -60,6 +69,15 @@ export function resolvedNetworkRoutes(placement, system, floor) {
     const to = items.find(item => item.id === route.toId);
     if (!from || !to) return null;
     const wallRef = from.wallRef && from.wallRef === to.wallRef ? from.wallRef : '';
+    if (isPipeSystem(system) && ['wall', 'orthogonal'].includes(route.routing)) {
+      const anchors = route.auto
+        ? proposedNetworkPoints(from, to, route.routeLevel, route.bendAxis).filter((p, i, all) =>
+            i === 0 || i === all.length - 1 || (p.x === from.x && p.y === from.y) || (p.x === to.x && p.y === to.y))
+        : [point(from), ...route.points.slice(1, -1), point(to)];
+      const options = { first: route.bendAxis, alongWall: route.auto && route.routing === 'wall', clearanceMm: route.clearanceMm, keepWaypoints: !route.auto };
+      const points = orthogonalPipePath(anchors, { ...options, plan });
+      return { ...route, wallRef, points: points || orthogonalPipePath(anchors, { ...options, alongWall: false }), outsideContour: !points };
+    }
     if (route.auto) {
       const points = proposedNetworkPoints(from, to, system === 'sewer' ? null : route.routeLevel, route.bendAxis);
       if (system === 'sewer' && route.medium === 'waste') {
@@ -99,8 +117,8 @@ export function routeBends(points) {
   return bends;
 }
 
-export function networkBill(placement, system, floor) {
-  const routes = resolvedNetworkRoutes(placement, system, floor);
+export function networkBill(placement, system, floor, plan = null) {
+  const routes = resolvedNetworkRoutes(placement, system, floor, plan);
   const items = (placement?.items || []).filter(item => item.floor === floor && item.layer === system);
   const totals = Object.fromEntries(NETWORK_SYSTEMS[system].media.map(entry => [entry.id, round(routes.filter(route => route.medium === entry.id).reduce((sum, route) => sum + networkLength3d(route.points), 0))]));
   const pipeRows = [];
@@ -118,6 +136,7 @@ export function networkBill(placement, system, floor) {
     const toItem = items.find(item => item.id === route.toId);
     const name = `${fromItem?.label || 'Источник'} → ${toItem?.label || 'Точка'}`;
     if ([fromItem, toItem].some(item => item && (item.heightKnown === false || (item.heightKnown !== true && !finite(item.height))))) issues.push(`${name}: высота точки не задана; вертикальная длина предварительна`);
+    if (route.outsideContour) issues.push(`${name}: трасса выходит за контур. Укажите дополнительные повороты.`);
     if ((!route.diameterMm && !(route.widthMm && route.heightMm)) || !route.material) issues.push(`${name}: материал или размер не задан`);
     if (system === 'sewer' && route.medium === 'waste') {
       if (!route.slopePermille) issues.push(`${name}: уклон не задан`);
@@ -136,10 +155,17 @@ export function networkBill(placement, system, floor) {
     if (existing) existing.quantity += quantity;
     else components.push({ name, quantity, unit });
   };
-  items.filter(item => item.kind !== 'connection-port').forEach(item => addComponent(item.label || item.kind, 1));
+  const equipment = system === 'heating' ? (placement?.items || []).filter(item => item.floor === floor && pipeEquipmentKind(item)) : [];
+  const countedTee = isPipeSystem(system) ? addPipeBill(routes, equipment, addComponent, issues) : () => false;
+  items.filter(item => item.kind !== 'connection-port' && (!['heat-tee', 'water-tee'].includes(item.kind) || !countedTee(item)))
+    .forEach(item => addComponent(item.label || item.kind, 1));
   routes.forEach(route => (route.accessories || []).filter(entry => entry.name.trim()).forEach(entry => addComponent(entry.name.trim(), entry.quantity, entry.unit)));
+  if (system === 'heating') equipment.filter(item => item.layer !== system).forEach(item => addComponent(item.label || item.kind, 1));
+  for (const row of placement?.networkCustomRows?.[system + '-' + floor] || []) {
+    if (String(row.name || '').trim() && Number(row.quantity) > 0) addComponent(row.name.trim(), Number(row.quantity), row.unit || 'шт');
+  }
   return {
-    routes, items, totals, pipeRows, components,
+    routes, items, totals, pipeRows, components, equipment,
     totalLength: round(routes.reduce((sum, route) => sum + networkLength3d(route.points), 0)),
     bends: routes.reduce((sum, route) => sum + routeBends(route.points), 0),
     unconnected: items.filter(item => !connected.has(item.id)),

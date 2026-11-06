@@ -2950,7 +2950,7 @@ function PlanCanvas({
             </g>
           ))
         : null}
-      {(visibleLayers.plan||visibleLayers.roof)?roofSupportGroups.map(group=>{
+      {visibleLayers.roof?roofSupportGroups.map(group=>{
         const moved=gesture?.type==='roofSupport'&&gesture.id===group.id,dx=moved?gesture.end.x-gesture.start.x:0,dy=moved?gesture.end.y-gesture.start.y:0;
         const a=p(group.a.x+dx,group.a.y+dy),b=p(group.b.x+dx,group.b.y+dy);
         return <g key={group.id} className="planner-object" data-roof-support-group={group.id} onPointerDown={event=>objectDown(event,'roofSupport',group.id)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><line pointerEvents="none" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={selected?.type==='roofSupport'&&selected.id===group.id?'#a44cdd':'#4866bf'} strokeWidth="7" strokeDasharray="14 5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-10} fontSize="14" fill="#263e87" stroke="#fff" strokeWidth="3" paintOrder="stroke" pointerEvents="none">{group.name}</text></g>;

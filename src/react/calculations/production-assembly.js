@@ -1,3 +1,4 @@
+import { planSupportMaterials } from './plan-support-materials.js';
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { bearingEdges } from './bearing-walls.js';
 import { roofDrawingData } from './roof-drawings.js';
@@ -136,7 +137,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     else issues.push('Контробрешётка: укажите проектное сечение в исходных данных раскроя. Материалы не добавлены автоматически.');
   }
   const supports=[],ids=new Set();
-  for(const [i,item] of settings.roofSupports.entries()){
+  for(const [i,item] of planSupportMaterials(project, settings.roofSupports).entries()){
     if(!roofSupportMatchesSystem(item,frame.system))continue;
     const mark=`ОП-${i+1}`;
     if(ids.has(item.id)){issues.push(`${mark}: повторяется идентификатор опоры.`);continue;}ids.add(item.id);
@@ -288,7 +289,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   if (rectangular) {
     const layout = layeredFrameLayout(project, calculation, bounds, axis, settings.stockLengthMm);
     for (const item of layout.items) {
-      const type = item.role === 'purlin' ? 'purlin' : item.role === 'post' ? 'post' : 'beam';
+      const type = item.role === 'purlin' ? 'purlin' : item.role === 'post' ? 'post' : 'sleeper';
       assembly.supports.push({ ...item, type, mark: item.id, a: item.a, b: item.b,
         flat: item.flat, normal: item.role === 'post' ? [0, 1, 0] : [0, 0, 1], referenceOnly: false,
         loadPath: { complete: false, text: 'Опирание на несущие стены и фундамент не подтверждено' } });

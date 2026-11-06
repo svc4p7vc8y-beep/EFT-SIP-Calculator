@@ -219,6 +219,8 @@ export function normalizePlacement(value) {
       floor: Math.max(1, Math.min(2, Math.round(finite(item.floor, 1)))),
       x: finite(item.x), y: finite(item.y),
       ...(item.kind === 'junction-box' ? { diagramX: finite(item.diagramX, finite(item.x)), diagramY: finite(item.diagramY, finite(item.y)) } : {}),
+      ...(typeof item.pipeModel === 'string' ? { pipeModel: item.pipeModel.slice(0, 100) } : {}),
+      ...(Array.isArray(item.pipeKit) ? { pipeKit: item.pipeKit.slice(0, 20).map(qty => Math.min(10000, Math.max(0, Math.floor(finite(qty))))) } : {}),
       width: Math.max(.05, finite(item.width, .5)),
       depth: Math.max(.05, finite(item.depth, .5)),
       rotation: finite(item.rotation),
@@ -270,6 +272,9 @@ export function normalizePlacement(value) {
       edgeIndex: typeof dimension.roomId === 'string' && dimension.roomId ? Math.max(-1, Math.round(finite(dimension.edgeIndex, -1))) : -1,
       mode: ['free', 'horizontal', 'vertical'].includes(dimension.mode) ? dimension.mode : 'free',
     })),
+    networkCustomRows: Object.fromEntries(Object.entries(value.networkCustomRows || {}).filter(([key, rows]) => /^(heating|plumbing|sewer|ventilation)-[12]$/.test(key) && Array.isArray(rows)).map(([key, rows]) => [key,
+      rows.filter(row => row && typeof row.id === 'string').slice(0, 200).map(row => ({ id: row.id, name: String(row.name || '').slice(0, 120), quantity: Math.max(0, finite(row.quantity)), unit: String(row.unit || 'шт').slice(0, 20) })),
+    ])),
     networks: normalizeNetworkRoutes(value.networks),
   };
   if (Number(value.version || 0) < 4) normalized.items = addMissingConnectionPorts(normalized.items);

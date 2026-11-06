@@ -1,10 +1,11 @@
+import { planSupportMaterials, supportCatalog } from './plan-support-materials.js';
 import { roofSupportMatchesSystem } from '../state/auto-roof-supports.js';
 
-// Opt-in project elements only; existing generated roof material is never replaced.
+// Plan groups are included by geometry; other project supports keep their opt-in setting.
 export function productionEstimateLines(project,system=project.settings?.roof?.structureMode==='manual'?project.settings.roof.rafterSystem:null) {
- const supports=project.settings?.productionCutting?.roofSupports||[],seen=new Set(),lines=[];
+ const supports=planSupportMaterials(project),seen=new Set(),lines=[];
  for(const item of supports){
-  if(!roofSupportMatchesSystem(item,system)||!item.estimateEnabled||item.referenceOnly||item.type==='foundation'||seen.has(item.id))continue;
+  if(!roofSupportMatchesSystem(item,system)||(!item.estimateEnabled&&!item.planGroupId)||item.referenceOnly||item.type==='foundation'||seen.has(item.id))continue;
   seen.add(item.id);
   const coords=['x1','y1','z1','x2','y2','z2'].map(k=>item[k]===''?NaN:Number(item[k]));
   const section=String(item.profile).split(/[×xх]/).map(Number);
@@ -12,10 +13,12 @@ export function productionEstimateLines(project,system=project.settings?.roof?.s
   const length=Math.hypot(coords[3]-coords[0],coords[4]-coords[1],coords[5]-coords[2])/1000;
   if(!(length>0))continue;
   if(item.type==='post'&&(coords[0]!==coords[3]||coords[1]!==coords[4]||coords[5]<=coords[2]))continue;
-  const catalog=(project.priceMat||[]).find(row=>row.id===item.estimateCatalogId);
-  if(!catalog||!['м³','м3','м.п.','м'].includes(catalog.unit))continue;
-  const qty=Math.ceil((['м³','м3'].includes(catalog.unit)?length*section[0]*section[1]/1e6:length)*1e6)/1e6;
-  lines.push({id:`production-support-${item.id}`,section:'roof',catalogId:catalog.id,name:`${item.name||'Проектный элемент'} · ${item.profile} · ${Math.round(length*1000)} мм`,kind:'material',unit:catalog.unit,qty,price:Number(catalog.price)||0,pricePending:!(Number(catalog.price)>0),source:'Проектные элементы · чистый объём без запаса'});
+  const catalog = item.planGroupId ? supportCatalog(project, item.profile, item.estimateCatalogId)
+    : (project.priceMat || []).find(row => row.id === item.estimateCatalogId);
+  if (!item.planGroupId && (!catalog || !['м³', 'м3', 'м.п.', 'м'].includes(catalog.unit))) continue;
+  const unit = catalog?.unit || 'м³';
+  const qty=Math.ceil((['м³','м3'].includes(unit)?length*section[0]*section[1]/1e6:length)*1e6)/1e6;
+  lines.push({id:`production-support-${item.id}`,section:'roof',catalogId:catalog?.id,name:`${item.name||'Проектный элемент'} · ${item.profile} · ${Math.round(length*1000)} мм`,kind:'material',unit,qty,price:Number(catalog?.price)||0,pricePending:!(Number(catalog?.price)>0),source:'Проектные элементы · чистый объём без запаса'});
  }
  for(const item of project.settings?.productionCutting?.manualParts||[]){
   if(!item.estimateEnabled||seen.has(`manual-${item.id}`))continue;

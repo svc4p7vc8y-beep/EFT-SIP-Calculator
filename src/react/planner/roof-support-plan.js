@@ -36,5 +36,5 @@ export function movePlanRoofGroup(items,groupId,dx,dy,roofModel=null) {
     const old=roofAt(roofModel,x,y),next=roofAt(roofModel,x+mx,y+my);
     return old.length&&next.length?Math.round(Math.max(...next.map(hit=>hit.z))-Math.max(...old.map(hit=>hit.z))):0;
   };
-  return items.map(item=>ids.has(item.id)?{...item,x1:Number(item.x1)+mx,y1:Number(item.y1)+my,z1:Number(item.z1)+delta(Number(item.x1),Number(item.y1),Number(item.z1)),x2:Number(item.x2)+mx,y2:Number(item.y2)+my,z2:Number(item.z2)+delta(Number(item.x2),Number(item.y2),Number(item.z2)),autoLocked:true}:item);
+  return items.map(item=>ids.has(item.id)?{...item,x1:Number(item.x1)+mx,y1:Number(item.y1)+my,z1:Number(item.z1)+(item.type==='post'||item.type==='sleeper'||(item.frameGroup&&item.flat&&item.type==='beam')?0:delta(Number(item.x1),Number(item.y1),Number(item.z1))),x2:Number(item.x2)+mx,y2:Number(item.y2)+my,z2:Number(item.z2)+(item.type==='sleeper'||(item.frameGroup&&item.flat&&item.type==='beam')?0:delta(Number(item.x2),Number(item.y2),Number(item.z2))),autoLocked:true}:item);
 }
