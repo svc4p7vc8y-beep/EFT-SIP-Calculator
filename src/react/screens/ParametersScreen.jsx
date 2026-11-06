@@ -1135,7 +1135,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "reinforced", label: "Усиленный · шаг 625 мм" },
                 ],
               },
-              project.settings.roof.shape === "gable" && {
+              ['gable','hip'].includes(project.settings.roof.shape) && {
                 path: "settings.roof.ridgeHeight",
                 label: "Высота конька",
                 suffix: "м",

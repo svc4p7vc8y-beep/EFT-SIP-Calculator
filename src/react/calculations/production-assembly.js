@@ -17,7 +17,7 @@ import { layeredFrameLayout } from './layered-frame.js';
 import { roofLathRows } from './roof-lathing.js';
 import { flatRoofFrame } from './flat-roof-frame.js';
 
-export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',foundation:'Опора фундамента'};
+export const ASSEMBLY_TYPES={purlin:'Прогон',post:'Стойка опоры',beam:'Несущая балка',rafter:'Дополнительное стропило',brace:'Подкос',tie:'Затяжка',sleeper:'Лежень',sprengel:'Шпренгель',foundation:'Опора фундамента'};
 export const productionMark=id=>id&&typeof id==='object'?(id.displayMark||productionMark(id.id)):String(id).replace(/-P(\d+)/g,'-П$1').replace(/-upperFirst/g,'-ВЕРХ-1').replace(/-upperSecond/g,'-ВЕРХ-2').replace(/-lowerFirst/g,'-НИЗ-1').replace(/-lowerSecond/g,'-НИЗ-2').replace(/-inner/g,'-ВНУТР').replace(/-С(\d+)-(left|right)-[\d.]+$/,(_,index,side)=>`-СТП${index}-${side==='left'?'Л':'П'}`);
 export const productionFamily=family=>({'pps':'ППС','mineral-wool':'Минвата','csp-pps':'ЦСП / ППС'}[family]||family);
 const mm=value=>Math.round(Number(value)*1000);
@@ -232,6 +232,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     if(unresolved)issues.push(`Опирание на мауэрлат не подтверждено для ${unresolved} стропил: нет пересечения, есть зазор или врезка превышает 50 мм.`);
   }
   const roofSourceKey=roofGeometrySignature(assembly.roofModel);
+  for(const item of supports)if(item.roofJunctionSketch)item.staleRoofSketch=item.roofSourceKey!==roofSourceKey||project.settings.roof.type!=='cold';
   for(const item of settings.roofSupports)if(item.roofSourceKey&&item.roofSourceKey!==roofSourceKey)issues.push(`${item.name||item.id}: кровля изменилась после авторасстановки. Проверьте координаты, опирание и повторите расстановку; ручная правка сохранена.`);
   const fullyWarmMain=project.settings.roof.type==='sip'||project.settings.roof.type==='combo'&&Number(project.settings.roof.warmPercent)>=100;
   const plainSipGable=project.services.roof&&fullyWarmMain&&roof.mainRoofShape==='gable'&&rectangular&&!settings.roofDesign.manualFaces?.length&&(settings.roofDesign.baseZ===''||settings.roofDesign.baseZ==null);

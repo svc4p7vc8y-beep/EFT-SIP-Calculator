@@ -120,7 +120,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
   };
   const beams=[...roofAxonometricLines(assembly).map(m=>({...m,layer:'rafters',endCutOutline:report.settings.rafterEndCuts?rafterEndOutline(m.a,m.b,Number(m.profile.split(/[×xх]/)[1]))?.outline:null,a:[m.a[0],m.a[1],m.a[2]+roofBase],b:[m.b[0],m.b[1],m.b[2]+roofBase]})),
     ...(assembly.roofTimbers||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'roofTimbers')),...(assembly.laths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'laths')),...(assembly.counterLaths||[]).filter(m=>!m.excluded).flatMap(m=>detail(m,'counterLaths')),
-    ...assembly.supports.filter(m=>!m.referenceOnly||m.trussTemplate).map(m=>({...m,id:m.mark,layer:m.trussTemplate?'trussTemplates':'supports'})),...binding];
+    ...assembly.supports.filter(m=>!m.referenceOnly||m.trussTemplate||m.roofJunctionSketch&&!m.staleRoofSketch).map(m=>({...m,id:m.mark,layer:m.trussTemplate?'trussTemplates':'supports'})),...binding];
   const bearingPoints=[...assembly.rafters,...(assembly.roofTimbers||[]).filter(item=>item.roofMemberKind==='hip'||item.roofMemberKind==='flat-frame-chord')]
     .filter(item=>!item.excluded&&item.bearingStatus==='geometry-only'&&item.bearingPoint)
     .map(item=>({id:item.id,mauerlatId:item.bearingMauerlatId,point:item.bearingPoint}));

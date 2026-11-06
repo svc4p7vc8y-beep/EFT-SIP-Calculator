@@ -4,6 +4,8 @@ import { createDefaultProject, migrateProject } from '../src/react/state/project
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 import { calculateProductionCutting } from '../src/react/calculations/production-cutting.js';
 import { roofAt } from '../src/react/calculations/roof-project.js';
+import { roofJunctionSketch } from '../src/react/calculations/roof-junction-sketch.js';
+import { productionScene } from '../src/react/calculations/production-scene.js';
 
 const L = [[0, 0], [10, 0], [10, 4], [4, 4], [4, 8], [0, 8]];
 const project = (shape, type = 'cold', points = L) => {
@@ -160,4 +162,43 @@ test('a detached terrace stays outside the shared roof and receives a diagnostic
   assert.deepEqual(calculation.roof.footprint.included, []);
   assert.ok(report.assembly.roofModel.issues.some(issue => issue.code === 'ROOF_SHARED_FOOTPRINT' && issue.target === 'deck'));
   assert.equal(roofAt(report.assembly.roofModel, -4000, 3700).length, 0);
+});
+
+const skewedL = [[0,0],[10,0],[10,5],[3,5],[3,9.23],[0,9]];
+const wideT = [[0,0],[10,0],[10,4],[9,4],[9,5],[1,5],[1,4],[0,4]];
+for (const shape of ['gable','hip']) for (const [form,points] of [['L',skewedL],['T',wideT]]) {
+  test(`${form} ${shape} has perpendicular ridges at the same height and jack rafters in both wings`,()=>{
+    const p=project(shape,'cold',points);
+    Object.assign(p.settings.roof,{ridgeHeight:1.8,eaveOverhang:.5,gableOverhang:.3});
+    const {report}=run(p),{roofModel,roofTimbers,rafters}=report.assembly;
+    const ridges=roofModel.edges.filter(e=>e.kind==='ridge');
+    assert.ok(ridges.some(e=>Math.abs(e.a[0]-e.b[0])>100));
+    assert.ok(ridges.some(e=>Math.abs(e.a[1]-e.b[1])>100));
+    assert.ok(ridges.every(e=>[e.a,e.b].every(v=>Math.abs(v[2]-roofModel.roofBase-1800)<.001)));
+    assert.ok(roofTimbers.some(member=>member.roofMemberKind==='valley'));
+    if(shape==='hip')assert.ok(roofTimbers.some(member=>member.roofMemberKind==='hip'));
+    assert.ok(rafters.some(r=>r.rafterKind==='jack'&&Math.abs(r.a[0]-r.b[0])>100));
+    assert.ok(rafters.some(r=>r.rafterKind==='jack'&&Math.abs(r.a[1]-r.b[1])>100));
+    assert.ok(roofModel.issues.every(issue=>!roofGeometryErrors.has(issue.code)));
+  });
+}
+
+test('junction sketch appears in 3D once, skips an opening and leaves estimate and fabrication unchanged',()=>{
+  const p=project('gable','cold',skewedL);
+  p.plan.openings=[{id:'ridge-end-window',type:'window',orientation:'v',x:10,y:2.5,width:1,height:1}];
+  const {calculation,report}=run(p);
+  const sketch=roofJunctionSketch(p,calculation,report);
+  assert.ok(sketch.skippedOpenings>0);
+  const posts=sketch.items.filter(item=>item.type==='post');
+  assert.ok(posts.length>=2);
+  assert.equal(new Set(posts.map(item=>`${item.x1},${item.y1}`)).size,posts.length);
+  assert.ok(sketch.items.some(item=>item.type==='brace'));
+  p.settings.productionCutting.roofSupports=sketch.items;
+  const reopened=migrateProject(JSON.parse(JSON.stringify(p)));
+  const saved=run(reopened);
+  assert.deepEqual(saved.calculation.totals,calculation.totals);
+  assert.deepEqual(saved.report.members.map(m=>m.id),report.members.map(m=>m.id));
+  assert.equal(productionScene(saved.report,reopened).beams.filter(b=>b.roofJunctionSketch).length,sketch.items.length);
+  reopened.settings.roof.ridgeHeight+=.2;
+  assert.equal(productionScene(run(reopened).report,reopened).beams.filter(b=>b.roofJunctionSketch).length,0);
 });

@@ -33,6 +33,23 @@ function withoutBays(contour) {
   return count - drop.size >= 3 ? contour.filter((_,i)=>!drop.has(i)) : contour;
 }
 
+// Recognize a hand-drawn L/T with slightly skewed wall ends. These points
+// locate ridges; the original outline still bounds the actual roof.
+function orthogonalGuide(points) {
+  if (![6,8].includes(points.length)) return points;
+  const axes = points.map((a,i) => {
+    const b = points[(i+1)%points.length], dx = Math.abs(b.x-a.x), dy = Math.abs(b.y-a.y);
+    if (Math.min(dx,dy) > Math.min(.35,Math.max(dx,dy)*.08)) return null;
+    return dx>dy?'y':'x';
+  });
+  if (axes.some((axis,i)=>!axis||axis===axes[(i+1)%axes.length])) return points;
+  return points.map((p,i)=>{
+    const axis=axes[i], previous=points[(i+points.length-1)%points.length], next=points[(i+1)%points.length];
+    const other=axis==='x'?'y':'x';
+    return {[axis]:(p[axis]+next[axis])/2,[other]:(p[other]+previous[other])/2};
+  });
+}
+
 function clipHalfPlane(points, plane) {
   return points.flatMap((a, i) => {
     const b = points[(i + 1) % points.length];
@@ -89,12 +106,17 @@ function teeFrame(points, shape, eave, gable, footprint = points) {
       return p.y === tip && q.y === tip || p.x === q.x && trunk.includes(p.x) ? end : eave;
     }));
     const center = (front + shoulder) / 2;
-    const wingFactor = Math.min(1, (shoulder - front) / (wing[1] - wing[0]));
+    const rise = (shoulder - front) / 2;
+    const wingCenter = (wing[0] + wing[1]) / 2;
+    const wingFactor = 2 * rise / (wing[1] - wing[0]);
     const trunkPlanes = [[0, 1, -front], [0, -1, shoulder]];
     const wingPlanes = [[1, 0, -wing[0]], [-1, 0, wing[1]]];
     if (hip) {
-      trunkPlanes.push([1, 0, -trunk[0]], [-1, 0, trunk[1]]);
-      wingPlanes.push([0, -1, tip]);
+      const left = rise / Math.min(rise,wingCenter-trunk[0]);
+      const right = rise / Math.min(rise,trunk[1]-wingCenter);
+      trunkPlanes.push([left, 0, -trunk[0]*left], [-right, 0, trunk[1]*right]);
+      const tipSlope = Math.max(1,(wing[1]-wing[0])/(shoulder+tip-2*center));
+      wingPlanes.push([0, -tipSlope, tip*tipSlope]);
     }
     const trunkRegions = lowerRegions(trunkPlanes);
     const wingRegions = lowerRegions(wingPlanes.map(plane => plane.map(n => n * wingFactor)));
@@ -105,7 +127,7 @@ function teeFrame(points, shape, eave, gable, footprint = points) {
       else regions.push([main, [...limits, difference(branch, main)]], [branch, [...limits, difference(main, branch)]]);
     }
     const restore = p => transpose ? { x: sign * p.y, y: p.x, z: p.z } : { x: p.x, y: sign * p.y, z: p.z };
-    return { facets: envelope(outline, regions).map(f => ({ vertices: f.vertices.map(restore) })), rise: (shoulder - front) / 2 };
+    return { facets: envelope(outline, regions).map(f => ({ vertices: f.vertices.map(restore) })), rise };
   }
   return null;
 }
@@ -114,9 +136,10 @@ export function pitchedContourRoof(points, { shape, axis, eave, gable, ridgeHeig
   const clean = clipping.union(ring(points));
   if (clean.length !== 1 || clean[0].length !== 1) throw new Error('Для крыши нужен единый внешний контур.');
   const contour = clean[0][0].slice(0, -1).map(([x, y]) => ({ x, y }));
-  const simple = withoutBays(contour);
+  const guide = withoutBays(contour);
+  const simple = orthogonalGuide(guide);
   const bounds = boundsOf(simple);
-  const l = lRoofFrame(simple.length===contour.length ? points : simple, shape);
+  const l = lRoofFrame(guide.length===contour.length && guide.every((p,i)=>p.x===simple[i].x&&p.y===simple[i].y) ? points : simple, shape);
   let frame;
   if (l) {
     const missing = [[bounds.x, bounds.y], [bounds.x2, bounds.y], [bounds.x, bounds.y2], [bounds.x2, bounds.y2]]
@@ -125,11 +148,8 @@ export function pitchedContourRoof(points, { shape, axis, eave, gable, ridgeHeig
       const q = points[(i + 1) % points.length];
       return shape === 'gable' && (p.x === missing[0] && q.x === missing[0] || p.y === missing[1] && q.y === missing[1]) ? gable : eave;
     }));
-    const extended = eave || gable ? lRoofFrame(extend(simple), shape) : l;
-    if (extended) frame = {
-      facets: contour.length === simple.length ? extended.facets : envelope(extend(contour), extended.regions),
-      rise: extended.maxHeight - eave, offset: eave,
-    };
+    const sameOutline = contour.length===simple.length && contour.every((p,i)=>p.x===simple[i].x&&p.y===simple[i].y);
+    frame = { facets: !eave&&!gable&&sameOutline ? l.facets : envelope(extend(contour),l.regions), rise: 1 };
   }
   frame ||= teeFrame(simple, shape, eave, gable, contour);
   if (!frame && shape === 'hip') {
@@ -151,6 +171,6 @@ export function pitchedContourRoof(points, { shape, axis, eave, gable, ridgeHeig
   }
   if (!frame.facets.length || !(frame.rise > EPS)) throw new Error('Не удалось построить скаты по контуру.');
   return { facets: frame.facets.map(f => ({ vertices: f.vertices.map(p => ({
-    ...p, z: (p.z - (frame.offset || 0)) * ridgeHeight / frame.rise,
+    ...p, z: p.z * ridgeHeight / frame.rise,
   })) })) };
 }

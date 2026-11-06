@@ -1,3 +1,3 @@
 // Increment by one for each published calculator build.
-export const LAST_PUBLISHED_VERSION = 338;
-export const APP_VERSION = 339;
+export const LAST_PUBLISHED_VERSION = 339;
+export const APP_VERSION = 340;

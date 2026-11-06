@@ -74,7 +74,7 @@ export function normalizeProductionCutting(value = {}) {
     roofPlanLines:{enabled:value.roofPlanLines?.enabled===true,axis:value.roofPlanLines?.axis==='y'?'y':'x',lines:Array.isArray(value.roofPlanLines?.lines)?value.roofPlanLines.lines.slice(0,24).filter(line=>line&&['offset','start','end'].every(key=>Number.isFinite(Number(line[key])))).map((line,i)=>({id:String(line.id||`roof-line-${i+1}`).slice(0,100),offset:Number(line.offset),start:Number(line.start),end:Number(line.end)})):[]},
     roofSupports: Array.isArray(value.roofSupports) ? value.roofSupports.filter(item=>item && typeof item==='object').slice(0,200).map((item,index)=>({
       ...item,...(item.hasStableSourceId===false||!item.id?{hasStableSourceId:false}:{}),id:String(item.id||`support-${index+1}`),name:String(item.name||'').slice(0,200),
-      type:['purlin','post','beam','rafter','brace','tie','foundation'].includes(item.type)?item.type:'purlin',
+      type:['purlin','post','beam','rafter','brace','tie','sleeper','sprengel','foundation'].includes(item.type)?item.type:'purlin',
       profile:String(item.profile||'').slice(0,100),nodeRef:String(item.nodeRef||'').slice(0,200),
       ...(item.referenceOnly===undefined?{}:{referenceOnly:item.referenceOnly===true}),
       ...(item.estimateEnabled===undefined?{}:{estimateEnabled:item.estimateEnabled===true}),

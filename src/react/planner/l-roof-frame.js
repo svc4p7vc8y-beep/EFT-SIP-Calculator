@@ -15,7 +15,7 @@ function clip(poly, plane) {
 }
 const area = poly => Math.abs(poly.reduce((s,a,i) => {const b=poly[(i+1)%poly.length];return s+a.x*b.y-a.y*b.x;},0))/2;
 
-// Equal-pitch plan diagram for a six-corner orthogonal L footprint.
+// Both wings reach the same ridge level, with pitch proportional to their run.
 // No load-bearing design or purchasing quantities are inferred from this diagram.
 export function lRoofFrame(points, shape='gable', step=0.6, lathStep=0.35) {
   if (!['gable','hip'].includes(shape)) return null;
@@ -34,8 +34,10 @@ export function lRoofFrame(points, shape='gable', step=0.6, lathStep=0.35) {
   const ox=sx===1?minX:maxX,oy=sy===1?minY:maxY;
   const restore=p=>({x:ox+sx*p.x,y:oy+sy*p.y});
   const W=maxX-minX,H=maxY-minY,B=(corner.x-ox)*sx,A=(corner.y-oy)*sy;
-  const outer=[[1,0,0],[0,1,0],...(shape==='hip'?[[-1,0,W],[0,-1,H]]:[])];
-  const inner=[[-1,0,B],[0,-1,A]];
+  const xSlope=2/B,ySlope=2/A;
+  const xEnd=1/Math.min(A/2,W-B/2),yEnd=1/Math.min(B/2,H-A/2);
+  const outer=[[xSlope,0,0],[0,ySlope,0],...(shape==='hip'?[[-xEnd,0,W*xEnd],[0,-yEnd,H*yEnd]]:[])];
+  const inner=[[-xSlope,0,2],[0,-ySlope,2]];
   const rectangles=[[{x:0,y:0},{x:W,y:0},{x:W,y:A},{x:0,y:A}],[{x:0,y:A},{x:B,y:A},{x:B,y:H},{x:0,y:H}]];
   const height=p=>Math.min(...outer.map(q=>value(q,p)),Math.max(...inner.map(q=>value(q,p))));
   const inside=p=>p.x>EPS&&p.y>EPS&&p.x<W-EPS&&p.y<H-EPS&&(p.x<B-EPS||p.y<A-EPS);

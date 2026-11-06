@@ -15,7 +15,7 @@ export function roofFramingPoint(model,xy,{faceId='',mode='surface',offsetMm=0,f
 }
 
 export function roofFramingMember({id,type,profile,start,end,nodeRef='',name='',roofSourceKey=''}){
- if(!['rafter','purlin','beam','brace','tie','post'].includes(type))throw new Error('Неизвестный тип элемента каркаса.');
+ if(!['rafter','purlin','beam','brace','tie','post','sleeper','sprengel'].includes(type))throw new Error('Неизвестный тип элемента каркаса.');
  if(!/^\d+[×xх]\d+$/.test(profile)||profile.split(/[×xх]/).some(value=>Number(value)<=0))throw new Error('Задайте положительное сечение, например 50×150.');
  if(!start?.point?.every(finite)||!end?.point?.every(finite)||start.point.length!==3||end.point.length!==3)throw new Error('Задайте оба конца элемента XYZ.');
  const length=Math.hypot(...start.point.map((value,index)=>end.point[index]-value));

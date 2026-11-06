@@ -10,7 +10,7 @@ import {ASSEMBLY_TYPES} from '../calculations/production-assembly.js';
 import {changeSupportWithPosts} from '../calculations/assembly-placement.js';
 import {convexHipContour,hipEdgeKey} from '../calculations/hip-roof-geometry.js';
 const edgeNames={ridge:'Конёк',hip:'Накосный элемент',valley:'Ендова'};
-const frameTypes=['rafter','purlin','post','beam','brace','tie'];
+const frameTypes=['rafter','purlin','post','beam','brace','tie','sleeper','sprengel'];
 const source='https://www.sips.org/resources/design';
 const nextId=(items,prefix)=>{let i=1;while(items.some(item=>item.id===`${prefix}${i}`))i++;return `${prefix}${i}`;};
 const pressurePreview=(load,base)=>{const value=roofLoadCasePressure(load,base);return value==null?'нужны исходные нагрузки и коэффициенты':`${value.toFixed(3)} кПа`;};

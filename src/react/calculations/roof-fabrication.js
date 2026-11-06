@@ -30,7 +30,7 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
   if(f.structureHorizontal){issues.push(`${f.name}: для проектных скатов разуклонки верхнюю доску и нижний пояс задайте вручную.`);continue;}
   const xs=f.polygon.map(p=>p[0]),lo=Math.min(...xs),hi=Math.max(...xs);if(hi-lo<width)continue;
   let positions=clearGapPositions(lo+width/2,hi-width/2,width,gap);
-  if(f.group==='main'&&calculation.roof.mainRoofShape==='gable'&&!settings.roofDesign?.manualFaces?.length){
+  if(f.group==='main'&&calculation.roof.mainRoofShape==='gable'&&!calculation.roof.pitched&&!settings.roofDesign?.manualFaces?.length){
    const axis=calculation.roof.ridgeAxis==='y'?1:0,contour=houseContourPoints(project.upperFloors?.at(-1)||project.plan);
    const min=Math.min(...contour.map(p=>(axis?p.y:p.x)*1000)),max=Math.max(...contour.map(p=>(axis?p.y:p.x)*1000));
    const worldStations=positions.map(x=>roofWorld(f,[x,0])[axis]-min);
@@ -42,7 +42,7 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
   const faceRafters=[];
   if(positions.length>500||members.length>10000){issues.push(`${f.name}: превышен лимит деталей кровли, проверьте шаг.`);continue;}
   for(const x of positions)for(const [a,b]of roofLineIntervals(f.polygon,Math.max(lo+.001,Math.min(hi-.001,x)))){
-   if(b-a<width)continue;const A=roofWorld(f,[x,a]),B=roofWorld(f,[x,b]),id=`${f.id}-СТ${rafters.length+1}`,item={id,name:f.name,faceId:f.id,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(Math.hypot(...A.map((n,i)=>B[i]-n))),profile:section,normal:f.normal,...roofRafterDetail(model,A,B,section)};append(item,'Стропило',rafters);
+   if(b-a<width)continue;const A=roofWorld(f,[x,a]),B=roofWorld(f,[x,b]),id=`${f.id}-СТ${rafters.length+1}`,detail=roofRafterDetail(model,A,B,section),item={id,name:detail.rafterKind==='jack'?`Нарожник · ${f.name}`:f.name,faceId:f.id,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(Math.hypot(...A.map((n,i)=>B[i]-n))),profile:section,normal:f.normal,...detail};append(item,'Стропило',rafters);
    faceRafters.push({x,a,b});
   }
   if(calculation.roof.includeCovering||f.group?.startsWith('terrace:')){
@@ -61,14 +61,19 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
   }
  }
  const autoHipProfile=calculation.roof.mainRoofShape==='hip'&&(!settings.roofDesign.enabled||settings.roofDesign.hipGeometry?.mode==='contour')?section:'';
- for(const edge of model.edges.filter(e=>['ridge','hip','valley'].includes(e.kind))){const savedProfile=settings.roofDesign.edgeProfiles?.[edge.id],profile=savedProfile||autoHipProfile,cold=edge.faces.some(id=>model.faces.find(f=>f.id===id)?.warm===false);
-  if(edge.kind==='ridge'&&settings.roofFrameConfig?.replaceRidge&&settings.roofSupports.some(s=>s.autoLayout==='roof-support-frame'&&s.type==='purlin'))continue;
+ const contourProposal=calculation.roof.pitched&&!settings.roofDesign.manualFaces?.length;
+ for(const edge of model.edges.filter(e=>['ridge','hip','valley'].includes(e.kind))){const savedProfile=settings.roofDesign.edgeProfiles?.[edge.id],profile=savedProfile||autoHipProfile||(contourProposal?section:''),cold=edge.faces.some(id=>model.faces.find(f=>f.id===id)?.warm===false);
+  if(edge.kind==='ridge'&&!contourProposal&&settings.roofFrameConfig?.replaceRidge&&settings.roofSupports.some(s=>s.autoLayout==='roof-support-frame'&&s.type==='purlin'))continue;
   const saved=settings.roofDesign.edgeGeometry?.[edge.id];if(savedProfile&&saved&&saved!==roofEdgeSignature(edge)){issues.push(`${edge.id}: геометрия ребра изменилась; повторно задайте проектное сечение и узел.`);continue;}
   if(!cold)continue;if(!/^\d+×\d+$/.test(profile||'')){issues.push(`${edge.id}: задайте проектное сечение ${edge.kind==='ridge'?'конька':edge.kind==='valley'?'ендовы':'накосного элемента'}.`);continue;}
-  append({id:`КР-${edge.id}`,faceId:edge.faces[0],name:edge.kind==='ridge'?'Конёк':edge.kind==='valley'?'Ендова':'Накосное стропило',roofMemberKind:edge.kind,profileSource:savedProfile?'project-override':'rafter-section-proposal',a:edge.a.slice(0,2),b:edge.b.slice(0,2),worldA:edge.a,worldB:edge.b,length:Math.ceil(edge.length),profile},'Элемент ребра кровли',roofTimbers);
+  const item={id:`КР-${edge.id}`,faceId:edge.faces[0],name:edge.kind==='ridge'?'Коньковый прогон':edge.kind==='valley'?'Стропило ендовы':'Накосное стропило',roofMemberKind:edge.kind,profileSource:savedProfile?'project-override':'rafter-section-proposal',a:edge.a.slice(0,2),b:edge.b.slice(0,2),worldA:edge.a,worldB:edge.b,length:Math.ceil(edge.length),profile};
+  if(contourProposal&&!savedProfile){
+   roofTimbers.push({...item,referenceOnly:true});
+   issues.push(`${edge.id}: ${item.name.toLowerCase()} показан схематически; задайте рабочее сечение и узел.`);
+  }else append(item,'Элемент ребра кровли',roofTimbers);
  }
  const mauerlats=roofTimbers.filter(item=>item.name==='Мауэрлат'),unresolvedBearings=[];
- for(const item of includeWallPlate?[...rafters,...roofTimbers.filter(member=>member.roofMemberKind==='hip')]:[]){
+ for(const item of includeWallPlate?[...rafters,...roofTimbers.filter(member=>member.roofMemberKind==='hip'||member.roofMemberKind==='valley')]:[]){
   const candidates=mauerlats.flatMap(mauerlat=>{
    const hit=planIntersection(item.worldA,item.worldB,mauerlat.worldA,mauerlat.worldB);
    if(!hit)return [];

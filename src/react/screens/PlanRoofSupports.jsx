@@ -3,11 +3,30 @@ import {useProject} from '../state/ProjectContext.jsx';
 import {roofSupportPlanGroups,copyPlanRoofGroup} from '../planner/roof-support-plan.js';
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 import {NumberField} from '../components/ui.jsx';
+import {ROOF_JUNCTION_SKETCH,roofJunctionSketch} from '../calculations/roof-junction-sketch.js';
 
 export default function PlanRoofSupports({project,calculation,onSelect,onDraw,embedded=false}) {
   const {commit}=useProject();
   const [mode,setMode]=useState(()=>project.settings.roof.type==='sip'?'purlin':'frame'),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const groups=roofSupportPlanGroups(project.settings.productionCutting.roofSupports);
+  const canSketch=project.settings.roof.type==='cold' && calculation.roof.rafterStructure?.system!=='truss' && (calculation.roof.mainRoofShape==='hip'||calculation.roof.mainRoofShape==='gable'&&calculation.roof.pitched);
+  const hasSketch=project.settings.productionCutting.roofSupports.some(item=>item.autoLayout===ROOF_JUNCTION_SKETCH);
+  const buildSketch=async()=>{
+    setBusy(true);setMessage('Строю схему по конькам и диагоналям…');
+    try {
+      const {calculateProductionCutting}=await import('../calculations/production-cutting.js');
+      const report=calculateProductionCutting(project,calculation);
+      const {items,skippedOpenings}=roofJunctionSketch(project,calculation,report);
+      if(!items.length)throw new Error('Нет подходящих узлов для стоек. Проверьте сечения и расположение проёмов.');
+      if(project.settings.productionCutting.roofSupports.filter(item=>item.autoLayout!==ROOF_JUNCTION_SKETCH).length+items.length>200)throw new Error('Превышен лимит 200 элементов. Существующие опоры сохранены.');
+      commit(next=>{
+        const kept=next.settings.productionCutting.roofSupports.filter(item=>item.autoLayout!==ROOF_JUNCTION_SKETCH);
+        if(kept.length+items.length<=200)next.settings.productionCutting.roofSupports=[...kept,...items];
+        return next;
+      });
+      setMessage(`Схема в слое «Опоры» 3D. Элементов: ${items.length}.${skippedOpenings?` Пропущено над проёмами: ${skippedOpenings}.`:''}`);
+    } catch(error) { setMessage(error.message); } finally { setBusy(false); }
+  };
   const add=async()=>{
     setBusy(true);setMessage('Строю опору по текущей кровле…');
     try{
@@ -38,6 +57,8 @@ export default function PlanRoofSupports({project,calculation,onSelect,onDraw,em
     {onDraw&&(calculation.roof.layeredFrame?.items>0||project.settings.productionCutting.roofPlanLines?.enabled)?<><button type="button" className="button primary" onClick={onDraw}>Нарисовать / передвинуть линии на крыше</button><p>Автоматические рамы уже показаны синими линиями в слое «Крыша». Рисуйте новые линии и тяните круг на существующей. Подсказка показывает симметрию.</p></>:null}
     <label className="field">Добавляемая опора<select aria-label="Добавляемая опора" value={mode} onChange={event=>setMode(event.target.value)}><option value="frame">Опорный каркас под стропилами</option><option value="purlin">Прогон со стойками / ферма выбранной системы</option></select></label>
     <button type="button" className="button primary" disabled={busy} onClick={add}>{busy?'Строю…':'Добавить прогон / ферму на план'}</button>
+    {canSketch?<><button type="button" className="button secondary" disabled={busy} onClick={buildSketch}>{hasSketch?'Обновить схему опор коньков':'Показать схему опор коньков'}</button><p>Стойки под коньками и верхними узлами диагоналей, подкосы, лежни вдоль заданных несущих линий. Схема видна в 3D и не входит в смету и раскрой.</p></>:null}
+    {hasSketch?<button type="button" className="button secondary" disabled={busy} onClick={()=>commit(next=>{next.settings.productionCutting.roofSupports=next.settings.productionCutting.roofSupports.filter(item=>item.autoLayout!==ROOF_JUNCTION_SKETCH);return next;})}>Убрать схему опор коньков</button>:null}
     <p>Сечения и раскладка берутся из существующих настроек каркаса. Размещение и смещение не являются проверкой прочности и пути нагрузки.</p>
     {groups.map(group=><div className="readout" key={group.id}><button type="button" className="button secondary" onClick={()=>onSelect?.(group.id)}>{group.name} · {group.members.length} деталей</button><button type="button" className="button secondary" onClick={()=>commit(next=>{const ids=new Set(group.members.map(item=>item.id));next.settings.productionCutting.roofSupports=windowSupportHeaders(next,next.settings.productionCutting.roofSupports.filter(item=>!ids.has(item.id))).items;return next;})}>Убрать</button></div>)}
     <p>Усиление над окном: 3 × 50×150 мм, опирание по 150 мм по умолчанию. Материал — чистый объём из текущего прайса; крепёж и рабочие узлы отдельно.</p>
