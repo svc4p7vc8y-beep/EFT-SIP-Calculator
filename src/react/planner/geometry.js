@@ -387,10 +387,34 @@ const axialSegment = (a, b, source = {}) => {
   return { axis: 'd', a: { ...a }, b: { ...b }, start: 0, end: Math.hypot(b.x - a.x, b.y - a.y), ...source };
 };
 
+// A room edge may follow a bay's exterior wall only for part of its length.
+// Subtract those parallel intervals, rather than classifying the whole edge.
+// Perpendicular partition ends keep their saved axes and are not shortened.
+export function interiorEdgeFragments(plan, a, b, source = {}, innerCorners = houseInnerCorners(plan)) {
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  if (length <= .001) return [];
+  const ux = (b.x - a.x) / length, uy = (b.y - a.y) / length;
+  const contour = houseContourPoints(plan), wall = Number(plan.wallThickness) || .174;
+  const along = p => (p.x - a.x) * ux + (p.y - a.y) * uy;
+  let intervals = [[0, length]];
+  contour.forEach((p, i) => {
+    const q = contour[(i + 1) % contour.length], dx = q.x - p.x, dy = q.y - p.y, size = Math.hypot(dx, dy);
+    if (!size || Math.abs(ux * dy - uy * dx) / size > .001 || Math.abs(ux * (p.y - a.y) - uy * (p.x - a.x)) > wall + EPS) return;
+    const spans = [along(p), along(q)];
+    if (innerCorners.length === contour.length) spans.push(along(innerCorners[i]), along(innerCorners[(i + 1) % contour.length]));
+    const start = Math.min(...spans), end = Math.max(...spans);
+    intervals = intervals.flatMap(([lo, hi]) => end <= lo || start >= hi ? [[lo, hi]] : [[lo, Math.min(start, hi)], [Math.max(end, lo), hi]].filter(([x, y]) => y - x > .001));
+  });
+  return intervals.map(([lo, hi]) => axialSegment(
+    { x: roundCoord(a.x + ux * lo), y: roundCoord(a.y + uy * lo) },
+    { x: roundCoord(a.x + ux * hi), y: roundCoord(a.y + uy * hi) }, source));
+}
+
 export function roomWallSegments(plan) {
   if (plan.layoutMode === 'walls') return [];
   const wall = Number(plan.wallThickness) || 0.174;
   const contour = houseContourPoints(plan);
+  const innerCorners = houseInnerCorners(plan);
   const pointSegmentDistance = (point, a, b) => {
     const dx = b.x - a.x; const dy = b.y - a.y;
     const lengthSquared = dx * dx + dy * dy;
@@ -414,7 +438,7 @@ export function roomWallSegments(plan) {
         }
         return pointSegmentDistance(point, edgeStart, edgeEnd) <= wall + EPS && pointSegmentDistance(next, edgeStart, edgeEnd) <= wall + EPS;
       });
-      if (!outerFace) segments.push(segment);
+      if (!outerFace) segments.push(...interiorEdgeFragments(plan, point, next, { roomId: room.id, ref: segment.ref }, innerCorners));
     });
   }
   return segments;
@@ -450,7 +474,8 @@ export function partitionRuns(plan, rawAxes = false) {
     const distance=p=>{const t=Math.max(0,Math.min(1,((p.x-u.x)*dx+(p.y-u.y)*dy)/(l2||1)));return Math.hypot(p.x-u.x-t*dx,p.y-u.y-t*dy);};
     return distance(a)<=wall+EPS&&distance(b)<=wall+EPS;
   });
-  const lines = [...unifiedWallSegments(plan).map(lineEndpoints), ...(plan.walls || []).filter(w => w.include !== false).map(w => [{x:w.x1,y:w.y1},{x:w.x2,y:w.y2}]).filter(line=>!isOuter(line))];
+  const innerCorners = houseInnerCorners(plan);
+  const lines = [...unifiedWallSegments(plan).map(lineEndpoints), ...(plan.walls || []).filter(w => w.include !== false).map(w => [{x:w.x1,y:w.y1},{x:w.x2,y:w.y2}]).filter(line=>!isOuter(line)).flatMap(([a,b]) => interiorEdgeFragments(plan, a, b, {}, innerCorners).map(lineEndpoints))];
   for (const [a,b] of lines) {
     const length = Math.hypot(b.x-a.x,b.y-a.y); if (!(length > .0001)) continue;
     let ux=(b.x-a.x)/length, uy=(b.y-a.y)/length;
