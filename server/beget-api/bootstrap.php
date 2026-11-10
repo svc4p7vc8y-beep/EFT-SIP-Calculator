@@ -65,7 +65,7 @@ function eft_require_allowed_origin(): void {
 function eft_start_session(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
     session_name('EFTSID');
-    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'domain' => '.eftsip.ru', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax']);
+    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'domain' => (string)(eft_config()['cookie_domain'] ?? '.eftsip.ru'), 'secure' => true, 'httponly' => true, 'samesite' => 'Lax']);
     session_start();
 }
 
