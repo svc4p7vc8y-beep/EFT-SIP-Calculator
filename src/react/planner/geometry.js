@@ -123,7 +123,44 @@ export function houseInnerCorners(plan) {
   });
 }
 
-export function collectSnapAxes(plan, excludeRoomId, excludePlatformId) {
+export function partitionCornerTargets(plan, excludeRoomId) {
+  const source = excludeRoomId && plan.layoutMode !== 'walls' ? { ...plan, rooms: (plan.rooms || []).filter(room => room.id !== excludeRoomId) } : plan;
+  const lines = partitionRuns(source, true).map(([a, b]) => {
+    const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
+    return { a, b, dx, dy, length, half: partitionDepth(source, a, b) / 2 };
+  }).filter(line => line.length > .001);
+  const targets = [];
+  const add = (face, target) => targets.push({ x: roundCoord(face.x), y: roundCoord(face.y), target: { x: roundCoord(target.x), y: roundCoord(target.y) } });
+  for (const line of lines) for (const end of [line.a, line.b]) {
+    add(end, end);
+    for (const sign of [-1, 1]) add({ x: end.x - sign * line.dy / line.length * line.half, y: end.y + sign * line.dx / line.length * line.half }, end);
+  }
+  for (let i = 0; i < lines.length; i++) for (let j = i + 1; j < lines.length; j++) {
+    const a = lines[i], b = lines[j], cross = a.dx * b.dy - a.dy * b.dx;
+    if (Math.abs(cross) < .000001) continue;
+    const t = ((b.a.x - a.a.x) * b.dy - (b.a.y - a.a.y) * b.dx) / cross;
+    const u = ((b.a.x - a.a.x) * a.dy - (b.a.y - a.a.y) * a.dx) / cross;
+    if (t < -.0001 || t > 1.0001 || u < -.0001 || u > 1.0001) continue;
+    const node = { x: a.a.x + t * a.dx, y: a.a.y + t * a.dy };
+    add(node, node);
+    for (const sa of [-1, 1]) for (const sb of [-1, 1]) {
+      const p = { x: node.x - sa * a.dy / a.length * a.half, y: node.y + sa * a.dx / a.length * a.half };
+      const q = { x: node.x - sb * b.dy / b.length * b.half, y: node.y + sb * b.dx / b.length * b.half };
+      const ratio = ((q.x - p.x) * b.dy - (q.y - p.y) * b.dx) / cross;
+      add({ x: p.x + ratio * a.dx, y: p.y + ratio * a.dy }, node);
+    }
+  }
+  return targets;
+}
+
+// Geometry is in SVG units, but the capture radius must stay constant in CSS
+// pixels in a narrow pane, fullscreen, and after zooming.
+export function planSnapTolerances(modelScale, screenScale = 1, touch = false) {
+  const pixelsPerMetre = Math.max(.001, Number(modelScale) * Number(screenScale) || .001);
+  return { tolerance: (touch ? 16 : 10) / pixelsPerMetre, pointTolerance: (touch ? 24 : 16) / pixelsPerMetre };
+}
+
+export function collectSnapAxes(plan, excludeRoomId, excludePlatformId, options = {}) {
   const wall = Number(plan.wallThickness) || 0.174;
   const hasHouse = plan?.house?.contourDefined !== false;
   const xs = new Set(hasHouse ? [0, wall, plan.house.w - wall, plan.house.w] : []);
@@ -153,7 +190,7 @@ export function collectSnapAxes(plan, excludeRoomId, excludePlatformId) {
     addPoint({ x: platform.x + platform.w, y: platform.y + platform.h }); addPoint({ x: platform.x, y: platform.y + platform.h });
   }
   for (const pile of plan.piles || []) addPoint(pile);
-  return { xs: [...xs], ys: [...ys], points: [...points.values()] };
+  return { xs: [...xs], ys: [...ys], points: [...points.values()], ...(options.partitionFaces ? { cornerTargets: partitionCornerTargets(plan, excludeRoomId) } : {}) };
 }
 
 export function resizePlatformCorner(platform, index, point, axes) {
@@ -175,9 +212,13 @@ export function snapPointDetails(point, axes, options = {}) {
     const distance = Math.hypot(candidate.x - point.x, candidate.y - point.y);
     if (distance <= closestDistance) { closestPoint = candidate; closestDistance = distance; }
   }
+  for (const candidate of axes.cornerTargets || []) {
+    const distance = Math.hypot(candidate.x - point.x, candidate.y - point.y);
+    if (distance <= closestDistance) { closestPoint = candidate; closestDistance = distance; }
+  }
   if (closestPoint) {
-    const snapped = { x: roundCoord(closestPoint.x), y: roundCoord(closestPoint.y) };
-    return { point: snapped, snap: { kind: 'node', ...snapped, matchedX: true, matchedY: true, distance: roundCoord(closestDistance) } };
+    const snapped = { x: roundCoord((closestPoint.target || closestPoint).x), y: roundCoord((closestPoint.target || closestPoint).y) };
+    return { point: snapped, snap: { kind: 'node', ...snapped, matchedX: true, matchedY: true, distance: roundCoord(closestDistance), ...(closestPoint.target ? { wallCorner: true, displayPoint: { x: closestPoint.x, y: closestPoint.y } } : {}) } };
   }
   const snapValue = (value, candidates) => {
     let best = Math.round(value / grid) * grid;

@@ -161,6 +161,7 @@ import {
   houseContourPoints,
   pileRowAlignment,
   planIssues,
+  planSnapTolerances,
   projectOpeningToWall,
   rectanglePoints,
   roomPoints,
@@ -270,6 +271,7 @@ function previewPlan(source, gesture) {
     plan,
     gesture.type === "room" ? gesture.id : null,
     gesture.type === "platform" ? gesture.id : null,
+    { partitionFaces: gesture.type === 'room' },
   );
   const itemFor = (key) => plan[key].find((item) => item.id === gesture.id);
   if(gesture.kind==='gapEndpoint'){
@@ -1475,6 +1477,7 @@ function PlanCanvas({
       plan,
       current?.type === "room" ? current.id : null,
       current?.type === "platform" ? current.id : null,
+      { partitionFaces: ['room', 'polygon', 'extension'].includes(tool) || current?.type === 'room' },
     );
     for (const guide of temporaryGuides) {
       if (guide.axis === 'x') axes.xs.push(guide.target);
@@ -1513,12 +1516,9 @@ function PlanCanvas({
         axes.points.push(other);
       }
     }
-    const axisTolerance = Math.max(0.03, Math.min(0.18, 10 / layout.scale));
-    const nodeTolerance = Math.max(0.05, Math.min(0.24, 16 / layout.scale));
-    const resolved=snapPointDetails(raw, axes, {
-      tolerance: axisTolerance,
-      pointTolerance: nodeTolerance,
-    });
+    const matrix = svgRef.current?.getScreenCTM?.();
+    const screenScale = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
+    const resolved=snapPointDetails(raw, axes, planSnapTolerances(layout.scale, screenScale, event.pointerType === 'touch'));
     if(current?.type==='wall'&&['draw','endpoint'].includes(current.kind)){
       const item=(plan.walls||[]).find(w=>w.id===current.id);
       const anchor=current.kind==='draw'?current.start:current.index===0?{x:item?.x2,y:item?.y2}:{x:item?.x1,y:item?.y1};
@@ -3062,12 +3062,14 @@ function PlanCanvas({
       })() : null}
       {hoverSnap?.snap && (tool !== "select" || gesture)
         ? (() => {
-            const q = p(hoverSnap.point.x, hoverSnap.point.y);
+            const displayPoint = hoverSnap.snap.displayPoint || hoverSnap.point;
+            const q = p(displayPoint.x, displayPoint.y);
             return (
               <g
                 className={`snap-indicator snap-${hoverSnap.snap.kind}`}
                 transform={`translate(${q.x} ${q.y})`}
               >
+                <title>{hoverSnap.snap.wallCorner ? 'Угол перегородки · стык по общей оси стены' : 'Точка привязки'}</title>
                 <circle className="snap-halo" r="11" />
                 <circle className="snap-core" r="4" />
               </g>
