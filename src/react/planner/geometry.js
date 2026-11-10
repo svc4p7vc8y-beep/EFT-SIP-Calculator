@@ -97,7 +97,33 @@ export function dimensionOutsideHouse(line, house, offset = 0.8) {
   return next;
 }
 
-export function collectSnapAxes(plan, excludeRoomId) {
+// Intersections of adjacent inward-offset wall faces, including re-entrant
+// corners. Unlike a bounding-box grid these are actual corners of the house.
+export function houseInnerCorners(plan) {
+  const contour = houseContourPoints(plan);
+  const thickness = Number(plan.wallThickness) || .174;
+  const signedArea = contour.reduce((sum, a, i) => {
+    const b = contour[(i + 1) % contour.length];
+    return sum + a.x * b.y - b.x * a.y;
+  }, 0);
+  const direction = signedArea >= 0 ? 1 : -1;
+  return contour.flatMap((point, i) => {
+    const before = contour[(i + contour.length - 1) % contour.length];
+    const after = contour[(i + 1) % contour.length];
+    const ax = point.x - before.x, ay = point.y - before.y;
+    const bx = after.x - point.x, by = after.y - point.y;
+    const al = Math.hypot(ax, ay), bl = Math.hypot(bx, by);
+    const cross = ax * by - ay * bx;
+    if (!al || !bl || Math.abs(cross) < 1e-8) return [];
+    const a = { x: point.x - direction * ay / al * thickness, y: point.y + direction * ax / al * thickness };
+    const b = { x: point.x - direction * by / bl * thickness, y: point.y + direction * bx / bl * thickness };
+    const ratio = ((b.x - a.x) * by - (b.y - a.y) * bx) / cross;
+    const corner = { x: roundCoord(a.x + ratio * ax), y: roundCoord(a.y + ratio * ay) };
+    return pointInPolygon(corner, contour) ? [corner] : [];
+  });
+}
+
+export function collectSnapAxes(plan, excludeRoomId, excludePlatformId) {
   const wall = Number(plan.wallThickness) || 0.174;
   const hasHouse = plan?.house?.contourDefined !== false;
   const xs = new Set(hasHouse ? [0, wall, plan.house.w - wall, plan.house.w] : []);
@@ -109,9 +135,7 @@ export function collectSnapAxes(plan, excludeRoomId) {
   };
   if (hasHouse) {
     houseContourPoints(plan).forEach(addPoint);
-    [0, wall, plan.house.w - wall, plan.house.w].forEach((x) => {
-      [0, wall, plan.house.h - wall, plan.house.h].forEach((y) => addPoint({ x, y }));
-    });
+    houseInnerCorners(plan).forEach(addPoint);
   }
   for (const point of plan.existingBuilding?.points || []) addPoint(point);
   for (const room of plan.rooms || []) {
@@ -124,11 +148,22 @@ export function collectSnapAxes(plan, excludeRoomId) {
   for (const binding of plan.bindingLines || []) { addPoint({ x: binding.x1, y: binding.y1 }); addPoint({ x: binding.x2, y: binding.y2 }); }
   for (const dimension of plan.dimensions || []) { addPoint({ x: dimension.x1, y: dimension.y1 }); addPoint({ x: dimension.x2, y: dimension.y2 }); }
   for (const platform of plan.platforms || []) {
+    if (platform.id === excludePlatformId) continue;
     addPoint({ x: platform.x, y: platform.y }); addPoint({ x: platform.x + platform.w, y: platform.y });
     addPoint({ x: platform.x + platform.w, y: platform.y + platform.h }); addPoint({ x: platform.x, y: platform.y + platform.h });
   }
   for (const pile of plan.piles || []) addPoint(pile);
   return { xs: [...xs], ys: [...ys], points: [...points.values()] };
+}
+
+export function resizePlatformCorner(platform, index, point, axes) {
+  const left = index === 0 || index === 3;
+  const top = index === 0 || index === 1;
+  const anchor = { x: left ? platform.x + platform.w : platform.x, y: top ? platform.y + platform.h : platform.y };
+  const snapped = snapPoint(point, axes);
+  const x = left ? Math.min(snapped.x, anchor.x - .5) : Math.max(snapped.x, anchor.x + .5);
+  const y = top ? Math.min(snapped.y, anchor.y - .5) : Math.max(snapped.y, anchor.y + .5);
+  return { ...platform, x: roundCoord(Math.min(x, anchor.x)), y: roundCoord(Math.min(y, anchor.y)), w: roundCoord(Math.abs(x - anchor.x)), h: roundCoord(Math.abs(y - anchor.y)) };
 }
 
 export function snapPointDetails(point, axes, options = {}) {
@@ -330,6 +365,12 @@ export function roomWallSegments(plan) {
       const segment = axialSegment(point, next, { roomId: room.id, ref:`room:${room.id}:${index}` });
       const outerFace = contour.some((edgeStart, edgeIndex) => {
         const edgeEnd = contour[(edgeIndex + 1) % contour.length];
+        const edge = axialSegment(edgeStart, edgeEnd);
+        // At an inward corner the inner face extends one wall thickness past
+        // the outer edge endpoint; Euclidean endpoint distance mislabels it.
+        if (segment.axis !== 'd' && edge.axis === segment.axis) {
+          return Math.abs(segment.fixed - edge.fixed) <= wall + EPS && segment.start >= edge.start - wall - .001 && segment.end <= edge.end + wall + .001;
+        }
         return pointSegmentDistance(point, edgeStart, edgeEnd) <= wall + EPS && pointSegmentDistance(next, edgeStart, edgeEnd) <= wall + EPS;
       });
       if (!outerFace) segments.push(segment);
@@ -624,6 +665,24 @@ export function planIssues(plan) {
   const wall = Number(plan.wallThickness) || 0.174;
   const issues = [];
   const contour = houseContourPoints(plan);
+  const cuts = [
+    ...(plan.openings || []).filter(item => item.include !== false).map(item => ({ ...item, selectionType: 'opening', label: item.type === 'window' ? 'Окно' : item.doorType === 'garage' ? 'Ворота' : 'Дверь' })),
+    ...(plan.wallGaps || []).filter(item => item.include !== false).map(item => ({ ...item, selectionType: 'gap', label: 'Разрыв стены' })),
+  ];
+  for (let i = 0; i < cuts.length; i++) for (let j = i + 1; j < cuts.length; j++) {
+    const a = cuts[i], b = cuts[j];
+    if (a.orientation !== b.orientation) continue;
+    const vertical = a.orientation === 'v';
+    const fixed = item => Number(vertical ? item.x : item.y);
+    const along = item => Number(vertical ? item.y : item.x);
+    if (Math.abs(fixed(a) - fixed(b)) > .015) continue;
+    const start = Math.max(along(a) - Number(a.width) / 2, along(b) - Number(b.width) / 2);
+    const end = Math.min(along(a) + Number(a.width) / 2, along(b) + Number(b.width) / 2);
+    if (!(end - start > .001)) continue;
+    issues.push({ type: 'opening-overlap', roomIds: [], openingIds: [a.id, b.id], selections: [a, b].map(item => ({ type: item.selectionType, id: item.id })),
+      point: vertical ? { x: (fixed(a) + fixed(b)) / 2, y: (start + end) / 2 } : { x: (start + end) / 2, y: (fixed(a) + fixed(b)) / 2 },
+      message: `${a.label} и ${b.label.toLowerCase()}: пересечение на плане ${Math.round((end - start) * 1000)} мм. Передвиньте элемент или измените ширину.` });
+  }
   const gapEdges=[...partitionRuns(plan).map(([a,b],i)=>({a,b,id:`partition-${i}`})),...contour.map((a,i)=>({a,b:contour[(i+1)%contour.length],id:`outer-${i}`,outer:true}))];
   for(const gap of plan.wallGaps||[]){
     if(gap.include===false||gap.subtractFromSip===false)continue;

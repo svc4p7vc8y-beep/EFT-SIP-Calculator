@@ -7590,3 +7590,26 @@ select,
 .planner-shell.is-fullscreen .planner-canvas>.roof-axis-controls,.planner-shell.is-fullscreen .planner-canvas>.bearing-selection-controls{top:122px}
 @media(max-width:1200px){.planner-canvas>.roof-axis-controls,.planner-canvas>.bearing-selection-controls{top:116px}.planner-shell.is-fullscreen .planner-canvas>.roof-axis-controls,.planner-shell.is-fullscreen .planner-canvas>.bearing-selection-controls{top:174px}}
 @media(max-width:1000px){.planner-shell.is-fullscreen .planner-canvas>.roof-axis-controls,.planner-shell.is-fullscreen .planner-canvas>.bearing-selection-controls{top:216px}}
+.plan-collision-warning {
+  box-sizing: border-box;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 10px 14px;
+  border: 1px solid #dc2626;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 17px;
+}
+.plan-collision-warning button {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 5px 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.plan-issue-list { color: #991b1b; padding-left: 20px; font-size: 13px; }

@@ -172,6 +172,7 @@ import {
   partitionRuns,
   resizeProjectHouse,
   resizePlanToHouse,
+  resizePlatformCorner,
   snapPoint,
   snapPointDetails,
   unifiedWallSegments,
@@ -268,11 +269,17 @@ function previewPlan(source, gesture) {
   const axes = collectSnapAxes(
     plan,
     gesture.type === "room" ? gesture.id : null,
+    gesture.type === "platform" ? gesture.id : null,
   );
   const itemFor = (key) => plan[key].find((item) => item.id === gesture.id);
   if(gesture.kind==='gapEndpoint'){
     const gap=itemFor('wallGaps');
     if(gap)Object.assign(gap,resizeWallGap(plan,gap,gesture.index,end,gesture.snapTolerance));
+    return plan;
+  }
+  if (gesture.kind === 'platformResize') {
+    const item = itemFor('platforms');
+    if (item) Object.assign(item, resizePlatformCorner(item, gesture.index, end, axes));
     return plan;
   }
   if(gesture.kind==='rowPile'){
@@ -1383,6 +1390,9 @@ function PlanCanvas({
     return () => svg.removeEventListener("wheel", handleWheel);
   }, [wheelZoomEnabled, viewportZoom, plan.zoom, onViewportZoom]);
   const shownPlan = useMemo(() => previewPlan(plan, gesture), [plan, gesture]);
+  const shownIssues = useMemo(() => planIssues(shownPlan), [shownPlan]);
+  const openingConflicts = shownIssues.filter(issue => issue.type === 'opening-overlap');
+  const selectedPlatform = selected?.type === 'platform' ? (shownPlan.platforms || []).find(item => item.id === selected.id) : null;
   const [labelLayer,setLabelLayer]=useState(null);
   const foreground=node=>labelLayer?createPortal(node,labelLayer):node;
   const clearAreas=useMemo(()=>calculateClearAreas(shownPlan),[shownPlan]);
@@ -1464,6 +1474,7 @@ function PlanCanvas({
     const axes = collectSnapAxes(
       plan,
       current?.type === "room" ? current.id : null,
+      current?.type === "platform" ? current.id : null,
     );
     for (const guide of temporaryGuides) {
       if (guide.axis === 'x') axes.xs.push(guide.target);
@@ -2268,6 +2279,7 @@ function PlanCanvas({
               <g
                 key={platform.id}
                 className="planner-object"
+                aria-label={platform.kind === 'porch' ? 'Крыльцо на плане' : 'Терраса на плане'}
                 onPointerDown={(event) =>
                   objectDown(event, "platform", platform.id)
                 }
@@ -2319,7 +2331,6 @@ function PlanCanvas({
             .join(" ")}
         />
       ) : null}
-      {visibleLayers.plan?planIssues(shownPlan).filter(issue=>issue.point).map((issue,i)=>{const q=p(issue.point.x,issue.point.y);return <circle key={`gap-check-${i}`} cx={q.x} cy={q.y} r="7" stroke="#b91c1c" strokeWidth="2" fill="none" pointerEvents="none"><title>{issue.message}</title></circle>;}):null}
       {houseDefined && visibleLayers.roof ? (
         <RoofPlanOverlay plan={shownPlan} roof={roof || {}} p={p} model={roofModel} />
       ) : null}
@@ -3069,7 +3080,23 @@ function PlanCanvas({
         const source=rowPileSources.find(({candidate})=>Math.hypot(candidate.x-point.x,candidate.y-point.y)<.015);
         return <circle key={`pile-hit-${id}`} className="derived-pile-handle" aria-label={`Выбрать расчётную сваю ${id}`} cx={q.x} cy={q.y} r="11" fill="#fff" fillOpacity="0.001" pointerEvents="all" onPointerDown={event=>objectDown(event,'derivedPile',id,source?{kind:'rowPile',rowId:source.row.id,index:source.index}:{})}/>;
       }):null}
+      {selectedPlatform && (visibleLayers.plan || visibleLayers.roof || visibleLayers.piles || visibleLayers.binding) ? <g className="platform-resize-handles">
+        {rectanglePoints({ x: selectedPlatform.x, y: selectedPlatform.y }, { x: selectedPlatform.x + selectedPlatform.w, y: selectedPlatform.y + selectedPlatform.h }).map((point, index) => {
+          const q = p(point.x, point.y);
+          return <circle key={index} className="vertex-handle" cx={q.x} cy={q.y} r="9" aria-label={`Изменить размер ${selectedPlatform.kind === 'porch' ? 'крыльца' : 'террасы'}: угол ${index + 1}`} style={{ cursor: index % 2 ? 'nesw-resize' : 'nwse-resize' }} onPointerDown={event => objectDown(event, 'platform', selectedPlatform.id, { kind: 'platformResize', index })}><title>Потяните за угол, чтобы изменить размер</title></circle>;
+        })}
+      </g> : null}
+      {visibleLayers.plan ? shownIssues.filter(issue => issue.point).map((issue, i) => {
+        const q = p(issue.point.x, issue.point.y);
+        return <circle key={`plan-issue-${i}`} cx={q.x} cy={q.y} r="10" stroke="#b91c1c" strokeWidth="3" fill="#fee2e2" fillOpacity=".5" pointerEvents="none"><title>{issue.message}</title></circle>;
+      }) : null}
       <g ref={setLabelLayer} className="plan-label-foreground"/>
+      {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={VIEW.height - 148} width="650" height="140">
+        <div xmlns="http://www.w3.org/1999/xhtml" role="alert" className="plan-collision-warning" onPointerDown={event => event.stopPropagation()}>
+          <strong>Пересечение элементов: {openingConflicts.length}</strong>
+          {openingConflicts.map((issue, index) => <button key={index} onClick={() => selectExisting(issue.selections[0])}>{issue.message}</button>)}
+        </div>
+      </foreignObject> : null}
     </svg>
   );
 }
@@ -3103,6 +3130,7 @@ function RoomList({ plan, issues, onSelect }) {
       ) : (
         <div className="plan-ok">Стыковка помещений корректна</div>
       )}
+      {issues.length ? <ul className="plan-issue-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul> : null}
       <div className="room-summary-list">
         {(plan.rooms || []).map((room, index) => (
           <button
