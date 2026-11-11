@@ -30,14 +30,18 @@ function Electrical({ icon }) {
   </>;
 }
 
+function PointLetter({ letter, color = '#26373d', large = false }) {
+  return <text x="50" y="52" textAnchor="middle" dominantBaseline="central" fontFamily="Arial, sans-serif" fontSize={large ? 62 : 52} fontWeight="700" fill={color} stroke="none">{letter}</text>;
+}
+
 function Network({ icon }) {
-  if (['water-source', 'water-outlet', 'hot-outlet'].includes(icon)) return <><circle cx="50" cy="50" r="28"/><path d="M50 20v14M50 66v14M22 50h56" {...line}/><path d="M42 46c0-6 8-14 8-14s8 8 8 14a8 8 0 0 1-16 0z" {...line}/></>;
+  if (['water-source', 'water-outlet', 'hot-outlet', 'drain'].includes(icon)) return <><circle cx="50" cy="50" r="40"/><PointLetter letter={{ 'water-source': 'В', 'water-outlet': 'Х', 'hot-outlet': 'Г', drain: 'К' }[icon]} large={icon === 'water-source'}/></>;
   if (icon === 'valve' || icon === 'damper') return <><path d="M9 50h25m32 0h25M34 31l32 38V31L34 69z"/><circle cx="50" cy="50" r="5" {...line}/></>;
   if (icon === 'tee') return <><path d="M12 50h76M50 15v70" strokeWidth="7" {...line}/><circle cx="50" cy="50" r="8"/></>;
   if (icon === 'radiator') return <><rect x="9" y="20" width="82" height="60" rx="4"/>{[25,37,49,61,73].map(x => <path key={x} d={`M${x} 23v54`} {...line}/>)}</>;
   if (icon === 'floor-loop') return <><rect x="8" y="10" width="84" height="80" rx="3"/><path d="M12 70h20V28h18v42h18V28h20" {...line}/></>;
   if (icon === 'stack') return <><circle cx="50" cy="50" r="29"/><circle cx="50" cy="50" r="13" {...line}/><path d="M50 8v17m0 50v17M8 50h17m50 0h17" {...line}/></>;
-  if (['drain', 'floor-drain', 'cleanout'].includes(icon)) return <><rect x="17" y="17" width="66" height="66" rx="4"/><circle cx="50" cy="50" r="23" {...line}/><path d="M29 50h42M50 29v42" {...line}/></>;
+  if (['floor-drain', 'cleanout'].includes(icon)) return <><rect x="17" y="17" width="66" height="66" rx="4"/><circle cx="50" cy="50" r="23" {...line}/><path d="M29 50h42M50 29v42" {...line}/></>;
   if (['supply-diffuser', 'extract-grille', 'air-intake', 'air-exhaust'].includes(icon)) return <><circle cx="50" cy="50" r="33"/><path d="M30 50h40M50 30v40M33 33l34 34M67 33L33 67" {...line}/><circle cx="50" cy="50" r="6" {...line}/></>;
   return <><circle cx="50" cy="50" r="28"/><path d="M30 50h40M50 30v40" {...line}/></>;
 }
@@ -58,7 +62,8 @@ export function PlacementSymbol({ kind, icon: explicitIcon, system, medium }) {
   const icon = explicitIcon || findPlacementPreset(kind)?.icon || kind;
   if (icon === 'connection-port') {
     const color = medium === 'hot' ? '#bd5547' : { plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' }[system] || '#4e7770';
-    return <g fill="#fff" stroke={color} strokeWidth="8"><circle cx="50" cy="50" r="34"/><circle cx="50" cy="50" r="8" fill={color} stroke="none"/></g>;
+    const letter = system === 'sewer' ? 'К' : system === 'plumbing' ? (medium === 'hot' ? 'Г' : 'Х') : null;
+    return <g fill="#fff" stroke={color} strokeWidth="8"><circle cx="50" cy="50" r={letter ? 40 : 34}/>{letter ? <PointLetter letter={letter} color={color}/> : <circle cx="50" cy="50" r="8" fill={color} stroke="none"/>}</g>;
   }
   const electrical = ['socket','double-socket','power','switch','double-switch','two-way-switch','dimmer','light','spotlight','pendant-light','wall-light','led-strip','panel','junction-box','facade-socket','facade-light','facade-spotlight'].includes(icon);
   const palette = icon === 'power' ? ['#fff0e9', '#ad4f33'] : icon.includes('switch') || icon === 'dimmer' ? ['#fff1d8', '#9d650f'] : icon === 'panel' ? ['#e5e8ff', '#414e9a'] : icon === 'junction-box' ? ['#f3e7ff', '#784e9e'] : ['light','spotlight','pendant-light','wall-light','led-strip','facade-light','facade-spotlight'].includes(icon) ? ['#fff8d9', '#9c7510'] : electrical ? ['#e1f6ed', '#237456'] : ['#fff', '#26373d'];
