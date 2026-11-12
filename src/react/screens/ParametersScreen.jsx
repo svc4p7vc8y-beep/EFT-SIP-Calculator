@@ -1,3 +1,4 @@
+import { buildingTypeOptions } from '../data/building-types.js';
 import {flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
 import { useEffect, useMemo, useState } from "react";
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
@@ -535,12 +536,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 label="Тип строения"
                 value={project.meta.buildingType || "Жилой дом"}
                 onChange={(value) => write("meta.buildingType", value)}
-                options={[
-                  { value: "Гараж", label: "Гараж" },
-                  { value: "Пристройка", label: "Пристройка" },
-                  { value: "Хозблок", label: "Хозблок" },
-                  { value: "Жилой дом", label: "Жилой дом" },
-                ]}
+                options={buildingTypeOptions(project.meta.buildingType)}
               />
               <Field label="Дата">
                 <input

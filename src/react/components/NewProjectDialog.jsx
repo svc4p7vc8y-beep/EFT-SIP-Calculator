@@ -1,3 +1,4 @@
+import { BUILDING_TYPES } from '../data/building-types.js';
 import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
@@ -37,7 +38,7 @@ export default function NewProjectDialog({ onCreate, onClose }) {
         <label>Название проекта<input autoFocus maxLength={120} placeholder="Например, Дом в Сосновке" value={details.projectName} onChange={update('projectName')} /></label>
         <label>Заказчик<input maxLength={120} placeholder="Имя или организация" value={details.customer} onChange={update('customer')} /></label>
         <label>Адрес объекта<input maxLength={200} placeholder="Можно заполнить позже" value={details.address} onChange={update('address')} /></label>
-        <label>Тип строения<select value={details.buildingType} onChange={update('buildingType')}><option>Жилой дом</option><option>Гараж</option><option>Пристройка</option><option>Хозблок</option></select></label>
+        <label>Тип строения<select value={details.buildingType} onChange={update('buildingType')}>{BUILDING_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</select></label>
         <div className="new-project-dimensions"><strong>Габариты, если известны</strong><small>Контур и помещения вы нарисуете на плане. Без габаритов поле временно будет 10 × 8 м.</small><div><label>Длина, м<input type="number" min="3" max="100" step="0.1" placeholder="Не задана" value={details.length} onChange={update('length')} /></label><label>Ширина, м<input type="number" min="3" max="100" step="0.1" placeholder="Не задана" value={details.width} onChange={update('width')} /></label></div></div>
       </div>
       {error ? <p className="field-error" role="alert">{error}</p> : null}
