@@ -1,3 +1,5 @@
+import { EngineeringWallArtwork } from './EngineeringWallEditor.jsx';
+import { pipeFittingMarkers } from '../state/placement-pipe-bill.js';
 import { NETWORK_SYSTEMS } from '../state/placement-networks.js';
 import { EngineeringSchemeArtwork } from './EngineeringSchemeArtwork.jsx';
 import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js';
@@ -53,6 +55,7 @@ function FloorArtwork({ sheet, routeIds }) {
     {sheet.showAutoDimensions && sheet.items.some(({ item }) => item.layer === 'electric') ? <PlacementWallDimensions plan={sheet.plan} items={sheet.items.filter(({ item }) => item.layer === 'electric').map(({ item }) => item)}/> : null}
     {sheet.dimensions.map(dimension => <Dimension key={dimension.id} dimension={dimension}/>)}
     {selectedRoutes(sheet, routeIds).map(route => <g key={route.id}><path d={routeData(route.points)} className="worker-route" strokeDasharray={routeDash(route, sheet.circuits)}/><title>{route.annotationText || route.system}</title></g>)}
+    {['plumbing','heating','sewer'].flatMap(system=>pipeFittingMarkers(selectedRoutes(sheet,routeIds).filter(r=>r.system===system),sheet.items.map(e=>e.item).filter(i=>i.layer===system),system)).map(f=><g key={f.id} transform={`translate(${f.x*100} ${f.y*100})`}><svg x="-10" y="-10" width="20" height="20" viewBox="0 0 100 100"><PlacementSymbol icon={f.kind}/></svg></g>)}
     {sheet.items.map(({ item }) => <g key={item.id}><ItemMark item={item} x={item.x * 100} y={item.y * 100} size={item.layer === 'electric' ? 42 : Math.max(38, Math.min(95, Number(item.width || .4) * 100))} showMark={false}/>{item.showName ? <text className="worker-item-annotation" x={(item.x + (item.labelOffsetX ?? .5)) * 100} y={(item.y + (item.labelOffsetY ?? -.35)) * 100}>{item.annotationText || item.label}</text> : null}{item.showHeight ? <text className="worker-item-annotation" x={(item.x + (item.heightOffsetX ?? .3)) * 100} y={(item.y + (item.heightOffsetY ?? .4)) * 100}>h={metres(item.height)}</text> : null}</g>)}
     {labels.map(label => <g key={`label-${label.id}`} className="worker-point-callout">
       {label.leader ? <line x1={label.x} y1={label.y} x2={label.anchorX} y2={label.anchorY} markerEnd={`url(#${markerId})`}/> : null}
@@ -86,6 +89,7 @@ function RoomArtwork({ sheet }) {
 }
 
 export function PlacementSheetArtwork({ sheet, routeIds }) {
+  if (sheet.kind === 'network-wall') return <EngineeringWallArtwork wall={sheet.wall} walls={sheet.walls} items={sheet.items.map(e=>e.item)} routes={selectedRoutes(sheet,routeIds)} height={Number(sheet.plan.wallHeight)||2.5} print/>;
   if (sheet.kind === 'network-scheme') return <EngineeringSchemeArtwork system={sheet.system} items={sheet.items.map(entry => entry.item)} routes={selectedRoutes(sheet, routeIds)} print/>;
   return sheet.kind === 'room' ? <RoomArtwork sheet={sheet}/> : <FloorArtwork sheet={sheet} routeIds={routeIds}/>;
 }

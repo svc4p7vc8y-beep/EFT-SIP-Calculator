@@ -1,3 +1,4 @@
+import { wallRouteParts } from '../state/engineering-wall.js';
 import { electricalBill, resolvedElectricalRoutes } from '../state/placement-electrical.js';
 import { NETWORK_SYSTEMS, networkBill, resolvedNetworkRoutes } from '../state/placement-networks.js';
 import { placementWallFaces } from '../state/placement-walls.js';
@@ -80,11 +81,11 @@ export function buildPrintablePlacementSheets(project) {
         items: marks.filter(({ item }) => item.layer === 'electric' && (item.circuitId === circuit.id || connectedIds.has(item.id))),
         routes: layerRoutes, dimensions: dimensions.filter(dimension => !dimension.roomId), circuits: [circuit], showAutoDimensions: placement.showAutoDimensions !== false });
     }
-    for (const system of ['plumbing', 'heating', 'sewer']) {
-      const networkItems = marks.filter(({ item }) => item.layer === system);
-      if (networkItems.length) result.push({ id: `${floor}-scheme-${system}`, kind: 'network-scheme', system, floor,
-        title: `${NETWORK_SYSTEMS[system].label} · схема обвязки`, plan, items: networkItems,
-        routes: networkRoutes.filter(route => route.system === system), dimensions: [], circuits: [] });
+    const networkItems=marks.filter(({item})=>['plumbing','heating','sewer','equipment'].includes(item.layer));
+    const networkWalls=placementWallFaces(plan);
+    for(const wall of networkWalls){
+      const wallItems=networkItems.filter(({item})=>item.wallRef===wall.ref);
+      if(wallItems.length||networkRoutes.some(route=>wallRouteParts(route,wall).length))result.push({id:`${floor}-network-wall-${wall.ref}`,kind:'network-wall',floor,title:`Стены комнаты · ${wall.label}`,wall,walls:networkWalls,plan,items:networkItems,routes:networkRoutes,dimensions:[],circuits:[]});
     }
     for (const room of (plan.rooms || []).filter(entry => entry.include !== false)) {
       const polygon = roomPoints(room);

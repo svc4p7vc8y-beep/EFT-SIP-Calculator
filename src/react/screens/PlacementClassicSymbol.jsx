@@ -1,3 +1,4 @@
+import PipeApplianceSymbol, { OUTLINE_PIPE_ICONS } from './PipeApplianceSymbol.jsx';
 import { findPlacementPreset } from '../state/placement-model.js';
 
 const line = { fill: 'none' };
@@ -60,6 +61,7 @@ function Equipment({ icon }) {
 
 export function PlacementSymbol({ kind, icon: explicitIcon, system, medium }) {
   const icon = explicitIcon || findPlacementPreset(kind)?.icon || kind;
+  if (OUTLINE_PIPE_ICONS.has(icon)) return <PipeApplianceSymbol icon={icon}/>;
   if (icon === 'connection-port') {
     const color = medium === 'hot' ? '#bd5547' : { plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' }[system] || '#4e7770';
     const letter = system === 'sewer' ? 'К' : system === 'plumbing' ? (medium === 'hot' ? 'Г' : 'Х') : null;

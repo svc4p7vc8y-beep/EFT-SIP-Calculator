@@ -82,9 +82,9 @@ test('each explicit node is counted once, even when a boiler kit has also been f
  assert.equal(bill.components.find(r=>r.name==='Разъёмное соединение')?.quantity,2);
  assert.ok(!bill.components.some(r=>r.name==='Разъёмное соединение котла'));
 });
-test('printing includes the same network graph and saved diagram coordinates',()=>{
+test('wall printing retains the same network graph and legacy diagram coordinates',()=>{
  const p=fixture();addBasicEngineeringScheme(p.placement,p.plan,'sewer',1,{},id);p.placement.items[0].networkDiagram={x:730,y:140};
- const sheets=buildPrintablePlacementSheets(p);const sheet=sheets.find(s=>s.kind==='network-scheme'&&s.system==='sewer');assert.ok(sheet);
+ const sheets=buildPrintablePlacementSheets(p);const sheet=sheets.find(s=>s.kind==='network-wall');assert.ok(sheet);
  assert.deepEqual(sheet.items[0].item.networkDiagram,{x:730,y:140});assert.equal(sheet.routes.length,p.placement.networks.sewer.length);
 });
 

@@ -1,0 +1,30 @@
+export const OUTLINE_PIPE_ICONS = new Set(['valve','ball-valve','pp-valve','angle-valve','union','angle-union','pp-union','mud-filter','water-filter','elbow','elbow-45','tee','cross','coupling','reducer','adapter','cap','pressure-gauge','air-vent','check-valve','pressure-reducer','meter','pump','boiler','water-heater','manifold','radiator','hydro-tank','expansion-tank','heat-pump','safety-group','stack','cleanout','floor-drain','floor-loop']);
+export default function PipeApplianceSymbol({icon}) {
+ const union=<><path d="M4 42h19v16H4m73-16h19v16H77M23 34h15v32H23zM62 34h15v32H62zM38 29h24v42H38z"/><path d="M43 34v32m14-32v32"/></>;
+ const valve=<><path d="M3 42h20v16H3m74-16h20v16H77M23 35h54v30H23zM42 35V23h16v12M48 23V12h39v8H53"/><path d="M30 35v30m40-30v30"/></>;
+ let drawing;
+ if(['valve','ball-valve','pp-valve'].includes(icon))drawing=icon==='pp-valve'?<><path d="M4 34h23v32H4zM73 34h23v32H73zM27 39h46v22H27zM43 39V24h14v15M25 20h50v8H25z"/><path d="M10 38v24m80-24v24"/></>:valve;
+ else if(icon==='angle-valve')drawing=<><path d="M6 38h31v20H6M37 33h30v34H37zM42 67v28h20V67M47 33V13h10v20M25 9h53v8H25"/></>;
+ else if(icon==='union'||icon==='pp-union'||icon==='coupling')drawing=union;
+ else if(icon==='angle-union')drawing=<><path d="M5 23h47v15H21v52H6zM30 15h16v31H30zM1 67h30v16H1z"/></>;
+ else if(['elbow','elbow-45'].includes(icon))drawing=icon==='elbow'?<><path d="M12 88V39Q12 12 39 12h49v18H39q-9 0-9 9v49zM6 66h30v22H6zM66 6h22v30H66z"/></>:<><path d="M12 88V51q0-10 8-18L52 1l14 14-32 32q-4 4-4 10v31zM6 69h30v19H6zM48 4l23 23 14-14L62-10z"/></>;
+ else if(icon==='tee'||icon==='cross')drawing=<><path d={icon==='tee'?"M4 39h35V4h22v35h35v22H4z":"M4 39h35V4h22v35h35v22H61v35H39V61H4z"}/><path d="M4 33v34m92-34v34M33 4h34"/></>;
+ else if(icon==='mud-filter')drawing=<><path d="M2 30h96v21H2zM32 51l24 34 21-15-13-19M51 79l8 12 25-18-8-11"/><path d="M43 52l17 24m-10-27l16 23"/></>;
+ else if(icon==='water-filter')drawing=<><path d="M5 17h24v16H5m66-16h24v16H71M23 12h54v26H23zM29 38v42q21 16 42 0V38M37 44v31m26-31v31M40 90h20"/></>;
+ else if(icon==='adapter'||icon==='reducer')drawing=<><path d="M4 29h32v42H4zM36 34h21l11 8h28v16H68l-11 8H36zM14 29v42m9-42v42m45-29v16m10-16v16m10-16v16"/></>;
+ else if(icon==='cap')drawing=<path d="M10 25h56q20 0 20 25T66 75H10zM20 25v50M30 25v50"/>;
+ else if(icon==='check-valve'||icon==='pressure-reducer'||icon==='meter')drawing=<><path d="M3 41h20v18H3m74-18h20v18H77M23 31h54v38H23z"/>{icon==='meter'?<><circle cx="50" cy="49" r="20"/><path d="M50 49l10-11M37 58h26"/></>:icon==='pressure-reducer'?<path d="M38 31V14h24v17M31 10h38M40 22h20"/>:<><path d="M35 50h30m-8-7 8 7-8 7M42 31V17h16v14"/></>}</>;
+ else if(icon==='pressure-gauge')drawing=<><circle cx="50" cy="41" r="32"/><circle cx="50" cy="41" r="25"/><path d="M50 41l15-16M43 73v21h14V73M22 41h6m44 0h6M50 13v6"/></>;
+ else if(icon==='air-vent')drawing=<><path d="M27 24h46v46q-23 17-46 0zM34 14h32v10M40 84v12h20V84M54 14V4h20v10"/></>;
+ else if(icon==='pump')drawing=<><path d="M4 41h20v18H4m72-18h20v18H76"/><circle cx="50" cy="50" r="28"/><rect x="34" y="23" width="32" height="48" rx="9"/><path d="M41 35h18v16H41zM43 60h14"/></>;
+ else if(icon==='boiler'||icon==='water-heater')drawing=<><rect x="21" y="5" width="58" height="81" rx={icon==='water-heater'?22:6}/><path d="M25 63h50M37 86v10m26-10v10"/>{icon==='boiler'?<><rect x="32" y="66" width="21" height="11"/><circle cx="64" cy="71" r="4"/></>:<circle cx="50" cy="66" r="5"/>}</>;
+ else if(icon==='manifold')drawing=<><path d="M5 20h90v17H5zM5 62h90v17H5z"/>{[23,43,63,83].map(x=><g key={x}><path d={`M${x} 37v13m0 0v12m0 17v16M${x-6} 5h12v15h-12z`}/><circle cx={x} cy="50" r="5"/></g>)}</>;
+ else if(icon==='radiator')drawing=<><rect x="5" y="17" width="90" height="65" rx="4"/>{[17,30,43,56,69,82].map(x=><path key={x} d={`M${x} 22v55`}/>)}<path d="M8 9v8m84 65v9M1 29h4m90 42h4"/></>;
+ else if(icon==='expansion-tank'||icon==='hydro-tank')drawing=<><path d="M25 31q0-24 25-24t25 24v35q0 24-25 24T25 66zM25 47h50M43 90v8h14v-8"/>{icon==='hydro-tank'&&<path d="M25 80l-8 16m58-16 8 16"/>}</>;
+ else if(icon==='safety-group')drawing=<><path d="M8 70h84v12H8zM20 70V47m30 23V27m30 43V43"/><circle cx="20" cy="34" r="14"/><path d="M20 34l7-7M42 8h16v19H42zM71 24h18v19H71zM75 24V12h10v12"/></>;
+ else if(icon==='heat-pump')drawing=<><rect x="5" y="13" width="90" height="74" rx="5"/><circle cx="40" cy="50" r="27"/><circle cx="40" cy="50" r="5"/><path d="M40 45Q18 15 17 42m28 8q33-7 20-24M40 55q-6 32 18 20M77 25h11v10H77"/></>;
+ else if(icon==='floor-loop')drawing=<path d="M8 90V12h84v76H25V28h50v43H42V45h16v9"/>;
+ else if(icon==='stack'||icon==='cleanout')drawing=<><path d="M33 4h34v92H33zM25 6h50v16H25zM25 78h50v16H25z"/>{icon==='cleanout'&&<><circle cx="50" cy="50" r="23"/><path d="M42 50h16"/></>}</>;
+ else drawing=<><rect x="15" y="15" width="70" height="70" rx="5"/>{[28,42,56,70].map(x=><path key={x} d={`M${x} 22v56`}/>)}<path d="M22 32h56m-56 18h56m-56 18h56"/></>;
+ return <g fill="white" stroke="#344b50" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">{drawing}</g>;
+}

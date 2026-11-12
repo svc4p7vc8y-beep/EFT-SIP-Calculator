@@ -1,3 +1,4 @@
+import { PIPE_COMPONENTS } from '../data/pipe-components.js';
 import { normalizeEngineeringSettings } from './engineering-settings.js';
 import { resolvedElectricalRoutes } from './placement-electrical.js';
 import { normalizeNetworkRoutes } from './placement-networks.js';
@@ -138,6 +139,8 @@ export const PLACEMENT_PRESETS = [
   preset('facade-light', 'Фасадный светильник', 'electric', 'facade', .26, .18, 'facade-light', { height: 2.2, surface: 'facade' }),
   preset('facade-spotlight', 'Фасадный прожектор', 'electric', 'facade', .28, .2, 'facade-spotlight', { height: 2.6, surface: 'facade' }),
   preset('junction-box', 'Распределительная коробка', 'electric', 'electrical-panel', .18, .12, 'junction-box'),
+  ...PIPE_COMPONENTS,
+  preset('pipe-junction', 'Точка продолжения трубы', 'plumbing', 'water-points', .08, .08, 'connection-port'),
   preset('water-riser', 'Стояк водоснабжения', 'plumbing', 'water-sources', .2, .16, 'stack'),
   preset('water-source', 'Ввод воды', 'plumbing', 'water-sources', .2, .16, 'water-source'),
   preset('cold-manifold', 'Коллектор ХВС', 'plumbing', 'water-sources', .45, .18, 'manifold'),
@@ -235,6 +238,9 @@ export function normalizePlacement(value) {
     showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,
+      connectionMaterial: ['metal','pp','mixed','pvc','pex'].includes(item.connectionMaterial) ? item.connectionMaterial : '',
+      connectionThread: String(item.connectionThread || '').slice(0,30),
+      connectionDiameterMm: Number(item.connectionDiameterMm) > 0 ? Number(item.connectionDiameterMm) : null,
       networkDiagram: item.networkDiagram && Number.isFinite(Number(item.networkDiagram.x)) && Number.isFinite(Number(item.networkDiagram.y))
         ? { x: Math.max(35, Math.min(10000, Number(item.networkDiagram.x))), y: Math.max(35, Math.min(10000, Number(item.networkDiagram.y))) } : undefined,
       floor: Math.max(1, Math.min(2, Math.round(finite(item.floor, 1)))),

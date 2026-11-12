@@ -7,7 +7,7 @@ import { pointInPolygon } from '../state/placement-geometry.js';
 const metres = value => `${Number(value || 0).toFixed(2)} м`;
 const positive = value => value === '' ? null : Math.max(0, Number(value) || 0);
 
-export default function PlacementNetworkPanel({ system, floor, placement, plan, tab, pipeClearance, onPipeClearance, chainCount, onFinishChain, onEquipmentUpdate, onCustomRows, fromId, toId, medium, onFrom, onTo, onMedium,
+export default function PlacementNetworkPanel({ wallMode = false, system, floor, placement, plan, tab, pipeClearance, onPipeClearance, chainCount, onFinishChain, onEquipmentUpdate, onCustomRows, fromId, toId, medium, onFrom, onTo, onMedium,
   onAuto, onPair, onBeginManual, onFinishManual, onCancel, autoPicking, drawing, linesLocked, points, selectedRouteId, onSelectRoute, onUpdateRoute, onApplyChain, onDeleteRoute, room, notice }) {
   const spec = NETWORK_SYSTEMS[system];
   const items = (placement.items || []).filter(item => item.floor === floor && item.layer === system);
@@ -29,6 +29,7 @@ export default function PlacementNetworkPanel({ system, floor, placement, plan, 
   </section>;
   return <section className="placement-network-panel">
     <h3>{spec.label} · этаж {floor}</h3>
+    {!wallMode && <>
     <p>Выберите режим и укажите узлы на плане или развёртке. Можно также выбрать их из списка.</p>
     {notice ? <p role="status">{notice}</p> : null}
     <label>Линия<select value={medium} onChange={event => onMedium(event.target.value)}>{spec.media.map(entry => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label>
@@ -46,6 +47,7 @@ export default function PlacementNetworkPanel({ system, floor, placement, plan, 
       {canConnect || !chained ? <button disabled={!canConnect} onClick={onFinishManual}>{chained ? 'Добавить участок между выбранными узлами' : 'Сохранить маршрут'} · {points.length} промежуточных точек</button> : null}
       {chained ? <button onClick={onFinishChain}>Завершить · Пробел ({chainCount} участков)</button> : null}
     </div> : null}
+    </>}
     <div className="placement-network-routes"><h4>Маршруты</h4>{bill.routes.length ? bill.routes.map(route => <button key={route.id} className={selectedRouteId === route.id ? 'active' : ''} onClick={() => onSelectRoute(route.id)}><span>{spec.media.find(entry => entry.id === route.medium)?.label} · {routeName(route)}</span><strong>{metres(networkLength3d(route.points))}</strong></button>) : <p>Маршрутов пока нет.</p>}</div>
     {selected ? <div className="placement-network-route-edit"><h4>{routeName(selected)}</h4>
       <label>Прокладка<select value={selected.auto ? 'auto' : 'manual'} disabled={linesLocked} onChange={event => onUpdateRoute(selected.id, { auto: event.target.value === 'auto', points: selected.points, ...(chained ? { routing: event.target.value === 'auto' ? 'wall' : 'orthogonal' } : {}) })}><option value="auto">Автоматическая</option><option value="manual">Ручная</option></select></label>

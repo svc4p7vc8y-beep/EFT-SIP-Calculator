@@ -166,7 +166,7 @@ export function networkBill(placement, system, floor, plan = null) {
   };
   const equipment = system === 'heating' ? (placement?.items || []).filter(item => item.floor === floor && pipeEquipmentKind(item)) : [];
   const countedTee = (isPipeSystem(system) || system === 'sewer') ? addPipeBill(routes, equipment, addComponent, issues, items, system) : () => false;
-  items.filter(item => item.kind !== 'connection-port' && (!['heat-tee', 'water-tee', 'sewer-tee'].includes(item.kind) || !countedTee(item)))
+  items.filter(item => !['connection-port', 'pipe-junction'].includes(item.kind) && (!['heat-tee', 'water-tee', 'sewer-tee', 'pp-tee','heat-pp-tee'].includes(item.kind) || !countedTee(item)))
     .forEach(item => addComponent(item.label || item.kind, 1));
   routes.forEach(route => (route.accessories || []).filter(entry => entry.name.trim()).forEach(entry => addComponent(entry.name.trim(), entry.quantity, entry.unit)));
   if (system === 'heating') equipment.filter(item => item.layer !== system).forEach(item => addComponent(item.label || item.kind, 1));

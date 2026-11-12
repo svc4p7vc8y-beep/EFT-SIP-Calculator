@@ -79,7 +79,7 @@ export function addBasicEngineeringScheme(data, plan, system, floor, options, cr
   };
   const link = (a, b, medium) => {
     const route = connectEngineeringItems(data, system, floor, a.id, b.id, medium, createId);
-    if (route && !existingRoutes.has(route.id)) route.schemeGenerated = true;
+    if (route && !existingRoutes.has(route.id)) Object.assign(route,{schemeGenerated:true,material:options.material||'',diameterMm:options.diameterMm||null,clearanceMm:options.clearanceMm??30});
   };
   const all = () => data.items.filter(i => i.floor === floor && i.layer === system);
   const consumers = (medium, kinds) => all().filter(i => !reserved.has(i.id) && !(i.kind === 'connection-port' && ((system === 'heating' && ['boiler', 'heat-pump'].includes(data.items.find(p => p.id === i.linkedApplianceId)?.kind)) || (system === 'plumbing' && medium === 'hot' && ['boiler', 'water-heater'].includes(data.items.find(p => p.id === i.linkedApplianceId)?.kind)))) && !i.schemeRole && !(data.networks[system] || []).some(r => r.floor === floor && r.medium === medium && (r.fromId === i.id || r.toId === i.id)) && (kinds.includes(i.kind) || (i.kind === 'connection-port' && i.connectionMedium === medium)));
@@ -142,6 +142,10 @@ export function addBasicEngineeringScheme(data, plan, system, floor, options, cr
     distribute(returnNode, consumers('return', ['radiator-point', 'floor-heating-loop']), 'return', true);
   }
   const added = data.items.slice(startCount);
-  added.forEach((item, index) => Object.assign(item, wallFacePoint(wall, .1 + Math.min(wall.length - .2, Math.max(1, added.length * .3)) * (index + 1) / (added.length + 1))));
+  added.forEach((item, index) => {
+    const p=wallFacePoint(wall,.1+Math.min(wall.length-.2,Math.max(1,added.length*.3))*(index+1)/(added.length+1));
+    const offset=(options.clearanceMm??30)/1000;
+    Object.assign(item,{x:p.x+wall.normal.x*offset,y:p.y+wall.normal.y*offset,wallClearanceMm:options.clearanceMm??30});
+  });
   return { added: data.items.length - startCount, message: 'Базовая схема дополнена. Уточните высоты, размеры труб и оборудование; ручные линии сохранены.' };
 }
