@@ -80,6 +80,12 @@ export function buildPrintablePlacementSheets(project) {
         items: marks.filter(({ item }) => item.layer === 'electric' && (item.circuitId === circuit.id || connectedIds.has(item.id))),
         routes: layerRoutes, dimensions: dimensions.filter(dimension => !dimension.roomId), circuits: [circuit], showAutoDimensions: placement.showAutoDimensions !== false });
     }
+    for (const system of ['plumbing', 'heating', 'sewer']) {
+      const networkItems = marks.filter(({ item }) => item.layer === system);
+      if (networkItems.length) result.push({ id: `${floor}-scheme-${system}`, kind: 'network-scheme', system, floor,
+        title: `${NETWORK_SYSTEMS[system].label} · схема обвязки`, plan, items: networkItems,
+        routes: networkRoutes.filter(route => route.system === system), dimensions: [], circuits: [] });
+    }
     for (const room of (plan.rooms || []).filter(entry => entry.include !== false)) {
       const polygon = roomPoints(room);
       const roomItems = marks.filter(({ item }) => pointInPolygon(item, polygon) || item.linkedApplianceId && items.some(parent => parent.id === item.linkedApplianceId && pointInPolygon(parent, polygon)));

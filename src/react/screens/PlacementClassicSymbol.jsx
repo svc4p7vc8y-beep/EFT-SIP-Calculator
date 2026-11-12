@@ -31,7 +31,7 @@ function Electrical({ icon }) {
 }
 
 function PointLetter({ letter, color = '#26373d', large = false }) {
-  return <text x="50" y="52" textAnchor="middle" dominantBaseline="central" fontFamily="Arial, sans-serif" fontSize={large ? 62 : 52} fontWeight="700" fill={color} stroke="none">{letter}</text>;
+  return <text x="50" y="52" textAnchor="middle" dominantBaseline="central" fontFamily="Arial, sans-serif" style={{ fontSize: large ? 62 : 52, fontWeight: 700, fill: color, stroke: 'none' }}>{letter}</text>;
 }
 
 function Network({ icon }) {
@@ -65,6 +65,9 @@ export function PlacementSymbol({ kind, icon: explicitIcon, system, medium }) {
     const letter = system === 'sewer' ? 'К' : system === 'plumbing' ? (medium === 'hot' ? 'Г' : 'Х') : null;
     return <g fill="#fff" stroke={color} strokeWidth="8"><circle cx="50" cy="50" r={letter ? 40 : 34}/>{letter ? <PointLetter letter={letter} color={color}/> : <circle cx="50" cy="50" r="8" fill={color} stroke="none"/>}</g>;
   }
+  if (['check-valve', 'pressure-reducer', 'meter', 'elbow', 'coupling', 'safety-group', 'sewer-entry'].includes(icon)) return <g fill="#fff" stroke="#36534e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    {icon === 'sewer-entry' ? <><circle cx="50" cy="50" r="40"/><PointLetter letter="К" large/></> : icon === 'elbow' ? <path d="M15 80V20h65v16H31v44z"/> : icon === 'coupling' ? <><path d="M7 50h20m46 0h20"/><rect x="27" y="30" width="46" height="40"/><path d="M38 30v40m24-40v40"/></> : icon === 'safety-group' ? <><path d="M12 75h76M30 75V37m40 38V37M50 75V15" fill="none"/><circle cx="30" cy="27" r="14"/><path d="M30 27l7-7M62 37h16l-8-16z"/><rect x="42" y="8" width="16" height="18"/></> : <><path d="M5 50h22m46 0h22"/><circle cx="50" cy="50" r="25"/>{icon === 'check-valve' ? <path d="M38 36l22 14-22 14zm24 0v28"/> : icon === 'meter' ? <><path d="M35 55h30M50 50l10-10"/><circle cx="50" cy="50" r="3"/></> : <><path d="M35 58l30-16M50 25V10m-10 0h20"/><path d="M37 55l4 4 5-7 5 4 5-7 5 4" fill="none"/></>}</>}
+  </g>;
   const electrical = ['socket','double-socket','power','switch','double-switch','two-way-switch','dimmer','light','spotlight','pendant-light','wall-light','led-strip','panel','junction-box','facade-socket','facade-light','facade-spotlight'].includes(icon);
   const palette = icon === 'power' ? ['#fff0e9', '#ad4f33'] : icon.includes('switch') || icon === 'dimmer' ? ['#fff1d8', '#9d650f'] : icon === 'panel' ? ['#e5e8ff', '#414e9a'] : icon === 'junction-box' ? ['#f3e7ff', '#784e9e'] : ['light','spotlight','pendant-light','wall-light','led-strip','facade-light','facade-spotlight'].includes(icon) ? ['#fff8d9', '#9c7510'] : electrical ? ['#e1f6ed', '#237456'] : ['#fff', '#26373d'];
   return <g className="placement-classic-symbol" fill={palette[0]} stroke={palette[1]} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

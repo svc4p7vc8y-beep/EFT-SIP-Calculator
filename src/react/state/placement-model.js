@@ -1,3 +1,4 @@
+import { normalizeEngineeringSettings } from './engineering-settings.js';
 import { resolvedElectricalRoutes } from './placement-electrical.js';
 import { normalizeNetworkRoutes } from './placement-networks.js';
 import { addMissingConnectionPorts } from './placement-connections.js';
@@ -137,6 +138,7 @@ export const PLACEMENT_PRESETS = [
   preset('facade-light', 'Фасадный светильник', 'electric', 'facade', .26, .18, 'facade-light', { height: 2.2, surface: 'facade' }),
   preset('facade-spotlight', 'Фасадный прожектор', 'electric', 'facade', .28, .2, 'facade-spotlight', { height: 2.6, surface: 'facade' }),
   preset('junction-box', 'Распределительная коробка', 'electric', 'electrical-panel', .18, .12, 'junction-box'),
+  preset('water-riser', 'Стояк водоснабжения', 'plumbing', 'water-sources', .2, .16, 'stack'),
   preset('water-source', 'Ввод воды', 'plumbing', 'water-sources', .2, .16, 'water-source'),
   preset('cold-manifold', 'Коллектор ХВС', 'plumbing', 'water-sources', .45, .18, 'manifold'),
   preset('hot-manifold', 'Коллектор ГВС', 'plumbing', 'water-sources', .45, .18, 'manifold'),
@@ -156,6 +158,23 @@ export const PLACEMENT_PRESETS = [
   preset('sewer-outlet', 'Выпуск канализации', 'sewer', 'sewer-points', .16, .12, 'drain'),
   preset('sewer-floor-drain', 'Трап', 'sewer', 'sewer-points', .18, .18, 'floor-drain'),
   preset('sewer-tee', 'Тройник канализации', 'sewer', 'sewer-points', .14, .12, 'tee'),
+  preset('water-inlet-filter', 'Фильтр на вводе воды', 'plumbing', 'water-sources', .25, .18, 'water-filter'),
+  preset('water-check-valve', 'Обратный клапан', 'plumbing', 'water-points', .16, .12, 'check-valve'),
+  preset('water-pressure-reducer', 'Редуктор давления', 'plumbing', 'water-points', .18, .14, 'pressure-reducer'),
+  preset('water-meter', 'Счётчик воды', 'plumbing', 'water-points', .2, .14, 'meter'),
+  preset('water-elbow', 'Уголок водопровода', 'plumbing', 'water-points', .12, .12, 'elbow'),
+  preset('water-coupling', 'Муфта водопровода', 'plumbing', 'water-points', .12, .1, 'coupling'),
+  preset('heat-pump-point', 'Циркуляционный насос отопления', 'heating', 'heat-sources', .3, .2, 'pump'),
+  preset('heat-expansion-tank', 'Расширительный бак отопления', 'heating', 'heat-sources', .35, .3, 'expansion-tank'),
+  preset('heat-safety-group', 'Группа безопасности отопления', 'heating', 'heat-sources', .3, .18, 'safety-group'),
+  preset('heat-filter', 'Грязевик отопления', 'heating', 'heat-points', .2, .14, 'water-filter'),
+  preset('heat-drain-valve', 'Сливной кран отопления', 'heating', 'heat-points', .16, .12, 'valve'),
+  preset('heat-makeup-valve', 'Кран подпитки отопления', 'heating', 'heat-points', .16, .12, 'valve'),
+  preset('heat-union', 'Разъёмное соединение', 'heating', 'heat-points', .14, .12, 'coupling'),
+  preset('heat-elbow', 'Уголок отопления', 'heating', 'heat-points', .12, .12, 'elbow'),
+  preset('sewer-building-outlet', 'Выпуск канализации из дома', 'sewer', 'sewer-risers', .25, .2, 'sewer-entry'),
+  preset('sewer-elbow', 'Отвод канализации', 'sewer', 'sewer-points', .18, .18, 'elbow'),
+  preset('sewer-coupling', 'Муфта канализации', 'sewer', 'sewer-points', .16, .14, 'coupling'),
   preset('air-unit', 'Вентустановка', 'ventilation', 'air-units', .8, .5, 'vent-unit'),
   preset('air-junction', 'Разветвитель воздуховодов', 'ventilation', 'air-units', .2, .2, 'tee'),
   preset('air-damper', 'Заслонка', 'ventilation', 'air-units', .2, .16, 'damper'),
@@ -179,7 +198,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 7, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
+  return { version: 7, engineeringDefaults: {}, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value) {
@@ -216,6 +235,8 @@ export function normalizePlacement(value) {
     showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,
+      networkDiagram: item.networkDiagram && Number.isFinite(Number(item.networkDiagram.x)) && Number.isFinite(Number(item.networkDiagram.y))
+        ? { x: Math.max(35, Math.min(10000, Number(item.networkDiagram.x))), y: Math.max(35, Math.min(10000, Number(item.networkDiagram.y))) } : undefined,
       floor: Math.max(1, Math.min(2, Math.round(finite(item.floor, 1)))),
       x: finite(item.x), y: finite(item.y),
       ...(item.kind === 'junction-box' ? { diagramX: finite(item.diagramX, finite(item.x)), diagramY: finite(item.diagramY, finite(item.y)) } : {}),
@@ -275,6 +296,7 @@ export function normalizePlacement(value) {
     networkCustomRows: Object.fromEntries(Object.entries(value.networkCustomRows || {}).filter(([key, rows]) => /^(heating|plumbing|sewer|ventilation)-[12]$/.test(key) && Array.isArray(rows)).map(([key, rows]) => [key,
       rows.filter(row => row && typeof row.id === 'string').slice(0, 200).map(row => ({ id: row.id, name: String(row.name || '').slice(0, 120), quantity: Math.max(0, finite(row.quantity)), unit: String(row.unit || 'шт').slice(0, 20) })),
     ])),
+    engineeringDefaults: normalizeEngineeringSettings(value.engineeringDefaults),
     networks: normalizeNetworkRoutes(value.networks),
   };
   if (Number(value.version || 0) < 4) normalized.items = addMissingConnectionPorts(normalized.items);

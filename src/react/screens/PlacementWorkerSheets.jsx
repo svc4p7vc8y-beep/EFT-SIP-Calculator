@@ -1,3 +1,5 @@
+import { NETWORK_SYSTEMS } from '../state/placement-networks.js';
+import { EngineeringSchemeArtwork } from './EngineeringSchemeArtwork.jsx';
 import { boundsOf, houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { buildPrintablePlacementSheets, buildWorkerPrintPages, placeFloorPointLabels, planTileViewBox, pointLegendRows } from '../export/placement-sheets.js';
 import { dimensionMetres } from '../state/placement-geometry.js';
@@ -84,6 +86,7 @@ function RoomArtwork({ sheet }) {
 }
 
 export function PlacementSheetArtwork({ sheet, routeIds }) {
+  if (sheet.kind === 'network-scheme') return <EngineeringSchemeArtwork system={sheet.system} items={sheet.items.map(entry => entry.item)} routes={selectedRoutes(sheet, routeIds)} print/>;
   return sheet.kind === 'room' ? <RoomArtwork sheet={sheet}/> : <FloorArtwork sheet={sheet} routeIds={routeIds}/>;
 }
 
@@ -93,7 +96,7 @@ export function PlacementSheetInfo({ sheet, routeIds }) {
   const bounds = sheet.room ? boundsOf(roomPoints(sheet.room)) : boundsOf(houseContourPoints(sheet.plan));
   return <aside className="worker-sheet-info"><h2>О листе</h2><dl><div><dt>Этаж</dt><dd>{sheet.floor}</dd></div><div><dt>Область</dt><dd>{sheet.room?.name || 'Весь план'}</dd></div><div><dt>Габарит</dt><dd>{metres(bounds.w)} × {metres(bounds.h)}</dd></div><div><dt>Высота стен</dt><dd>{metres(height)}</dd></div><div><dt>Точки</dt><dd>{sheet.items.length}</dd></div><div><dt>Линии</dt><dd>{routes.length}</dd></div></dl>
     {sheet.items.length ? <section><h3>Элементы</h3><ol>{sheet.items.slice(0, 14).map(({ item, mark }) => <li key={item.id}><b>{mark}</b><span>{item.annotationText || item.label || item.kind}{item.heightKnown ? ` · h ${metres(item.height)}` : ''}</span></li>)}</ol>{sheet.items.length > 14 ? <small>Ещё {sheet.items.length - 14} элементов на плане</small> : null}</section> : null}
-    {routes.length ? <section><h3>Линии</h3><ol>{routes.slice(0, 8).map(route => <li key={route.id}><svg className="worker-line-sample" viewBox="0 0 38 12" aria-hidden="true"><line x1="1" y1="6" x2="37" y2="6" strokeDasharray={routeDash(route, sheet.circuits)}/></svg><span>{route.annotationText || sheet.circuits.find(circuit => circuit.id === route.circuitId)?.name || route.system}</span></li>)}</ol>{routes.length > 8 ? <small>Ещё {routes.length - 8} линий на плане</small> : null}</section> : null}
+    {routes.length ? <section><h3>Линии</h3><ol>{routes.slice(0, 8).map(route => <li key={route.id}><svg className="worker-line-sample" viewBox="0 0 38 12" aria-hidden="true"><line x1="1" y1="6" x2="37" y2="6" strokeDasharray={routeDash(route, sheet.circuits)}/></svg><span>{route.annotationText || sheet.circuits.find(circuit => circuit.id === route.circuitId)?.name || NETWORK_SYSTEMS[route.system]?.media.find(m => m.id === route.medium)?.label || NETWORK_SYSTEMS[route.system]?.label || route.system}</span></li>)}</ol>{routes.length > 8 ? <small>Ещё {routes.length - 8} линий на плане</small> : null}</section> : null}
   </aside>;
 }
 

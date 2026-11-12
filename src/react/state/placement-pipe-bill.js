@@ -20,7 +20,7 @@ export const PIPE_EQUIPMENT = {
 };
 
 export const pipeEquipmentKind = item => item.kind === 'radiator-point' ? 'radiator'
-  : ['boiler', 'heat-source'].includes(item.kind) ? 'boiler' : null;
+  : ['boiler', 'heat-source', 'heat-pump'].includes(item.kind) ? 'boiler' : null;
 
 export function pipeEquipmentRows(item) {
   return (PIPE_EQUIPMENT[pipeEquipmentKind(item)] || []).map(([name, example, circuit], i) => ({
@@ -33,8 +33,9 @@ const sizeLabel = route => [route.material, route.diameterMm && 'Ø' + route.dia
 const steps = points => points.slice(1).map((b, i) => [points[i], b]);
 const vector = (a, b) => [b.x - a.x, b.y - a.y, (b.z || 0) - (a.z || 0)];
 
-export function addPipeBill(routes, equipment, addComponent, issues) {
+export function addPipeBill(routes, equipment, addComponent, issues, explicitItems = [], system = 'plumbing') {
   const nodes = new Map(), countedTees = new Set();
+  const fittingName = name => system === 'sewer' ? ({ 'Тройник трубы': 'Тройник канализации', 'Крестовина трубы': 'Крестовина канализации', 'Уголок трубы': 'Отвод канализации' }[name] || name) : name;
   for (const route of routes) {
     if (route.outsideContour) continue;
     const size = sizeLabel(route);
@@ -74,15 +75,19 @@ export function addPipeBill(routes, equipment, addComponent, issues) {
   }
   for (const node of nodes.values()) {
     const directions = [...node.directions.values()], suffix = node.size ? ' · ' + node.size : '';
-    if (directions.length === 3) { addComponent('Тройник трубы' + suffix, 1); countedTees.add(node.point); }
-    else if (directions.length === 4) { addComponent('Крестовина трубы' + suffix, 1); countedTees.add(node.point); }
+    if (directions.length === 3) { addComponent(fittingName('Тройник трубы') + suffix, 1); countedTees.add(node.point); }
+    else if (directions.length === 4) { addComponent(fittingName('Крестовина трубы') + suffix, 1); countedTees.add(node.point); }
     else if (directions.length > 4) issues.push('Для узла с пятью и более ветвями задайте фитинги вручную.');
-    else if (directions.length === 2 && node.useElbow && !directions[0].every((v, i) => v === -directions[1][i])) addComponent('Уголок трубы' + suffix, 1);
+    else if (directions.length === 2 && node.useElbow && !explicitItems.some(i => ['water-elbow', 'heat-elbow', 'sewer-elbow'].includes(i.kind) && pointKey({ ...i, z: i.height }) === node.point) && !directions[0].every((v, i) => v === -directions[1][i])) addComponent(fittingName('Уголок трубы') + suffix, 1);
   }
   for (const item of equipment) {
     const rows = pipeEquipmentRows(item);
-    for (const row of rows) if (row.quantity > 0) addComponent(row.name, row.quantity);
-    if (!item.pipeKit) issues.push((item.label || item.kind) + ': проверьте комплект и укажите количество деталей.');
+    const representedKinds = { 'Группа безопасности котла': ['heat-safety-group'], 'Грязевик / магнитный сепаратор': ['heat-filter'], 'Расширительный бак отопления': ['heat-expansion-tank'], 'Циркуляционный насос отопления': ['heat-pump-point'], 'Запорный кран котла': ['heat-valve'], 'Узел подпитки': ['heat-makeup-valve'], 'Сливной кран': ['heat-drain-valve'], 'Разъёмное соединение котла': ['heat-union'] };
+    for (const row of rows) {
+      const drawn = explicitItems.filter(i => i.schemeOwnerId === item.id && representedKinds[row.name]?.includes(i.kind)).length;
+      if (row.quantity > drawn) addComponent(row.name, row.quantity - drawn);
+    }
+    if (!item.pipeKit && !explicitItems.some(i => i.schemeOwnerId === item.id)) issues.push((item.label || item.kind) + ': проверьте комплект и укажите количество деталей.');
   }
   return item => countedTees.has(pointKey({ ...item, z: item.height }));
 }

@@ -69,14 +69,23 @@ export function resolvedNetworkRoutes(placement, system, floor, plan = null) {
     const to = items.find(item => item.id === route.toId);
     if (!from || !to) return null;
     const wallRef = from.wallRef && from.wallRef === to.wallRef ? from.wallRef : '';
-    if (isPipeSystem(system) && ['wall', 'orthogonal'].includes(route.routing)) {
-      const anchors = route.auto
+    if ((isPipeSystem(system) || system === 'sewer') && ['wall', 'orthogonal'].includes(route.routing)) {
+      const anchors = system === 'sewer' && route.auto && route.medium === 'waste' ? [point(from, 0), point(to, 0)] : route.auto
         ? proposedNetworkPoints(from, to, route.routeLevel, route.bendAxis).filter((p, i, all) =>
             i === 0 || i === all.length - 1 || (p.x === from.x && p.y === from.y) || (p.x === to.x && p.y === to.y))
         : [point(from), ...route.points.slice(1, -1), point(to)];
       const options = { first: route.bendAxis, alongWall: route.auto && route.routing === 'wall', clearanceMm: route.clearanceMm, keepWaypoints: !route.auto };
       const points = orthogonalPipePath(anchors, { ...options, plan });
-      return { ...route, wallRef, points: points || orthogonalPipePath(anchors, { ...options, alongWall: false }), outsideContour: !points };
+      let resolved = points || orthogonalPipePath(anchors, { ...options, alongWall: false });
+      if (system === 'sewer' && route.auto && route.medium === 'waste' && resolved) {
+        resolved = resolved.filter((p, index, all) => !index || Math.hypot(p.x - all[index - 1].x, p.y - all[index - 1].y) > .0001);
+        const total = networkPlanLength(resolved); let distance = 0;
+        resolved = resolved.map((p, index, all) => {
+          if (index) distance += Math.hypot(p.x - all[index - 1].x, p.y - all[index - 1].y);
+          return { ...p, z: finite(from.height) + (finite(to.height) - finite(from.height)) * (total ? distance / total : 0) };
+        });
+      }
+      return { ...route, wallRef, points: resolved, outsideContour: !points };
     }
     if (route.auto) {
       const points = proposedNetworkPoints(from, to, system === 'sewer' ? null : route.routeLevel, route.bendAxis);
@@ -156,8 +165,8 @@ export function networkBill(placement, system, floor, plan = null) {
     else components.push({ name, quantity, unit });
   };
   const equipment = system === 'heating' ? (placement?.items || []).filter(item => item.floor === floor && pipeEquipmentKind(item)) : [];
-  const countedTee = isPipeSystem(system) ? addPipeBill(routes, equipment, addComponent, issues) : () => false;
-  items.filter(item => item.kind !== 'connection-port' && (!['heat-tee', 'water-tee'].includes(item.kind) || !countedTee(item)))
+  const countedTee = (isPipeSystem(system) || system === 'sewer') ? addPipeBill(routes, equipment, addComponent, issues, items, system) : () => false;
+  items.filter(item => item.kind !== 'connection-port' && (!['heat-tee', 'water-tee', 'sewer-tee'].includes(item.kind) || !countedTee(item)))
     .forEach(item => addComponent(item.label || item.kind, 1));
   routes.forEach(route => (route.accessories || []).filter(entry => entry.name.trim()).forEach(entry => addComponent(entry.name.trim(), entry.quantity, entry.unit)));
   if (system === 'heating') equipment.filter(item => item.layer !== system).forEach(item => addComponent(item.label || item.kind, 1));

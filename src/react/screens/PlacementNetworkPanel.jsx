@@ -15,6 +15,7 @@ export default function PlacementNetworkPanel({ system, floor, placement, plan, 
   const orderedItems = room ? [...localItems, ...items.filter(item => !localItems.includes(item))] : items;
   const bill = networkBill(placement, system, floor, plan);
   const pipe = isPipeSystem(system);
+  const chained = pipe || system === 'sewer';
   const selected = bill.routes.find(route => route.id === selectedRouteId);
   const canConnect = fromId && toId && fromId !== toId;
   const routeName = route => {
@@ -41,22 +42,22 @@ export default function PlacementNetworkPanel({ system, floor, placement, plan, 
     {autoPicking || drawing ? <button onClick={onCancel}>Отменить построение</button> : null}
     {system === 'heating' ? <button className="placement-network-pair" disabled={!canConnect || drawing || autoPicking} onClick={onPair}>Предложить подачу и обратку</button> : null}
     {drawing ? <div className="placement-network-drawing">
-      <p>{pipe ? 'Нажимайте узлы по порядку. Между ними можно ставить повороты. Пробел сохраняет трассу.' : 'Укажите повороты на плане или развёртке и нажмите конечный узел.'}</p>
-      {canConnect || !pipe ? <button disabled={!canConnect} onClick={onFinishManual}>{pipe ? 'Добавить участок между выбранными узлами' : 'Сохранить маршрут'} · {points.length} промежуточных точек</button> : null}
-      {pipe ? <button onClick={onFinishChain}>Завершить · Пробел ({chainCount} участков)</button> : null}
+      <p>{chained ? 'Нажимайте узлы по порядку. Между ними можно ставить повороты. Пробел сохраняет трассу.' : 'Укажите повороты на плане или развёртке и нажмите конечный узел.'}</p>
+      {canConnect || !chained ? <button disabled={!canConnect} onClick={onFinishManual}>{chained ? 'Добавить участок между выбранными узлами' : 'Сохранить маршрут'} · {points.length} промежуточных точек</button> : null}
+      {chained ? <button onClick={onFinishChain}>Завершить · Пробел ({chainCount} участков)</button> : null}
     </div> : null}
     <div className="placement-network-routes"><h4>Маршруты</h4>{bill.routes.length ? bill.routes.map(route => <button key={route.id} className={selectedRouteId === route.id ? 'active' : ''} onClick={() => onSelectRoute(route.id)}><span>{spec.media.find(entry => entry.id === route.medium)?.label} · {routeName(route)}</span><strong>{metres(networkLength3d(route.points))}</strong></button>) : <p>Маршрутов пока нет.</p>}</div>
     {selected ? <div className="placement-network-route-edit"><h4>{routeName(selected)}</h4>
-      <label>Прокладка<select value={selected.auto ? 'auto' : 'manual'} disabled={linesLocked} onChange={event => onUpdateRoute(selected.id, { auto: event.target.value === 'auto', points: selected.points, ...(pipe ? { routing: event.target.value === 'auto' ? 'wall' : 'orthogonal' } : {}) })}><option value="auto">Автоматическая</option><option value="manual">Ручная</option></select></label>
+      <label>Прокладка<select value={selected.auto ? 'auto' : 'manual'} disabled={linesLocked} onChange={event => onUpdateRoute(selected.id, { auto: event.target.value === 'auto', points: selected.points, ...(chained ? { routing: event.target.value === 'auto' ? 'wall' : 'orthogonal' } : {}) })}><option value="auto">Автоматическая</option><option value="manual">Ручная</option></select></label>
       {selected.auto && ['heating', 'plumbing'].includes(system) ? <label>Первый участок<select value={selected.bendAxis ?? 'x'} disabled={linesLocked} onChange={event => onUpdateRoute(selected.id, { bendAxis: event.target.value })}><option value="x">Вдоль X</option><option value="y">Вдоль Y</option></select></label> : null}
       {['heating', 'plumbing'].includes(system) ? <p>На плане перетащите прямой участок трассы или её промежуточный узел. Shift + щелчок добавляет узел.</p> : null}
       <label>Среда<select value={selected.medium} onChange={event => onUpdateRoute(selected.id, { medium: event.target.value })}>{spec.media.map(entry => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label>
       <label>Зона прокладки<select value={selected.plane || 'service'} onChange={event => onUpdateRoute(selected.id, { plane: event.target.value })}><option value="service">Сервисная зона</option><option value="wall">По выбранной стене</option><option value="floor">В полу</option><option value="ceiling">Под потолком</option></select></label>
-      {pipe && selected.auto ? <><label>Путь магистрали<select value={selected.routing === 'wall' ? 'wall' : 'orthogonal'} onChange={event => onUpdateRoute(selected.id, { routing: event.target.value })} disabled={linesLocked}><option value="wall">Вдоль стен</option><option value="orthogonal">Прямоугольный</option></select></label>
+      {chained && selected.auto ? <><label>Путь магистрали<select value={selected.routing === 'wall' ? 'wall' : 'orthogonal'} onChange={event => onUpdateRoute(selected.id, { routing: event.target.value })} disabled={linesLocked}><option value="wall">Вдоль стен</option><option value="orthogonal">Прямоугольный</option></select></label>
       <label>Отступ выбранной трассы от стены, мм<input type="number" min="0" max="300" value={selected.clearanceMm ?? 30} onChange={event => onUpdateRoute(selected.id, { clearanceMm: Number(event.target.value) })} disabled={linesLocked}/></label></> : null}
       <label>Материал / тип<input list={pipe ? 'placement-pipe-types' : undefined} value={selected.material || ''} onChange={event => onUpdateRoute(selected.id, { material: event.target.value })} placeholder={system === 'ventilation' ? 'Тип воздуховода' : 'Тип трубы по проекту'}/></label>
       <label>{system === 'ventilation' ? 'Круглый воздуховод Ø, мм' : 'Диаметр трубы, мм'}<input type="number" min="1" list={pipe ? 'placement-pipe-sizes' : undefined} value={selected.diameterMm ?? ''} onChange={event => onUpdateRoute(selected.id, { diameterMm: positive(event.target.value) })}/></label>
-      {pipe ? <><datalist id="placement-pipe-types">{PIPE_TYPES.map(value => <option key={value} value={value}/>)}</datalist>
+      {chained ? <><datalist id="placement-pipe-types">{PIPE_TYPES.map(value => <option key={value} value={value}/>)}</datalist>
       <datalist id="placement-pipe-sizes">{PIPE_DIAMETERS.map(value => <option key={value} value={value}/>)}</datalist>
       <label>Повороты<select value={selected.bendFitting} onChange={event => onUpdateRoute(selected.id, { bendFitting: event.target.value })}><option value="elbow">Уголки</option><option value="sweep">Гиб трубы</option></select></label>
       <label>Крепление трубы<select value={selected.fastener || ''} onChange={event => onUpdateRoute(selected.id, { fastener: event.target.value })}><option value="">Не задано</option><option value="clip">Клипса</option><option value="clamp">Хомут</option></select></label>

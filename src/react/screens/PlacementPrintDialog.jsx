@@ -15,6 +15,7 @@ export default function PlacementPrintDialog({ sheets, selection, onSelection, r
     <div className="placement-print-presets">
       <button type="button" onClick={() => onSelection(sheets.filter(sheet => sheet.kind === 'plan').map(sheet => sheet.id))}>Все планы</button>
       <button type="button" onClick={() => onSelection(sheets.filter(sheet => sheet.kind === 'room').map(sheet => sheet.id))}>Все развёртки</button>
+      <button type="button" onClick={() => onSelection(sheets.filter(sheet => sheet.kind === 'network-scheme').map(sheet => sheet.id))}>Все схемы обвязки</button>
       <button type="button" onClick={() => onSelection(sheets.filter(sheet => sheet.kind === 'line-layer').map(sheet => sheet.id))}>Листы линий</button>
       <button type="button" onClick={() => onSelection(sheets.map(sheet => sheet.id))}>Все листы</button>
       <button type="button" onClick={() => onSelection([])}>Снять выбор</button>
@@ -25,7 +26,7 @@ export default function PlacementPrintDialog({ sheets, selection, onSelection, r
       const selected = chosen.has(sheet.id);
       return <button type="button" key={sheet.id} className={`placement-print-sheet-card${selected ? ' selected' : ''}`} aria-pressed={selected} aria-label={`${selected ? 'Убрать' : 'Добавить'} лист ${sheet.title}`} onClick={() => onSelection(current => selected ? (current || []).filter(id => id !== sheet.id) : [...(current || []), sheet.id])}>
         <div className={`placement-print-sheet-preview${showInfo ? '' : ' no-info'}`}><div><PlacementSheetArtwork sheet={sheet} routeIds={routeSelection}/></div>{showInfo ? <PlacementSheetInfo sheet={sheet} routeIds={routeSelection}/> : null}</div>
-        <span className="placement-print-sheet-caption"><b>{sheet.title}</b><small>Этаж {sheet.floor} · {sheet.kind === 'room' ? 'Развёртка комнаты' : sheet.kind === 'line-layer' ? `1 слой · ${sheet.routes.length} линий` : `Общий план${planTiles > 1 ? ` · ${planTiles} листа` : ''}`} · {sheet.items.length} точек{sheet.items.length ? ' + лист описания' : ''}</small><i aria-hidden="true">{selected ? '✓' : '+'}</i></span>
+        <span className="placement-print-sheet-caption"><b>{sheet.title}</b><small>Этаж {sheet.floor} · {sheet.kind === 'network-scheme' ? 'Схема обвязки' : sheet.kind === 'room' ? 'Развёртка комнаты' : sheet.kind === 'line-layer' ? `1 слой · ${sheet.routes.length} линий` : `Общий план${planTiles > 1 ? ` · ${planTiles} листа` : ''}`} · {sheet.items.length} точек{sheet.items.length ? ' + лист описания' : ''}</small><i aria-hidden="true">{selected ? '✓' : '+'}</i></span>
       </button>;
     })}</div>
     <details className="placement-print-lines"><summary>Линии на выбранных листах · {routeSelection.length} выбрано</summary>
