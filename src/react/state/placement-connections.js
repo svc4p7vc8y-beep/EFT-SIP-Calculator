@@ -8,7 +8,7 @@ const heatPair = [port('heating', 'supply', 'Подача'), port('heating', 're
 const drain = port('sewer', 'waste', 'Сток');
 
 export const CONNECTION_PORTS = {
-  'hydro-tank': [port('plumbing', 'cold', 'Вход ХВС'), port('plumbing', 'cold', 'Выход ХВС')],
+  'hydro-tank': [{...port('plumbing', 'cold', 'Подключение ХВС'),side:'bottom'}],
   'expansion-tank': [port('heating', 'return', 'Подключение обратки')],
   'heat-pump': heatPair,
   boiler: [...heatPair, ...waterPair],

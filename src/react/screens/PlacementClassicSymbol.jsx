@@ -59,12 +59,12 @@ function Equipment({ icon }) {
   return <><rect x="16" y="10" width="68" height="80" rx="3"/><path d="M24 20h52M24 73h52" {...line}/><rect x="32" y="30" width="36" height="23" {...line}/>{[39,50,61].map(cx => <circle key={cx} cx={cx} cy="62" r="2" {...dot}/>)}<path d="M30 90v7m40-7v7" {...line}/></>;
 }
 
-export function PlacementSymbol({ kind, icon: explicitIcon, system, medium }) {
+function SymbolArtwork({ kind, icon: explicitIcon, system, medium }) {
   const icon = explicitIcon || findPlacementPreset(kind)?.icon || kind;
   if (OUTLINE_PIPE_ICONS.has(icon)) return <PipeApplianceSymbol icon={icon}/>;
   if (icon === 'connection-port') {
     const color={cold:'#2979aa',hot:'#bd5547',supply:'#bd5547',return:'#2979aa',waste:'#72579a'}[medium]||'#50666e';
-    return <g stroke={color} strokeWidth="6"><circle cx="50" cy="50" r="26" fill="white"/><circle cx="50" cy="50" r="7" fill={color}/></g>;
+    return <path d="M50 12v76" fill="none" stroke={color} strokeWidth="10"/>;
   }
   if(icon==='pressure-switch')return <g fill="white" stroke="#36534e" strokeWidth="4"><rect x="22" y="15" width="56" height="60" rx="5"/><path d="M50 75v20M35 34h30m-30 14h30m-30 14h20" fill="none"/></g>;
   if (['check-valve', 'pressure-reducer', 'meter', 'elbow', 'coupling', 'safety-group', 'sewer-entry'].includes(icon)) return <g fill="#fff" stroke="#36534e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -95,6 +95,15 @@ export function PlacementSymbol({ kind, icon: explicitIcon, system, medium }) {
   </g>;
 }
 
-export function CatalogSymbol({ preset }) {
-  return <svg viewBox="0 0 100 100" className={`placement-catalog-symbol ${preset.layer}`} aria-hidden="true"><PlacementSymbol icon={preset.icon}/></svg>;
+export function CatalogSymbol({ preset, outline=false }) {
+  return <svg viewBox="0 0 100 100" className={`placement-catalog-symbol ${preset.layer}`} aria-hidden="true"><PlacementSymbol icon={preset.icon} outline={outline}/></svg>;
+}
+
+export function PlacementSymbol({outline=false,...props}) {
+ const icon=props.icon||findPlacementPreset(props.kind)?.icon||props.kind;
+ if(outline&&['water-source','water-outlet','hot-outlet','drain','sewer-entry'].includes(icon)) {
+  const color=icon==='hot-outlet'?'#bd5547':icon==='drain'||icon==='sewer-entry'?'#72579a':'#2979aa';
+  return <g fill="none" stroke={color} strokeWidth="4"><path d="M40 5v57h20V5M33 62h34v15H33zM40 77v18m20-18v18"/></g>;
+ }
+ return <g className={outline?"engineering-outline":undefined}><SymbolArtwork {...props}/></g>;
 }

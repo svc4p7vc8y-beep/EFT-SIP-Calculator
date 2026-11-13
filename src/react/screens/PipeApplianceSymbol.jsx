@@ -1,4 +1,4 @@
-export const OUTLINE_PIPE_ICONS = new Set(['valve','ball-valve','pp-valve','angle-valve','union','angle-union','pp-union','mud-filter','water-filter','elbow','elbow-45','tee','cross','coupling','reducer','adapter','cap','pressure-gauge','air-vent','check-valve','pressure-reducer','meter','pump','boiler','water-heater','manifold','radiator','hydro-tank','expansion-tank','heat-pump','safety-group','stack','cleanout','floor-drain','floor-loop']);
+export const OUTLINE_PIPE_ICONS = new Set(['valve','ball-valve','pp-valve','angle-valve','union','angle-union','pp-union','mud-filter','water-filter','elbow','elbow-45','tee','cross','coupling','reducer','adapter','cap','pressure-gauge','air-vent','check-valve','pressure-reducer','meter','pump','boiler','electric-boiler','water-heater','manifold','radiator','hydro-tank','expansion-tank','heat-pump','safety-group','stack','cleanout','floor-drain','floor-loop']);
 export default function PipeApplianceSymbol({icon}) {
  const union=<><path d="M4 42h19v16H4m73-16h19v16H77M23 34h15v32H23zM62 34h15v32H62zM38 29h24v42H38z"/><path d="M43 34v32m14-32v32"/></>;
  const valve=<><path d="M3 42h20v16H3m74-16h20v16H77M23 35h54v30H23zM42 35V23h16v12M48 23V12h39v8H53"/><path d="M30 35v30m40-30v30"/></>;
@@ -17,7 +17,7 @@ export default function PipeApplianceSymbol({icon}) {
  else if(icon==='pressure-gauge')drawing=<><circle cx="50" cy="41" r="32"/><circle cx="50" cy="41" r="25"/><path d="M50 41l15-16M43 73v21h14V73M22 41h6m44 0h6M50 13v6"/></>;
  else if(icon==='air-vent')drawing=<><path d="M27 24h46v46q-23 17-46 0zM34 14h32v10M40 84v12h20V84M54 14V4h20v10"/></>;
  else if(icon==='pump')drawing=<><path d="M4 41h20v18H4m72-18h20v18H76"/><circle cx="50" cy="50" r="28"/><rect x="34" y="23" width="32" height="48" rx="9"/><path d="M41 35h18v16H41zM43 60h14"/></>;
- else if(icon==='boiler'||icon==='water-heater')drawing=<><rect x="21" y="5" width="58" height="81" rx={icon==='water-heater'?22:6}/><path d="M25 63h50M37 86v10m26-10v10"/>{icon==='boiler'?<><rect x="32" y="66" width="21" height="11"/><circle cx="64" cy="71" r="4"/></>:<circle cx="50" cy="66" r="5"/>}</>;
+ else if(icon==='boiler'||icon==='electric-boiler'||icon==='water-heater')drawing=<><rect x="21" y="5" width="58" height="81" rx={icon==='water-heater'?22:6}/><path d={icon==='electric-boiler'?"M25 63h50":"M25 63h50M37 86v10m26-10v10"}/>{icon!=='water-heater'?<><rect x="32" y="66" width="21" height="11"/><circle cx="64" cy="71" r="4"/></>:<circle cx="50" cy="66" r="5"/>}</>;
  else if(icon==='manifold')drawing=<><path d="M5 20h90v17H5zM5 62h90v17H5z"/>{[23,43,63,83].map(x=><g key={x}><path d={`M${x} 37v13m0 0v12m0 17v16M${x-6} 5h12v15h-12z`}/><circle cx={x} cy="50" r="5"/></g>)}</>;
  else if(icon==='radiator')drawing=<><rect x="5" y="17" width="90" height="65" rx="4"/>{[17,30,43,56,69,82].map(x=><path key={x} d={`M${x} 22v55`}/>)}<path d="M8 9v8m84 65v9M1 29h4m90 42h4"/></>;
  else if(icon==='expansion-tank'||icon==='hydro-tank')drawing=<><path d="M25 31q0-24 25-24t25 24v35q0 24-25 24T25 66zM25 47h50M43 90v8h14v-8"/>{icon==='hydro-tank'&&<path d="M25 80l-8 16m58-16 8 16"/>}</>;
@@ -26,5 +26,5 @@ export default function PipeApplianceSymbol({icon}) {
  else if(icon==='floor-loop')drawing=<path d="M8 90V12h84v76H25V28h50v43H42V45h16v9"/>;
  else if(icon==='stack'||icon==='cleanout')drawing=<><path d="M33 4h34v92H33zM25 6h50v16H25zM25 78h50v16H25z"/>{icon==='cleanout'&&<><circle cx="50" cy="50" r="23"/><path d="M42 50h16"/></>}</>;
  else drawing=<><rect x="15" y="15" width="70" height="70" rx="5"/>{[28,42,56,70].map(x=><path key={x} d={`M${x} 22v56`}/>)}<path d="M22 32h56m-56 18h56m-56 18h56"/></>;
- return <g fill="white" stroke="#344b50" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">{drawing}</g>;
+ return <g fill="none" stroke="#344b50" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">{drawing}</g>;
 }
