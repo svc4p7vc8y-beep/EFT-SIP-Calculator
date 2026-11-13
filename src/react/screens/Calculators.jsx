@@ -1,4 +1,5 @@
-import {flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
+import { OVERHANG_FIELDS, roofOverhangValue, resetSeparateOverhangs } from '../calculations/roof-overhangs.js';
+import {flatSlopeAngle, setFlatSlopeAngle, flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
 import { lazy, Suspense, useMemo } from "react";
 import { DraftText } from './CuttingControls.jsx';
 import DeliveryVolume from '../components/DeliveryVolume.jsx';
@@ -477,7 +478,9 @@ function RoofConstructionPanels({
                   step={0.5}
                   onChange={(value) => setSetting("roof", "flatSlopePercent", value)}
                 />
-                {project.settings.roof.flatSlopeMode==='structural'?<NumberField label="Перепад высоты стен" value={flatWallDrop(project)} suffix="м" min={0} step={.01} onChange={value=>setSetting('roof','flatWallDropM',value)}/>:<div className="readout"><span>Перепад кровли</span><strong>{formatNumber(calculation.roof.flatRise,3)} м</strong></div>}
+                <NumberField label={project.settings.roof.flatSlopeMode==='structural'?'Перепад высоты стен':'Перепад высот кровли'} value={flatWallDrop(project)} suffix="м" min={0} step={.01} onChange={value=>setSetting('roof','flatWallDropM',value)}/>
+                <NumberField label="Угол наклона" value={flatSlopeAngle(project)} suffix="°" min={0} max={11.31} step={.1} onChange={value=>setSetting('roof','flatSlopeAngleDeg',value)}/>
+
                 {project.settings.roof.flatSlopeMode==='structural'?<SelectField label="Заданная высота стены" value={project.settings.roof.flatWallHeightReference||'low'} onChange={value=>setSetting('roof','flatWallHeightReference',value)} options={[{value:'high',label:'По высокому краю · подрезка панелей'},{value:'low',label:'По низкому краю · наращивание'}]}/>:null}
               </>
             ) : null}
@@ -529,6 +532,7 @@ function RoofConstructionPanels({
                 onChange={(value) => setSetting("roof", "gableOverhang", value)}
               />
             ) : null}
+            {OVERHANG_FIELDS.map(([key,label,fallback])=><NumberField key={key} label={label} value={roofOverhangValue(project.settings.roof,key,fallback)} suffix="м" min={0} max={2} step={.05} onChange={value=>setSetting('roof',key,value)}/>)}
             <div className="readout">
               <span>Габарит кровли со свесами</span>
               <strong>
@@ -1168,9 +1172,11 @@ export default function Calculators({ type, onNavigate }) {
       if (group === 'internal' && next.settings.links.internalFinishFromPlan !== false) {
         Object.assign(next.settings.internal, calculation.inputs.internal);
       }
+      if(group==='roof'&&key==='flatSlopeAngleDeg'){setFlatSlopeAngle(next,value);releasePlanLinkedQuantityOverrides(next);return next;}
       if(group==='roof'&&key==='flatWallDropM'){setFlatWallDrop(next,value);releasePlanLinkedQuantityOverrides(next);return next;}
       if (group === 'roof' && key === 'shape') Object.assign(next.settings.roof,roofFormPatch(next.settings.roof,value));
       else next.settings[group][key] = value;
+      if(group==='roof'&&['eaveOverhang','gableOverhang'].includes(key))resetSeparateOverhangs(next.settings.roof,key);
       if(group==='roof'&&((key==='flatSlopeMode'&&value==='structural')||(key==='flatSlopePercent'&&next.settings.roof.flatSlopeMode==='structural')))next.settings.roof.flatWallHeightReference='high';
       if (group === "sip") synchronizeWallThickness(next,key);
       if (group === "roof" && !key.startsWith("show"))

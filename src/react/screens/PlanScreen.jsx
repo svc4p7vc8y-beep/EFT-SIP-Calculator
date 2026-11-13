@@ -1,3 +1,4 @@
+import { overhangEdgeOverrides, hasSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import {roofPlanLines,snapRoofLineOffset,saveRoofLines} from '../planner/roof-lines.js';
 import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges,assignPartitionProfiles,assignSipThickness} from '../planner/bearing-selection.js';
 import {PARTITION_BOARD_PROFILES,partitionProfileColor,partitionProfileLabel} from '../data/partition-profiles.js';
@@ -855,7 +856,7 @@ function RectangularRoofPlanOverlay({ plan, roof, p }) {
   const hasParapet = shape === 'flat' && ['flashing','closed','open'].includes(roof.flatParapetMode);
   const outline = hasParapet
     ? flatRoofFootprint(contour.map(({x,y})=>[x*1000,y*1000]),roof).map(([x,y])=>p(x/1000,y/1000))
-    : roofOutline(contour, xOverhang, yOverhang).map(point => p(point.x, point.y));
+    : roofOutline(contour, xOverhang, yOverhang, overhangEdgeOverrides(contour,vertical?'y':'x',roof)).map(point => p(point.x, point.y));
   const outlinePoints = outline.map(point => `${point.x},${point.y}`).join(' ');
   const ridge = [p(ridgeA.x, ridgeA.y), p(ridgeB.x, ridgeB.y)];
   const arrowInset = Math.min(Math.max(0.3, Math.min(x2 - x1, y2 - y1) * 0.18), 1.5);
@@ -6673,7 +6674,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             floorOpenings={stairOpenings}
             commitFloorOpening={commitFloorOpening}
             roof={project.settings.roof}
-            roofModel={activeFloor === floorCount && (projectCalculation.roof.pitched || projectCalculation.roof.footprint?.included.length)
+            roofModel={activeFloor === floorCount && (projectCalculation.roof.pitched || projectCalculation.roof.footprint?.included.length || hasSeparateOverhangs(project.settings.roof))
               ? projectCalculation.metrics.partitionFitContext?.model : null}
             activeLayer={activeLayer}
             visibleLayers={visibleLayers}

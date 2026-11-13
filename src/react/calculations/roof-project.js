@@ -1,3 +1,4 @@
+import { hasSeparateOverhangs, convexEdgeOverhang } from './roof-overhangs.js';
 import {productionLevels} from './production-levels.js';
 import {platformRoofFrame} from '../planner/platform-roof-frame.js';
 import {resolveTerracePlatform} from '../../calculations/terrace-model.js';
@@ -72,8 +73,7 @@ export function roofProject(project,calculation,assembly){
   const structural=calculation.roof.flatSlopeMode==='structural',tapered=calculation.roof.flatSlopeMode==='tapered',slope=Number(settings.flatSlopePercent||0)/100;
   const negative=['back','right'].includes(calculation.roof.flatSlopeDirection),z=y=>structural||tapered?(negative?span-y:y)*slope:0;
   try{
-   const outline=['flashing','closed','open'].includes(settings.flatParapetMode)?flatRoofFootprint(contour,settings):rectangle?[at(-t,-e,0),at(L+t,-e,0),at(L+t,span+e,0),at(-t,span+e,0)].map(p=>p.slice(0,2)):
-     contourRoofOutline(contour,assembly.axis,e,t);
+   const outline=['flashing','closed','open'].includes(settings.flatParapetMode)?flatRoofFootprint(contour,settings):contourRoofOutline(contour,assembly.axis,e,t,settings);
    add('КР-С1','Односкатная поверхность',outline.map(([x,y])=>[x,y,roofBase+z(axis===0?y-b.y:x-b.x)]),{structureHorizontal:tapered});
   }catch(error){issue('ROOF_CONTOUR',error.message,'main');}
   if(tapered)issue('ROOF_TAPER','Разуклонка: нижний пояс горизонтален, верхняя доска повторяет уклон; стыки, крепёж и водоприёмники задайте по рабочему проекту.');
@@ -82,7 +82,7 @@ export function roofProject(project,calculation,assembly){
   const q=settings.tiered||{},U=Number(g.upperSpan)*1000,lo=Number(g.lowerSpan)*1000,J=Number(g.jointOverhang||0)*1000;
   const lowerJoint=q.lowerSlopeDirection==='towardJunction'?0:Number(g.lowerRise)*1000,upperJoint=lowerJoint+Number(g.stepHeight)*1000;
   try{
-  const outline=rectangle?null:contourRoofOutline(contour,assembly.axis,e,t);
+  const outline=rectangle&&!hasSeparateOverhangs(settings)?null:contourRoofOutline(contour,assembly.axis,e,t,settings);
   for(const [id,name,start,end,rise,run,joint,negative] of [['КР-В','Верхний уровень',-e,U+J,g.upperRise,U,upperJoint,q.upperSlopeDirection!=='awayJunction'],['КР-Н','Нижний уровень',U,span+e,g.lowerRise,lo,lowerJoint,q.lowerSlopeDirection!=='towardJunction']]){
    const z=x=>joint+(x-U)*(negative?-1:1)*Number(rise)*1000/(run||1),pos=x=>q.upperSide==='second'?span-x:x;
    const polygons=outline?contourRoofStrip(outline,axis===0?'y':'x',(axis===0?b.y:b.x)+Math.min(pos(start),pos(end)),(axis===0?b.y:b.x)+Math.max(pos(start),pos(end))):null;
@@ -93,7 +93,7 @@ export function roofProject(project,calculation,assembly){
   issue('ROOF_JUNCTION','Перепад уровней: узел водозащиты и передачи нагрузки требует подтверждения.');
  }else if(shape==='hip'&&design.hipGeometry?.mode==='contour'){
   try{
-   const result=hipRoofFromContour(contour,{angleDeg:design.hipGeometry.angleDeg,edgeAngles:design.hipGeometry.edgeAngles,overhangMm:e,roofBase,eaveZ:design.hipGeometry.eaveZ});
+   const result=hipRoofFromContour(contour,{angleDeg:design.hipGeometry.angleDeg,edgeAngles:design.hipGeometry.edgeAngles,overhangMm:e,roofBase,eaveZ:design.hipGeometry.eaveZ,overhangForEdge:hasSeparateOverhangs(settings)?(a,b)=>convexEdgeOverhang(a,b,assembly.axis,settings):undefined});
    result.facets.forEach((facet,i)=>add(`КР-К-${facet.edgeKey.replaceAll(',', '_').replace('|', '-')}`,`Вальма · скат ${i+1}`,facet.vertices,{hipEdgeKey:facet.edgeKey}));
    if(result.wallAlignmentReview)issue('ROOF_WALL_ALIGNMENT','Разные уклоны и общий карниз: отметки опирания по стенам требуют отдельной проверки.');
   }catch(error){issue('ROOF_HIP_GEOMETRY',error.message,'main');}

@@ -4,6 +4,7 @@ import { calculationFlowRows, DEFAULT_FORMULAS } from '../calculations/calculati
 import { calculateProject } from '../calculations/estimate-engine.js';
 import {
   calculateAdjustedPrice,
+  setCommonPriceAdjustment,
   createDefaultPriceAdjustments,
   normalizePriceAdjustments,
   PRICE_ADJUSTMENT_GROUPS,
@@ -88,6 +89,7 @@ export default function CalculationSettingsScreen({ embedded = false, suppliedCa
         <small>База: материалы {formatMoney(totals.base.materials)} · работы {formatMoney(totals.base.labor)}</small>
         <small className={changed ? 'price-adjustment-changed' : 'price-adjustment-unchanged'}>Изменённые цены: материалы {formatMoney(totals.adjusted.materials)} · работы {formatMoney(totals.adjusted.labor)}</small>
       </div>
+      <NumberField label={key === 'general' ? 'Материалы и работы' : 'Весь раздел'} value={priceAdjustments[key].common} min={-100} max={500} step={1} suffix="%" onChange={value => { if(priceAdjustments[key].common===value&&priceAdjustments[key].materials===value&&priceAdjustments[key].labor===value)return; commit(next => { next.settings.priceAdjustments = setCommonPriceAdjustment(next.settings.priceAdjustments, key, value); return next; }); }} />
       <NumberField label={key === 'general' ? 'Все материалы' : 'Материалы'} value={priceAdjustments[key].materials} min={-100} max={500} step={1} suffix="%" onChange={value => updatePriceAdjustment(key, 'materials', value)} />
       <NumberField label={key === 'general' ? 'Все работы' : 'Работы'} value={priceAdjustments[key].labor} min={-100} max={500} step={1} suffix="%" onChange={value => updatePriceAdjustment(key, 'labor', value)} />
     </article>;
@@ -122,7 +124,7 @@ export default function CalculationSettingsScreen({ embedded = false, suppliedCa
   return <div className="screen calculation-settings-screen"><ScreenHeader title="Настройки расчёта" actions={<button className="button secondary" onClick={resetFormulas}><RotateCcw />Исходные коэффициенты</button>} />
     <div className="stats-row"><Stat label="Автоматические связи" value={`${Object.values(calculation.inputs.links).filter(Boolean).length} из ${LINK_FIELDS.length}`} tone="accent" /><Stat label="Расчётных строк" value={`${calculation.lines.length} шт`} /><Stat label="Связано с прайсом" value={`${priced.length} шт`} /><Stat label="Требует цены" value={`${missing.length} шт`} tone={missing.length ? 'danger' : ''} /><Stat label="Итого сметы" value={formatMoney(calculation.totals.total)} /></div>
     <Panel className="price-adjustment-panel" title="Скидка и наценка" description="Общие проценты применяются после процентов раздела. Изменённые цены учитываются в смете, печати, PDF и экспорте; общий прайс не меняется.">
-      <div className="price-adjustment-toolbar"><div><CircleDollarSign /><span><strong>Минус — скидка, плюс — наценка</strong><small>Материалы и работы регулируются отдельно. Например: −10% по разделу и −5% общих дают −14,5%.</small></span></div><button className="button secondary compact-button" type="button" onClick={resetPriceAdjustments}><RotateCcw />Обнулить</button></div>
+      <div className="price-adjustment-toolbar"><div><CircleDollarSign /><span><strong>Минус — скидка, плюс — наценка</strong><small>«Весь раздел» задаёт оба процента; затем материалы и работы можно менять отдельно. Например: −10% по разделу и −5% общих дают −14,5%.</small></span></div><button className="button secondary compact-button" type="button" onClick={resetPriceAdjustments}><RotateCcw />Обнулить</button></div>
       {adjustmentGrid}
     </Panel>
     <Panel title="Структурная схема" description="Каждая строка показывает источник, применённую формулу, текущий результат и потребителей"><div className="calculation-flow">{flows.map((row) => <article key={`${row.group}-${row.target}`}><span className="flow-group">{row.group}</span><div><small>Источник</small><strong>{row.source}</strong></div><ArrowRight /><div><small>Формула</small><code>{row.formula}</code></div><ArrowRight /><div className="flow-result"><small>Результат</small><strong>{formatNumber(row.result, 3)} {row.unit}</strong></div><ArrowRight /><div><small>Передаётся</small><span>{row.target}</span></div>{row.auto === false ? <i className="manual"><Unplug />Вручную</i> : <i><CheckCircle2 />Связано</i>}</article>)}</div></Panel>

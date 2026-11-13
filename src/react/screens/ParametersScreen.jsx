@@ -1,5 +1,6 @@
+import { OVERHANG_FIELDS, roofOverhangValue, resetSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import { buildingTypeOptions } from '../data/building-types.js';
-import {flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
+import {flatSlopeAngle, setFlatSlopeAngle, flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
 import { useEffect, useMemo, useState } from "react";
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
 import OpeningMiniPlan from '../components/OpeningMiniPlan.jsx';
@@ -274,6 +275,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
           calculation.lines.find((line) => line.id === sipLineByPath[path]),
         );
       }
+      if(path==='settings.roof.flatSlopeAngleDeg'){setFlatSlopeAngle(next,value);releasePlanLinkedQuantityOverrides(next);return next;}
       if(path==='settings.roof.flatWallDropM'){setFlatWallDrop(next,value);releasePlanLinkedQuantityOverrides(next);return next;}
       const keys = path.split(".");
       let target = next;
@@ -282,6 +284,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
       });
       if (path === 'settings.roof.shape') Object.assign(next.settings.roof,roofFormPatch(next.settings.roof,value));
       else target[keys.at(-1)] = value;
+      if(path==='settings.roof.eaveOverhang'||path==='settings.roof.gableOverhang')resetSeparateOverhangs(next.settings.roof,keys.at(-1));
       if((path==='settings.roof.flatSlopeMode'&&value==='structural')||(path==='settings.roof.flatSlopePercent'&&next.settings.roof.flatSlopeMode==='structural'))next.settings.roof.flatWallHeightReference='high';
       if (path.startsWith('settings.productionCutting.')) next.settings.productionCutting = normalizeProductionCutting(next.settings.productionCutting);
       if (path === "settings.roof.includeCovering") {
@@ -1096,7 +1099,8 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 20,
                 step: 0.5,
               },
-              project.settings.roof.shape === 'flat' && project.settings.roof.flatSlopeMode === 'structural' && {path:'settings.roof.flatWallDropM',label:'Перепад высоты стен',value:flatWallDrop(project),suffix:'м',min:0,step:.01},
+              project.settings.roof.shape === 'flat' && project.settings.roof.flatSlopeMode !== 'none' && {path:'settings.roof.flatWallDropM',label:project.settings.roof.flatSlopeMode==='structural'?'Перепад высоты стен':'Перепад высот кровли',value:flatWallDrop(project),suffix:'м',min:0,step:.01},
+              project.settings.roof.shape === 'flat' && project.settings.roof.flatSlopeMode !== 'none' && {path:'settings.roof.flatSlopeAngleDeg',label:'Угол наклона',value:flatSlopeAngle(project),suffix:'°',min:0,max:11.31,step:.1},
               project.settings.roof.shape === 'flat' && project.settings.roof.flatSlopeMode === 'structural' && {path:'settings.roof.flatWallHeightReference',type:'select',label:'Заданная высота стены',value:project.settings.roof.flatWallHeightReference||'low',options:[{value:'high',label:'По высокому краю · подрезка целых панелей'},{value:'low',label:'По низкому краю · наращивание сверху'}]},
               project.settings.roof.shape === "flat" && project.settings.roof.type === "cold" && {
                 path: "settings.roof.flatFrameDepthMm",
@@ -1159,6 +1163,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 max: 2,
                 step: 0.05,
               },
+              ...OVERHANG_FIELDS.map(([key,label,fallback])=>({path:'settings.roof.'+key,label,value:roofOverhangValue(project.settings.roof,key,fallback),suffix:'м',min:0,max:2,step:.05})),
               {
                 path: "settings.roof.wastePercent",
                 label: "Запас",

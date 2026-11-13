@@ -1,3 +1,4 @@
+import { hasSeparateOverhangs, roofOverhangValue } from './roof-overhangs.js';
 import {partitionTopFit,partitionProfileArea,partitionProfileTopLength} from './partition-top-fit.js';
 import { SIP_ORDER_SECTION, SIP_ORDER_TITLE, sipPanelOrderLines } from './sip-panel-order.js';
 import {sipPartitionShares} from './partition-sip-selection.js';
@@ -1175,8 +1176,8 @@ function roofSection(project, metrics, index, inputs, footprint) {
     ? 0
     : Math.min(20, Math.max(0, Number(roof.flatSlopePercent) || 0));
   const hasStructuralFlatGables = flatSlopeMode === "structural" && flatSlopePercent > 0;
-  const eaveOverhang = Math.max(0, Number(roof.eaveOverhang) || 0);
-  const gableOverhang = Math.max(0, Number(roof.gableOverhang) || 0);
+  const eaveOverhang = hasSeparateOverhangs(roof) ? (roofOverhangValue(roof,'overhangFirstM','eaveOverhang')+roofOverhangValue(roof,'overhangSecondM','eaveOverhang'))/2 : Math.max(0, Number(roof.eaveOverhang) || 0);
+  const gableOverhang = hasSeparateOverhangs(roof) ? (roofOverhangValue(roof,'overhangFrontM','gableOverhang')+roofOverhangValue(roof,'overhangBackM','gableOverhang'))/2 : Math.max(0, Number(roof.gableOverhang) || 0);
   let geometry = mainRoofShape === 'tiered' ? calculateTieredRoofGeometry({
     span, ridgeLength: inputs.roof.ridgeLength, eaveOverhang, gableOverhang,
     tiered: roof.tiered,
@@ -1198,12 +1199,12 @@ function roofSection(project, metrics, index, inputs, footprint) {
     const xs = contour.map(point => point[0]), ys = contour.map(point => point[1]);
     const isRectangle = isAxisAlignedRectangleContour(contour);
     const design = project.settings.productionCutting?.roofDesign;
-    if ((!isRectangle || footprint.included.length) && ['gable', 'hip'].includes(mainRoofShape) && !design?.manualFaces?.length
+    if ((!isRectangle || footprint.included.length || hasSeparateOverhangs(roof)) && ['gable', 'hip'].includes(mainRoofShape) && !design?.manualFaces?.length
       && !(mainRoofShape === 'hip' && design?.hipGeometry?.mode === 'contour')) {
       try {
         pitched = pitchedContourRoof(footprint.points, {
           shape: mainRoofShape, axis: roofAxes.ridgeAxis, eave: eaveOverhang, gable: gableOverhang,
-          ridgeHeight: Number(roof.ridgeHeight) || 0,
+          ridgeHeight: Number(roof.ridgeHeight) || 0, overhangs: roof,
         });
         const area = round(facetedRoofArea({ ...pitched, maxHeight: 1 }, 1), 2);
         const projected = contourProjectedArea(pitched.facets.map(f => f.vertices.map(p => [p.x * 1000, p.y * 1000])));
@@ -1211,9 +1212,9 @@ function roofSection(project, metrics, index, inputs, footprint) {
           slopeCoefficient: round(area / (projected || 1), 3) };
       } catch (error) { pitchedError = error.message; }
     }
-    if (!isRectangle && ['flat', 'tiered'].includes(mainRoofShape)) {
+    if ((!isRectangle || hasSeparateOverhangs(roof)) && ['flat', 'tiered'].includes(mainRoofShape)) {
       try {
-        const outline = contourRoofOutline(contour, roofAxes.ridgeAxis, eaveOverhang * 1000, gableOverhang * 1000);
+        const outline = contourRoofOutline(contour, roofAxes.ridgeAxis, eaveOverhang * 1000, gableOverhang * 1000, roof);
         const projected = contourProjectedArea([outline]);
         if (mainRoofShape === 'flat') {
           const area = round(projected * Math.hypot(1, flatSlopePercent / 100), 2);

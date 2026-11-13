@@ -30,7 +30,7 @@ function clip(poly,plane){
  return result.filter((point,i)=>i===0||Math.hypot(point[0]-result[i-1][0],point[1]-result[i-1][1])>.001);
 }
 
-export function hipRoofFromContour(points,{angleDeg,edgeAngles={},overhangMm=0,roofBase,eaveZ=''}={}){
+export function hipRoofFromContour(points,{angleDeg,edgeAngles={},overhangMm=0,roofBase,eaveZ='',overhangForEdge}={}){
  const contour=convexHipContour(points);
  if(!Number.isFinite(overhangMm)||overhangMm<0||overhangMm>10000)throw new Error('Свес должен быть от 0 до 10000 мм.');
  if(!Number.isFinite(roofBase))throw new Error('Нужна отметка опирания крыши.');
@@ -38,7 +38,8 @@ export function hipRoofFromContour(points,{angleDeg,edgeAngles={},overhangMm=0,r
   const b=contour[(i+1)%contour.length],key=hipEdgeKey(a,b),override=edgeAngles[key],angle=override===''||override==null?angleDeg:Number(override);
   if(!Number.isFinite(angle)||angle<=0||angle>=80)throw new Error(`Ребро ${i+1}: угол ската должен быть больше 0° и меньше 80°.`);
   const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),n=[-dy/length,dx/length];
-  return {index:i,key,angleDeg:angle,n,c:n[0]*a[0]+n[1]*a[1]-overhangMm,slope:Math.tan(angle*Math.PI/180)};
+  const wallC=n[0]*a[0]+n[1]*a[1],edgeOverhang=overhangForEdge?.(a,b)??overhangMm;
+  return {index:i,key,angleDeg:angle,n,wallC,c:wallC-edgeOverhang,slope:Math.tan(angle*Math.PI/180)};
  });
  const distinct=slopes.some(item=>Math.abs(item.angleDeg-slopes[0].angleDeg)>1e-8);
  if(distinct&&overhangMm>0&&eaveZ==='')throw new Error('Для разных углов и общего уровня карнизов со свесом задайте отметку карниза Z. Проверьте высоты опирания на стены.');
@@ -49,7 +50,7 @@ export function hipRoofFromContour(points,{angleDeg,edgeAngles={},overhangMm=0,r
   if(Math.abs(det)<1e-8)throw new Error('Соседние грани контура параллельны.');
   return [(previous.c*item.n[1]-previous.n[1]*item.c)/det,(previous.n[0]*item.c-previous.c*item.n[0])/det];
  });
- const height=(item,point)=>base+item.slope*(item.n[0]*point[0]+item.n[1]*point[1]-item.c);
+ const height=(item,point)=>overhangForEdge&&eaveZ===''?roofBase+item.slope*(item.n[0]*point[0]+item.n[1]*point[1]-item.wallC):base+item.slope*(item.n[0]*point[0]+item.n[1]*point[1]-item.c);
  const facets=[];
  for(const item of slopes){
   let polygon=eaves;

@@ -7618,3 +7618,8 @@ select,
 .price-adjustment-group .price-adjustment-changed { color: #b42318; }
 .price-adjustment-group .price-adjustment-unchanged { color: #34732d; }
 .calculation-settings-embedded .price-adjustment-group { grid-column: 1 / -1; }
+
+.price-adjustment-grid article { grid-template-columns:minmax(190px,1fr) repeat(3,minmax(95px,130px)); }
+.calculation-settings-embedded .price-adjustment-grid article { grid-template-columns:repeat(3,minmax(0,1fr)); }
+@media(max-width:900px){.price-adjustment-grid article{grid-template-columns:repeat(3,minmax(0,1fr));}.price-adjustment-grid .price-adjustment-group{grid-column:1/-1;}}
+@media(max-width:480px){.price-adjustment-grid article,.calculation-settings-embedded .price-adjustment-grid article{grid-template-columns:minmax(0,1fr);}}

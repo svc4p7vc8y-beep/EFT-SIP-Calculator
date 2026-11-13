@@ -1,3 +1,4 @@
+import { overhangEdgeOverrides } from './roof-overhangs.js';
 import clipping from 'polygon-clipping';
 import { roofOutline } from '../planner/roof-outline.js';
 
@@ -7,10 +8,10 @@ const area = points => Math.abs(points.reduce((sum, point, index) => {
 }, 0)) / 2;
 
 // Coordinates and offsets are millimetres. The axis is the long direction of the roof.
-export function contourRoofOutline(contour, axis, eaveMm, gableMm) {
+export function contourRoofOutline(contour, axis, eaveMm, gableMm, roof = {}) {
   const points = roofOutline(contour.map(([x, y]) => ({ x, y })),
     axis === 'x' ? gableMm : eaveMm,
-    axis === 'x' ? eaveMm : gableMm);
+    axis === 'x' ? eaveMm : gableMm, overhangEdgeOverrides(contour.map(([x,y])=>({x,y})),axis,roof,1000));
   const polygon = points.map(({ x, y }) => [x, y]);
   // An offset of a narrow recess can fold over itself; never fabricate from that geometry.
   const ring = [...polygon, polygon[0]];

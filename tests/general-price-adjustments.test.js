@@ -16,7 +16,7 @@ test('general material and labor percentages apply to every section after local 
   project.settings.priceAdjustments.general = { materials: -5, labor: -20 };
   project.settings.priceAdjustments.foundation.materials = -10;
   const adjusted = calculateAdjustedPrice(project, fixture());
-  assert.deepEqual(adjusted.general, { materials: -5, labor: -20 });
+  assert.deepEqual(adjusted.general, { materials: -5, labor: -20, common: 0 });
   close(adjusted.groups[0].adjusted.materials, 855);
   close(adjusted.groups[0].adjusted.labor, 320);
   close(adjusted.groups[1].adjusted.materials, 570);
@@ -30,7 +30,7 @@ test('old projects keep all section discounts and migrate with zero general disc
   delete project.settings.priceAdjustments.general;
   project.settings.priceAdjustments.foundation.materials = -10;
   const restored = migrateProject(JSON.parse(JSON.stringify(project)));
-  assert.deepEqual(restored.settings.priceAdjustments.general, { materials: 0, labor: 0 });
+  assert.deepEqual(restored.settings.priceAdjustments.general, { materials: 0, labor: 0, common: 0 });
   close(calculateAdjustedPrice(restored, fixture()).total, 2100);
   assert.equal(calculateAdjustedPrice(createDefaultProject(), fixture()).delta, 0);
 });
@@ -40,7 +40,7 @@ test('general discounts survive JSON save and affect client print rows without c
   project.settings.priceAdjustments.general = { materials: -7, labor: -13 };
   project.settings.priceAdjustments.sip.materials = -10;
   const restored = migrateProject(JSON.parse(JSON.stringify(project)));
-  assert.deepEqual(restored.settings.priceAdjustments.general, { materials: -7, labor: -13 });
+  assert.deepEqual(restored.settings.priceAdjustments.general, { materials: -7, labor: -13, common: 0 });
   const base = calculateProject(restored), original = JSON.stringify(base), prices = JSON.stringify(restored.priceMat);
   const derived = adjustedEstimateCalculation(restored, base);
   const printed = buildClientEstimate(derived, { compactAccessories: false });

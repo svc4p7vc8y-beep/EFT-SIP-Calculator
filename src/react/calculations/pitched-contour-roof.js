@@ -1,3 +1,4 @@
+import { overhangEdgeOverrides, convexEdgeOverhang } from './roof-overhangs.js';
 import clipping from 'polygon-clipping';
 import { boundsOf } from '../planner/geometry.js';
 import { lRoofFrame } from '../planner/l-roof-frame.js';
@@ -7,7 +8,8 @@ import { hipRoofFromContour } from './hip-roof-geometry.js';
 const EPS = 1e-7;
 const difference = (a, b) => a.map((n, i) => n - b[i]);
 const height = ([x, y, c], p) => x * p.x + y * p.y + c;
-const ring = points => [[...points, points[0]].map(({ x, y }) => [x, y])];
+const stable=value=>Math.round(value*1e8)/1e8;
+const ring = points => [[...points, points[0]].map(({ x, y }) => [stable(x), stable(y)])];
 const facetsOf = (polygons, plane) => polygons.map(([outer, ...holes]) => {
   if (holes.length) throw new Error('Скат с внутренним вырезом требует отдельных проектных плоскостей.');
   return { vertices: outer.slice(0, -1).map(([x, y]) => ({ x, y, z: height(plane, { x, y }) })) };
@@ -74,14 +76,14 @@ function envelope(outline, regions) {
     if (!polygons.length) continue;
     const key = plane.join(',');
     if (!pieces.has(key)) pieces.set(key, { plane, polygons: [] });
-    pieces.get(key).polygons.push(polygons);
+    pieces.get(key).polygons.push(polygons.map(poly=>poly.map(ring=>ring.map(([x,y])=>[stable(x),stable(y)]))));
   }
   return [...pieces.values()].flatMap(({ plane, polygons }) => facetsOf(clipping.union(...polygons), plane));
 }
 
 const lowerRegions = planes => planes.map(plane => [plane, planes.filter(other => other !== plane).map(other => difference(plane, other))]);
 
-function teeFrame(points, shape, eave, gable, footprint = points) {
+function teeFrame(points, shape, eave, gable, footprint = points, edgeOverrides) {
   if (points.length !== 8 || points.some((p, i) => {
     const q = points[(i + 1) % points.length];
     return Math.abs(p.x - q.x) > EPS && Math.abs(p.y - q.y) > EPS;
@@ -103,7 +105,7 @@ function teeFrame(points, shape, eave, gable, footprint = points) {
     const actual = footprint.map(transform);
     const outline = roofOutline(actual, eave, eave, actual.map((p, i) => {
       const q = actual[(i + 1) % actual.length];
-      return p.y === tip && q.y === tip || p.x === q.x && trunk.includes(p.x) ? end : eave;
+      return edgeOverrides?.[i] ?? (p.y === tip && q.y === tip || p.x === q.x && trunk.includes(p.x) ? end : eave);
     }));
     const center = (front + shoulder) / 2;
     const rise = (shoulder - front) / 2;
@@ -132,10 +134,11 @@ function teeFrame(points, shape, eave, gable, footprint = points) {
   return null;
 }
 
-export function pitchedContourRoof(points, { shape, axis, eave, gable, ridgeHeight }) {
+export function pitchedContourRoof(points, { shape, axis, eave, gable, ridgeHeight, overhangs = {} }) {
   const clean = clipping.union(ring(points));
   if (clean.length !== 1 || clean[0].length !== 1) throw new Error('Для крыши нужен единый внешний контур.');
   const contour = clean[0][0].slice(0, -1).map(([x, y]) => ({ x, y }));
+  const edgeOverrides=overhangEdgeOverrides(contour,axis,overhangs);
   const guide = withoutBays(contour);
   const simple = orthogonalGuide(guide);
   const bounds = boundsOf(simple);
@@ -146,16 +149,16 @@ export function pitchedContourRoof(points, { shape, axis, eave, gable, ridgeHeig
       .find(([x, y]) => !simple.some(p => p.x === x && p.y === y));
     const extend = points => roofOutline(points, eave, eave, points.map((p, i) => {
       const q = points[(i + 1) % points.length];
-      return shape === 'gable' && (p.x === missing[0] && q.x === missing[0] || p.y === missing[1] && q.y === missing[1]) ? gable : eave;
+      return edgeOverrides?.[i] ?? (shape === 'gable' && (p.x === missing[0] && q.x === missing[0] || p.y === missing[1] && q.y === missing[1]) ? gable : eave);
     }));
     const sameOutline = contour.length===simple.length && contour.every((p,i)=>p.x===simple[i].x&&p.y===simple[i].y);
-    frame = { facets: !eave&&!gable&&sameOutline ? l.facets : envelope(extend(contour),l.regions), rise: 1 };
+    frame = { facets: !edgeOverrides&&!eave&&!gable&&sameOutline ? l.facets : envelope(extend(contour),l.regions), rise: 1 };
   }
-  frame ||= teeFrame(simple, shape, eave, gable, contour);
+  frame ||= teeFrame(simple, shape, eave, gable, contour, edgeOverrides);
   if (!frame && shape === 'hip') {
     try {
       const mm = contour.map(p => [p.x * 1000, p.y * 1000]);
-      const hip = hipRoofFromContour(mm, { angleDeg: 45, roofBase: 0, overhangMm: eave * 1000 });
+      const hip = hipRoofFromContour(mm, { angleDeg: 45, roofBase: 0, overhangMm: eave * 1000, overhangForEdge: edgeOverrides ? (a,b)=>convexEdgeOverhang(a,b,axis,overhangs) : undefined });
       frame = { facets: hip.facets.map(f => ({ vertices: f.vertices.map(([x, y, z]) => ({ x: x / 1000, y: y / 1000, z: z / 1000 })) })), rise: hip.topZ / 1000 };
     } catch { /* A concave bay can still use the clipped main planes below. */ }
   }
@@ -163,7 +166,7 @@ export function pitchedContourRoof(points, { shape, axis, eave, gable, ridgeHeig
     const { x, x2, y, y2, w, h } = boundsOf(contour);
     const planesX = [[1, 0, -x], [-1, 0, x2]], planesY = [[0, 1, -y], [0, -1, y2]];
     const hip = shape === 'hip';
-    const outline = roofOutline(contour, hip || axis === 'y' ? eave : gable, hip || axis === 'x' ? eave : gable);
+    const outline = roofOutline(contour, hip || axis === 'y' ? eave : gable, hip || axis === 'x' ? eave : gable,edgeOverrides);
     frame = {
       facets: envelope(outline, lowerRegions(hip ? [...planesX, ...planesY] : axis === 'y' ? planesX : planesY)),
       rise: (hip ? Math.min(w, h) : axis === 'y' ? w : h) / 2,

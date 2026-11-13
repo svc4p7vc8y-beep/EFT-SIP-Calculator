@@ -1,3 +1,4 @@
+import { hasSeparateOverhangs } from './roof-overhangs.js';
 import { planSupportMaterials } from './plan-support-materials.js';
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
 import { bearingEdges } from './bearing-walls.js';
@@ -240,8 +241,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const automaticColdHip=project.services.roof&&roof.mainRoofShape==='hip'&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
   const automaticSipHip=project.services.roof&&roof.mainRoofShape==='hip'&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
   const automaticSipFlat=project.services.roof&&roof.mainRoofShape==='flat'&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length;
-  const automaticColdContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
-  const automaticSipContour=project.services.roof&&!rectangular&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
+  const automaticColdContour=project.services.roof&&(!rectangular||hasSeparateOverhangs(project.settings.roof))&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&project.settings.roof.type==='cold'&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
+  const automaticSipContour=project.services.roof&&(!rectangular||hasSeparateOverhangs(project.settings.roof))&&['flat','tiered','gable'].includes(roof.mainRoofShape)&&fullyWarmMain&&!settings.roofDesign.enabled&&!settings.roofDesign.manualFaces?.length&&assembly.roofModel.faces.some(face=>face.group==='main');
   const warmPlatform=assembly.roofModel.faces.some(face=>face.group?.startsWith('terrace:')&&face.warm);
   assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticSipFlat||automaticColdHip||automaticColdContour||automaticSipContour;
   assembly.usesPlatformRoofPlanes=warmPlatform;

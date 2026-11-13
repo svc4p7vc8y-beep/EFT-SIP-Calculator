@@ -17,7 +17,7 @@ export function createDefaultPriceAdjustments() {
   return Object.fromEntries(
     [{ key: "general" }, ...PRICE_ADJUSTMENT_GROUPS].map(({ key }) => [
       key,
-      { materials: 0, labor: 0 },
+      { materials: 0, labor: 0, common: 0 },
     ]),
   );
 }
@@ -28,11 +28,19 @@ export function normalizePriceAdjustments(value) {
     [{ key: "general" }, ...PRICE_ADJUSTMENT_GROUPS].map(({ key }) => [
       key,
       {
+        common: normalizePercent(source[key]?.common),
         materials: normalizePercent(source[key]?.materials),
         labor: normalizePercent(source[key]?.labor),
       },
     ]),
   );
+}
+
+// The shared input assigns both percentages; later individual edits remain independent.
+export function setCommonPriceAdjustment(value, section, percent) {
+  const settings = normalizePriceAdjustments(value);
+  if (settings[section]) settings[section] = { common: normalizePercent(percent), materials: normalizePercent(percent), labor: normalizePercent(percent) };
+  return settings;
 }
 
 // Apply the project-wide percentage after the section percentage.
@@ -54,7 +62,7 @@ export function calculateAdjustedPrice(project, calculation) {
         else totals.materials += amount;
         return totals;
       },
-      { materials: 0, labor: 0 },
+      { materials: 0, labor: 0, common: 0 },
     );
     const rule = settings[section.key] || { materials: 0, labor: 0 };
     const adjusted = {
