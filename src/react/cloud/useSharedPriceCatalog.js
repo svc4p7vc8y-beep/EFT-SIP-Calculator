@@ -1,18 +1,21 @@
+import { cacheCatalog, readCachedCatalog } from './offline-session.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { eftApi } from '../../shared/team-api.js';
 
 const EMPTY = { status: 'loading', payload: null, revision: 0, canEdit: false, error: '', saving: false };
-export function useSharedPriceCatalog(user, csrf) {
+export function useSharedPriceCatalog(user, csrf, offlineOwner = null) {
   const [priceCatalog, setPriceCatalog] = useState(EMPTY);
   const currentUser = useRef(user?.id);
   currentUser.current = user?.id;
   const latestRevision = useRef(0);
   const pendingRead = useRef(null);
   const accessEpoch = useRef(0);
+  const catalogOwner=useRef(null);
   const accept = useCallback((result, acceptAccess = true) => {
     if (!Array.isArray(result.payload?.priceMat) || !Array.isArray(result.payload?.priceLab) || !(result.revision > 0)) throw new Error('Сервер вернул некорректный прайс');
     if (result.revision < latestRevision.current) return;
     latestRevision.current = result.revision;
+    cacheCatalog(currentUser.current,result);
     setPriceCatalog(previous => ({ ...previous, ...result, canEdit: acceptAccess ? result.canEdit : previous.canEdit, payload: previous.revision === result.revision ? previous.payload || result.payload : result.payload, status: 'ready', error: '', checkedAt: new Date().toISOString() }));
   }, []);
   const refreshPriceCatalog = useCallback(() => {
@@ -23,7 +26,7 @@ export function useSharedPriceCatalog(user, csrf) {
       if (currentUser.current !== user.id) throw new Error('Сеанс прайса изменился');
       accept(result, request.accessEpoch === accessEpoch.current); return result;
     }).catch(error => {
-      if (currentUser.current === user.id) setPriceCatalog(previous => ({ ...previous, status: 'error', error: error.message }));
+      if (currentUser.current === user.id) setPriceCatalog(previous => ({ ...previous, status: 'error', canEdit:false, error: error.message }));
       throw error;
     }).finally(() => { if (pendingRead.current === request) pendingRead.current = null; });
     pendingRead.current = request;
@@ -32,15 +35,19 @@ export function useSharedPriceCatalog(user, csrf) {
   useEffect(() => {
     latestRevision.current = 0;
     pendingRead.current = null;
-    setPriceCatalog(EMPTY);
-    if (!user) return undefined;
+    const owner=String(user?.id||offlineOwner||'');
+    const sameOwner=owner&&catalogOwner.current===owner;catalogOwner.current=owner;
+    setPriceCatalog(previous=>sameOwner?{...previous,canEdit:false,status:previous.payload?'cached':'loading'}:EMPTY);
+    let alive=true;
+    readCachedCatalog(user?.id||offlineOwner).then(cached=>{if(alive&&cached)setPriceCatalog(previous=>previous.status==='ready'||previous.payload?previous:{...previous,payload:cached.payload,revision:cached.revision,status:'cached',canEdit:false,cachedAt:cached.savedAt});});
+    if (!user) return ()=>{alive=false;};
     const refresh = () => refreshPriceCatalog().catch(() => {});
     refresh();
     const timer = window.setInterval(refresh, 15000);
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
-  }, [user?.id, refreshPriceCatalog]);
+    return () => { alive=false; window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
+  }, [user?.id, offlineOwner, refreshPriceCatalog]);
   const setPriceAccess = useCallback(async (lock, password = '') => {
     ++accessEpoch.current;
     const result = await eftApi('price-access', { method: 'POST', csrf, body: { lock, password } });

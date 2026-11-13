@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {canSyncSession} from '../src/react/cloud/offline-session.js';
 import { readFileSync } from 'node:fs';
 
 test('queued cloud saves stay attached to their original project and revision', async () => {
   const source = readFileSync(new URL('../src/react/cloud/TeamContext.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  const callback = source.split('const saveProject = useCallback(')[1].split(',\n    [session.csrf]')[0].trim();
+  const callback = source.split('const saveProject = useCallback(')[1].split(/,\n    \[session\.csrf/)[0].trim();
   const original = { id: 1, revision: 1, name: 'A' };
   const currentRef = { current: original };
   const calls = [];
@@ -16,9 +17,9 @@ test('queued cloud saves stay attached to their original project and revision', 
     if (calls.length === 1) await gate;
     return { revision: body.revision + 1, name: 'A' };
   };
-  const save = new Function('currentRef', 'saveQueue', 'session', 'eftApi', 'setCurrent', 'setSyncState', `return (${callback});`)(
-    currentRef, { current: Promise.resolve() }, { csrf: '' }, api,
-    value => states.push(value), () => {},
+  const save = new Function('currentRef', 'saveQueue', 'session', 'eftApi', 'setCurrent', 'setSyncState', 'sessionRef','canSyncSession', `return (${callback});`)(
+    currentRef, { current: Promise.resolve() }, { user:{id:12},csrf: 'live' }, api,
+    value => states.push(value), () => {},{current:{user:{id:12},csrf:'live'}},canSyncSession,
   );
   const first = save({ value: 1 });
   const second = save({ value: 2 });

@@ -9,10 +9,10 @@ export function useCurrentPriceAction(action) {
   return useCallback(async (...args) => {
     try {
       if (team.user) {
-        await team.refreshPriceCatalog();
+        try{await team.refreshPriceCatalog();}catch(error){team.reportConnectionIssue(error);}
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       }
       return await latestAction.current(...args);
-    } catch (error) { window.alert(`Не удалось получить актуальный прайс: ${error.message}. Повторите после восстановления связи.`); }
-  }, [team.user?.id, team.refreshPriceCatalog]);
+    } catch (error) { window.alert(`Не удалось выполнить действие: ${error.message}`); }
+  }, [team.user?.id, team.refreshPriceCatalog,team.reportConnectionIssue]);
 }

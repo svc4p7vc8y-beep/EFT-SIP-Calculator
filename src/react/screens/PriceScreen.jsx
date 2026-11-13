@@ -6,6 +6,7 @@ import { createDefaultPriceLists, migrateProject, REACT_PROJECT_VERSION } from '
 import { formatMoney, uid } from '../utils/format.js';
 import { isPriceEditorUnlocked, setPriceEditorUnlocked, verifyPricePasscode } from '../security/price-access.js';
 import { useTeam } from '../cloud/TeamContext.jsx';
+import {restoreLocalPrices} from '../cloud/price-catalog.js';
 import SharedPriceEditor from './SharedPriceEditor.jsx';
 
 function downloadCatalog(project) {
@@ -23,7 +24,8 @@ export default function PriceScreen() {
 }
 
 function LocalPriceScreen() {
-  const { project, commit, checkpoint } = useProject();
+  const { project, commit: commitProject, checkpoint } = useProject();
+  const commit = update => commitProject(next => update({...next,priceMat:structuredClone(project.priceMat),priceLab:structuredClone(project.priceLab),localPriceCatalog:next.localPriceCatalog||{name:'Локальный прайс проекта',restoredAt:new Date().toISOString()}}));
   const team = useTeam();
   const admin = team.user?.role === 'admin';
   const adminBackup = useRef(false);
@@ -43,6 +45,7 @@ function LocalPriceScreen() {
   const visible = useMemo(() => items.filter((item) => (category === 'all' || item.cat === category) && (!deferredSearch || `${item.id} ${item.name} ${item.cat}`.toLocaleLowerCase('ru').includes(deferredSearch))), [items, category, deferredSearch]);
   const update = (id, field, value) => {
     if (!canEdit || field === 'id') return;
+    if(project[key].find(item=>item.id===id)?.[field]===(field==='price'?Math.max(0,Number(value)||0):value))return;
     ensureBackup();
     commit((next) => {
     const row = next[key].find((item) => item.id === id);
@@ -101,7 +104,7 @@ function LocalPriceScreen() {
       const data = JSON.parse(await file.text());
       if (!Array.isArray(data.priceMat) || !Array.isArray(data.priceLab)) throw new Error('в файле нет таблиц материалов и работ');
       ensureBackup();
-      commit((next) => migrateProject({ ...next, appVersion: Number(data.appVersion) || 0, priceMat: data.priceMat, priceLab: data.priceLab }));
+      commit((next) => migrateProject(restoreLocalPrices(next,data,file.name)));
       setNotice(`Загружен прайс: ${file.name}`);
     } catch (error) { setNotice(`Ошибка загрузки: ${error.message}`); }
     event.target.value = '';

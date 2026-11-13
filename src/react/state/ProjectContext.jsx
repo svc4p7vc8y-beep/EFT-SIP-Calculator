@@ -1,3 +1,4 @@
+import { mergeGuestWorkspace } from '../cloud/offline-session.js';
 import { readWorkspace, writeWorkspace } from './workspace-storage.js';
 import {
   createContext,
@@ -16,7 +17,7 @@ import {
   REACT_BACKUPS_KEY,
 } from "./project-model.js";
 import { useTeam } from "../cloud/TeamContext.jsx";
-import { applySharedPriceCatalog } from '../cloud/price-catalog.js';
+import { applySharedPriceCatalog, restoreLocalPrices } from '../cloud/price-catalog.js';
 import { validateImportedProject } from './project-import.js';
 import { createProjectWorkspace, projectWorkspaceReducer, PROJECT_TABS_KEY, restoreProjectWorkspace, serializeProjectWorkspace } from './project-tabs.js';
 
@@ -33,13 +34,14 @@ export function ProjectProvider({ children }) {
   });
   const [hydrated, setHydrated] = useState(false);
   const ownerRef = useRef(null);
+  const guestEdited=useRef(false);
   const activeTab = workspace.tabs.find((tab) => tab.id === workspace.activeId) || workspace.tabs[0];
   const history = activeTab.history;
   const [saveState, setSaveState] = useState({
     status: "saved",
     message: "Автосохранение включено",
   });
-  const project = useMemo(() => applySharedPriceCatalog(history.present, team.user ? team.priceCatalog.payload : null, team.priceCatalog.revision), [history.present, team.user?.id, team.priceCatalog.payload, team.priceCatalog.revision]);
+  const project = useMemo(() => applySharedPriceCatalog(history.present, (team.user||team.offline) ? team.priceCatalog.payload : null, team.priceCatalog.revision), [history.present, team.user?.id, team.offline, team.priceCatalog.payload, team.priceCatalog.revision]);
 
   useEffect(() => {
     if (team.current?.id && team.current.revision && activeTab.serverId===team.current.id) dispatch({ type: 'server-revision',tabId:activeTab.id, serverId: team.current.id, revision: team.current.revision, name: team.current.name });
@@ -47,20 +49,23 @@ export function ProjectProvider({ children }) {
 
   useEffect(() => {
     if (!team.ready) return;
-    const owner=String(team.user?.id||'local');
+    const owner=String(team.workspaceOwner||team.user?.id||'local');
+    if(ownerRef.current===owner)return;
     let active=true;
     setHydrated(false);
+    const guest=ownerRef.current==='local'&&owner!=='local'&&guestEdited.current?serializeProjectWorkspace(workspace,'local'):null;
     readWorkspace(owner,`${PROJECT_TABS_KEY}:${owner}`).then(saved=>{
       if(!active)return;
+      if(guest){saved=mergeGuestWorkspace(saved,guest,owner);guestEdited.current=false;}
       dispatch({type:'hydrate',saved,fallback:team.required?createDefaultProject():loadInitialProject()});
       ownerRef.current=owner;
       setHydrated(true);
     });
     return ()=>{active=false;};
-  },[team.ready,team.user?.id]);
+  },[team.ready,team.workspaceOwner,team.user?.id]);
 
   useEffect(() => {
-    const owner=String(team.user?.id||'local');
+    const owner=String(team.workspaceOwner||team.user?.id||'local');
     if(!hydrated||ownerRef.current!==owner)return;
     let active=true;
     const snapshot={...serializeProjectWorkspace(workspace,owner),savedAt:Date.now()};
@@ -73,7 +78,7 @@ export function ProjectProvider({ children }) {
     window.addEventListener('pagehide',flush);
     document.addEventListener('visibilitychange',visibility);
     return ()=>{active=false;window.removeEventListener('pagehide',flush);document.removeEventListener('visibilitychange',visibility);};
-  },[workspace,project,hydrated,team.user?.id]);
+  },[workspace,project,hydrated,team.workspaceOwner,team.user?.id]);
 
   useEffect(() => {
     if (!hydrated || !team.user || !team.current || team.current.id !== activeTab.serverId) return undefined;
@@ -85,24 +90,26 @@ export function ProjectProvider({ children }) {
   }, [project, hydrated, team.user, team.current?.id, activeTab.serverId]);
 
   const commit = useCallback(
-    (update) => dispatch({ type: "commit", tabId: workspace.activeId, update }),
-    [workspace.activeId],
+    (update) => { if(team.offline&&team.workspaceOwner==='local')guestEdited.current=true; dispatch({ type: "commit", tabId: workspace.activeId, update }); },
+    [workspace.activeId,team.offline,team.workspaceOwner],
   );
   const recordMarks = useCallback((registry,requests) => dispatch({ type: 'production-registry', tabId: workspace.activeId, expectedPresent: history.present, registry,requests }), [workspace.activeId, history.present]);
   const replace = useCallback(
-    (project) => dispatch({ type: "replace", tabId: workspace.activeId, project }),
-    [workspace.activeId],
+    (project) => {if(team.offline&&team.workspaceOwner==='local')guestEdited.current=true;dispatch({ type: "replace", tabId: workspace.activeId, project });},
+    [workspace.activeId,team.offline,team.workspaceOwner],
   );
   const undo = useCallback(() => dispatch({ type: "undo", tabId: workspace.activeId }), [workspace.activeId]);
   const redo = useCallback(() => dispatch({ type: "redo", tabId: workspace.activeId }), [workspace.activeId]);
   const openTab = useCallback((nextProject, serverId = null, serverName = '', serverRevision = 0, libraryId = null, {forceNew=false}={}) => {
+    if(team.offline&&team.workspaceOwner==='local')guestEdited.current=true;
     validateImportedProject(nextProject);
+    if(team.offline&&!serverId&&!nextProject.localPriceCatalog&&nextProject.priceMat?.length&&nextProject.priceLab?.length)nextProject=restoreLocalPrices(nextProject,nextProject,'Цены локально открытого проекта');
     const existing = workspace.tabs.find(tab => (serverId && tab.serverId === serverId) || (libraryId && tab.libraryId === libraryId));
     if (existing&&!forceNew) { dispatch({ type: 'activate-tab', id: existing.id }); return existing.id; }
     const id = globalThis.crypto?.randomUUID?.() || `tab-${Date.now()}-${Math.random()}`;
     dispatch({ type: 'open-tab', id, project: nextProject, serverId, libraryId, serverName, serverRevision,forceNew });
     return id;
-  }, [workspace.tabs]);
+  }, [workspace.tabs,team.offline,team.workspaceOwner]);
   const rememberOpenedProject = useCallback((openedProject) => {
     try {
       const existing = JSON.parse(localStorage.getItem(REACT_BACKUPS_KEY) || '[]');

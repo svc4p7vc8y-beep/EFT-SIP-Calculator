@@ -7,15 +7,23 @@ import {useProject} from '../state/ProjectContext.jsx';
 import {migrateProject} from '../state/project-model.js';
 import {validateImportedProject} from '../state/project-import.js';
 import {ScreenHeader} from '../components/ui.jsx';
+import {restoreLocalPrices} from '../cloud/price-catalog.js';
+import {isPriceEditorUnlocked} from '../security/price-access.js';
 import './local-backup.css';
 
 const kinds={project:'Рабочий проект',server:'Серверный проект',library:'План библиотеки',folder:'Папка библиотеки',price:'Прайс'};
 export default function LocalBackupScreen(){
-  const backup=useLocalBackup(),{openTab,hydrated}=useProject();
+  const backup=useLocalBackup(),{openTab,hydrated,commit}=useProject();
   const [error,setError]=useState(''),[opening,setOpening]=useState(false);
   const open=async record=>{
     setOpening(true);setError('');
-    try{const data=await readFolderBackup(backup.handle,record);validateImportedProject(data);openTab(migrateProject(data));setError('Проект открыт в новой вкладке. Перейдите в «План дома».');}
+    try{const data=await readFolderBackup(backup.handle,record);validateImportedProject(data);const restored=migrateProject(data);openTab(data.priceMat?.length&&data.priceLab?.length?restoreLocalPrices(restored,restored,record.name):restored);setError('Проект открыт в новой вкладке. Перейдите в «План дома».');}
+    catch(failure){setError(failure.message);}finally{setOpening(false);}
+  };
+  const restorePrice=async record=>{
+    if(!isPriceEditorUnlocked()){setError('Сначала разблокируйте редактор в разделе «Прайс-лист», затем вернитесь сюда. Прайс будет применён только к открытому проекту.');return;}
+    setOpening(true);setError('');
+    try{const data=await readFolderBackup(backup.handle,record);const prices=restoreLocalPrices({},data,record.name);commit(next=>migrateProject({...next,...prices}));setError('Резервный прайс применён к текущему проекту. Общий серверный прайс не изменён.');}
     catch(failure){setError(failure.message);}finally{setOpening(false);}
   };
   const records=orderedBackupRecords(backup.records,backup.currentKey);
@@ -40,8 +48,8 @@ export default function LocalBackupScreen(){
       <p className="muted">Автосохранение работает, пока калькулятор открыт и разрешена запись. При наличии входа в основной калькулятор сервер проверяется раз в минуту: скачиваются только недостающие версии. Удаления с сервера не удаляют резерв. Подключение к папке на другом сайте нужно разрешить отдельно.</p>
     </section>
     {error?<p className="notice" role="status">{error}</p>:null}
-    <section className="panel local-backup-panel"><h2>Сохранённые версии</h2><p>Проекты можно открыть здесь или через «Открыть план» → файл .eft.json из резервной папки. Прайсы сохраняются отдельно и внутри рабочих проектов. Файлы изображений и PDF на сервере в этот резерв не входят.</p>
-      <div className="local-backup-list">{records.slice(0,60).map(record=><div className="local-backup-row" key={`${record.key}:${record.hash}:${record.sourceVersion}`}><div><strong>{record.name}</strong><small>{record.key===backup.currentKey?'Текущий проект · ':''}{kinds[record.kind]} · {new Date(record.savedAt).toLocaleString('ru-RU')}</small></div>{['project','library','server'].includes(record.kind)?<button className="button secondary" onClick={()=>open(record)} disabled={opening||!hydrated||backup.permission!=='granted'}>Открыть проект</button>:null}</div>)}</div>
+    <section className="panel local-backup-panel"><h2>Сохранённые версии</h2><p>Проекты можно открыть здесь или через «Открыть план» → файл .eft.json из резервной папки. Проекты и прайсы открываются без сервера. Прайсы сохраняются отдельно и внутри рабочих проектов; для восстановления прайса разблокируйте редактор в разделе «Прайс-лист». Файлы изображений и PDF на сервере в этот резерв не входят.</p>
+      <div className="local-backup-list">{records.slice(0,60).map(record=><div className="local-backup-row" key={`${record.key}:${record.hash}:${record.sourceVersion}`}><div><strong>{record.name}</strong><small>{record.key===backup.currentKey?'Текущий проект · ':''}{kinds[record.kind]} · {new Date(record.savedAt).toLocaleString('ru-RU')}</small></div>{['project','library','server'].includes(record.kind)?<button className="button secondary" onClick={()=>open(record)} disabled={opening||!hydrated||backup.permission!=='granted'}>Открыть проект</button>:record.kind==='price'?<button className="button secondary" onClick={()=>restorePrice(record)} disabled={opening||!hydrated||backup.permission!=='granted'}>Применить прайс к проекту</button>:null}</div>)}</div>
       {!records.length?<p>После подключения папки здесь появятся резервные копии.</p>:null}{records.length>60?<p>Показаны последние 60 файлов. Остальные версии находятся в выбранной папке.</p>:null}
     </section>
   </div>;

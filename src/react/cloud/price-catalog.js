@@ -1,6 +1,6 @@
 // Server catalog is an overlay, never an undoable edit to the house plan.
 export function applySharedPriceCatalog(project, catalog, revision) {
-  if (!catalog || !(revision > 0)) return project;
+  if (project.localPriceCatalog || !catalog || !(revision > 0)) return project;
   const byId = new Map([...catalog.priceMat, ...catalog.priceLab].map(row => [row.id, row]));
   const currentPrice = line => {
     if (!line.catalogId) return { ...line, price: Math.max(0, Number(line.price) || 0), pricePending: !(Number(line.price) > 0) };
@@ -23,4 +23,13 @@ export function catalogChanges(before, after) {
     }
   }
   return changes;
+}
+
+// Restoring a backup affects this project only; it never writes the shared catalog.
+export function restoreLocalPrices(project, data, name='Резервный прайс') {
+  for (const key of ['priceMat','priceLab']) {
+    if (!Array.isArray(data?.[key]) || !data[key].length || data[key].some(row => !row || typeof row.id!=='string' || !Number.isFinite(Number(row.price)) || Number(row.price)<0)) throw new Error('В файле нет корректного прайса материалов и работ');
+    if (new Set(data[key].map(row=>row.id)).size!==data[key].length) throw new Error('В прайсе повторяются коды позиций');
+  }
+  return {...project,priceMat:data.priceMat.map(row=>({...row})),priceLab:data.priceLab.map(row=>({...row})),localPriceCatalog:{name,restoredAt:new Date().toISOString()}};
 }

@@ -3,7 +3,7 @@ import { LockKeyhole, LogIn } from "lucide-react";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { PasswordInput } from "./ui.jsx";
 
-export default function TeamLogin() {
+export default function TeamLogin({ onClose }) {
   const team = useTeam();
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
@@ -16,7 +16,7 @@ export default function TeamLogin() {
             <LockKeyhole />
           </span>
           <h1>Рабочее пространство ЭФТ</h1>
-          <p>Проверяем защищённую сессию…</p>
+          <p>Проверяем защищённую сессию…</p><button type="button" className="button secondary" onClick={()=>{team.enterOffline();onClose?.();}}>Продолжить локально</button>
         </div>
       </div>
     );
@@ -27,6 +27,7 @@ export default function TeamLogin() {
     setError("");
     try {
       await team.login(form.username, form.password);
+      onClose?.();
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -41,7 +42,7 @@ export default function TeamLogin() {
         </span>
         <p className="eyebrow">Закрытая система</p>
         <h1>Вход сотрудника</h1>
-        <p>Калькулятор, проекты и заявки доступны только сотрудникам ЭФТ.</p>
+        <p>Для общих проектов и серверного сохранения войдите. При сбое можно продолжить работу с локальными проектами.</p>
         {team.error ? (
           <div className="team-login-warning">
             Сервер хранения: {team.error}
@@ -85,6 +86,9 @@ export default function TeamLogin() {
             </>
           )}
         </button>
+        <button type="button" className="button secondary" onClick={()=>{team.enterOffline();onClose?.();}}>Продолжить локально</button>
+        <small>Изменения сохраняются на этом устройстве. Серверные файлы и синхронизация будут доступны после входа.</small>
+        {onClose?<button type="button" className="button secondary" onClick={onClose}>Вернуться к проекту</button>:null}
       </form>
     </div>
   );

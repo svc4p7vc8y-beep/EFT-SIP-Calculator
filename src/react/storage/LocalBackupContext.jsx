@@ -20,7 +20,7 @@ export function LocalBackupProvider({children}) {
   const [serverMessage,setServerMessage]=useState('');
   const [pending,setPending]=useState(0);
   const [confirmed,setConfirmed]=useState(null);
-  const owner=String(team.user?.id||'local');
+  const owner=String(team.workspaceOwner||team.user?.id||'local');
   const workspaceEntries=useMemo(()=>workspaceBackupEntries(tabs,activeTabId,project,getTabProject,owner),[tabs,activeTabId,project,getTabProject,owner]);
   const currentKey=`workspace:${owner}:${activeTabId}`;
   const currentEntry=workspaceEntries.find(entry=>entry.key===currentKey);
@@ -57,7 +57,7 @@ export function LocalBackupProvider({children}) {
     finally{running.current=false;setBusy(syncing.current);if(localSaved&&queue.current.size)setTimeout(()=>runRef.current(false),1000);}
     // A slow server must never hold the local write queue.
     if(withServer&&localSaved&&!syncing.current){
-      if(!current.team.user||standaloneCalculator)setServerMessage('Локальная работа. Сверка с сервером будет доступна в основном калькуляторе после входа и восстановления Beget.');
+      if(!current.team.user||standaloneCalculator)setServerMessage('Локальная работа. Сверка с сервером будет доступна в основном калькуляторе после входа и восстановления связи.');
       else{
         syncing.current=true;setBusy(true);setServerMessage('Сверяю версии с сервером…');
         try{
@@ -92,14 +92,14 @@ export function LocalBackupProvider({children}) {
   useEffect(()=>{
     const collect=()=>{
       if(!hydrated)return;
-      enqueue(libraryBackupEntries(readPlanLibrary(),project,`local-library:${team.user?.id||'local'}`));
+      enqueue(libraryBackupEntries(readPlanLibrary(),project,`local-library:${owner}`));
       runRef.current(false);
     };
     collect();window.addEventListener('eft:plan-library-synced',collect);
     const otherTab=event=>{if(event.key==='eft-react-plan-library-v103')collect();};
     window.addEventListener('storage',otherTab);
     return()=>{window.removeEventListener('eft:plan-library-synced',collect);window.removeEventListener('storage',otherTab);};
-  },[hydrated,project.priceMat,project.priceLab,team.user?.id]);
+  },[hydrated,project.priceMat,project.priceLab,owner]);
   useEffect(()=>{
     if(!handle||permission!=='granted')return;
     runRef.current(true);

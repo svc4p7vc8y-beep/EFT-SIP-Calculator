@@ -31,7 +31,8 @@ export async function eftApi(
   const separator = endpoint.includes("?") ? "&" : "?";
   const parameters = new URLSearchParams({ action, ...query });
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
-  const response = await fetch(`${endpoint}${separator}${parameters}`, {
+  let response;
+  try { response = await fetch(`${endpoint}${separator}${parameters}`, {
     method,
     credentials: "include",
     headers: {
@@ -41,20 +42,29 @@ export async function eftApi(
     },
     body: body === undefined ? undefined : (isFormData ? body : JSON.stringify(body)),
     signal,
-  });
+  }); } catch (error) {
+    if(error.name==='AbortError')throw error;
+    const failure=new EftApiError('Нет связи с сервером. Проверьте интернет или продолжайте работу локально.','network_unavailable');
+    if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('eft:connection-error',{detail:{code:failure.code,message:failure.message}}));
+    throw failure;
+  }
   let result;
   try {
     result = await response.json();
   } catch {
-    result = {};
+    const failure=new EftApiError('Сервер временно не отвечает корректно. Доступна локальная работа.','invalid_response',response.status);
+    if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('eft:connection-error',{detail:{code:failure.code,message:failure.message}}));
+    throw failure;
   }
   if (!response.ok || result.ok === false) {
-    throw new EftApiError(
+    const failure = new EftApiError(
       result.message || `Ошибка сервера (${response.status})`,
       result.code,
       response.status,
       result,
     );
+    if(typeof window!=='undefined'&&((failure.code==='authentication_required'&&action!=='login')||response.status>=500))window.dispatchEvent(new CustomEvent('eft:connection-error',{detail:{code:failure.code,message:response.status>=500?'Сервер временно недоступен. Изменения сохраняются на устройстве.':failure.message}}));
+    throw failure;
   }
   return result;
 }

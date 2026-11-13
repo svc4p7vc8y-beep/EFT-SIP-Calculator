@@ -218,6 +218,8 @@ export function App() {
     hydrated,
   } = useProject();
   const team = useTeam();
+  const [reconnectOpen,setReconnectOpen]=useState(false);
+  useEffect(()=>{if(team.offline)setActive(previous=>previous==='team'?'plan':previous);},[team.offline]);
   const [active, setActive] = useState(() => (team.required ? "team" : "plan"));
   const [theme, setTheme] = useState(
     () => localStorage.getItem("eft-react-theme") || "light",
@@ -274,7 +276,7 @@ export function App() {
 
   useEffect(() => {
     if (!hydrated || !team.ready) return;
-    if (selectedTab) team.activateProjectSession(selectedTab.serverId, selectedTab.serverRevision, selectedTab.serverName);
+    if (team.user && selectedTab) team.activateProjectSession(selectedTab.serverId, selectedTab.serverRevision, selectedTab.serverName);
   }, [hydrated, team.ready, team.user?.id, activeTabId, selectedTab?.serverId, selectedTab?.serverRevision]);
 
   const saveBeforeSwitch = async () => {
@@ -574,8 +576,8 @@ export function App() {
     }
   }, [backupOpen]);
 
-  if (!team.ready || (team.required && !team.user)) return <TeamLogin />;
-  if (team.user && !team.priceCatalog.payload) return <div className="screen"><h1>Загрузка общего прайса</h1><p>{team.priceCatalog.error || 'Получаем актуальные цены с сервера…'}</p><button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Повторить</button><button className="button secondary" onClick={team.logout}>Выйти</button></div>;
+  if (!team.ready || (team.required && !team.user && !team.offline)) return <TeamLogin />;
+
 
   return (
     <div
@@ -598,19 +600,19 @@ export function App() {
         <div className="header-totals" aria-label="Итоги проекта">
           <div>
             <span>Материалы</span>
-            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(calculation.totals.materials)}</strong>
+            <strong>{formatMoney(calculation.totals.materials)}</strong>
           </div>
           <div>
             <span>Работы</span>
-            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(calculation.totals.labor)}</strong>
+            <strong>{formatMoney(calculation.totals.labor)}</strong>
           </div>
           <div className="grand">
             <span>Итого</span>
-            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(calculation.totals.total)}</strong>
+            <strong>{formatMoney(calculation.totals.total)}</strong>
           </div>
           <div className={`adjusted${estimatePriceModified ? ' is-modified' : ''}`}>
             <span>Изменённая цена</span>
-            <strong>{team.user && team.priceCatalog.status !== 'ready' ? '—' : formatMoney(adjustedPrice.total)}</strong>
+            <strong>{formatMoney(adjustedPrice.total)}</strong>
           </div>
         </div>
         <div className="mobile-quick-actions" aria-label="Действия с планом">
@@ -816,7 +818,10 @@ export function App() {
           {standaloneCalculator ? <div className="notice no-print" role="status"><strong>Резервная версия · сохранение на этом устройстве.</strong> Общие проекты и файлы сервера не подключены. Цены — из сборки калькулятора или загруженного проекта. <button className="button secondary" onClick={saveProject}>Скачать .eft.json</button></div> : null}
           {selectedTab?.serverId && team.user?.role !== 'viewer' ? <div className="team-apply-bar no-print"><span>Общий проект · {selectedTab.serverName || project.meta.customer || `№ ${project.meta.projectNum}`}</span><button className="button primary" onClick={applyTeamProjectChanges} disabled={applyProjectBusy || team.current?.id !== selectedTab.serverId}>{applyProjectBusy ? 'Применяю…' : 'Применить изменения'}</button></div> : null}
           {team.projectSaveConflict && team.current ? <div className="notice no-print" role="alert">{team.projectSaveConflict} <button className="button secondary" onClick={saveProject}>Скачать копию проекта</button><button className="button secondary" onClick={() => { setTeamFocus('projects'); setActive('team'); }}>Открыть общие проекты</button></div> : null}
-          {team.user && team.priceCatalog.status !== 'ready' ? <div className="notice no-print" role="alert">Не удалось подтвердить актуальные цены: {team.priceCatalog.error}. Планы доступны; смета станет доступна после обновления прайса. <button className="button secondary" onClick={() => team.refreshPriceCatalog().catch(() => {})}>Обновить прайс</button></div> : null}
+          {project.localPriceCatalog?<div className="notice offline-work-notice no-print" role="status"><strong>Прайс текущего проекта: {project.localPriceCatalog.name}.</strong><span>Общий прайс не изменён. Эти цены сохранятся после подключения к серверу.</span>{team.priceCatalog.status==='ready'?<button className="button secondary" onClick={()=>commit(next=>{delete next.localPriceCatalog;return next;})}>Применить общий прайс</button>:null}</div>:null}
+          {team.offline?<div className="notice offline-work-notice no-print" role="alert"><strong>Локальный режим · сервер не подключён.</strong><span>{team.error} Изменения сохраняются на этом устройстве; на сервер они пока не отправлены. Используются {project.localPriceCatalog?'цены из локального файла проекта':team.priceCatalog.payload?'последние сохранённые цены':'цены проекта или встроенного прайса'}.</span><button type="button" className="button secondary" onClick={()=>team.reconnect()}>Проверить связь</button><button type="button" className="button secondary" onClick={()=>setReconnectOpen(true)}>Войти на сервер</button><button type="button" className="button secondary" onClick={saveProject}>Скачать .eft.json</button></div>:team.user&&team.priceCatalog.status!=='ready'?<div className="notice offline-work-notice no-print" role="alert"><strong>Актуальность цен пока не подтверждена.</strong><span>{team.priceCatalog.error||'Получаем общий прайс.'} Работа доступна по {team.priceCatalog.payload?'сохранённой копии прайса':'ценам проекта или встроенного прайса'}. Проверьте цены перед отправкой сметы.</span><button type="button" className="button secondary" onClick={()=>team.refreshPriceCatalog().catch(()=>{})}>Обновить прайс</button></div>:null}
+          {reconnectOpen&&<div className="team-reconnect-overlay no-print" role="dialog" aria-modal="true" aria-label="Подключение к серверу"><TeamLogin onClose={()=>setReconnectOpen(false)}/></div>}
+
           {appUpdateReady ? <div className="notice no-print" role="status">Доступна новая версия калькулятора. Сохраните проект, затем обновите страницу. <button className="button secondary" onClick={() => { const url = new URL(window.location.href); url.searchParams.set('refresh', String(Date.now())); window.location.assign(url.href); }}>Обновить версию</button></div> : null}
           {team.refreshError || team.mailError ? <div className="notice no-print" role="alert">
             {team.refreshError ? `Общие проекты и анкеты могут быть неактуальны: ${team.refreshError}. ` : ""}
@@ -858,7 +863,7 @@ export function App() {
             <Suspense
               fallback={<div className="screen-loader">Загружаю раздел…</div>}
             >
-              {team.user && team.priceCatalog.status !== 'ready' && !['plan','parameters','team','files','mail','knowledge','sip-guide','price','cutting','local-backup'].includes(active) ? <div className="notice">Для расчёта и печати необходимо получить актуальный серверный прайс.</div> : <Screen
+              <Screen
                 active={active}
                 planCommand={planCommand}
                 onPlanCommandHandled={() => setPlanCommand(null)}
@@ -876,7 +881,7 @@ export function App() {
                   onImportIntake: importTeamIntake,
                   focusTab: teamFocus,
                 }}
-              />}
+              />
             </Suspense>
           </ScreenErrorBoundary>
         </main>

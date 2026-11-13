@@ -1,3 +1,4 @@
+import { canSyncSession, offlineSession, readCachedRules, cacheRules, readOfflineOwner, rememberOfflineOwner, forgetOfflineOwner } from './offline-session.js';
 import {
   createContext,
   useCallback,
@@ -31,8 +32,43 @@ export function TeamProvider({ children }) {
     csrf: "",
     error: "",
   });
+  const sessionRef=useRef(session);sessionRef.current=session;
+  const recoveryPending=useRef(null);
+  const sessionGeneration=useRef(0);
+  const enterOffline=useCallback((reason='')=>{
+    if(!sessionRef.current.offline)sessionGeneration.current++;
+    const next=offlineSession(sessionRef.current,typeof reason==='string'?reason:'');sessionRef.current=next;setSession(next);
+    setSyncState({status:'local',message:'Локальная работа · сервер не подключён'});
+  },[]);
+  const reportConnectionIssue=useCallback(error=>{
+    if(sessionRef.current.user||sessionRef.current.offline)enterOffline(error?.message||'Связь с сервером потеряна.');
+    else setSession(previous=>({...previous,error:error?.message||'Сервер недоступен.'}));
+  },[enterOffline]);
+  const reconnect=useCallback(()=>{
+    if(recoveryPending.current)return recoveryPending.current;
+    const generation=sessionGeneration.current;
+    const attempt=eftApi('session').then(result=>{
+      if(generation!==sessionGeneration.current)return false;
+      if(!result.user){if(sessionRef.current.offline)setSession(previous=>({...previous,error:'Сеанс сервера завершён. Для синхронизации войдите снова; локальная работа доступна.'}));return false;}
+      // A different account must be selected explicitly, never silently switched by a background probe.
+      if(sessionRef.current.offline&&sessionRef.current.localOwnerId!=='local'&&String(result.user.id)!==sessionRef.current.localOwnerId)return false;
+      rememberOfflineOwner(result.user);const next={ready:true,user:result.user,csrf:result.csrf||'',error:'',offline:false};sessionRef.current=next;setSession(next);return true;
+    }).catch(error=>{if(sessionRef.current.offline)setSession(previous=>({...previous,error:error.message}));return false;}).finally(()=>{if(recoveryPending.current===attempt)recoveryPending.current=null;});
+    recoveryPending.current=attempt;return attempt;
+  },[]);
+  useEffect(()=>{
+    const failed=event=>reportConnectionIssue(event.detail);
+    window.addEventListener('eft:connection-error',failed);
+    return()=>window.removeEventListener('eft:connection-error',failed);
+  },[reportConnectionIssue]);
+  useEffect(()=>{
+    if(!session.offline)return;
+    const retry=()=>reconnect();const timer=window.setInterval(retry,45000);
+    window.addEventListener('online',retry);window.addEventListener('focus',retry);
+    return()=>{window.clearInterval(timer);window.removeEventListener('online',retry);window.removeEventListener('focus',retry);};
+  },[session.offline,reconnect]);
   const [projects, setProjects] = useState([]);
-  const priceStore = useSharedPriceCatalog(session.user, session.csrf);
+  const priceStore = useSharedPriceCatalog(session.user, session.csrf, session.offline ? session.localOwnerId : null);
   const [intakes, setIntakes] = useState([]);
   const [unreadIntakes, setUnreadIntakes] = useState(0);
   const [unreadMail, setUnreadMail] = useState(0);
@@ -88,6 +124,7 @@ export function TeamProvider({ children }) {
     const edit = ++libraryEdits.current[key];
     libraryDirty.current[key] = true;
     const run = async () => {
+      if(!canSyncSession(session,sessionRef.current))return;
       let payload = await readLocalLibrary(key);
       let revision = libraryRevisions.current[key] || 0;
       try {
@@ -101,6 +138,7 @@ export function TeamProvider({ children }) {
       } catch (error) {
         if (error.code !== "revision_conflict") throw error;
         const remote = await eftApi("shared", { query: { key } });
+        if(!canSyncSession(session,sessionRef.current))return;
         const submitted = payload;
         payload = mergeLibraryEntries(submitted, remote.payload || [], libraryBases.current[key]);
         if (libraryEdits.current[key] !== edit)
@@ -127,7 +165,7 @@ export function TeamProvider({ children }) {
       setSyncState({ status: "error", message: `Библиотеки: ${error.message}` });
       throw error;
     });
-  }, [readLocalLibrary, session.csrf, writeLocalLibrary]);
+  }, [readLocalLibrary, session.user?.id, session.csrf, writeLocalLibrary]);
 
   const refresh = useCallback(async () => {
     if (!session.user) return;
@@ -138,14 +176,10 @@ export function TeamProvider({ children }) {
       [projectResult, intakeResult, userResult] = await Promise.all(requests);
     } catch (error) {
       setRefreshError(error.message);
-      if (error.code === 'authentication_required') {
-        currentRef.current = null;
-        projectSessions.current.clear();
-        setCurrent(null);
-        setSession({ ready: true, user: null, csrf: '', error: 'Сеанс завершён. Войдите с новым паролем.' });
-      }
+      if (error.code === 'authentication_required') enterOffline('Сеанс сервера завершён. Продолжайте локально или войдите для синхронизации.');
       throw error;
     }
+    if(sessionRef.current.user?.id!==session.user.id)return;
     setProjects(projectResult.projects || []);
     setIntakes(intakeResult.intakes || []);
     setUnreadIntakes(Number(intakeResult.unread || 0));
@@ -162,6 +196,7 @@ export function TeamProvider({ children }) {
         eftApi("shared", { query: { key: "plan-library" } }),
         eftApi("shared", { query: { key: "knowledge-library" } }),
       ]);
+      if(sessionRef.current.user?.id!==session.user.id)return;
       for (const [key, remote] of [
         ["plan-library", remotePlans],
         ["knowledge-library", remoteKnowledge],
@@ -203,10 +238,11 @@ export function TeamProvider({ children }) {
   const refreshNodeTypeRules = useCallback(async () => {
     if (!session.user) return;
     const remote = await eftApi("shared", { query: { key: "node-type-rules" } });
+    if(sessionRef.current.user?.id!==session.user.id)return;
     const revision = Number(remote.revision) || 0;
     if (revision > nodeRulesRevision.current) {
       nodeRulesRevision.current = revision;
-      setNodeTypeRules(normalizeNodeTypeRules(remote.payload));
+      const rules=normalizeNodeTypeRules(remote.payload);setNodeTypeRules(rules);cacheRules(session.user.id,rules);
     }
   }, [session.user]);
 
@@ -224,7 +260,7 @@ export function TeamProvider({ children }) {
         try {
           const saved = await eftApi("shared", { method: "PUT", csrf: session.csrf, body: { key: "node-type-rules", revision: Number(remote.revision) || 0, payload: normalized } });
           nodeRulesRevision.current = Number(saved.revision) || 0;
-          setNodeTypeRules(normalized);
+          setNodeTypeRules(normalized);cacheRules(session.user.id,normalized);
           return normalized[type] || null;
         } catch (error) {
           if (error.code !== 'revision_conflict' || attempt === 2) throw error;
@@ -246,28 +282,28 @@ export function TeamProvider({ children }) {
 
   useEffect(() => {
     if (session.user) return;
-    nodeRulesRevision.current = 0;
-    setNodeTypeRules({});
-  }, [session.user]);
+    if(!session.offline){nodeRulesRevision.current = 0;setNodeTypeRules({});}
+    setProjects([]);setIntakes([]);setUsers([]);setUnreadIntakes(0);setUnreadMail(0);setMailStatus(null);
+  }, [session.user,session.offline]);
+  useEffect(()=>{
+    if(!session.offline)return;let active=true;const owner=session.localOwnerId;
+    readCachedRules(owner).then(saved=>{if(active&&saved?.payload)setNodeTypeRules(normalizeNodeTypeRules(saved.payload));});
+    return()=>{active=false;};
+  },[session.offline,session.localOwnerId]);
 
   useEffect(() => {
     if (!isProductionCalculator()) {
       setSession({ ready: true, user: null, csrf: "", error: "" });
       return undefined;
     }
-    eftApi("session")
-      .then((result) =>
-        setSession({
-          ready: true,
-          user: result.user,
-          csrf: result.csrf || "",
-          error: "",
-        }),
-      )
-      .catch((error) =>
-        setSession({ ready: true, user: null, csrf: "", error: error.message }),
-      );
-    return undefined;
+    let alive=true;const generation=sessionGeneration.current;
+    eftApi('session').then(result=>{
+      if(!alive||generation!==sessionGeneration.current)return;
+      if(result.user){rememberOfflineOwner(result.user);const next={ready:true,user:result.user,csrf:result.csrf||'',error:'',offline:false};sessionRef.current=next;setSession(next);}
+      else if(readOfflineOwner())enterOffline('Сеанс сервера завершён. Можно продолжать локально.');
+      else setSession({ready:true,user:null,csrf:'',error:''});
+    }).catch(error=>{if(!alive||generation!==sessionGeneration.current)return;if(readOfflineOwner())enterOffline(error.message);else setSession({ready:true,user:null,csrf:'',error:error.message});});
+    return ()=>{alive=false;};
   }, []);
 
   useEffect(() => {
@@ -319,6 +355,7 @@ export function TeamProvider({ children }) {
   }, [session.user, saveSharedLibrary]);
 
   const login = useCallback(async (username, password) => {
+    const generation=++sessionGeneration.current;
     let result;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -329,16 +366,15 @@ export function TeamProvider({ children }) {
         await new Promise(resolve => window.setTimeout(resolve, (attempt + 1) * 1000));
       }
     }
-    setSession({
-      ready: true,
-      user: result.user,
-      csrf: result.csrf,
-      error: "",
-    });
+    if(generation!==sessionGeneration.current)throw new Error('Вход прерван. Повторите попытку.');
+    rememberOfflineOwner(result.user);
+    const nextSession={ready:true,user:result.user,csrf:result.csrf||'',error:'',offline:false};sessionRef.current=nextSession;setSession(nextSession);
   }, []);
   const logout = useCallback(async () => {
-    await eftApi("logout", { method: "POST", csrf: session.csrf, body: {} });
-    setSession({ ready: true, user: null, csrf: "", error: "" });
+    ++sessionGeneration.current;forgetOfflineOwner();
+    try{await eftApi('logout',{method:'POST',csrf:session.csrf,body:{}});}catch{}
+    ++sessionGeneration.current;
+    const next={ready:true,user:null,csrf:'',error:''};sessionRef.current=next;setSession(next);
     currentRef.current = null;
     projectSessions.current.clear();
     setCurrent(null);
@@ -435,9 +471,10 @@ export function TeamProvider({ children }) {
   }, [openProject, refresh, session.csrf]);
   const saveProject = useCallback(
     async (payload, checkpoint = false) => {
-      if (!currentRef.current) return null;
+      if (!currentRef.current || !canSyncSession(session,sessionRef.current)) return null;
       const target = currentRef.current;
       const run = async () => {
+        if(!canSyncSession(session,sessionRef.current))return null;
         if (currentRef.current === target) setSyncState({
           status: "saving",
           message: checkpoint ? "Создаём версию…" : "Сохраняем в общую базу…",
@@ -453,6 +490,7 @@ export function TeamProvider({ children }) {
               checkpoint,
             },
           });
+          if(!canSyncSession(session,sessionRef.current))return result;
           Object.assign(target, { revision: result.revision, name: result.name });
           if (currentRef.current === target) {
             setCurrent({ ...target });
@@ -480,7 +518,7 @@ export function TeamProvider({ children }) {
       saveQueue.current = saveQueue.current.catch(() => {}).then(run);
       return saveQueue.current;
     },
-    [session.csrf],
+    [session.csrf,session.user?.id],
   );
   const createUser = useCallback(
     async (data) => {
@@ -569,6 +607,7 @@ export function TeamProvider({ children }) {
       ...session,
       ...priceStore,
       required: isProductionCalculator(),
+      workspaceOwner:String(session.user?.id||session.localOwnerId||'local'),
       projects,
       intakes,
       unreadIntakes,
@@ -585,6 +624,9 @@ export function TeamProvider({ children }) {
       syncLibraries,
       projectSaveConflict,
       login,
+      enterOffline,
+      reconnect,
+      reportConnectionIssue,
       logout,
       refresh,
       createProject,
@@ -623,6 +665,9 @@ export function TeamProvider({ children }) {
       syncLibraries,
       projectSaveConflict,
       login,
+      enterOffline,
+      reconnect,
+      reportConnectionIssue,
       logout,
       refresh,
       createProject,
