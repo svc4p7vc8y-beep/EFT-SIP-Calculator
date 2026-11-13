@@ -1048,7 +1048,7 @@ export function migrateProject(raw) {
     documentation: normalizeDocumentation(raw.documentation),
     plan,
     upperFloors,
-    placement: normalizePlacement(raw.placement),
+    placement: normalizePlacement(raw.placement,[plan,...upperFloors]),
     windowProducts: normalizeWindowProducts(raw.windowProducts),
     windowPresets: normalizeWindowPresets(raw.windowPresets),
     windowTariffs: normalizeWindowTariffs(raw.windowTariffs),

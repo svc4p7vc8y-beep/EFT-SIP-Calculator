@@ -1,6 +1,8 @@
+import {wallConnectionSnap} from '../state/engineering-snap.js';
+import {CONNECTION_PORTS} from '../state/placement-connections.js';
 import { createPortal } from 'react-dom';
 import { engineeringSymbolSize } from '../state/engineering-symbol-size.js';
-import { MousePointer2, Route, PencilLine, Check, Trash2, Undo2 } from 'lucide-react';
+import { MousePointer2, Route, PencilLine, Check, Trash2, Undo2, RotateCw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from '../state/placement-geometry.js';
@@ -15,9 +17,10 @@ import { PlacementSymbol } from './PlacementClassicSymbol.jsx';
 
 const pipeSystems=['plumbing','heating','sewer'];
 const short={cold:'Х',hot:'Г',recirculation:'Р',supply:'П',return:'О',waste:'К','vent-stack':'Ф'};
-export function EngineeringWallArtwork({wall,walls,items,routes,visible={},height=2.5,selectedId,activePreset,draft=[],onPlace,onItem,onDown,onMove,onUp,onPipe,onContinuation,svgRef,print=false}){
+export function EngineeringWallArtwork({wall,walls,items,routes,visible={},height=2.5,selectedId,activePreset,draft=[],onPlace,onItem,onDown,onMove,onUp,onPipe,onContinuation,svgRef,connections=[],print=false}){
  if(!wall)return null;
- const projected=items.filter(i=>visible[i.layer]!==false).map(item=>({item,p:projectToWallFace(wall,item)})).filter(({item,p})=>p&&(item.wallRef===wall.ref||p.distance<.13));
+ const projected=items.filter(i=>visible[i.layer]!==false).map(item=>({item,p:projectToWallFace(wall,item)})).filter(({item,p})=>p&&(item.wallRef===wall.ref&&p.distance<Math.max(.13,(item.depth||0)/2+.15)||p.distance<.13));
+ const connected=new Set(connections.flatMap(c=>[c.fromId,c.toId]));
  const shown=routes.filter(r=>visible[r.system]!==false),parts=shown.flatMap(route=>wallRouteParts(route,wall));
  const continuations=wallContinuations(shown,wall,walls);
  const markers=pipeSystems.flatMap(system=>pipeFittingMarkers(shown.filter(r=>r.system===system),items.filter(i=>i.layer===system),system)).map(f=>({...f,p:projectToWallFace(wall,f)})).filter(f=>f.p.distance<.14);
@@ -31,11 +34,9 @@ export function EngineeringWallArtwork({wall,walls,items,routes,visible={},heigh
   {markers.map(f=>{const P=toSvg(f);return <g key={f.id} onClick={e=>{e.stopPropagation();const r=shown.find(r=>r.id===f.routeId);if(r)onPipe?.(e,r,f,f);}}><svg x={P.x-9} y={P.y-9} width="18" height="18" viewBox="0 0 100 100"><PlacementSymbol icon={f.kind}/></svg><title>Автоматически · {f.label}</title></g>;})}
   {draft.length>1&&wallRouteParts({points:draft},wall).map((p,i)=>{const a=toSvg(p.a),b=toSvg(p.b);return <path key={i} d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke="#c28b28" strokeWidth="4" strokeDasharray="6 3" fill="none"/>;})}
   {continuations.map(c=>{const P=toSvg(c.point);return <g key={c.id} className="engineering-continuation" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onContinuation?.(c);}} role={print?undefined:'button'} tabIndex={print?undefined:0} aria-label={`${c.code} · продолжить на ${c.nextWall.label}`} onKeyDown={e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();onContinuation?.(c);}}}><rect x={P.x-10} y={P.y-23} width="65" height="37" fill="transparent" stroke="none"/><circle cx={P.x} cy={P.y} r="7" fill="white" stroke={mediumColor(c.route.medium)} strokeWidth="2"/><text x={P.x+10} y={P.y-8} style={{fontSize:11,fill:mediumColor(c.route.medium)}}>{c.code}</text><title>{c.code} · та же труба на {c.nextWall.label}</title></g>;})}
-  {projected.map(({item,p})=>{const x=p.station*100,y=H-(item.height||0)*100,system=item.layer,size=engineeringSymbolSize(item);return <g key={item.id} className="engineering-wall-item" onPointerDown={e=>onDown?.(e,item)} onClick={e=>{e.stopPropagation();onItem?.(item);}}>
-   {item.id===selectedId&&<rect x={x-23} y={y-23} width="46" height="46" rx="5" fill="#e9f3dc" stroke="#5b8d2d"/>}
-   <rect x={x-Math.max(9,size.width/2)} y={y-Math.max(9,size.height/2)} width={Math.max(18,size.width)} height={Math.max(18,size.height)} fill="transparent"/>
-   {item.kind==='pipe-junction'?<circle cx={x} cy={y} r="3" fill={mediumColor(item.connectionMedium)}/>:<svg x={x-size.width/2} y={y-size.height/2} width={size.width} height={size.height} viewBox="0 0 100 100" preserveAspectRatio="none"><PlacementSymbol kind={item.kind} system={system} medium={item.connectionMedium}/></svg>}
-   {item.id===selectedId&&<text x={x+25} y={y-14} style={{fontSize:12,fill:'#263b3e',paintOrder:'stroke',stroke:'white',strokeWidth:3}}>{item.label} · h={(item.height||0).toFixed(2)} м</text>}
+  {projected.map(({item,p})=>{const x=p.station*100,system=item.layer,size=engineeringSymbolSize(item),standing=CONNECTION_PORTS[item.kind]&&item.displayPlane!=='wall'&&!item.heightKnown,y=H-(item.height||0)*100-(standing?size.height/2:0);return <g key={item.id} role="button" tabIndex={print?undefined:0} aria-label={item.label} onKeyDown={e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();e.stopPropagation();onItem?.(item);}}} className={`engineering-wall-item${item.id===selectedId?' is-selected':''}`} onPointerDown={e=>{const parent=item.kind==='connection-port'&&items.find(owner=>owner.id===item.linkedApplianceId&&INLINE_FITTING_KINDS.has(owner.kind));onDown?.(e,parent||item);}} onClick={e=>{e.stopPropagation();onItem?.(item);}}>
+   <rect x={x-Math.max(6,size.width/2)} y={y-Math.max(6,size.height/2)} width={Math.max(12,size.width)} height={Math.max(12,size.height)} fill="transparent"/>
+   {['pipe-junction','connection-port'].includes(item.kind)?<circle cx={x} cy={y} r={item.kind==='connection-port'?3.5:3} fill={connected.has(item.id)?mediumColor(item.connectionMedium):'white'} stroke={mediumColor(item.connectionMedium)} strokeWidth="1.5"/>:<g transform={`rotate(${item.rotation||0} ${x} ${y})`}><svg x={x-size.width/2} y={y-size.height/2} width={size.width} height={size.height} viewBox="0 0 100 100" preserveAspectRatio="none"><PlacementSymbol kind={item.kind} system={system} medium={item.connectionMedium}/></svg></g>}
    <title>{item.label} · {p.station.toFixed(2)} м от начала стены · h={(item.height||0).toFixed(2)} м</title>
 
   </g>;})}
@@ -44,7 +45,7 @@ export function EngineeringWallArtwork({wall,walls,items,routes,visible={},heigh
  </svg>;
 }
 
-export default function EngineeringWallEditor({plan,walls,rooms,roomId,onRoom,items,routes,visible,system,medium,onMedium,profile,onProfile,wallRef,onWall,mode,onMode,activePreset,onClearTool,selectedId,onSelect,onPlace,onMoveItem,onConnect,onInsert,onRemove,onMaterialize,onSaveDraft,locked,linesLocked,onBasic,defaults,controlsHost,layers,onCreateJunction,onUndo,hasSelection}){
+export default function EngineeringWallEditor({plan,walls,rooms,roomId,onRoom,items,routes,visible,system,medium,onMedium,profile,onProfile,wallRef,onWall,mode,onMode,activePreset,onClearTool,selectedId,onSelect,onPlace,onMoveItem,onConnect,onInsert,onRemove,onMaterialize,onSaveDraft,locked,linesLocked,onBasic,defaults,controlsHost,layers,onCreateJunction,onUndo,hasSelection,onRotate,canRotate,connections=[]}){
  const svgRef=useRef(null),drag=useRef(null),skip=useRef(false);
  const [baseOptions,setBaseOptions]=useState(defaults||{});
  const [pending,setPending]=useState(null),[notice,setNotice]=useState(''),[preview,setPreview]=useState(null),[zoom,setZoom]=useState(100),[cursor,setCursor]=useState(null);
@@ -57,10 +58,10 @@ export default function EngineeringWallEditor({plan,walls,rooms,roomId,onRoom,it
  const selectMode=next=>{if(mode===next&&!activePreset)return;onClearTool();onMode(next);setPending(null);setCursor(null);setNotice('');};
  const pick=(item,chosenMedium)=>{
   if(skip.current){skip.current=false;return;}
-  if(activePreset||mode==='select'){onSelect(item);return;}
+  if(activePreset||mode==='select'||CONNECTION_PORTS[item.kind]||INLINE_FITTING_KINDS.has(item.kind)){onSelect(item);return;}
   if(!pipeSystems.includes(item.layer)||item.layer!==system){setNotice('Выберите вывод прибора нужной системы.');return;}
   const m=chosenMedium||item.connectionMedium||((item.layer===system&&itemMedia(item,item.layer).includes(medium))?medium:itemMedia(item,item.layer)[0]);
-  if(!pending){setPending({id:item.id,system:item.layer,medium:m,points:[]});setNotice('Продолжайте трубу по стене. Можно выбрать другую стену, нажать конечный вывод или завершить пробелом.');return;}
+  if(!pending){onMedium(m);setPending({id:item.id,system:item.layer,medium:m,points:[]});setNotice('Продолжайте трубу по стене. Можно выбрать другую стену, нажать конечный вывод или завершить пробелом.');return;}
   if(item.id===pending.id)return;
   if(item.layer!==pending.system||!itemMedia(item,item.layer).includes(pending.medium)||(chosenMedium&&chosenMedium!==pending.medium)){setNotice('Подключите ту же систему и среду: Х к Х, Г к Г, подачу к подаче, обратку к обратке.');return;}
   if(onConnect(pending,item.id,mode==='auto',profile,item)===false){setNotice('Участок вне контура. Укажите поворот внутри дома.');return;}setPending({id:item.id,system:item.layer,medium:pending.medium,points:[]});setNotice('Участок сохранён. Продолжайте или нажмите пробел.');
@@ -69,19 +70,15 @@ export default function EngineeringWallEditor({plan,walls,rooms,roomId,onRoom,it
  useEffect(()=>{const key=e=>{if(e.defaultPrevented||e.target?.closest?.('input,textarea,select,dialog,[role=dialog]'))return;if(e.key==='Escape'){setPending(null);onClearTool();onMode('select');}else if((e.code==='Space'||e.key==='Enter')&&mode!=='select'){e.preventDefault();end();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);});
  const source=items.find(i=>i.id===pending?.id);
  const draft=useMemo(()=>source&&(pending?.points.length||cursor)?(orthogonalPipePath([{x:source.x,y:source.y,z:source.height||0},...pending.points,...(cursor?[cursor]:[])],{plan,alongWall:true,clearanceMm:profile.clearanceMm??30,keepWaypoints:true})||[]):[],[source,pending,plan,profile.clearanceMm,cursor]);
- const shown=preview?items.map(i=>i.id===preview.id?{...i,x:preview.x,y:preview.y,height:preview.z}:i):items;
- const settings=<><div className="engineering-wall-controls"><div className="engineering-wall-selectors"><label>Комната<select value={roomId} onChange={e=>{const room=rooms.find(r=>r.id===e.target.value);onRoom(e.target.value);}}><option value="">Все стены</option>{rooms.map(r=><option value={r.id} key={r.id}>{r.name}</option>)}</select></label>
-   <label>Стена<select value={wall?.ref||''} onChange={e=>onWall(e.target.value)}>{(choices.length?choices:walls).map(w=><option key={w.ref} value={w.ref}>{w.label}</option>)}</select></label>
-   <button type="button" aria-label="Предыдущая стена" onClick={()=>{const i=choices.findIndex(w=>w.ref===wall?.ref);onWall(choices[(i-1+choices.length)%choices.length]?.ref||'');}}>←</button><button type="button" aria-label="Следующая стена" onClick={()=>{const i=choices.findIndex(w=>w.ref===wall?.ref);onWall(choices[(i+1)%choices.length]?.ref||'');}}>→</button>
-   <button type="button" aria-label="Уменьшить вид стены" onClick={()=>setZoom(z=>Math.max(60,z-20))}>−</button><button type="button" onClick={()=>setZoom(100)}>{zoom}%</button><button type="button" aria-label="Увеличить вид стены" onClick={()=>setZoom(z=>Math.min(240,z+20))}>+</button>
-  </div>
-  <div className="engineering-pipe-profile"><label>Линия<select value={medium} onChange={e=>onMedium(e.target.value)}>{NETWORK_SYSTEMS[system].media.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
+ const moving=preview&&items.find(i=>i.id===preview.id);
+ const shown=preview&&moving?items.map(i=>i.id===preview.id?{...i,x:preview.x,y:preview.y,height:preview.z}:i.linkedApplianceId===moving.id&&i.followsAppliance?{...i,x:i.x+preview.x-moving.x,y:i.y+preview.y-moving.y,height:(i.height||0)+preview.z-(moving.height||0)}:i):items;
+ const settings=<><div className="engineering-wall-controls"><div className="engineering-pipe-profile"><label>Линия<select value={medium} onChange={e=>onMedium(e.target.value)}>{NETWORK_SYSTEMS[system].media.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
    <label>Материал трубы<input list="engineering-wall-materials" value={profile.material||''} placeholder="Выберите или введите" onChange={e=>onProfile({...profile,material:e.target.value})}/><datalist id="engineering-wall-materials">{['Полипропилен ПП-R','Сталь','Медь','Металлопластик','PEX','ПВХ канализация','ПП канализация'].map(v=><option key={v} value={v}/>)}</datalist></label>
    <label>Диаметр, мм<input type="number" min="1" value={profile.diameterMm||''} onChange={e=>onProfile({...profile,diameterMm:e.target.value?Math.max(1,Number(e.target.value)):null})}/></label>
    <label>Отступ от стены, мм<input type="number" min="0" max="300" value={profile.clearanceMm??30} onChange={e=>onProfile({...profile,clearanceMm:Math.max(0,Math.min(300,Number(e.target.value)||0))})}/></label>
   </div></div>
   <details className="engineering-wall-basic"><summary>Базовая автоматическая схема</summary><p>Добавить основные узлы на выбранной стене. Существующая сеть сохраняется.</p>{system!=='sewer'&&<label>Разводка<select value={baseOptions.distribution||'tee'} onChange={e=>setBaseOptions({...baseOptions,distribution:e.target.value})}><option value="tee">Тройниковая</option><option value="collector">Коллекторная</option></select></label>}{system==='heating'&&<fieldset><legend>Не добавлять встроенное оборудование</legend>{[['builtInPump','Насос'],['builtInExpansion','Расширительный бак'],['builtInSafety','Группа безопасности']].map(([key,label])=><label key={key}><input type="checkbox" checked={baseOptions[key]===true} onChange={e=>setBaseOptions({...baseOptions,[key]:e.target.checked})}/>{label}</label>)}</fieldset>}<button type="button" disabled={locked||linesLocked||!wall} onClick={()=>{onBasic({...profile,distribution:baseOptions.distribution||'tee',builtInPump:baseOptions.builtInPump===true,builtInExpansion:baseOptions.builtInExpansion===true,builtInSafety:baseOptions.builtInSafety===true,wallRef:wall.ref});setNotice('Базовые узлы добавлены. Уточните высоты и параметры труб.');}}>Дополнить базовую схему</button></details>
-  <p className="engineering-wall-status" role="status">{notice|| (activePreset?`Разместите: ${activePreset.label}. Нажмите трубу для вставки в линию; «Выбор» завершает инструмент.`:'Выбирайте приборы или рисуйте трубы. Точки П на соседних стенах обозначают одну продолжающуюся линию.')}</p></>;
+  <p className="engineering-wall-status" role="status">{notice|| (activePreset?`Разместите: ${activePreset.label}. Нажмите трубу для вставки в линию; «Выбор» завершает инструмент.`:'Совместите цветные выходы для соединения. Для трубы выбирайте выходы по очереди; пробел завершает ввод.')}</p></>;
  return <section className="engineering-wall-editor">
  {controlsHost?createPortal(settings,controlsHost):settings}
  <div className="engineering-wall-layerbar">{layers}</div>
@@ -91,13 +88,14 @@ export default function EngineeringWallEditor({plan,walls,rooms,roomId,onRoom,it
  <button type="button" aria-label="Труба вручную" title="Начало → повороты → конец · пробел завершает" disabled={linesLocked} aria-pressed={mode==='manual'} className={mode==='manual'?'active':''} onClick={()=>selectMode('manual')}><PencilLine/><span>Труба</span></button>
  <button type="button" aria-label="Завершить трубу" title="Завершить · пробел" disabled={!pending} onClick={end}><Check/><span>Готово</span></button>
  <button type="button" aria-label="Отменить точку" title="Убрать последний поворот" onClick={()=>{if(pending?.points.length)setPending({...pending,points:pending.points.slice(0,-1)});else onUndo?.();}}><Undo2/><span>Назад</span></button>
+ <button type="button" aria-label="Повернуть на 90°" title="Повернуть выбранный элемент или инструмент" disabled={!canRotate} onClick={onRotate}><RotateCw/><span>Поворот</span></button>
  <button type="button" aria-label="Удалить выбранное" disabled={!hasSelection} onClick={onRemove}><Trash2/><span>Удалить</span></button>
  </div>
-  <div className="engineering-wall-scroll"><div style={{width:`${zoom}%`,minWidth:500}}><EngineeringWallArtwork wall={wall} walls={walls} items={shown} routes={routes} visible={visible} height={height} selectedId={selectedId} activePreset={activePreset} draft={draft} svgRef={svgRef}
+  <div className="engineering-wall-scroll"><div style={{width:`${zoom}%`,minWidth:500}}><EngineeringWallArtwork wall={wall} walls={walls} items={shown} routes={routes} visible={visible} height={height} selectedId={selectedId} activePreset={activePreset} draft={draft} svgRef={svgRef} connections={connections}
    onPlace={e=>{if(skip.current){skip.current=false;return;}const p=pos(e);if(!p)return;if(activePreset&&!locked)onPlace(activePreset,p,wall.ref);else if(pending&&mode==='manual'){setPending({...pending,points:[...pending.points,routePoint(p)]});setCursor(null);}else if(pending&&mode==='auto'&&!linesLocked){const node=onCreateJunction?.(p,wall.ref,medium);if(node)pick(node,medium);}else if(!pending&&mode!=='select'&&!linesLocked){const node=onCreateJunction?.(p,wall.ref,medium);if(node){setPending({id:node.id,system,medium,points:[]});setNotice('Укажите повороты или конечный прибор. Пробел — завершить.');}}else if(mode==='select')onSelect(null);}}
    onItem={pick} onDown={(e,item)=>{if(locked||activePreset||mode!=='select'||e.button!==0)return;e.preventDefault();e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);drag.current={id:item.id,pointerId:e.pointerId,x:e.clientX,y:e.clientY};}}
-   onMove={e=>{const d=drag.current;if(!d||d.pointerId!==e.pointerId){if(pending){const p=pos(e);if(p)setCursor(routePoint(p));}return;}const p=pos(e);if(p){d.last=p;setPreview({id:d.id,...p});}}}
-   onUp={e=>{const d=drag.current;if(!d||d.pointerId!==e.pointerId)return;if(d.last&&Math.hypot(e.clientX-d.x,e.clientY-d.y)>4){onMoveItem(d.id,d.last,wall.ref);skip.current=true;}drag.current=null;setPreview(null);}}
+   onMove={e=>{const d=drag.current;if(!d||d.pointerId!==e.pointerId){if(pending){const p=pos(e);if(p)setCursor(routePoint(p));}return;}const p=pos(e);if(p){const item=items.find(i=>i.id===d.id),patch={x:p.x+wall.normal.x*((profile.clearanceMm??30)/1000),y:p.y+wall.normal.y*((profile.clearanceMm??30)/1000),height:p.z};const snap=item&&wallConnectionSnap(items,d.id,patch,wall,.10,connections.filter(c=>!items.some(i=>(i.id===c.fromId||i.id===c.toId)&&(i.id===d.id||i.linkedApplianceId===d.id))));const at=snap?{...p,x:snap.patch.x-wall.normal.x*((profile.clearanceMm??30)/1000),y:snap.patch.y-wall.normal.y*((profile.clearanceMm??30)/1000),z:snap.patch.height}:p;d.last=at;d.snapped=Boolean(snap);setPreview({id:d.id,...at});setNotice(snap?'Совместимые выходы совпали. Отпустите для соединения.':'');}}}
+   onUp={e=>{const d=drag.current;if(!d||d.pointerId!==e.pointerId)return;if(d.last&&Math.hypot(e.clientX-d.x,e.clientY-d.y)>4){onMoveItem(d.id,d.last,wall.ref);setNotice(d.snapped?'Выходы соединены.':'Положение сохранено.');skip.current=true;}drag.current=null;setPreview(null);}}
    onPipe={(e,route,a,b)=>{if(linesLocked)return;const p=e.type==='keydown'?{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:((a.z||0)+(b.z||0))/2}:pos(e);if(!p)return;if(activePreset){if(!INLINE_FITTING_KINDS.has(activePreset.id)){setNotice('Этот прибор ставится рядом с трубой. Для вставки выберите фитинг или кран.');return;}onInsert(route,activePreset,p,wall.ref);}else if(mode==='select')onSelect(null,route);else {const joint=onMaterialize(route,p,wall.ref);if(joint)pick(joint,route.medium);}}}
    onContinuation={c=>{if(linesLocked)return;if(mode==='select'){if(!choices.some(w=>w.ref===c.nextWall.ref))onRoom('');onWall(c.nextWall.ref);setNotice(`${c.code}: продолжение на ${c.nextWall.label}.`);}else{const joint=onMaterialize(c.route,c.point,wall.ref);if(joint)pick(joint,c.route.medium);}}}/></div></div>
  </div></section>;

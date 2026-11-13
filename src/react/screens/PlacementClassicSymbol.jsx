@@ -63,10 +63,10 @@ export function PlacementSymbol({ kind, icon: explicitIcon, system, medium }) {
   const icon = explicitIcon || findPlacementPreset(kind)?.icon || kind;
   if (OUTLINE_PIPE_ICONS.has(icon)) return <PipeApplianceSymbol icon={icon}/>;
   if (icon === 'connection-port') {
-    const color = medium === 'hot' ? '#bd5547' : { plumbing: '#2979aa', heating: '#bf6134', sewer: '#72579a', ventilation: '#3d9481' }[system] || '#4e7770';
-    const letter = system === 'sewer' ? 'К' : system === 'plumbing' ? (medium === 'hot' ? 'Г' : 'Х') : null;
-    return <g fill="#fff" stroke={color} strokeWidth="8"><circle cx="50" cy="50" r={letter ? 40 : 34}/>{letter ? <PointLetter letter={letter} color={color}/> : <circle cx="50" cy="50" r="8" fill={color} stroke="none"/>}</g>;
+    const color={cold:'#2979aa',hot:'#bd5547',supply:'#bd5547',return:'#2979aa',waste:'#72579a'}[medium]||'#50666e';
+    return <g stroke={color} strokeWidth="6"><circle cx="50" cy="50" r="26" fill="white"/><circle cx="50" cy="50" r="7" fill={color}/></g>;
   }
+  if(icon==='pressure-switch')return <g fill="white" stroke="#36534e" strokeWidth="4"><rect x="22" y="15" width="56" height="60" rx="5"/><path d="M50 75v20M35 34h30m-30 14h30m-30 14h20" fill="none"/></g>;
   if (['check-valve', 'pressure-reducer', 'meter', 'elbow', 'coupling', 'safety-group', 'sewer-entry'].includes(icon)) return <g fill="#fff" stroke="#36534e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
     {icon === 'sewer-entry' ? <><circle cx="50" cy="50" r="40"/><PointLetter letter="К" large/></> : icon === 'elbow' ? <path d="M15 80V20h65v16H31v44z"/> : icon === 'coupling' ? <><path d="M7 50h20m46 0h20"/><rect x="27" y="30" width="46" height="40"/><path d="M38 30v40m24-40v40"/></> : icon === 'safety-group' ? <><path d="M12 75h76M30 75V37m40 38V37M50 75V15" fill="none"/><circle cx="30" cy="27" r="14"/><path d="M30 27l7-7M62 37h16l-8-16z"/><rect x="42" y="8" width="16" height="18"/></> : <><path d="M5 50h22m46 0h22"/><circle cx="50" cy="50" r="25"/>{icon === 'check-valve' ? <path d="M38 36l22 14-22 14zm24 0v28"/> : icon === 'meter' ? <><path d="M35 55h30M50 50l10-10"/><circle cx="50" cy="50" r="3"/></> : <><path d="M35 58l30-16M50 25V10m-10 0h20"/><path d="M37 55l4 4 5-7 5 4 5-7 5 4" fill="none"/></>}</>}
   </g>;

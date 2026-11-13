@@ -1,3 +1,5 @@
+import {placementWallFaces} from './placement-walls.js';
+import {normalizedPortConnections} from './engineering-snap.js';
 import { PIPE_COMPONENTS } from '../data/pipe-components.js';
 import { normalizeEngineeringSettings } from './engineering-settings.js';
 import { resolvedElectricalRoutes } from './placement-electrical.js';
@@ -152,6 +154,9 @@ export const PLACEMENT_PRESETS = [
   preset('water-tee', 'Тройник', 'plumbing', 'water-points', .14, .12, 'tee'),
   preset('heat-source', 'Источник тепла', 'heating', 'heat-sources', .55, .4, 'boiler'),
   preset('heat-manifold', 'Коллектор отопления', 'heating', 'heat-sources', .5, .2, 'manifold'),
+  preset('electric-boiler','Котёл электрический','heating','heat-sources',.4,.3,'boiler'),
+  preset('heating-hydro-tank','Гидроаккумулятор отопления','heating','heat-sources',.45,.45,'expansion-tank'),
+  preset('pressure-switch','Реле давления','plumbing','water-sources',.10,.12,'pressure-switch'),
   preset('radiator-point', 'Радиатор', 'heating', 'heat-points', .8, .16, 'radiator'),
   preset('floor-heating-loop', 'Контур тёплого пола', 'heating', 'heat-points', .25, .25, 'floor-loop'),
   preset('heat-valve', 'Клапан отопления', 'heating', 'heat-points', .16, .12, 'valve'),
@@ -201,10 +206,10 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 7, engineeringDefaults: {}, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
+  return { version: 8, engineeringDefaults: {}, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
-export function normalizePlacement(value) {
+export function normalizePlacement(value,plans=[]) {
   const base = createPlacement();
   if (!value || typeof value !== 'object') return base;
   const items = Array.isArray(value.items) ? value.items : [];
@@ -214,7 +219,7 @@ export function normalizePlacement(value) {
   const normalized = {
     ...base,
     ...value,
-    version: 7,
+    version: 8,
     activeLayer: PLACEMENT_LAYERS.some(layer => layer.id === value.activeLayer && !layer.future) ? value.activeLayer : base.activeLayer,
     visibleLayers: Object.fromEntries(Object.entries(base.visibleLayers).map(([key, fallback]) => [key, typeof value.visibleLayers?.[key] === 'boolean' ? value.visibleLayers[key] : fallback])),
     billOverrides: value.billOverrides && typeof value.billOverrides === 'object' && !Array.isArray(value.billOverrides) ? value.billOverrides : {},
@@ -248,6 +253,7 @@ export function normalizePlacement(value) {
       ...(item.kind === 'junction-box' ? { diagramX: finite(item.diagramX, finite(item.x)), diagramY: finite(item.diagramY, finite(item.y)) } : {}),
       ...(typeof item.pipeModel === 'string' ? { pipeModel: item.pipeModel.slice(0, 100) } : {}),
       ...(Array.isArray(item.pipeKit) ? { pipeKit: item.pipeKit.slice(0, 20).map(qty => Math.min(10000, Math.max(0, Math.floor(finite(qty))))) } : {}),
+      ...(Number.isFinite(item.connectorU)&&Number.isFinite(item.connectorV)?{connectorU:item.connectorU,connectorV:item.connectorV}:{}),
       width: Math.max(.05, finite(item.width, .5)),
       depth: Math.max(.05, finite(item.depth, .5)),
       rotation: finite(item.rotation),
@@ -305,7 +311,11 @@ export function normalizePlacement(value) {
     engineeringDefaults: normalizeEngineeringSettings(value.engineeringDefaults),
     networks: normalizeNetworkRoutes(value.networks),
   };
-  if (Number(value.version || 0) < 4) normalized.items = addMissingConnectionPorts(normalized.items);
+  if (Number(value.version || 0) < 8) {
+    const faces=plans.map(plan=>plan?placementWallFaces(plan):[]),used=new Set(Object.values(normalized.networks).flatMap(routes=>routes.flatMap(r=>[r.fromId,r.toId])));
+    normalized.items = addMissingConnectionPorts(normalized.items,item=>faces[(item.floor||1)-1]?.find(w=>w.ref===item.wallRef),used);
+  }
+  normalized.portConnections=normalizedPortConnections(value.portConnections,normalized.items);
   return normalized;
 }
 

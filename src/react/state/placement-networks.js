@@ -157,7 +157,9 @@ export function networkBill(placement, system, floor, plan = null) {
     }
     if (system === 'ventilation' && !route.flowM3h) issues.push(`${name}: расход воздуха не задан`);
   }
-  const connected = new Set(routes.flatMap(route => [route.fromId, route.toId]));
+  const ids=new Set(items.map(i=>i.id)),connections=(placement.portConnections||[]).filter(c=>ids.has(c.fromId)&&ids.has(c.toId));
+  const connected = new Set([...routes.flatMap(route => [route.fromId, route.toId]),...connections.flatMap(c=>[c.fromId,c.toId])]);
+  items.filter(i=>i.linkedApplianceId&&connected.has(i.id)).forEach(i=>connected.add(i.linkedApplianceId));
   const components = [];
   const addComponent = (name, quantity, unit = 'шт') => {
     const existing = components.find(entry => entry.name === name && entry.unit === unit);
@@ -174,7 +176,7 @@ export function networkBill(placement, system, floor, plan = null) {
     if (String(row.name || '').trim() && Number(row.quantity) > 0) addComponent(row.name.trim(), Number(row.quantity), row.unit || 'шт');
   }
   return {
-    routes, items, totals, pipeRows, components, equipment,
+    routes, items, totals, pipeRows, components, equipment, connections,
     totalLength: round(routes.reduce((sum, route) => sum + networkLength3d(route.points), 0)),
     bends: routes.reduce((sum, route) => sum + routeBends(route.points), 0),
     unconnected: items.filter(item => !connected.has(item.id)),

@@ -44,11 +44,12 @@ export function schemePosition(item, index) {
 export function moveEngineeringItem(data, id, patch) {
   const item = data.items.find(i => i.id === id);
   if (!item) return;
+  const precise=n=>Math.round(n*1000)/1000;
   const before = { x: item.x, y: item.y, height: item.height || 0 };
   Object.assign(item, patch, Object.hasOwn(patch, 'height') ? { heightKnown: true } : {});
   for (const port of data.items.filter(i => i.linkedApplianceId === id && i.followsAppliance)) {
-    port.x = round(port.x + item.x - before.x); port.y = round(port.y + item.y - before.y);
-    if (Object.hasOwn(patch, 'height')) { port.height = round((port.height || 0) + item.height - before.height); port.heightKnown = true; }
+    port.x = precise(port.x + item.x - before.x); port.y = precise(port.y + item.y - before.y);
+    if (Object.hasOwn(patch, 'height')) { port.height = precise((port.height || 0) + item.height - before.height); port.heightKnown = true; }
     if (Object.hasOwn(patch, 'wallRef')) port.wallRef = item.wallRef;
   }
   if ((Object.hasOwn(patch, 'x') || Object.hasOwn(patch, 'y')) && item.linkedApplianceId) item.followsAppliance = false;

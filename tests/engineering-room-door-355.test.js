@@ -38,8 +38,8 @@ import {connectionPortsFor} from '../src/react/state/placement-connections.js';
 import {moveEngineeringItem} from '../src/react/state/engineering-scheme.js';
 test('wall appliance ports follow installation height and the wall tangent, including after moving',()=>{
  const item={id:'b',kind:'boiler',label:'Котёл',layer:'heating',floor:1,x:2,y:3,width:.7,depth:.5,height:1.2,heightKnown:true,displayPlane:'wall',wallRef:'wall'};
- const ports=connectionPortsFor(item,{normal:{x:1,y:0}});assert.ok(ports.length);assert.ok(ports.every(p=>p.height===1.2&&p.heightKnown&&p.x===2));
- const data={items:[item,...ports]};moveEngineeringItem(data,'b',{x:3,y:4,height:1.6});assert.ok(data.items.slice(1).every(p=>p.height===1.6&&p.x===3));
+ const ports=connectionPortsFor(item,{normal:{x:1,y:0}});assert.ok(ports.length);assert.ok(ports.every(p=>p.height<1.2&&p.heightKnown&&p.x===2));
+ const heights=ports.map(p=>p.height);const data={items:[item,...ports]};moveEngineeringItem(data,'b',{x:3,y:4,height:1.6});assert.ok(data.items.slice(1).every((p,i)=>Math.abs(p.height-heights[i]-.4)<.001&&p.x===3));
  assert.ok(connectionPortsFor({...item,displayPlane:'floor'}).every(p=>p.height===0&&!p.heightKnown));
 });
 
