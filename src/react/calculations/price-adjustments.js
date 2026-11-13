@@ -15,7 +15,7 @@ const normalizePercent = (value) =>
 
 export function createDefaultPriceAdjustments() {
   return Object.fromEntries(
-    PRICE_ADJUSTMENT_GROUPS.map(({ key }) => [
+    [{ key: "general" }, ...PRICE_ADJUSTMENT_GROUPS].map(({ key }) => [
       key,
       { materials: 0, labor: 0 },
     ]),
@@ -25,7 +25,7 @@ export function createDefaultPriceAdjustments() {
 export function normalizePriceAdjustments(value) {
   const source = value && typeof value === "object" ? value : {};
   return Object.fromEntries(
-    PRICE_ADJUSTMENT_GROUPS.map(({ key }) => [
+    [{ key: "general" }, ...PRICE_ADJUSTMENT_GROUPS].map(({ key }) => [
       key,
       {
         materials: normalizePercent(source[key]?.materials),
@@ -33,6 +33,12 @@ export function normalizePriceAdjustments(value) {
       },
     ]),
   );
+}
+
+// Apply the project-wide percentage after the section percentage.
+export function effectivePriceAdjustment(settings, sectionKey, kind) {
+  return (1 + (settings[sectionKey]?.[kind] || 0) / 100)
+    * (1 + (settings.general?.[kind] || 0) / 100);
 }
 
 export function calculateAdjustedPrice(project, calculation) {
@@ -51,14 +57,17 @@ export function calculateAdjustedPrice(project, calculation) {
       { materials: 0, labor: 0 },
     );
     const rule = settings[section.key] || { materials: 0, labor: 0 };
-    const change =
-      (base.materials * rule.materials) / 100 +
-      (base.labor * rule.labor) / 100;
+    const adjusted = {
+      materials: base.materials * effectivePriceAdjustment(settings, section.key, 'materials'),
+      labor: base.labor * effectivePriceAdjustment(settings, section.key, 'labor'),
+    };
+    const change = (adjusted.materials - base.materials) + (adjusted.labor - base.labor);
     delta += change;
-    return { key: section.key, base, rule, change };
+    return { key: section.key, base, adjusted, rule, change };
   });
   return {
     baseTotal: calculation.totals.total,
+    general: settings.general,
     delta,
     total: calculation.totals.total + delta,
     groups,
@@ -70,12 +79,11 @@ export function calculateAdjustedPrice(project, calculation) {
 export function adjustedEstimateCalculation(project, calculation) {
   const settings = normalizePriceAdjustments(project.settings?.priceAdjustments);
   const sections = calculation.sections.map(section => {
-    const rule = settings[section.key] || { materials: 0, labor: 0 };
     return {
       ...section,
       lines: section.lines.map(line => {
-        const percent = line.kind === 'labor' ? rule.labor : rule.materials;
-        return percent ? { ...line, price: Number(line.price) * (1 + percent / 100) } : line;
+        const factor = effectivePriceAdjustment(settings, section.key, line.kind === 'labor' ? 'labor' : 'materials');
+        return factor !== 1 ? { ...line, price: Number(line.price) * factor } : line;
       }),
     };
   });

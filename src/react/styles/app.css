@@ -7613,3 +7613,8 @@ select,
   cursor: pointer;
 }
 .plan-issue-list { color: #991b1b; padding-left: 20px; font-size: 13px; }
+
+.price-adjustment-grid .price-adjustment-general { background: var(--accent-soft, #edf5e6); border-color: var(--accent, #638e3d); }
+.price-adjustment-group .price-adjustment-changed { color: #b42318; }
+.price-adjustment-group .price-adjustment-unchanged { color: #34732d; }
+.calculation-settings-embedded .price-adjustment-group { grid-column: 1 / -1; }

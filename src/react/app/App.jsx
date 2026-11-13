@@ -255,7 +255,7 @@ export function App() {
     [project, calculation],
   );
   const estimatePriceModified = useMemo(()=>{
-    if(adjustedPrice.groups.some(group=>group.rule.materials!==0||group.rule.labor!==0))return true;
+    if(adjustedPrice.general.materials!==0||adjustedPrice.general.labor!==0||adjustedPrice.groups.some(group=>group.rule.materials!==0||group.rule.labor!==0))return true;
     const overrides=project.estimateOverrides||[];
     if(overrides.some(item=>item.price!==undefined)){
       const baseline=calculateProject({...project,estimateOverrides:overrides.map(item=>{const copy={...item};delete copy.price;return copy;})},{nodeTypeRules:team.nodeTypeRules});
