@@ -1318,6 +1318,7 @@ function RoofPlanCaption({ plan, roof, p, model }) {
 
 function PlanCanvas({
   plan,
+  minPanelWidthMm = 250,
   pileSettings,
   floorOpening,
   floorOpenings = [],
@@ -1675,9 +1676,7 @@ function PlanCanvas({
         hinge: "right",
         swing: segment.outer ? "out" : "in",
       };
-      const opening = isGarage
-        ? projectOpeningToWall(draft, point, plan, { lockDoorType: true })
-        : draft;
+      const opening = projectOpeningToWall(draft, point, plan, { lockDoorType: isGarage, endInset: (Number(plan.wallThickness)||.174)+(Number(minPanelWidthMm)||250)/1000 });
       commitPlan((next) => next.openings.push(opening));
       selectCreated({ type: "opening", id });
     }
@@ -3991,6 +3990,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
               ? "Гаражные ворота"
               : "Дверь"}
         </h3>
+        <button type="button" className="button secondary" onClick={()=>commitPlan(next=>{const item=next.openings.find(o=>o.id===opening.id);if(item)Object.assign(item,projectOpeningToWall(item,{x:item.x,y:item.y},next,{lockDoorType:true,endInset:(Number(next.wallThickness)||.174)+(Number(project.settings.productionCutting.minPanelWidthMm)||250)/1000}));})}>Привязать проём к ближайшей стене</button>
+        <p className="inspector-note">Учитывается угол стены и заданная минимальная ширина детали SIP. Ширина и высота проёма сохраняются.</p>
         <div className="form-grid">
           <NumberField
             label="Ширина"
@@ -6244,7 +6245,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas
+        <PlanCanvas minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6639,7 +6640,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           {activeLayer==='roof'?<div className="roof-axis-controls" role="group" aria-label="Линии опор кровли"><button type="button" className={`button ${tool==='roofAxis'?'primary':'secondary'}`} disabled={!roofAxes.length&&!project.settings.productionCutting.roofPlanLines?.enabled} onClick={()=>{setTool('roofAxis');setSelected(null);}}>Нарисовать прогон</button><button type="button" className="button secondary" onClick={()=>{setTool('select');setSelected(null);}}>Двигать линии</button><button type="button" className="button secondary" onClick={()=>commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;})}>Авторасстановка</button><span>Синие линии — опорные рамы. Тяните круг на линии. Оранжевая ось — подсказка симметрии.</span>{!roofAxes.length?<span>Автолинии доступны для наслонной двускатной кровли; проектные опоры добавляются справа.</span>:null}{roofAxes.filter(line=>selected?.type==='roofAxis'&&selected.id===line.id).map(line=><button type="button" className="button secondary" key={line.id} aria-label={`Удалить ${line.name}`} onClick={()=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(item=>item.id!==line.id)))}>× {line.name}</button>)}</div>:null}
-          <PlanCanvas
+          <PlanCanvas minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={(a,b)=>{
               const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;

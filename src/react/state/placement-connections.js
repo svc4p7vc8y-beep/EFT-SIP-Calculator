@@ -33,7 +33,7 @@ export const CONNECTION_PORTS = {
   'air-conditioner': [port('sewer', 'waste', 'Конденсат')],
 };
 
-export function connectionPortsFor(item) {
+export function connectionPortsFor(item, wall = null) {
   const definitions = CONNECTION_PORTS[item?.kind] || [];
   return definitions.map((definition, index) => {
     const siblings = definitions.filter(entry => entry.system === definition.system);
@@ -44,11 +44,13 @@ export function connectionPortsFor(item) {
       : definition.system === 'heating' ? { x: item.x + offset, y: item.y - item.depth / 2 - reach }
         : definition.system === 'sewer' ? { x: item.x + item.width / 2 + reach, y: item.y + offset }
           : { x: item.x - item.width / 2 - reach, y: item.y + offset };
+    if(item.displayPlane==='wall'&&wall){location.x=item.x-wall.normal.y*offset;location.y=item.y+wall.normal.x*offset;}
     return {
       id: `port-${item.id}-${index}`, floor: item.floor, layer: definition.system,
       kind: 'connection-port', label: `${item.label || item.kind} · ${definition.label}`,
       x: Math.round(location.x * 100) / 100, y: Math.round(location.y * 100) / 100,
-      width: .12, depth: .12, rotation: 0, height: 0, heightKnown: false,
+      width: .12, depth: .12, rotation: 0, height: item.displayPlane==='wall'?(Number(item.height)||0):0, heightKnown: item.displayPlane==='wall'&&item.heightKnown===true,
+      displayPlane:item.displayPlane==='wall'?'wall':'auto',
       wallRef: item.wallRef || '', surface: 'interior', dimensionSide: 'auto',
       showHeight: false, showName: false, labelOffsetX: .65, labelOffsetY: -.45,
       linkedApplianceId: item.id, followsAppliance: true, connectionMedium: definition.medium,

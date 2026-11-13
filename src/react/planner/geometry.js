@@ -4,7 +4,8 @@ import { gapFragments } from '../calculations/gap-fragments.js';
 import { existingWallEdge } from './existing-building.js';
 import {gapEndpoints} from './gap-endpoints.js';
 
-const EPS = 0.035;
+export const OPENING_AXIS_TOLERANCE_M = 0.035;
+const EPS = OPENING_AXIS_TOLERANCE_M;
 
 export const roundCoord = (value, digits = 3) => {
   const factor = 10 ** digits;
@@ -605,7 +606,8 @@ export function projectOpeningToWall(opening, point, plan, options = {}) {
   const segment = nearestSegment(point, segments);
   if (!segment) return { ...opening };
   const halfWidth = Math.min(Math.max(0, Number(opening?.width) || 0) / 2, Math.max(0, segment.end - segment.start) / 2);
-  const projected = Math.max(segment.start + halfWidth, Math.min(segment.end - halfWidth, segment.projected));
+  const inset=segment.outer?Math.min(Math.max(0,Number(options.endInset)||0),Math.max(0,(segment.end-segment.start)/2-halfWidth)):0;
+  const projected = Math.max(segment.start + halfWidth + inset, Math.min(segment.end - halfWidth - inset, segment.projected));
   const result = {
     ...opening,
     orientation: segment.axis,

@@ -4,7 +4,7 @@ import { MousePointer2, Route, PencilLine, Check, Trash2, Undo2 } from 'lucide-r
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { roomPoints } from '../planner/geometry.js';
 import { pointInPolygon } from '../state/placement-geometry.js';
-import { projectToWallFace, wallFacePoint } from '../state/placement-walls.js';
+import { projectToWallFace, wallFacePoint, roomWallFaces } from '../state/placement-walls.js';
 import { orthogonalPipePath } from '../state/placement-pipe-routing.js';
 import { NETWORK_SYSTEMS } from '../state/placement-networks.js';
 import { itemMedia, mediumColor } from '../state/engineering-scheme.js';
@@ -14,10 +14,6 @@ import { INLINE_FITTING_KINDS } from '../data/pipe-components.js';
 import { PlacementSymbol } from './PlacementClassicSymbol.jsx';
 
 const pipeSystems=['plumbing','heating','sewer'];
-function roomWalls(room,walls){
- if(!room)return walls;const points=roomPoints(room);
- return walls.filter(w=>{const middle={x:(w.a.x+w.b.x)/2,y:(w.a.y+w.b.y)/2};return points.some((a,i)=>{const b=points[(i+1)%points.length],dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((middle.x-a.x)*dx+(middle.y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(middle.x-a.x-dx*t,middle.y-a.y-dy*t)<.25;})&&pointInPolygon({x:middle.x+w.normal.x*.08,y:middle.y+w.normal.y*.08},points);});
-}
 const short={cold:'Х',hot:'Г',recirculation:'Р',supply:'П',return:'О',waste:'К','vent-stack':'Ф'};
 export function EngineeringWallArtwork({wall,walls,items,routes,visible={},height=2.5,selectedId,activePreset,draft=[],onPlace,onItem,onDown,onMove,onUp,onPipe,onContinuation,svgRef,print=false}){
  if(!wall)return null;
@@ -48,13 +44,12 @@ export function EngineeringWallArtwork({wall,walls,items,routes,visible={},heigh
  </svg>;
 }
 
-export default function EngineeringWallEditor({plan,walls,rooms,items,routes,visible,system,medium,onMedium,profile,onProfile,wallRef,onWall,mode,onMode,activePreset,onClearTool,selectedId,onSelect,onPlace,onMoveItem,onConnect,onInsert,onRemove,onMaterialize,onSaveDraft,locked,linesLocked,onBasic,defaults,controlsHost,layers,onCreateJunction,onUndo,hasSelection}){
+export default function EngineeringWallEditor({plan,walls,rooms,roomId,onRoom,items,routes,visible,system,medium,onMedium,profile,onProfile,wallRef,onWall,mode,onMode,activePreset,onClearTool,selectedId,onSelect,onPlace,onMoveItem,onConnect,onInsert,onRemove,onMaterialize,onSaveDraft,locked,linesLocked,onBasic,defaults,controlsHost,layers,onCreateJunction,onUndo,hasSelection}){
  const svgRef=useRef(null),drag=useRef(null),skip=useRef(false);
  const [baseOptions,setBaseOptions]=useState(defaults||{});
- const [roomId,setRoomId]=useState(''),[pending,setPending]=useState(null),[notice,setNotice]=useState(''),[preview,setPreview]=useState(null),[zoom,setZoom]=useState(100),[cursor,setCursor]=useState(null);
- const room=rooms.find(r=>r.id===roomId),choices=roomWalls(room,walls),wall=walls.find(w=>w.ref===wallRef)||choices[0]||walls[0];
+ const [pending,setPending]=useState(null),[notice,setNotice]=useState(''),[preview,setPreview]=useState(null),[zoom,setZoom]=useState(100),[cursor,setCursor]=useState(null);
+ const room=rooms.find(r=>r.id===roomId),choices=roomWallFaces(room,walls),wall=choices.find(w=>w.ref===wallRef)||choices[0]||walls[0];
  const height=Number(plan.wallHeight)||2.5;
- useEffect(()=>{if(roomId&&!choices.some(w=>w.ref===wallRef))setRoomId('');},[wallRef]);
  useEffect(()=>{setBaseOptions(defaults||{});setPending(null);},[system]);
  useEffect(()=>{if(mode==='select'||activePreset)setPending(null);if(activePreset)setNotice('');},[mode,activePreset?.id]);
  const pos=event=>{const m=svgRef.current?.getScreenCTM();if(!m||!wall)return null;const p=new DOMPoint(event.clientX,event.clientY).matrixTransform(m.inverse());const station=Math.max(0,Math.min(wall.length,p.x/100)),z=Math.max(0,Math.min(height,height-p.y/100));return {...wallFacePoint(wall,station),z,station,wallRef:wall.ref};};
@@ -75,7 +70,7 @@ export default function EngineeringWallEditor({plan,walls,rooms,items,routes,vis
  const source=items.find(i=>i.id===pending?.id);
  const draft=useMemo(()=>source&&(pending?.points.length||cursor)?(orthogonalPipePath([{x:source.x,y:source.y,z:source.height||0},...pending.points,...(cursor?[cursor]:[])],{plan,alongWall:true,clearanceMm:profile.clearanceMm??30,keepWaypoints:true})||[]):[],[source,pending,plan,profile.clearanceMm,cursor]);
  const shown=preview?items.map(i=>i.id===preview.id?{...i,x:preview.x,y:preview.y,height:preview.z}:i):items;
- const settings=<><div className="engineering-wall-controls"><div className="engineering-wall-selectors"><label>Комната<select value={roomId} onChange={e=>{const room=rooms.find(r=>r.id===e.target.value);setRoomId(e.target.value);const list=roomWalls(room,walls);onWall(list[0]?.ref||'');}}><option value="">Все стены</option>{rooms.map(r=><option value={r.id} key={r.id}>{r.name}</option>)}</select></label>
+ const settings=<><div className="engineering-wall-controls"><div className="engineering-wall-selectors"><label>Комната<select value={roomId} onChange={e=>{const room=rooms.find(r=>r.id===e.target.value);onRoom(e.target.value);}}><option value="">Все стены</option>{rooms.map(r=><option value={r.id} key={r.id}>{r.name}</option>)}</select></label>
    <label>Стена<select value={wall?.ref||''} onChange={e=>onWall(e.target.value)}>{(choices.length?choices:walls).map(w=><option key={w.ref} value={w.ref}>{w.label}</option>)}</select></label>
    <button type="button" aria-label="Предыдущая стена" onClick={()=>{const i=choices.findIndex(w=>w.ref===wall?.ref);onWall(choices[(i-1+choices.length)%choices.length]?.ref||'');}}>←</button><button type="button" aria-label="Следующая стена" onClick={()=>{const i=choices.findIndex(w=>w.ref===wall?.ref);onWall(choices[(i+1)%choices.length]?.ref||'');}}>→</button>
    <button type="button" aria-label="Уменьшить вид стены" onClick={()=>setZoom(z=>Math.max(60,z-20))}>−</button><button type="button" onClick={()=>setZoom(100)}>{zoom}%</button><button type="button" aria-label="Увеличить вид стены" onClick={()=>setZoom(z=>Math.min(240,z+20))}>+</button>
@@ -104,6 +99,6 @@ export default function EngineeringWallEditor({plan,walls,rooms,items,routes,vis
    onMove={e=>{const d=drag.current;if(!d||d.pointerId!==e.pointerId){if(pending){const p=pos(e);if(p)setCursor(routePoint(p));}return;}const p=pos(e);if(p){d.last=p;setPreview({id:d.id,...p});}}}
    onUp={e=>{const d=drag.current;if(!d||d.pointerId!==e.pointerId)return;if(d.last&&Math.hypot(e.clientX-d.x,e.clientY-d.y)>4){onMoveItem(d.id,d.last,wall.ref);skip.current=true;}drag.current=null;setPreview(null);}}
    onPipe={(e,route,a,b)=>{if(linesLocked)return;const p=e.type==='keydown'?{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:((a.z||0)+(b.z||0))/2}:pos(e);if(!p)return;if(activePreset){if(!INLINE_FITTING_KINDS.has(activePreset.id)){setNotice('Этот прибор ставится рядом с трубой. Для вставки выберите фитинг или кран.');return;}onInsert(route,activePreset,p,wall.ref);}else if(mode==='select')onSelect(null,route);else {const joint=onMaterialize(route,p,wall.ref);if(joint)pick(joint,route.medium);}}}
-   onContinuation={c=>{if(linesLocked)return;if(mode==='select'){if(!choices.some(w=>w.ref===c.nextWall.ref))setRoomId('');onWall(c.nextWall.ref);setNotice(`${c.code}: продолжение на ${c.nextWall.label}.`);}else{const joint=onMaterialize(c.route,c.point,wall.ref);if(joint)pick(joint,c.route.medium);}}}/></div></div>
+   onContinuation={c=>{if(linesLocked)return;if(mode==='select'){if(!choices.some(w=>w.ref===c.nextWall.ref))onRoom('');onWall(c.nextWall.ref);setNotice(`${c.code}: продолжение на ${c.nextWall.label}.`);}else{const joint=onMaterialize(c.route,c.point,wall.ref);if(joint)pick(joint,c.route.medium);}}}/></div></div>
  </div></section>;
 }

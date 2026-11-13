@@ -549,7 +549,8 @@ export function calculateProductionCutting(project, calculation) {
     const bounds=polygonBounds(surface.geometry.flat());
     surface.width??=bounds.width;surface.height??=bounds.height;
     surface.layoutKey = `${surface.id}:${cuttingRevision([surface.geometry, surface.planStart, surface.planEnd])}`;
-    surface.layout = settings.layouts[surface.layoutKey] || {};
+    const direction=surface.id.endsWith('-ПТ')?settings.ceilingDirection:surface.id.endsWith('-ПОЛ')?(surface.floor===1?settings.floorDirection:settings.interfloorDirection):'auto';
+    surface.layout = {...(direction!=='auto'?{direction}:{}),...settings.layouts[surface.layoutKey]};
     for (const key of ['originX', 'originY', 'step']) if (presentNumber(surface.layout[key]) && (Math.abs(Number(surface.layout[key])) > 100000 || (key === 'step' && (Number(surface.layout[key]) < 100 || Number(surface.layout[key]) > 2500)))) throw new Error(`${surface.id}: недопустимая сетка раскладки`);
     if (presentNumber(surface.layout.step)) surface.layoutWidth = Number(surface.layout.step);
     surface.stockWall=settings.wallPanelMode==='full' && !!surface.planStart;
@@ -588,7 +589,7 @@ export function calculateProductionCutting(project, calculation) {
       }
       if (!nearest || nearest.distance > Math.max(Number(plan.wallThickness) || 0.174, 0.1) + 0.03 || (choices[1] && Math.abs(choices[1].distance - nearest.distance) < .001)) {
         issue('OPENING_WALL', `${row.name}: стена не найдена или привязка неоднозначна. Раскрой возможных стен заблокирован; уточните положение и ориентацию на плане.`, key);
-        eligible.forEach(edge => blockedWalls.add(edge.id)); continue;
+        choices.filter(choice=>choice.distance<=Math.max(Number(plan.wallThickness)||.174,.1)+.03).forEach(choice=>blockedWalls.add(choice.edge.id)); continue;
       }
       assigned.get(nearest.edge.id).push({ ...row, x: mm(nearest.u) - row.width / 2 });
     }

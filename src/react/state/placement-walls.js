@@ -1,4 +1,4 @@
-import { houseContourPoints, partitionDepth, partitionRuns } from '../planner/geometry.js';
+import { houseContourPoints, roomPoints, partitionDepth, partitionRuns } from '../planner/geometry.js';
 import { pointInPolygon } from './placement-geometry.js';
 
 const point = (a, b, amount) => ({ x: a.x + b.x * amount, y: a.y + b.y * amount });
@@ -161,4 +161,21 @@ export function nearestPlacementDimension(plan, item, bands = placementWallBands
   const from = { x: edge.a.x + closest.ratio * edge.dx, y: edge.a.y + closest.ratio * edge.dy };
   return { from, to: edge.to, distance: Math.hypot(from.x - edge.to.x, from.y - edge.to.y),
     wallType: 'facade', reference: closest.reference };
+}
+
+// Match overlapping wall faces, including a long exterior face shared by several rooms.
+export function roomWallFaces(room,walls){
+ if(!room)return walls;const points=roomPoints(room);
+ return walls.flatMap(w=>{
+ const ux=(w.b.x-w.a.x)/w.length,uy=(w.b.y-w.a.y)/w.length,intervals=[];
+ for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);if(len<.001)continue;
+ const cross=p=>Math.abs((p.x-a.x)*dy-(p.y-a.y)*dx)/len;
+ if(Math.abs(ux*dy-uy*dx)/len>.02||Math.max(cross(w.a),cross(w.b))>.25)continue;
+ const station=p=>(p.x-w.a.x)*ux+(p.y-w.a.y)*uy;
+ const lo=Math.max(0,Math.min(station(a),station(b))),hi=Math.min(w.length,Math.max(station(a),station(b)));if(hi-lo<.03)continue;
+ const mid=(lo+hi)/2;if(pointInPolygon({x:w.a.x+ux*mid+w.normal.x*.08,y:w.a.y+uy*mid+w.normal.y*.08},points))intervals.push([lo,hi]);
+ }
+ if(!intervals.length)return [];const [lo,hi]=intervals.sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]))[0];
+ return [{...w,a:{x:w.a.x+ux*lo,y:w.a.y+uy*lo},b:{x:w.a.x+ux*hi,y:w.a.y+uy*hi},length:hi-lo}];
+ });
 }

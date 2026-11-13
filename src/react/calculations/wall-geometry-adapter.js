@@ -1,4 +1,4 @@
-import { boundsOf, houseContourPoints } from '../planner/geometry.js';
+import { boundsOf, houseContourPoints, OPENING_AXIS_TOLERANCE_M } from '../planner/geometry.js';
 import { exteriorWallConstruction } from './wall-construction.js';
 import { partitionSegments } from './partition-construction.js';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
@@ -9,11 +9,11 @@ const point = p => [mm(p.x), mm(p.y)];
 const present = value => value !== '' && value != null && Number.isFinite(Number(value));
 
 // Shared legacy binding policy, in metres. Extraction deliberately changes no
-// distance/orientation/tie thresholds. Ambiguous candidates are never assigned.
+// distance/tie thresholds. Axis tolerance follows the planner so a slightly skewed wall can retain its opening.
 export function openingWallCandidates(opening, edges) {
   return edges.filter(edge => opening.orientation === 'h'
-    ? Math.abs(edge.a.y - edge.b.y) < .001
-    : opening.orientation === 'v' ? Math.abs(edge.a.x - edge.b.x) < .001 : true)
+    ? Math.abs(edge.a.y - edge.b.y) <= OPENING_AXIS_TOLERANCE_M
+    : opening.orientation === 'v' ? Math.abs(edge.a.x - edge.b.x) <= OPENING_AXIS_TOLERANCE_M : true)
     .map(edge => {
       const dx = edge.b.x - edge.a.x, dy = edge.b.y - edge.a.y;
       const length = Math.hypot(dx, dy);

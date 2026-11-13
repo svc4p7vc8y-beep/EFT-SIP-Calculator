@@ -1,3 +1,4 @@
+import {engineeringCatalogIncludes,engineeringDrawingPreset} from '../state/engineering-catalog.js';
 import EngineeringWallNavigator from './EngineeringWallNavigator.jsx';
 import { INLINE_FITTING_KINDS } from '../data/pipe-components.js';
 import { pipeFittingMarkers } from '../state/placement-pipe-bill.js';
@@ -27,7 +28,7 @@ import { connectionPortsFor } from '../state/placement-connections.js';
 import { electricalGroupColor, electricalPlacementClusters, electricalPointsByRoom, roomNameForPlacement, wallPointDisplayOrder } from '../state/placement-visibility.js';
 import { CIRCUIT_COLORS, nextCircuitColor, validCircuitColor } from '../state/placement-circuit-colors.js';
 import { CIRCUIT_LINE_STYLES, circuitLineDash, defaultCircuitLineStyle } from '../state/placement-line-styles.js';
-import { electricalSettingOutDimension, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../state/placement-walls.js';
+import { electricalSettingOutDimension, roomWallFaces, placementWallFaces, projectToWallFace, snapPlacementToWall, wallFacePoint } from '../state/placement-walls.js';
 import { ELECTRICAL_CABLE_CHOICES, breakerDescription, connectSelectedElectricalPoints, electricalBill, electricalRouteLength3d, proposeElectricalCircuitRoutes, reassignElectricalPoint, resolvedElectricalRoutes, routeBetweenElectricalNodes, routeLength } from '../state/placement-electrical.js';
 import { NETWORK_SYSTEMS, isNetworkLayer, isPipeSystem, networkLength3d, resolvedNetworkRoutes } from '../state/placement-networks.js';
 import { insertRoutePoint, pointOnRouteSegment, removeRoutePoint, routeSegmentDirection, shiftRouteSegment } from '../state/placement-route-edit.js';
@@ -259,7 +260,7 @@ export default function PlacementScreen({ onNavigate }) {
   const displayedRoutes = useMemo(() => routes.filter(route => !hiddenCircuitLines.has(route.circuitId)), [routes, hiddenCircuitLines]);
   const routeBundles = useMemo(() => sharedElectricalRouteLanes(displayedRoutes), [displayedRoutes]);
   const wallFaces = useMemo(() => placementWallFaces(plan), [plan]);
-  const selectedWall = wallFaces.find(face => face.ref === selectedWallRef);
+  const selectedWall = (engineering?roomWallFaces(selectedRoom,wallFaces):wallFaces).find(face => face.ref === selectedWallRef);
   const openWallRoom = face => {
     setSelectedWallRef(face.ref);
     if(engineering){setSelectedRoomId('');setEngineeringView('walls');return;}
@@ -305,17 +306,17 @@ export default function PlacementScreen({ onNavigate }) {
   const selectedRoute = displayedRoutes.find(route => route.id === selectedRouteId);
   const selectedWaypoint = selectedRoutePoint && selectedRoute && selectedRoutePoint.routeId === selectedRoute.id && selectedRoutePoint.index > 0 && selectedRoutePoint.index < selectedRoute.points.length - 1 ? selectedRoutePoint : null;
   const activeRouteSegment = selectedRouteSegment && selectedRoute && selectedRouteSegment.routeId === selectedRoute.id && selectedRouteSegment.index < selectedRoute.points.length - 1 ? selectedRouteSegment : null;
-  const activePreset = findPlacementPreset(presetId);
+  const activePreset = engineeringDrawingPreset(findPlacementPreset(presetId),layer);
   const printSheets = useMemo(() => buildPrintablePlacementSheets(project), [project]);
   const printRouteDescription = route => {
     const from = placement.items.find(item => item.id === (route.fromItemId || route.fromId || route.panelItemId));
     const to = placement.items.find(item => item.id === (route.targetItemId || route.toId));
     return route.annotationText || [from?.annotationText || from?.label || from?.kind, to?.annotationText || to?.label || to?.kind].filter(Boolean).join(' → ') || `Линия ${route.id.slice(-6)}`;
   };
-  const groups = PLACEMENT_GROUPS.filter(group => group.layer === layer);
+  const groups = PLACEMENT_GROUPS.filter(group => group.layer === layer || engineering&&group.layer==='equipment'&&group.id==='engineering');
   const searchTerm = query.trim().toLocaleLowerCase('ru');
   const catalogItems = PLACEMENT_PRESETS.filter(item => isNetworkLayer(layer)
-    ? item.layer === layer && (searchTerm ? item.label.toLocaleLowerCase('ru').includes(searchTerm) : category === 'all' || item.group === category)
+    ? engineeringCatalogIncludes(item,layer) && (searchTerm ? item.label.toLocaleLowerCase('ru').includes(searchTerm) : category === 'all' || item.group === category)
     : searchTerm ? item.label.toLocaleLowerCase('ru').includes(searchTerm) : item.layer === layer && (category === 'all' || item.group === category));
 
   useEffect(() => {
@@ -439,7 +440,7 @@ export default function PlacementScreen({ onNavigate }) {
       circuitId: preset.layer === 'electric' && preset.id !== 'panel' ? selectedCircuitId || '' : '',
       ...(supplyKind ? { supplyItemId: `supply-${id}` } : {}),
       };
-      data.items.push(placed, ...connectionPortsFor(placed));
+      data.items.push(placed, ...connectionPortsFor(placed,wallFaces.find(face=>face.ref===placed.wallRef)));
       if (supplyKind) {
         const pointPreset = findPlacementPreset(supplyKind);
         const pointLocation = snapPlacementToWall(plan, { x: location.x + .5, y: location.y + .5 }, pointPreset);
@@ -1015,8 +1016,8 @@ export default function PlacementScreen({ onNavigate }) {
     setAnnotationTool(null);
     cancelNetworkRoute();
     setPresetId(entry.id);
-    setLayer(entry.layer); setCategory('all'); setQuery('');
-    setVisible(current => ({ ...current, [entry.layer]: true }));
+    setLayer(engineeringDrawingPreset(entry,layer).layer); setCategory('all'); setQuery('');
+    setVisible(current => ({ ...current, [engineeringDrawingPreset(entry,layer).layer]: true }));
     setSelectedId(null); setDrawingRoute(false); setRoutePoints([]);
     setDrawingDimension(false); setDimensionStart(null);
     setNetworkDrawing(false); setNetworkPoints([]);
@@ -1492,7 +1493,7 @@ export default function PlacementScreen({ onNavigate }) {
         </div> : null}
         {layer === 'electric' && sidebarTab === 'bill' ? <div className="placement-sidebar-section"><PlacementElectricalBill bill={electricBill} placement={placement} floor={activeFloor} projectName={project.meta?.projectNum} change={change}/></div> : null}
       </aside>
-      {engineering && engineeringView === 'walls' && <Suspense fallback={<p>Загрузка стен комнаты…</p>}><EngineeringWallEditor controlsHost={wallControlsHost} layers={layerToolbar} onUndo={undo} hasSelection={Boolean(selectedId||selectedNetworkRouteId)} onRemove={()=>{if(selectedNetworkRouteId){change(data=>{data.networks[layer]=data.networks[layer].filter(r=>r.id!==selectedNetworkRouteId);});setSelectedNetworkRouteId(null);}else deleteSelection();}} onCreateJunction={(at,wallRef,medium)=>{if(linesLocked)return null;const id=createId(),wall=wallFaces.find(w=>w.ref===wallRef),offset=(wallProfile.clearanceMm??30)/1000;const node={id,kind:'pipe-junction',label:'Начало трубы',floor:activeFloor,layer,x:at.x+(wall?.normal.x||0)*offset,y:at.y+(wall?.normal.y||0)*offset,height:at.z,heightKnown:true,wallRef,width:.04,depth:.04,rotation:0,connectionMedium:medium};change(data=>data.items.push(node));return node;}} plan={plan} walls={wallFaces} rooms={rooms} items={items.filter(i=>ENGINEERING_SYSTEMS.includes(i.layer)||i.layer==='equipment')} routes={networkRoutes.filter(r=>ENGINEERING_SYSTEMS.includes(r.system))} visible={visible}
+      {engineering && engineeringView === 'walls' && <Suspense fallback={<p>Загрузка стен комнаты…</p>}><EngineeringWallEditor controlsHost={wallControlsHost} layers={layerToolbar} onUndo={undo} hasSelection={Boolean(selectedId||selectedNetworkRouteId)} onRemove={()=>{if(selectedNetworkRouteId){change(data=>{data.networks[layer]=data.networks[layer].filter(r=>r.id!==selectedNetworkRouteId);});setSelectedNetworkRouteId(null);}else deleteSelection();}} onCreateJunction={(at,wallRef,medium)=>{if(linesLocked)return null;const id=createId(),wall=wallFaces.find(w=>w.ref===wallRef),offset=(wallProfile.clearanceMm??30)/1000;const node={id,kind:'pipe-junction',label:'Начало трубы',floor:activeFloor,layer,x:at.x+(wall?.normal.x||0)*offset,y:at.y+(wall?.normal.y||0)*offset,height:at.z,heightKnown:true,wallRef,width:.04,depth:.04,rotation:0,connectionMedium:medium};change(data=>data.items.push(node));return node;}} plan={plan} walls={wallFaces} rooms={rooms} roomId={selectedRoomId} onRoom={id=>{setSelectedRoomId(id);setSelectedWallRef('');}} items={items.filter(i=>ENGINEERING_SYSTEMS.includes(i.layer)||i.layer==='equipment')} routes={networkRoutes.filter(r=>ENGINEERING_SYSTEMS.includes(r.system))} visible={visible}
         system={layer} medium={networkMedium} onMedium={setNetworkMedium} profile={wallProfile} onProfile={updateWallProfile} wallRef={selectedWallRef} onWall={setSelectedWallRef}
         mode={wallMode} onMode={setWallMode} activePreset={activePreset} onClearTool={clearWallTool} selectedId={selectedId} locked={elementsLocked} linesLocked={linesLocked}
         onSelect={(item,route)=>{if(item){setSelectedId(item.id);setPresetId(null);setSelectedNetworkRouteId(null);}else{setSelectedId(null);if(!route)setSelectedNetworkRouteId(null);}if(route){setSelectedNetworkRouteId(route.id);setLayer(route.system);setSidebarTab('groups');}}}
@@ -1649,7 +1650,7 @@ export default function PlacementScreen({ onNavigate }) {
         {selected?.kind === 'connection-port' && !selected.heightKnown ? <p className="placement-route-hint">Высота этого вывода ещё не задана по проекту. Укажите её перед выпуском рабочих схем.</p> : null}
         {selected ? <div className="placement-annotation-settings"><label>Плоскость на развёртке<select value={selected.displayPlane || 'auto'} onChange={event => updateItem({ displayPlane: event.target.value })} disabled={elementsLocked}><option value="auto">Автоматически</option><option value="floor">Пол</option><option value="wall">Ближайшая стена</option></select></label>{selected.layer === 'electric' ? <label>Размер от стены<select value={selected.dimensionSide || 'auto'} onChange={event => updateItem({ dimensionSide: event.target.value })}><option value="auto">Ближайшая слева или справа</option><option value="left">Слева</option><option value="right">Справа</option></select></label> : null}<label><input type="checkbox" checked={selected.showHeight === true} onChange={event => updateItem({ showHeight: event.target.checked })}/> Показывать высоту рядом</label><label><input type="checkbox" checked={selected.showName === true} onChange={event => updateItem({ showName: event.target.checked })}/> Выноска названия (перетащите на плане)</label></div> : null}
         {dimensions.length ? <div className="placement-dimension-list"><h3>Ручные размеры</h3>{dimensions.map((dimension, index) => <div key={dimension.id}><span>{index + 1}. {measureText(dimensionMetres(dimension.points))}</span><input aria-label={`Подпись размера ${index + 1}`} value={dimension.label || ''} placeholder="Подпись по замеру" onChange={event => change(data => { const target = data.dimensions.find(entry => entry.id === dimension.id); if (target) target.label = event.target.value; })}/><button aria-label={`Удалить размер ${index + 1}`} onClick={() => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== dimension.id); })}><Trash2 size={15}/></button></div>)}</div> : null}
-      </div>{engineering&&<EngineeringWallNavigator plan={plan} walls={wallFaces} selected={selectedWallRef} onSelect={ref=>{setSelectedWallRef(ref);setSelectedRoomId('');setEngineeringView('walls');}}/>}
+      </div>{engineering&&<EngineeringWallNavigator plan={plan} walls={wallFaces} rooms={rooms} roomId={selectedRoomId} onRoom={id=>{setSelectedRoomId(id);setSelectedWallRef('');}} selected={selectedWallRef} onSelect={ref=>{setSelectedWallRef(ref);setEngineeringView('walls');}}/>}
       </aside>
       {selectedRoom && !engineering ? <PlacementRoomUnfolding room={selectedRoom} plan={plan} items={displayedItems} visible={visible} onToggleLayer={id => setVisible(current => ({ ...current, [id]: !current[id] }))} routes={[...networkRoutes, ...displayedRoutes.map(route => ({ ...route, system: 'electric' }))]} draftPoints={networkDrawing ? networkPoints : drawingRoute ? routePoints : []} draftSystem={layer} draftCircuitId={selectedCircuitId || items.find(item => item.id === routeStartId)?.circuitId} activePreset={activePreset} selectedId={selectedId} selectedRouteId={selectedRouteId} selectedRoutePointIndex={selectedWaypoint?.index} elementsLocked={elementsLocked} linesLocked={linesLocked} onToggleLock={() => setElementsLocked(value => !value)} onToggleLinesLock={() => setLinesLocked(value => !value)} onUndo={undo} onRedo={redo} onScreenshot={captureWorkspace} canUndo={canUndo} canRedo={canRedo} circuitColor={id => electricalGroupColor(id, placement.circuits)} routeMode={!activePreset && (networkPicking || drawingRoute || assigningCircuit)} onPlace={roomPlace} onMove={roomMove} onSelect={id => { setSelectedId(id); setPresetId(null); }} onPickNode={pickCanvasItem} onRoutePoint={roomRoutePoint} onSelectRoute={route => { setLayer(route.system); setSelectedId(null); if (route.system === 'electric') setSelectedRouteId(route.id); else setSelectedNetworkRouteId(route.id); }} onSelectRoutePoint={(route, index) => { setSelectedRouteId(route.id); setSelectedRoutePoint({ routeId: route.id, index }); setSelectedId(null); setLayer("electric"); }} onInsertRoutePoint={(route, segmentIndex, point) => { const next = insertRoutePoint(route.points, segmentIndex, point); replaceRouteGeometry(route, next); setSelectedRoutePoint({ routeId: route.id, index: segmentIndex + 1 }); }} dimensions={roomDimensions} floor={activeFloor} onDimensionCreate={dimension => change(data => { data.dimensions.push(dimension); })} onDimensionLabel={(id, label) => change(data => { const dimension = data.dimensions.find(entry => entry.id === id); if (dimension) dimension.label = label; })} onDimensionDelete={id => change(data => { data.dimensions = data.dimensions.filter(entry => entry.id !== id); })} onShiftRouteSegment={replaceRouteGeometry}/> : null}
     </div>
