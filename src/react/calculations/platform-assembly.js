@@ -18,9 +18,10 @@ export function platformAssembly(project, calculation, roofModel) {
       return {id:`platform:${p.id}:step:${i+1}`,ring,z:deckZ-(i+1)*riser,thickness:45};
     });
     const faces=(roofModel?.faces||[]).filter(f=>f.group===`terrace:${p.id}`),posts=[],ties=[];
-    if(result?.postCount&&faces.length){
+    if(p.roof.mode==='shared'&&result?.sharedPosts?.length)posts.push(...result.sharedPosts);
+    if(result?.postCount&&(faces.length||posts.length)){
       const n=Math.min(500,result.postCount),attached=result.side;
-      for(let i=0;i<n;i++){
+      for(let i=0;i<(p.roof.mode==='shared'?0:n);i++){
         const t=n===1?.5:i/(n-1),pos=attached==='left'?[x,y+h*t]:attached==='right'?[x+w,y+h*t]:attached==='top'?[x+w*t,y]:[x+w*t,y+h];
         const face=roofAt({faces},...pos)[0]?.face;if(!face)continue;
         const z=roofHeight(face,...pos);if(z<=deckZ)continue;

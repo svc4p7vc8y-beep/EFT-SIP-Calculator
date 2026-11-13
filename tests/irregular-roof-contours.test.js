@@ -147,7 +147,9 @@ for (const shape of ['gable', 'hip']) {
     assert.equal(JSON.stringify(reopened.plan), before);
     assert.deepEqual(calculation.roof.footprint.included, ['deck']);
     assert.equal(calculation.roof.terraceRoofs[0].result.netArea, 0);
-    assert.equal(calculation.roof.extensionLines.length, 0);
+    assert.equal(calculation.roof.extensionLines.length, 2);
+    assert.ok(calculation.roof.extensionLines.every(line=>/posts|outer-tie/.test(line.id)));
+    assert.ok(calculation.roof.terraceRoofs[0].result.postCount>0);
     assert.ok(model.faces.every(face => face.group === 'main'));
     assert.ok(roofAt(model, 1200, 3700).length);
     assert.ok(Math.abs(model.mainArea - calculation.roof.geometry.totalSlopeArea) < .01);

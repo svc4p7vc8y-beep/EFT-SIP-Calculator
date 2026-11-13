@@ -1,3 +1,5 @@
+import {cornerPlanStations} from './corner-rafters.js';
+import {mainRoofModel,sharedTerracePosts,sharedGableProfile} from './shared-roof-supports.js';
 import { hasSeparateOverhangs, roofOverhangValue } from './roof-overhangs.js';
 import {partitionTopFit,partitionProfileArea,partitionProfileTopLength} from './partition-top-fit.js';
 import { SIP_ORDER_SECTION, SIP_ORDER_TITLE, sipPanelOrderLines } from './sip-panel-order.js';
@@ -228,9 +230,10 @@ function resolveRafterStructure(project, geometry, frameLength) {
     ? clearGapPositions(boardWidth * 500, (frameLength * 1000 + 2 * endOverhangMm) - boardWidth * 500, boardWidth * 1000, step * 1000).map(value => value - endOverhangMm)
     : null;
   const basePositions = detailedPositions || (endOverhangMm && interiorCount ? [-endOverhangMm, ...interiorPositions, frameLength * 1000 + endOverhangMm] : interiorPositions);
+  const cornerPositions=roof.type==='cold'&&geometry.shape==='gable'?cornerPlanStations(project,basePositions,frameLength*1000,roof.ridgeAxis):basePositions;
   const allPositions = geometry.shape === 'gable'
-    ? withSipGableRafters(project, basePositions, frameLength * 1000, boardWidth * 1000)
-    : basePositions;
+    ? withSipGableRafters(project, cornerPositions, frameLength * 1000, boardWidth * 1000)
+    : cornerPositions;
   const pairCount = allPositions ? allPositions.length : interiorCount;
   const legCount = geometry.shape === "flat" ? pairCount : pairCount * 2;
   return {
@@ -1317,7 +1320,9 @@ function roofSection(project, metrics, index, inputs, footprint) {
   };
   const endAxis=roofAxes.ridgeAxis==='y'?'y':'x';
   const endWalls=constructedWalls.filter(w=>Math.abs(w.a[endAxis]-w.b[endAxis])<.001).sort((a,b)=>a.a[endAxis]-b.a[endAxis]);
-  const gableAreas=mainRoofShape==='gable'&&endWalls.length===2?endWalls.map(triangleArea):[geometry.gableArea/2,geometry.gableArea/2];
+  const sharedProfiles=footprint.included.length?constructedWalls.flatMap(w=>{const p=sharedGableProfile({mainRoofShape,footprint,ridgeAxis:roofAxes.ridgeAxis},w.start,w.end,(Number(roof.ridgeHeight)||0)*1000);return p?[p]:[];}):[];
+  const sharedAreas=[0,1].map(side=>sharedProfiles.filter(p=>p.side===side).reduce((n,p)=>n+p.area,0));
+  const gableAreas=sharedProfiles.length?sharedAreas:mainRoofShape==='gable'&&endWalls.length===2?endWalls.map(triangleArea):[geometry.gableArea/2,geometry.gableArea/2];
   const flatSides=constructedWalls.filter(w=>Math.abs(w.heightStart-w.heightEnd)>.0001).slice(0,mainGableCount);
   const actualFlatSideArea=flatSides.reduce((s,w)=>s+w.length*((w.heightStart+w.heightEnd)/2-w.baseHeight),0);
   const actualFlatHighArea=constructedWalls.filter(w=>Math.abs(w.heightStart-w.heightEnd)<=.0001).reduce((s,w)=>s+w.length*Math.max(0,w.heightStart-w.baseHeight),0);
@@ -1496,7 +1501,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
   const riegelVolume = riegelBoardCount
     ? riegelBoardCount * 6 * 0.025 * 0.15
     : Math.ceil(riegelCount * riegelLength * 0.025 * 0.15 * 1.1 * 1000) / 1000;
-  const terracePostCount = terraceRoofs.reduce(
+  let terracePostCount = terraceRoofs.reduce(
     (sum, item) => sum + item.result.postCount,
     0,
   );
@@ -1516,6 +1521,19 @@ function roofSection(project, metrics, index, inputs, footprint) {
   const supportedPlateGeometry = mauerlatWallRuns(project, { ...roof, shape: mainRoofShape, mauerlatLayout, gableOverhang: 0 }, roofAxes.ridgeAxis);
   const mauerlatRuns = supportedPlateGeometry.runs.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000);
   const mauerlatLength = mauerlatRunLength(plateGeometry.runs);
+  if(project.services.terrace&&project.services.roof&&footprint.included.length){
+    const sharedModel=mainRoofModel(project,{geometry,footprint,pitched,mainRoofShape,ridgeAxis:roofAxes.ridgeAxis,flatSlopeMode,rafterStructure,mauerlatLength,terraceRoofs:[]},metrics);
+    for(const entry of terraceRoofs.filter(e=>e.platform.roof?.mode==='shared'&&footprint.included.includes(e.platform.id))){
+      const result=entry.result,posts=sharedTerracePosts(entry.platform,result,sharedModel,inputs.formulas.terraceRoofPostSpacing);
+      result.sharedPosts=posts;result.postCount=posts.length;
+      result.postLength=round(posts.reduce((n,p)=>n+(p.b[2]-p.a[2])/1000,0),3);
+      const [w,d]=result.postSection.split('x').map(Number);
+      result.postVolume=round(result.postLength*w*d/1e6,3);
+      result.tieLength=posts.length>1?round(posts.slice(1).reduce((n,p,i)=>n+Math.hypot(p.b[0]-posts[i].b[0],p.b[1]-posts[i].b[1])/1000,0),3):0;
+      result.tieVolume=round(result.tieLength*w*d/1e6,3);
+    }
+    terracePostCount=terraceRoofs.reduce((n,e)=>n+e.result.postCount,0);
+  }
   const mauerlatPurchaseLength =
     mauerlatLength * inputs.formulas.mauerlatReserve;
   const mauerlatBoardCount = mauerlatPurchaseLength
@@ -1720,6 +1738,12 @@ function roofSection(project, metrics, index, inputs, footprint) {
       : 0;
   const extensionLines = compact(
     terraceRoofs.flatMap(({ platform, result }) => {
+      if(platform.roof?.mode==='shared'&&result.postCount){
+        const key=`platform-${String(platform.id).replace(/[^a-zа-я0-9-]/gi,'-')}`,source=`${key}-roof`,title=platform.kind==='porch'?'крыльца':'террасы';
+        const query=result.postSection==='100x100'?'Брус ест.влажн. сосна 100×100 мм':'Брус мауэрлата ест.влажн. сосна 150×100 мм';
+        return [makeLine(index,'roof',query,result.postVolume,{key:`${key}-posts-${result.postSection}`,unit:'м³',digits:3,name:`Опорные столбы общей кровли ${title} ${result.postSection.replace('x','×')} мм · ${result.postCount} шт`,source}),
+          makeLine(index,'roof',query,result.tieVolume,{key:`${key}-outer-tie-${result.postSection}`,unit:'м³',digits:3,name:`Обвязка по наружным столбам ${title} ${result.postSection.replace('x','×')} мм · ${result.tieLength} м`,source})];
+      }
       if (result.mode === "none" || !result.netArea) return [];
       const key = `platform-${String(platform.id).replace(/[^a-zа-я0-9-]/gi, "-")}`;
       const title = platform.kind === "porch" ? "крыльца" : "террасы";

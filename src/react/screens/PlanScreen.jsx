@@ -3,7 +3,7 @@ import {roofPlanLines,snapRoofLineOffset,saveRoofLines} from '../planner/roof-li
 import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges,assignPartitionProfiles,assignSipThickness} from '../planner/bearing-selection.js';
 import {PARTITION_BOARD_PROFILES,partitionProfileColor,partitionProfileLabel} from '../data/partition-profiles.js';
 import {resizeRoomFromExterior} from '../planner/resize-room.js';
-import {roofSupportPlanGroups,movePlanRoofGroup} from '../planner/roof-support-plan.js';
+import {roofSupportPlanGroups,movePlanRoofGroup,removePlanRoofGroup} from '../planner/roof-support-plan.js';
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
 import { DraftText } from './CuttingControls.jsx';
@@ -5912,6 +5912,14 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         !editing
       ) {
         event.preventDefault();
+        if(selected.type==='roofSupport'){
+          commit(next=>{next.settings.productionCutting.roofSupports=windowSupportHeaders(next,removePlanRoofGroup(next.settings.productionCutting.roofSupports,selected.id)).items;return next;});
+          setSelected(null);return;
+        }
+        if(selected.type==='roofAxis'){
+          commit(next=>saveRoofLines(next,projectCalculation,roofPlanLines(next,projectCalculation).filter(line=>line.id!==selected.id)));
+          setSelected(null);return;
+        }
         if(selected.type==='room'&&plan.layoutMode==='walls'){
           window.alert('В режиме построения стенами удалите разделяющую стену, а не комнату.');
           return;
@@ -6003,7 +6011,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [selected, commitPlan, commitFloorOpening, floorOpening, undo, redo, isPlanFullscreen]);
+  }, [selected, commitPlan, commit, projectCalculation, commitFloorOpening, floorOpening, undo, redo, isPlanFullscreen]);
   const toolHint =
     tool === "select"
       ? "Сначала выберите элемент, затем перетаскивайте его или ручки. Пробел — «Выбор», Ctrl+Z — отмена."
@@ -6655,7 +6663,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             })))}
             bearingEdges={bearingChoices} bearingSelection={bearingSelection} onPickBearing={key=>{const keys=bearingByLine?collinearBearingKeys(bearingChoices,key):[key];setBearingSelection(old=>keys.every(k=>old.includes(k))?old.filter(k=>!keys.includes(k)):[...new Set([...old,...keys])]);}}
             roofSupportGroups={activeFloor===floorCount?roofSupportPlanGroups(project.settings.productionCutting.roofSupports):[]}
-            onDeleteRoofSupport={id=>commit(next=>{const group=roofSupportPlanGroups(next.settings.productionCutting.roofSupports).find(item=>item.id===id);const ids=new Set(group?.members.map(item=>item.id)||[]);next.settings.productionCutting.roofSupports=windowSupportHeaders(next,next.settings.productionCutting.roofSupports.filter(item=>!ids.has(item.id))).items;return next;})}
+            onDeleteRoofSupport={id=>commit(next=>{next.settings.productionCutting.roofSupports=windowSupportHeaders(next,removePlanRoofGroup(next.settings.productionCutting.roofSupports,id)).items;return next;})}
             onMoveRoofSupport={async(id,dx,dy)=>{
               try{
                 const {calculateProductionCutting}=await import('../calculations/production-cutting.js');

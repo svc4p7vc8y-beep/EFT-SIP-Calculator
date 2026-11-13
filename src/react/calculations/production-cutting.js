@@ -1,3 +1,4 @@
+import {sharedGableProfile} from './shared-roof-supports.js';
 import {partitionTopFit} from './partition-top-fit.js';
 import {mixedPanelStock} from './mixed-panel-stock.js';
 import clipping from 'polygon-clipping';
@@ -778,6 +779,15 @@ export function calculateProductionCutting(project, calculation) {
             const edge=endEdges[i-1];
             gableSurface.gableAnchor={planStart:[mm(edge.a.x),mm(edge.a.y)],planEnd:[mm(edge.b.x),mm(edge.b.y)],thickness:gableSurface.thickness,exterior:true,floor:plans.length,elevation:productionLevels(project,plans.length).roofBase};
           }
+        }
+      } else if(roof.mainRoofShape==='gable'&&roof.footprint?.included.length){
+        for(const wall of surfaces.filter(s=>s.floor===plans.length&&/^Э\d+-С\d+$/.test(s.id))){
+          const profile=sharedGableProfile(roof,{x:wall.planStart[0]/1000,y:wall.planStart[1]/1000},{x:wall.planEnd[0]/1000,y:wall.planEnd[1]/1000},mm(roofSettings.ridgeHeight));
+          if(!profile||profile.side>=Math.min(2,Number(roofSettings.gableCount)||0))continue;
+          const selected=roofSettings.type==='combo'?roofSettings.gableSideTypes?.[profile.side?'second':'first']:null,type=selected==='sip'?'sip':selected==='frame'?'cold':roof.mainGableType;
+          const transfers=gableOpeningTransfers.get(wall.id)||[],holes=transfers.map(o=>rect(o.x,Number(o.sill)-wall.height,o.width,o.height));
+          const surface=addGable(`ФР-${wall.id}`,`Фронтон общей кровли · ${wall.name}`,subtract([profile.polygon],holes),type);
+          surface.parentWallId=wall.id;surface.openings=transfers.map(o=>({...o,sill:Number(o.sill)-wall.height}));
         }
       } else if(rectangular && roof.mainRoofShape==='flat' && roof.mainGableType==='cold' && roof.flatSlopeMode!=='structural'){
         const construction=exteriorWallConstruction(plans.at(-1),sip,roofSettings,true,services.roof);

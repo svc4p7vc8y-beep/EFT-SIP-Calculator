@@ -1,4 +1,5 @@
-import {roofWorld,roofLocal,roofHeight,roofEdgeSignature} from './roof-project.js';
+import {cornerRafterPoints,withCornerStations} from './corner-rafters.js';
+import {roofWorld,roofLocal,roofHeight,roofEdgeSignature,roofAt} from './roof-project.js';
 import {boundsOf, houseContourPoints} from '../planner/geometry.js';
 import {withSipGableRafters} from './gable-rafter-stations.js';
 import {clearGapPositions} from './clear-gap-framing.js';
@@ -44,6 +45,10 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
     const point=[...f.origin];point[axis]=min+station;point[2]=roofHeight(f,point[0],point[1]);
     return roofLocal(f,point)[0];
    }).sort((a,b)=>a-b);
+  }
+  if(!truss&&f.group==='main'&&!f.manual){
+   const required=cornerRafterPoints(project).filter(([x,y])=>roofAt({faces:[f]},x,y).length).map(([x,y])=>roofLocal(f,[x,y,roofHeight(f,x,y)])[0]);
+   positions=withCornerStations(positions,required,width);
   }
   const faceRafters=[];
   if(positions.length>500||members.length>10000){issues.push(`${f.name}: превышен лимит деталей кровли, проверьте шаг.`);continue;}

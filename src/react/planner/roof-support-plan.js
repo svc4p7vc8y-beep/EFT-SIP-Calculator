@@ -26,6 +26,11 @@ export function copyPlanRoofGroup(members,id) {
     return next;
   });
 }
+export function removePlanRoofGroup(items,groupId) {
+  const group=roofSupportPlanGroups(items).find(item=>item.id===groupId);
+  const ids=new Set(group?.members.map(item=>item.id)||[]);
+  return items.filter(item=>!ids.has(item.id));
+}
 export function movePlanRoofGroup(items,groupId,dx,dy,roofModel=null) {
   const group=roofSupportPlanGroups(items).find(item=>item.id===groupId);
   if(!group)throw new Error('Прогон не найден.');
