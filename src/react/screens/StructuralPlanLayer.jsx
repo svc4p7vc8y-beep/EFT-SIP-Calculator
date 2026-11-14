@@ -1,3 +1,4 @@
+import {sectionWidths} from '../state/window-products.js';
 import {useMemo,useRef,useState,useEffect} from 'react';
 import {calculateProject} from '../calculations/estimate-engine.js';
 import {calculateProductionCutting} from '../calculations/production-cutting.js';
@@ -26,7 +27,7 @@ export default function StructuralPlanLayer({project,floor,p,onOpen,selected,onS
       return <g key={w.id} role="button" tabIndex={0} aria-label={`Каркас · ${w.name}`} onClick={e=>{e.stopPropagation();onOpen(w.id);}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onOpen(w.id);}}}>
         <line x1={p(w.planStart[0]/1000,w.planStart[1]/1000).x} y1={p(w.planStart[0]/1000,w.planStart[1]/1000).y} x2={p(w.planEnd[0]/1000,w.planEnd[1]/1000).x} y2={p(w.planEnd[0]/1000,w.planEnd[1]/1000).y} stroke="#e8d9b8" strokeWidth={Math.max(10,Math.abs(p(depth/1000,0).x-p(0,0).x))}/>
         {structuralStuds(report,w).map(m=>{const x=m.a[0],half=(Number(m.faceWidth)||Number(m.profile.split(/[×xх]/)[0])||50)/2;return <polygon key={m.id} {...props('member',m.id,w,m)} points={[[x-half,-depth/2],[x+half,-depth/2],[x+half,depth/2],[x-half,depth/2]].map(([a,b])=>xy(toWorld(place,a,b))).join(' ')} fill={selected?.id===m.id?'#5a9b3d':'#b78941'} stroke="#70572e" strokeWidth=".8"><title>{m.id} · {m.profile} мм</title></polygon>;})}
-        {(w.openings||[]).filter(o=>!o.gap).map(o=><polygon key={o.id} points={[[o.x,-depth/2],[o.x+o.width,-depth/2],[o.x+o.width,depth/2],[o.x,depth/2]].map(([a,b])=>xy(toWorld(place,a,b))).join(' ')} fill={o.type==='door'?'#dcc4a1':'#d9eff3'} stroke={o.type==='door'?'#9e7546':'#438895'} strokeWidth="1.5"><title>{o.type==='door'?'Дверь':'Окно'} · открыть стену</title></polygon>)}
+        {(w.openings||[]).filter(o=>!o.gap).map(o=>{const product=o.windowProduct;let cursor=0;return <g key={o.id}><polygon points={[[o.x,-depth/2],[o.x+o.width,-depth/2],[o.x+o.width,depth/2],[o.x,depth/2]].map(([a,b])=>xy(toWorld(place,a,b))).join(' ')} fill={o.type==='door'?'#dcc4a1':'#d9eff3'} stroke={o.type==='door'?'#9e7546':'#438895'} strokeWidth="1.5"><title>{o.type==='door'?'Дверь':'Окно'} · открыть стену</title></polygon>{product&&product.sectionAxis!=='horizontal'?sectionWidths(product).slice(0,-1).map((size,i)=>{cursor+=size;const station=o.x+cursor/(product.widthMm||o.width)*o.width,A=p(toWorld(place,station,-depth/2)[0]/1000,toWorld(place,station,-depth/2)[1]/1000),B=p(toWorld(place,station,depth/2)[0]/1000,toWorld(place,station,depth/2)[1]/1000);return <line key={i} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke="#438895" strokeWidth="1.5"/>;}):null}</g>;})}
         <title>{w.name} · открыть развёртку каркаса</title>
       </g>;
     })}

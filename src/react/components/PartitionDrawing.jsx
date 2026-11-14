@@ -1,3 +1,4 @@
+import WindowConstruction from './WindowConstruction.jsx';
 import DrawingDimensions from './DrawingDimensions.jsx';
 import { partitionBoardShape, partitionDrawingData } from '../calculations/partition-drawing.js';
 import { visibleBoardGeometry } from '../calculations/partition-geometry.js';
@@ -20,7 +21,7 @@ export function PartitionDrawingContents({surface,members,pad,font,layers={frame
     while(annotations.slice(0,i).some(other=>Math.abs(other.x-label.x)<font*2&&Math.abs(other.y-label.y)<font*1.2))label.y+=font*1.4;
   }
   return <g className="partition-document-drawing">
-    {(surface.openings||[]).map(o=><rect key={o.key} x={o.x} y={yy(Number(o.sill)+o.height)} width={o.width} height={o.height} fill="#f3f3f3" stroke="#000" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}
+    {(surface.openings||[]).map(o=>o.windowProduct?<g key={o.key} transform={`translate(${o.x} ${yy(Number(o.sill))}) scale(${o.width/Number(o.windowProduct.widthMm||o.width)} ${-o.height/Number(o.windowProduct.heightMm||Math.max(o.windowProduct.leftHeightMm||0,o.windowProduct.rightHeightMm||0)||o.height)})`}><WindowConstruction product={o.windowProduct}/></g>:<rect key={o.key} x={o.x} y={yy(Number(o.sill)+o.height)} width={o.width} height={o.height} fill="#f3f3f3" stroke="#000" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}
     {layers.frame?boards.map(m=>{
       if(!partitionBoardShape(m))return null;
       return <g key={m.id} {...handlers(m.id)} aria-label={`Деталь ${positions.get(m.id)} · ${m.material}`}>

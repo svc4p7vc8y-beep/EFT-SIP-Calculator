@@ -1,6 +1,6 @@
 import clipping from 'polygon-clipping';
 import {openingPolygon,shapeArea} from '../../calculations/opening-shape.js';
-import {createWindowFromDesign,WINDOW_DESIGN_LIBRARY} from '../state/window-products.js';
+import {createWindowFromDesign,WINDOW_DESIGN_LIBRARY,resizeWindowProduct} from '../state/window-products.js';
 import {productionLevels} from './production-levels.js';
 import {houseContourPoints} from '../planner/geometry.js';
 
@@ -83,6 +83,15 @@ export function facadeLayout(config,envelope){
       const clipped=clipping.intersection([expanded],[win.roughOutline]);win.roughOutline=clipped[0]?.[0]||expanded;
     }
   }
+  for(const win of windows){
+    const v=config.windowOverrides?.[win.key]||{},oldW=win.width,oldH=win.height,w=Number(v.widthMm)||oldW,h=Number(v.heightMm)||oldH;
+    if(w<100||h<100||w>30000||h>30000){errors.push(`${win.key}: проверьте размеры окна.`);continue;}
+    win.outline=win.outline.map(([x,y])=>[x*w/oldW,y*h/oldH]);win.roughOutline=win.roughOutline.map(([x,y])=>[x*(w+2*clearance)/(oldW+2*clearance),y*(h+2*clearance)/(oldH+2*clearance)]);
+    win.width=w;win.height=h;win.leftHeight*=h/oldH;win.rightHeight*=h/oldH;
+    if(Number.isFinite(v.xMm))win.x=v.xMm;if(Number.isFinite(v.sillMm))win.y=v.sillMm;
+  }
+  for(let i=members.length-1;i>=0;i--)if(config.memberOverrides?.[members[i].key]?.exclude)members.splice(i,1);
+  for(const member of members){const v=config.memberOverrides?.[member.key]||{},base=Number(envelope.wall.baseZMm)||0;if(Number.isFinite(v.z1))member.a=[member.a[0],v.z1-base];if(Number.isFinite(v.z2))member.b=[member.b[0],v.z2-base];}
   for(const win of windows){const shape=openingPolygon({facadeId:config.id,width:win.width,height:win.height,outline:win.outline},1,win.x,win.y);if(shapeArea(clipping.difference(shape,envelope.shape))>1)errors.push(`${win.key}: окно выходит за контур.`);}
   return {errors:[...new Set(errors)],warnings,windows,members,shape:envelope.shape};
 }
@@ -107,23 +116,30 @@ export function applyFacade(project,config,envelope){
   const normal=[sign*dy,-sign*dx],thickness=Number(wall.thickness)||174;
   const at=([x,z])=>[wall.planStart[0]+dx*x-normal[0]*thickness/2,wall.planStart[1]+dy*x-normal[1]*thickness/2,base+z];
   const prefix=`facade:${config.id}:`,oldSupports=next.settings.productionCutting.roofSupports||[];
+  // Keep identifiers of explicitly reused wall posts so roof bindings survive.
+  const adopted=new Set(Object.values(config.postSourceIds||{}).filter(id=>oldSupports.some(s=>s.id===id&&(s.facadeId===config.id||s.frameWallId===config.wallId&&s.frameFloor===config.floor)&&s.type==='post')));
+  const memberId=key=>adopted.has(config.postSourceIds?.[key])?config.postSourceIds[key]:prefix+key;
   const supports=layout.members.map(member=>{
     const a=at(member.a),b=at(member.b),override=config.memberOverrides?.[member.key]||{};
-    return {id:prefix+member.key,facadeId:config.id,facadeMemberKey:member.key,name:`${config.name} · ${member.name}`,type:member.type,profile:member.profile,
+    const previous=oldSupports.find(s=>s.id===memberId(member.key));
+    return {id:memberId(member.key),facadeId:config.id,facadeMemberKey:member.key,name:`${config.name} · ${member.name}`,type:member.type,profile:member.profile,
       packageCount:Number(config.plies),packageProfile:`${Number(config.boardWidthMm)}×${Number(config.boardDepthMm)}`,packagePricing:config.packagePricing==='package'?'package':'board',nodeRef:config.nodeRef||'',
       x1:a[0],y1:a[1],z1:a[2],x2:b[0],y2:b[1],z2:b[2],estimateEnabled:true,estimateCatalogId:config.catalogId||'',
-      startSupport:member.startKey?prefix+member.startKey:config.foundationRef?prefix+'foundation-'+member.key:'',endSupport:member.endKey?prefix+member.endKey:'',foundationRef:'',...override};
+      startSupport:member.startKey?memberId(member.startKey):config.foundationRef?prefix+'foundation-'+member.key:previous?.startSupport||'',endSupport:member.endKey?memberId(member.endKey):previous?.endSupport||'',foundationRef:previous?.foundationRef||'',...override};
   });
   if(config.foundationRef)for(const member of supports.filter(s=>s.type==='post'))supports.push({id:prefix+'foundation-'+member.facadeMemberKey,facadeId:config.id,type:'foundation',name:`Основание · ${member.name}`,x1:member.x1,y1:member.y1,z1:member.z1,x2:member.x1,y2:member.y1,z2:member.z1,foundationRef:config.foundationRef,nodeRef:config.nodeRef||'',profile:'',referenceOnly:false});
-  if(oldSupports.filter(s=>s.facadeId!==config.id).length+supports.length>200)throw new Error('Превышен лимит 200 опор. Уменьшите число элементов.');
-  next.settings.productionCutting.roofSupports=[...oldSupports.filter(s=>s.facadeId!==config.id),...supports];
+  if(!config.foundationRef)for(const member of supports.filter(s=>s.type==='post')){const foundation=oldSupports.find(s=>s.type==='foundation'&&s.id===member.startSupport&&(s.id===member.id+'-foundation'||s.facadeId===config.id));if(foundation)supports.push({...foundation,facadeId:config.id,x1:member.x1,x2:member.x1,y1:member.y1,y2:member.y1,z1:member.z1,z2:member.z1});}
+  const retained=oldSupports.filter(s=>s.facadeId!==config.id&&!supports.some(g=>g.id===s.id)&&!adopted.has(s.id)&&!(config.foundationRef&&[...adopted].some(id=>s.id===id+'-foundation')));
+  if(retained.length+supports.length>200)throw new Error('Превышен лимит 200 опор. Уменьшите число элементов.');
+  next.settings.productionCutting.roofSupports=[...retained,...supports];
   const oldOpenings=plan.openings||[],oldProducts=next.windowProducts||[];
   const generated=layout.windows.map(win=>{
     const id=prefix+win.key,mid=at([win.x+win.width/2,0]);
     const gap=Number(config.clearanceMm),roughWidth=win.width+2*gap,roughHeight=win.height+2*gap;
     const opening={id,facadeId:config.id,facadeWindowKey:win.key,facadeXMm:win.x-gap,type:'window',outer:true,x:mid[0]/1000,y:mid[1]/1000,orientation:Math.abs(dx)>.5?'h':'v',angle:Math.atan2(dy,dx)*180/Math.PI,width:roughWidth/1000,height:Math.max(...win.roughOutline.map(p=>p[1]))/1000,sillHeight:(win.y-gap)/1000,outline:win.roughOutline.map(p=>p.map(v=>v/1000)),displayOutline:win.outline.map(p=>p.map(v=>(v+gap)/1000)),include:true,includeInEstimate:true,subtractFromSip:true};
-    const old=oldProducts.find(p=>p.openingId===id),product=createWindowFromDesign(WINDOW_DESIGN_LIBRARY[0],{...old,id:old?.id||prefix+'product-'+win.key,facadeId:config.id,openingId:id,mark:`${config.name} · ${win.key}`,shape:win.shape,apexPosition:win.apexPosition,widthMm:win.width,heightMm:win.height,leftHeightMm:win.leftHeight,rightHeightMm:win.rightHeight,roughOpening:{widthMm:roughWidth,heightMm:roughHeight,source:'Геометрия фасада и заданный монтажный зазор'},sections:old?.sections||[{id:'section-1',openingMode:'fixed',ratio:1}],price:old?.price||{mode:'design_unpriced',history:[]}});
-    if(old&&['shape','widthMm','heightMm','leftHeightMm','rightHeightMm','apexPosition'].some(k=>(old[k]??null)!==(product[k]??null)))product.geometryPriceReview=true;
+    const old=config.windowOverrides?.[win.key]?.productTemplate||oldProducts.find(p=>p.openingId===id),product=createWindowFromDesign(WINDOW_DESIGN_LIBRARY[0],{...old,id:old?.id||prefix+'product-'+win.key,facadeId:config.id,openingId:id,mark:`${config.name} · ${win.key}`,shape:win.shape,apexPosition:win.apexPosition,widthMm:win.width,heightMm:win.height,leftHeightMm:win.leftHeight,rightHeightMm:win.rightHeight,roughOpening:{widthMm:roughWidth,heightMm:roughHeight,source:'Геометрия фасада и заданный монтажный зазор'},sections:old?.sections||[{id:'section-1',openingMode:'fixed',ratio:1}],price:old?.price||{mode:'design_unpriced',history:[]}});
+    if(old){const resized=resizeWindowProduct(old,{widthMm:product.widthMm,heightMm:product.heightMm,leftHeightMm:product.leftHeightMm,rightHeightMm:product.rightHeightMm});product.price=resized.price;product.sections=resized.sections;product.geometryPriceReview=resized.geometryPriceReview;}
+    if(old&&product.price?.mode!=='reference_area'&&['shape','widthMm','heightMm','leftHeightMm','rightHeightMm','apexPosition'].some(k=>(old[k]??null)!==(product[k]??null)))product.geometryPriceReview=true;
     return {opening,product};
   });
   plan.openings=[...oldOpenings.filter(o=>o.facadeId!==config.id),...generated.map(g=>g.opening)];
@@ -136,7 +152,7 @@ export function applyFacade(project,config,envelope){
     if(!catalog||!finite(extra.qty)||Number(extra.qty)<=0)throw new Error('Крепёж и работы фасада: выберите позицию прайса и задайте положительное количество по проекту.');
     next.customEstimateLines.push({id:prefix+'extra-'+extra.id,facadeId:config.id,section:'roof',catalogId:catalog.id,name:`${config.name} · ${catalog.name}`,unit:catalog.unit,qty:Number(extra.qty),price:Number(catalog.price)||0,kind:extra.kind==='labor'?'labor':'material',source:config.nodeRef||'Проектная ведомость фасада'});
   }
-  for(const link of config.links||[]){const item=next.settings.productionCutting.roofSupports.find(s=>s.id===link.supportId&&s.facadeId!==config.id),target=supports.find(s=>s.id===prefix+link.memberKey);if(!item||!target)continue;item[link.end==='start'?'startSupport':'endSupport']=target.id;if(link.snap){const suffix=link.end==='start'?'1':'2';item['x'+suffix]=target.x2;item['y'+suffix]=target.y2;item['z'+suffix]=target.z2;}}
+  for(const link of config.links||[]){const item=next.settings.productionCutting.roofSupports.find(s=>s.id===link.supportId&&s.facadeId!==config.id),target=supports.find(s=>s.id===memberId(link.memberKey));if(!item||!target)continue;item[link.end==='start'?'startSupport':'endSupport']=target.id;if(link.snap){const suffix=link.end==='start'?'1':'2';item['x'+suffix]=target.x2;item['y'+suffix]=target.y2;item['z'+suffix]=target.z2;}}
   return next;
 }
 export function removeFacade(project,id,floor){

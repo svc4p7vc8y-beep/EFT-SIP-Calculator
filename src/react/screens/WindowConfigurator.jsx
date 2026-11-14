@@ -1,3 +1,5 @@
+import {synchronizeWindowOpening,replaceWindowForOpening} from '../state/window-opening-link.js';
+import {resizeWindowProduct} from '../state/window-products.js';
 import React,{lazy,Suspense,useEffect,useMemo,useState} from 'react';
 import {useProject} from '../state/ProjectContext.jsx';
 import {createWindowFromDesign,createWindowFromReference,normalizeWindowTariffs,WINDOW_DESIGN_LIBRARY,WINDOW_OPENINGS,WINDOW_REFERENCE,WINDOW_SHAPES,windowGeometry,windowPrice,windowTotals,validateWindow} from '../state/window-products.js';
@@ -66,24 +68,24 @@ export default function WindowConfigurator({focusOpeningId=null,embedded=false})
   const activeOpening=selected?.openingId?openings.find(item=>item.id===selected.openingId):null;
   const price=selected?windowPrice(selected,project.windowTariffs):null;
   const errors=selected?validateWindow(selected):[];
-  const update=patch=>commit(next=>{const item=next.windowProducts.find(product=>product.id===selected.id);Object.assign(item,patch);return next;});
+  const update=patch=>commit(next=>{const item=next.windowProducts.find(product=>product.id===selected.id);Object.assign(item,resizeWindowProduct(item,patch));synchronizeWindowOpening(next,item);return next;});
   const edit=(key,value)=>update({[key]:value});
   const add=(referenceItem,openingId=embedded?focusOpeningId:null)=>{
     const product=createWindowFromReference(referenceItem,{openingId});
-    commit(next=>{next.windowProducts=[...(next.windowProducts||[]).map(item=>openingId&&item.openingId===openingId?{...item,openingId:null}:item),product];return next;});
+    commit(next=>{replaceWindowForOpening(next,product);return next;});
     setSelectedId(product.id);
     sessionStorage.removeItem('eft-window-opening-focus');
   };
   const addDesign=(design,openingId=embedded?focusOpeningId:null)=>{
     const product=createWindowFromDesign(design,{openingId});
-    commit(next=>{next.windowProducts=[...(next.windowProducts||[]).map(item=>openingId&&item.openingId===openingId?{...item,openingId:null}:item),product];return next;});
+    commit(next=>{replaceWindowForOpening(next,product);return next;});
     setSelectedId(product.id);
   };
   const newForOpening=opening=>{
     const first=WINDOW_REFERENCE.items[1];
     const width=Math.round(n(opening.width)*1000),height=Math.round(n(opening.height)*1000);
     const product=createWindowFromReference(first,{presetId:null,openingId:opening.id,mark:`ОК-${String(products.length+1).padStart(2,'0')}`,widthMm:width,heightMm:height,sections:[{id:'section-1',openingMode:'fixed',ratio:1,hardwareSystem:null,handleSide:null}],price:{mode:'unpriced',history:[]}});
-    commit(next=>{next.windowProducts=[...(next.windowProducts||[]).map(item=>item.openingId===opening.id?{...item,openingId:null}:item),product];return next;});setSelectedId(product.id);
+    commit(next=>{replaceWindowForOpening(next,product);return next;});setSelectedId(product.id);
   };
   const loadReferenceSet=()=>{
     const known=new Set(products.map(item=>item.presetId));
@@ -98,7 +100,7 @@ export default function WindowConfigurator({focusOpeningId=null,embedded=false})
   };
   const addFromPreset=preset=>{
     const product={...structuredClone(preset.product),id:crypto.randomUUID(),openingId:embedded?focusOpeningId:null,presetId:preset.id,mark:`${preset.product.mark||'Окно'}-копия`};
-    commit(next=>{next.windowProducts=[...(next.windowProducts||[]).map(item=>embedded&&item.openingId===focusOpeningId?{...item,openingId:null}:item),product];return next;});setSelectedId(product.id);
+    commit(next=>{replaceWindowForOpening(next,product);return next;});setSelectedId(product.id);
   };
   const mirror=()=>update({sections:(selected.sectionAxis==='horizontal'?[...selected.sections]:[...selected.sections].reverse()).map((section,index)=>({...section,id:`section-${index+1}`,openingMode:section.openingMode.endsWith('_left')?section.openingMode.replace('_left','_right'):section.openingMode.endsWith('_right')?section.openingMode.replace('_right','_left'):section.openingMode,handleSide:section.handleSide==='left'?'right':section.handleSide==='right'?'left':section.handleSide})),...(selected.shape==='trapezoid_sloped_top'?{leftHeightMm:selected.rightHeightMm,rightHeightMm:selected.leftHeightMm}:{}),...(selected.shape==='triangle'?{apexPosition:1-n(selected.apexPosition)}:{})});
   const duplicate=()=>{const copy={...structuredClone(selected),id:crypto.randomUUID(),openingId:null,mark:`${selected.mark}-копия`};commit(next=>{next.windowProducts.push(copy);return next;});setSelectedId(copy.id);};

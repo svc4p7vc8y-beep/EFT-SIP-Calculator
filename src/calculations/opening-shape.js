@@ -4,7 +4,7 @@ import clipping from 'polygon-clipping';
 // Existing rectangular projects retain their original geometry.
 export function openingPolygon(opening, scale=1, x=0, y=0) {
   const w=Number(opening.width)||0,h=Number(opening.height)||0;
-  const points=opening.facadeId&&Array.isArray(opening.outline)&&opening.outline.length>=3
+  const points=(opening.facadeId||opening.productShape)&&Array.isArray(opening.outline)&&opening.outline.length>=3
     ? opening.outline : [[0,0],[w,0],[w,h],[0,h]];
   if(points.length>32||!points.every(p=>Array.isArray(p)&&p.length===2&&p.every(v=>Number.isFinite(Number(v))&&Math.abs(Number(v))<=100000)))return [];
   return [points.map(([a,b])=>[x+Number(a)*scale,y+Number(b)*scale])];

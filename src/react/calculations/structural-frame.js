@@ -1,5 +1,6 @@
 import {boardFootprint} from './partition-geometry.js';
 import {houseContourPoints} from '../planner/geometry.js';
+import {elevationWallKey} from './elevation-guides.js';
 import {applyFacade,facadeEnvelope} from './facade-design.js';
 
 export function wallPoint(wall,x,z=0){
@@ -17,16 +18,16 @@ export function structuralStuds(report,wall){
 // not accumulate a displacement. A moved SIP connector requires a working node.
 export function applyStructuralOffsets(members,surfaces,settings,issue){
   for(const m of members){
-    const override=settings.memberOverrides?.[m.key],dx=Number(override?.frameOffsetMm);
-    if(!dx)continue;
+    const override=settings.memberOverrides?.[m.key],dx=Number(override?.frameOffsetMm)||0,dz=Number(override?.frameVerticalOffsetMm)||0;
+    if(!dx&&!dz)continue;
     const wall=surfaces.find(s=>s.id===m.surfaceId);
-    if(!wall?.planStart||!m.a||!m.b||Math.abs(m.a[0]-m.b[0])>1||!Number.isFinite(dx)||Math.abs(dx)>100000){issue('FRAME_OFFSET',`${m.id}: перемещение допустимо только для вертикальной стойки стены.`,m.key);continue;}
+    if(!wall?.planStart||!m.a||!m.b||Math.abs(m.a[0]-m.b[0])>1||!Number.isFinite(dx)||!Number.isFinite(dz)||Math.abs(dx)>100000||Math.abs(dz)>100000){issue('FRAME_OFFSET',`${m.id}: перемещение допустимо только для вертикальной стойки стены.`,m.key);continue;}
     const half=(Number(m.faceWidth)||Number(m.profile?.split(/[×xх]/)[0])||50)/2,x=m.a[0]+dx;
-    if(x-half<-.1||x+half>wall.width+.1||(wall.openings||[]).some(o=>x+half>o.x&&x-half<o.x+o.width&&Math.max(...[m.a[1],m.b[1]])>Number(o.sill)&&Math.min(...[m.a[1],m.b[1]])<Number(o.sill)+o.height)){
+    if(x-half<-.1||x+half>wall.width+.1||(wall.openings||[]).some(o=>x+half>o.x&&x-half<o.x+o.width&&Math.max(m.a[1],m.b[1])+dz>Number(o.sill)&&Math.min(m.a[1],m.b[1])+dz<Number(o.sill)+o.height)){
       issue('FRAME_OFFSET',`${m.id}: стойка выходит за стену или пересекает проём; перемещение не применено.`,m.key);continue;
     }
-    m.a=[x,m.a[1]];m.b=[m.b[0]+dx,m.b[1]];
-    if(m.outline)m.outline=m.outline.map(([x,y])=>[x+dx,y]);
+    m.a=[x,m.a[1]+dz];m.b=[m.b[0]+dx,m.b[1]+dz];if(Math.min(m.a[1],m.b[1])<0||Math.max(m.a[1],m.b[1])>wall.height)issue('FRAME_VERTICAL',`${m.id}: вертикальная отметка вне основной стены; проверьте рабочий узел.`,m.key);
+    if(m.outline)m.outline=m.outline.map(([x,y])=>[x+dx,y+dz]);
     if(!override.nodeRef?.trim())issue('FRAME_NODE',`${m.id}: перемещена стойка; согласуйте паз SIP и рабочий узел.`,m.key);
   }
 }
@@ -58,4 +59,15 @@ export function moveFrameSelection(project,selection,delta,report){
   const dx=(wall.planEnd[0]-wall.planStart[0])*delta/wall.width,dy=(wall.planEnd[1]-wall.planStart[1])*delta/wall.width;
   for(const s of project.settings.productionCutting.roofSupports.filter(s=>s.id===post.id||s.id===post.id+'-foundation')){s.x1+=dx;s.x2+=dx;s.y1+=dy;s.y2+=dy;}
   return project;
+}
+
+export function applyManualWallFrames(members,surfaces,settings,issue){
+ for(const wall of surfaces.filter(s=>s.planStart&&settings.structuralWallLayouts?.[elevationWallKey(s)]?.mode==='manual')){
+  for(const m of members.filter(m=>m.surfaceId===wall.id&&m.a&&m.b)){
+   const xs=[m.a[0],m.b[0]],ys=[m.a[1],m.b[1]],edge=Math.max(100,Number(m.faceWidth)||50);
+   const perimeter=Math.max(...xs)<=edge||Math.min(...xs)>=wall.width-edge||Math.max(...ys)<=edge||Math.min(...ys)>=wall.height-edge;
+   if(!perimeter)m.excluded=true;
+  }
+  issue('FRAME_MANUAL',`${wall.name}: ручной силовой каркас; крайние стойки и обвязки сохранены. Проверьте соединение SIP и рабочие узлы.`,wall.id);
+ }
 }

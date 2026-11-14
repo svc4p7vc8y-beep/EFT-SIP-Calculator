@@ -144,6 +144,11 @@ export function windowPrice(product,tariffs=[]) {
   const area=windowGeometry(product).areaM2;
   if(product.geometryPriceReview)return {mode:'unpriced',unitRub:null,label:'Геометрия изменена — подтвердите цену',source:'Прежняя цена сохранена в параметрах изделия; перед включением в смету подтвердите её для новых размеров'};
   if(validateWindow(product).length) return {mode:'invalid',unitRub:null,label:'Уточните параметры'};
+  if(product.price?.mode==='reference_area'){
+    const item=reference.items.find(i=>i.number===Number(product.price.referenceNumber)),base=item&&createWindowFromReference(item);
+    if(!base||windowConstructionKey(base)!==windowConstructionKey(product))return {mode:'unpriced',unitRub:null,label:'Конструктив изменён — выберите новый образец'};
+    return {mode:'reference_area',unitRub:round(item.priceRubExact*area/item.areaM2Exact),label:'Оценка по площади конструктива',source:`Расчёт № ${reference.quoteId}, образец № ${item.number}: ${item.priceRubExact} ₽ / ${item.areaM2Exact} м². Дата исходной цены не установлена; это не новая оферта поставщика.`};
+  }
   if(product.price?.mode==='design_unpriced') return {mode:'unpriced',unitRub:null,label:'Цена поставщика не задана',source:'Эскиз из библиотеки вариантов; назначьте цену проекта или подтверждённый тариф'};
   if(product.price?.mode==='manual') return product.price.amountRub!==null&&product.price.amountRub!==''&&Number(product.price.amountRub)>=0&&product.price.source?.trim()?{mode:'manual',unitRub:Number(product.price.amountRub),label:'Цена проекта, ручная',source:product.price.source}:{mode:'unpriced',unitRub:null,label:'Укажите сумму и источник ручной цены',source:'Ручной ввод проекта'};
   if(product.price?.mode==='parametric') return parametricWindowPrice(product,tariffs.find(t=>t.id===product.price?.tariffId))||{mode:'unpriced',unitRub:null,label:'Нет подтверждённого параметрического тарифа',source:'Уточните тариф и производственные измерения'};
@@ -153,6 +158,19 @@ export function windowPrice(product,tariffs=[]) {
     return {mode:'preliminary',unitRub:round(4983.868694574176+4786.709802929846*area),label:'Предварительный ориентир',source:'Регрессия по 12 позициям расчёта № 273803; ошибка отдельных позиций до 31%; возможность изготовления подтвердить у поставщика'};
   }
   return {mode:'unpriced',unitRub:null,label:'Требуется цена поставщика',source:'Для этой системы или геометрии нет подтверждённого тарифа'};
+}
+export function windowConstructionKey(product){
+ return JSON.stringify([product.shape,product.sectionAxis||'vertical',(product.sections||[]).map(s=>[s.openingMode,s.hardwareSystem||null]),product.profile,product.glazing,product.sealColor,product.glazingBead,product.supportProfile]);
+}
+export function resizeWindowProduct(product,patch){
+ const next={...product,...patch},changed=['widthMm','baseWidthMm','heightMm','leftHeightMm','rightHeightMm','apexPosition'].some(k=>Object.hasOwn(patch,k)&&patch[k]!==product[k]);
+ if(!changed)return next;
+ const oldSpan=Number(product.sectionAxis==='horizontal'?product.heightMm:product.widthMm||product.baseWidthMm),span=Number(next.sectionAxis==='horizontal'?next.heightMm:next.widthMm||next.baseWidthMm);if(!patch.sections&&oldSpan>0&&span>0&&span!==oldSpan)next.sections=product.sections.map(s=>s.widthMm?{...s,widthMm:s.widthMm*span/oldSpan}:s);
+ const number=Number(product.price?.referenceNumber)||Number(String(product.presetId||'').match(/^273803-(\d+)$/)?.[1]),item=reference.items.find(i=>i.number===number);
+ if(item&&windowConstructionKey(createWindowFromReference(item))===windowConstructionKey(next)&&!['manual','parametric','design_unpriced'].includes(product.price?.mode)){
+  next.price={...product.price,mode:'reference_area',referenceNumber:number,baseAmountRub:item.priceRubExact,baseAreaM2:item.areaM2Exact};next.geometryPriceReview=false;
+ }else if(['manual','parametric'].includes(product.price?.mode))next.geometryPriceReview=true;
+ return next;
 }
 export function windowTotals(products,tariffs=[]) {
   return products.reduce((result,product)=>{const qty=Number(product.quantity)||0,price=windowPrice(product,tariffs);result.quantity+=qty;result.areaM2+=windowGeometry(product).areaM2*qty;if(price.unitRub!=null)result.priceRub+=price.unitRub*qty;else result.unpriced+=qty;return result;},{quantity:0,areaM2:0,priceRub:0,unpriced:0});

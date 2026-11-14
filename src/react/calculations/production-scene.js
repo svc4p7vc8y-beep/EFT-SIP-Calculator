@@ -58,11 +58,12 @@ export function productionScene(report,project,{includePlatforms=report.settings
       if(![x,y,width,height].every(Number.isFinite)||width<=0||height<=0)return [];
       const rect=(left,bottom,right,top)=>[[[left,bottom],[right,bottom],[right,top],[left,top]]];
       const id=`window:${opening.id}`;
-      if(opening.facadeId&&opening.type==='window'){
+      if((opening.facadeId||opening.productShape)&&opening.type==='window'){
         const outer=openingPolygon({...opening,outline:opening.displayOutline||opening.outline,width:width/1000,height:height/1000},1000,x,y),ring=outer[0];
         const center=[ring.reduce((s,p)=>s+p[0],0)/ring.length,ring.reduce((s,p)=>s+p[1],0)/ring.length],factor=Math.max(.5,1-2*border/Math.min(width,height));
         const inner=[ring.map(p=>p.map((v,i)=>center[i]+(v-center[i])*factor))],envelope=surface.grossShape||rect(0,0,surface.width,surface.height);
         const glass=clipping.intersection(inner,envelope),frame=clipping.intersection(clipping.difference(outer,inner),envelope);
+        const product=windowProducts.get(opening.id),mullions=[];let cursor=0;if(product)for(const size of sectionWidths(product).slice(0,-1)){cursor+=size;const horizontal=product.sectionAxis==='horizontal',ratio=cursor/Number(horizontal?product.heightMm:product.widthMm);mullions.push(...clipping.intersection(rect(horizontal?x:x+width*ratio-border/2,horizontal?y+height*(1-ratio)-border/2:y,horizontal?x+width:x+width*ratio+border/2,horizontal?y+height*(1-ratio)+border/2:y+height),outer,envelope));}frame.push(...mullions);
         return [...glass.map((shape,i)=>({id:`${id}:${surface.id}:glass:${i}`,layer:'windows',shape,placement:face,thickness:6,referenceOnly:true,windowGlass:true})),...frame.map((shape,i)=>({id:`${id}:${surface.id}:frame:${i}`,layer:'windows',shape,placement:face,thickness:35,referenceOnly:true,windowFrame:true}))];
       }
       if(opening.type==='door'){

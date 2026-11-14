@@ -1,3 +1,4 @@
+import WindowConstruction from '../components/WindowConstruction.jsx';
 import { overhangEdgeOverrides, hasSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import {roofPlanLines,snapRoofLineOffset,saveRoofLines} from '../planner/roof-lines.js';
 import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges,assignPartitionProfiles,assignSipThickness} from '../planner/bearing-selection.js';
@@ -208,6 +209,7 @@ const TOOLS = [
   ["attachedContour", "Открытый контур пристройки", HousePlus],
   ["wall", "Перегородка", BrickWall],
   ["bearingWall", "Доски / несущие", BrickWall],
+  ["structuralFrame", "Каркас / развёртка", PanelsTopLeft],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
@@ -1322,6 +1324,7 @@ function RoofPlanCaption({ plan, roof, p, model }) {
 
 function PlanCanvas({
   frameProject,
+  windowProducts=[],
   onOpenFrame,
   frameSelection,
   onSelectFrame,
@@ -2649,6 +2652,7 @@ function PlanCanvas({
                   opening,
                   `opening ${opening.type}${garage ? " garage" : ""}`,
                 )}
+                {opening.type==='window'&&windowProducts.find(w=>w.openingId===opening.id)?(()=>{const product=windowProducts.find(w=>w.openingId===opening.id),depth=Math.max(8,outerWallWidth),angle=Number.isFinite(Number(opening.angle))?Number(opening.angle):opening.orientation==='v'?90:0;return <g pointerEvents="none" transform={`translate(${q.x} ${q.y}) rotate(${angle})`}><svg x={-size/2} y={-depth/2} width={size} height={depth} viewBox={`0 0 ${product.widthMm||product.baseWidthMm} 150`} preserveAspectRatio="none"><WindowConstruction product={product} plan/></svg></g>;})():null}
                 {garage ? (
                   <GarageGate
                     opening={opening}
@@ -4417,6 +4421,7 @@ const MOBILE_TOOLS = [
   ["attachedContour", "Пристройка контуром", HousePlus],
   ["wall", "Перегородка", BrickWall],
   ["bearingWall", "Доски / несущие", BrickWall],
+  ["structuralFrame", "Каркас", PanelsTopLeft],
   ["gap", "Разрыв", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь", DoorOpen],
@@ -5491,6 +5496,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     });
   }, [libraryPlans, libraryOpen, project]);
   const selectTool = (id) => {
+    if(id==='structuralFrame'){setFrameWall('');setTool('select');return;}
     if (id === 'extension' && plan.existingBuilding) {
       setTransferStatus('Для нового дома у существующего угла используйте открытый контур. «Пристройка-комната» добавит площадь повторно.');
       return;
@@ -6265,7 +6271,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+        <PlanCanvas windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6663,9 +6669,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           </div>
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-          {activeLayer==='frame'?<div className="roof-axis-controls"><button className="button primary" onClick={()=>setFrameWall('')}>Развёртка стены · каркас, окна и двери</button><span>Выберите стену на плане. Зелёные стойки — проектные опоры крыши.</span></div>:null}
+
           {activeLayer==='roof'?<div className="roof-axis-controls" role="group" aria-label="Линии опор кровли"><button type="button" className={`button ${tool==='roofAxis'?'primary':'secondary'}`} disabled={!roofAxes.length&&!project.settings.productionCutting.roofPlanLines?.enabled} onClick={()=>{setTool('roofAxis');setSelected(null);}}>Нарисовать прогон</button><button type="button" className="button secondary" onClick={()=>{setTool('select');setSelected(null);}}>Двигать линии</button><button type="button" className="button secondary" onClick={()=>commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;})}>Авторасстановка</button><span>Синие линии — опорные рамы. Тяните круг на линии. Оранжевая ось — подсказка симметрии.</span>{!roofAxes.length?<span>Автолинии доступны для наслонной двускатной кровли; проектные опоры добавляются справа.</span>:null}{roofAxes.filter(line=>selected?.type==='roofAxis'&&selected.id===line.id).map(line=><button type="button" className="button secondary" key={line.id} aria-label={`Удалить ${line.name}`} onClick={()=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(item=>item.id!==line.id)))}>× {line.name}</button>)}</div>:null}
-          <PlanCanvas frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+          <PlanCanvas windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={(a,b)=>{
               const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;

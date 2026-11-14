@@ -4,7 +4,7 @@ import {facadeReservedShape,facadeEnvelope,facadeLayout} from './facade-design.j
 import {partitionTopFit} from './partition-top-fit.js';
 import {mixedPanelStock} from './mixed-panel-stock.js';
 import clipping from 'polygon-clipping';
-import {applyStructuralOffsets} from './structural-frame.js';
+import {applyStructuralOffsets,applyManualWallFrames} from './structural-frame.js';
 import { refreshPartitionNotches } from './partition-geometry.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { bearingEdges, bearingForSegment, partitionProfileForSegment, splitAtBearingEdges, splitConnectorsAtBearing } from './bearing-walls.js';
@@ -602,7 +602,7 @@ export function calculateProductionCutting(project, calculation) {
       const choices = openingWallCandidates(opening, eligible);
       const nearest = choices[0], key = `${floor}:${opening.id}`;
       const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : settings.windowSillMm);
-      const row = { key, id: opening.id, type: opening.type, facadeId:opening.facadeId,outline:opening.outline,displayOutline:opening.displayOutline, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Дверь'} ${++openingNumber}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
+      const row = { key, id: opening.id, type: opening.type, facadeId:opening.facadeId,productShape:opening.productShape,windowProduct:project.windowProducts?.find(p=>p.openingId===opening.id),outline:opening.outline,displayOutline:opening.displayOutline, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Дверь'} ${++openingNumber}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
       if (!row.gap) openings.push(row);
       if(row.gap){
         const result=gapFragments(opening,eligible);
@@ -1100,6 +1100,7 @@ export function calculateProductionCutting(project, calculation) {
     member.profile=override.profile?.trim()||member.profile;member.nodeRef=override.nodeRef||member.nodeRef||'';member.processing=override.processing||member.processing||'';member.excluded=override.exclude===true;
   }
   applyStructuralOffsets(members,surfaces,settings,issue);
+  applyManualWallFrames(members,surfaces,settings,issue);
   refreshPartitionNotches(members);
   if(settings.roofDesign.enabled)for(const m of members){const face=assembly.roofModel.faces.find(f=>f.id===m.surfaceId);if(face&&!m.nodeRef)m.nodeRef=face.nodeRef||'';}
   if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');
