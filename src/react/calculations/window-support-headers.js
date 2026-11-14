@@ -15,7 +15,7 @@ export function windowSupportHeaders(project,items=project.settings.productionCu
   const virtual=axes?.enabled?(axes.lines||[]).map(line=>({id:line.id,type:'purlin',x1:(axis==='y'?line.offset:line.start)*1000,y1:(axis==='y'?line.start:line.offset)*1000,x2:(axis==='y'?line.offset:line.end)*1000,y2:(axis==='y'?line.end:line.offset)*1000})):[];
   const headers=[],issues=[];
   for(const opening of plan.openings||[]){
-    if(opening.type!=='window'||opening.include===false||opening.outer===false)continue;
+    if(opening.facadeId||opening.type!=='window'||opening.include===false||opening.outer===false)continue;
     if(kept.some(item=>item.autoWindowHeader&&item.headerOpeningId===opening.id&&Number(item.headerFloor)===floor))continue;
     const vertical=opening.orientation==='v',center=[Number(opening.x)*1000,Number(opening.y)*1000],width=Number(opening.width)*1000;
     const axis=vertical?1:0,fixed=1-axis,axisKey=axis?'y':'x',fixedKey=fixed?'y':'x';

@@ -2,6 +2,7 @@ import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from './floor-h
 import { partitionRuns } from '../react/planner/geometry.js';
 import clipping from 'polygon-clipping';
 import { existingWallLength } from '../react/planner/existing-building.js';
+import {openingShapeArea} from './opening-shape.js';
 const DEFAULT_TOLERANCE = 0.04;
 
 const round = (value, digits = 3) => {
@@ -47,7 +48,7 @@ const mergeIntervals = (intervals, tolerance) => {
 };
 
 const openingArea = (opening) =>
-  Math.max(0, Number(opening.width) || 0) *
+  opening.facadeId ? openingShapeArea(opening) : Math.max(0, Number(opening.width) || 0) *
   Math.max(0, Number(opening.height) || 0);
 
 const houseContourPoints = (plan) =>
@@ -191,7 +192,7 @@ export function calculatePlanMetrics(plan, tolerance = DEFAULT_TOLERANCE) {
     }
     if (opening.subtractFromSip !== false) {
       if (inferOuterOpening(opening, plan, tolerance))
-        exteriorOpeningsArea += area;
+        exteriorOpeningsArea += opening.facadeId?openingShapeArea(opening,0,exteriorHeight(plan)):area;
       else if (opening.type === "door") interiorOpeningsArea += area;
     }
   });

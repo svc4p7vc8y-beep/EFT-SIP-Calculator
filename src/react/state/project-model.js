@@ -32,7 +32,7 @@ import { normalizeWindowProducts, normalizeWindowPresets, normalizeWindowTariffs
 import { normalizeFoundationSlab } from '../calculations/foundation-slab.js';
 import { normalizeStructuralEngine } from './structural-engine.js';
 
-export const REACT_PROJECT_VERSION = 237;
+export const REACT_PROJECT_VERSION = 238;
 // Keep the established storage namespace so upgrading the application does not
 // hide the user's autosave or price list. migrateProject upgrades the payload.
 export const REACT_AUTOSAVE_KEY = "eft-react-project-v46";
@@ -802,6 +802,7 @@ export function normalizePlan(plan) {
   return {
     ...fallback,
     ...plan,
+    facades:Array.isArray(plan.facades)?plan.facades.filter(f=>f&&typeof f==='object'&&typeof f.id==='string').slice(0,24).map(f=>({...f,posts:Array.isArray(f.posts)?f.posts.slice(0,12).map(Number):[],links:Array.isArray(f.links)?f.links.slice(0,50):[]})):[],
     partitionJunctions: plan.partitionJunctions === 'axes' ? 'axes' : 'butt',
     house,
     existingBuilding: Array.isArray(plan.existingBuilding?.points) && plan.existingBuilding.points.length >= 3

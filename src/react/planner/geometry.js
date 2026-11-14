@@ -740,6 +740,10 @@ export function planIssues(plan) {
   for (let i = 0; i < cuts.length; i++) for (let j = i + 1; j < cuts.length; j++) {
     const a = cuts[i], b = cuts[j];
     if (a.orientation !== b.orientation) continue;
+    // Separate window rows can share their projection on the floor plan.
+    // Unknown sill levels still use the conservative legacy collision check.
+    if([a,b].every(o=>o.selectionType==='opening'&&o.sillHeight!==''&&o.sillHeight!=null&&Number.isFinite(Number(o.sillHeight))&&Number(o.height)>0)&&
+      Math.max(Number(a.sillHeight),Number(b.sillHeight))>=Math.min(Number(a.sillHeight)+Number(a.height),Number(b.sillHeight)+Number(b.height))-.001)continue;
     const vertical = a.orientation === 'v';
     const fixed = item => Number(vertical ? item.x : item.y);
     const along = item => Number(vertical ? item.y : item.x);

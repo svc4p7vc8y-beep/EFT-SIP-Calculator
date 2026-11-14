@@ -10,7 +10,7 @@ export function sipOpeningInserts(surface,settings,issue=()=>{}) {
   if(surface.blocked)return [];
   const depth=sipTimberProfile(surface.thickness).endBoardDepth,face=settings.profileMode==='estimate'?45:Number(settings.edgeWidthMm)||45;
   const top=x=>surface.topProfile?profileHeight(surface.topProfile,x):surface.heightStart!=null?surface.heightStart+(surface.heightEnd-surface.heightStart)*x/surface.width:surface.height;
-  const result=[],seen=new Set(),holes=(surface.openings||[]).filter(o=>!o.gap&&['window','door'].includes(o.type));
+  const result=[],seen=new Set(),holes=(surface.openings||[]).filter(o=>!o.facadeId&&!o.gap&&['window','door'].includes(o.type));
   for(const o of holes)for(const side of ['left','right']){
     const x=side==='left'?o.x+face/2:o.x+o.width-face/2;
     const high=Math.min(top(x-face/2),top(x+face/2))-face;
@@ -42,7 +42,7 @@ export function projectOpeningInserts(project,floorPlans) {
   floorPlans.forEach(({plan},i)=>{
     const walls=exteriorWallConstruction(plan,project.settings.sip,project.settings.roof,i===floorPlans.length-1,project.services.roof).map(w=>({...w,id:`Э${i+1}-С${w.index+1}`,outer:true}));
     const edges=[...walls,...partitionSegments(plan).map(([a,b])=>({a,b,outer:false}))],assigned=new Map(walls.map(w=>[w.id,[]]));
-    for(const o of (plan.openings||[]).filter(o=>o.include!==false&&o.subtractFromSip!==false&&o.outer!==false&&['window','door'].includes(o.type))){
+    for(const o of (plan.openings||[]).filter(o=>!o.facadeId&&o.include!==false&&o.subtractFromSip!==false&&o.outer!==false&&['window','door'].includes(o.type))){
       const candidates=openingWallCandidates(o,edges.filter(e=>typeof o.outer!=='boolean'||o.outer===e.outer)),near=candidates[0];
       if(!near?.edge.outer||near.distance>Math.max(Number(plan.wallThickness)||.174,.1)+.03||candidates[1]&&Math.abs(candidates[1].distance-near.distance)<.001)continue;
       const key=`${i+1}:${o.id}`,sill=settings.openingSills[key]??(o.sillHeight!==''&&o.sillHeight!=null?Math.round(Number(o.sillHeight)*1000):o.type==='door'?0:settings.windowSillMm);

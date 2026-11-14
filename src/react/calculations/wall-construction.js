@@ -2,11 +2,12 @@ import { boundsOf, houseContourPoints } from '../planner/geometry.js';
 import { exteriorHeight } from '../../calculations/floor-height.js';
 import { existingWallEdge } from '../planner/existing-building.js';
 import {highFlatWall} from './flat-wall-height.js';
+import {secondLightWallProfile} from './second-light-wall.js';
 
 // External house contour is never edited. Assembly lengths use a consistent
 // clockwise butt corner: horizontal runs through, vertical runs between them.
 // Non-orthogonal junctions must be detailed, not shortened by a guessed thickness.
-export function exteriorWallConstruction(plan, sip={}, roof={}, topFloor=true, enabled=true) {
+export function exteriorWallConstruction(plan, sip={}, roof={}, topFloor=true, enabled=true, fitSecondLight=true) {
   const points=houseContourPoints(plan),bounds=boundsOf(points),thickness=Number(sip.wallThickness)/1000||Number(plan.wallThickness)||.174;
   const structural=enabled&&topFloor&&roof.shape==='flat'&&roof.flatSlopeMode==='structural';
   const slope=structural?Math.min(20,Math.max(0,Number(roof.flatSlopePercent)||0))/100:0;
@@ -25,9 +26,11 @@ export function exteriorWallConstruction(plan, sip={}, roof={}, topFloor=true, e
     const trimEnd=!existingWallEdge(plan,b,next)&&vertical&&Math.abs(next.y-b.y)<.001&&Math.abs(cross2)>1e-8?Math.sign(cross2*signedArea)*thickness:0;
     const start={x:a.x+dx*(trimStart/(length||1)),y:a.y+dy*(trimStart/(length||1))};
     const end={x:b.x-dx*(trimEnd/(length||1)),y:b.y-dy*(trimEnd/(length||1))};
-    return {index:i,a,b,start,end,externalLength:length,length:length-trimStart-trimEnd,trimStart,trimEnd,
+    const wall={index:i,a,b,start,end,externalLength:length,length:length-trimStart-trimEnd,trimStart,trimEnd,
       heightStart:base+riseAt(start),heightEnd:base+riseAt(end),baseHeight:base,
       needsCornerDetail:!vertical&&!horizontal,thickness};
+    const topProfile=secondLightWallProfile(plan,wall,sip,roof,topFloor&&enabled&&fitSecondLight);
+    return topProfile?{...wall,topProfile,heightStart:topProfile[0][1],heightEnd:topProfile.at(-1)[1]}:wall;
   }).filter(Boolean);
 }
 

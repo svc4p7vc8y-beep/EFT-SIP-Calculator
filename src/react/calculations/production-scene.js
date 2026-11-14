@@ -1,4 +1,6 @@
 import { exteriorHeight } from '../../calculations/floor-height.js';
+import clipping from 'polygon-clipping';
+import {openingPolygon} from '../../calculations/opening-shape.js';
 import { gableLinks, drawingCategory } from './drawing-workbench.js';
 import { roofAxonometricLines } from './roof-drawings.js';
 import { boardSectionLayers,framingDepth,framingNormalOffset,spatialNotches } from './partition-geometry.js';
@@ -48,13 +50,20 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const windowProducts=new Map((project.windowProducts||[]).filter(product=>product.openingId).map(product=>[product.openingId,product]));
   const windowPanels=report.surfaces.flatMap(surface=>{
     const wall=placements.get(surface.id);
-    if(!wall||surface.blocked||!['walls','partitions'].includes(wall.layer))return [];
+    if(!wall||surface.blocked||!['walls','partitions','gables'].includes(wall.layer))return [];
     const face={...wall,origin:wall.origin.map((value,index)=>value+wall.normal[index]*(Number(surface.thickness)/2+5))};
     return (surface.openings||[]).filter(opening=>!opening.gap&&(opening.type==='window'||opening.type==='door'&&surface.exterior&&project.services.openings!==false)).flatMap(opening=>{
       const x=Number(opening.x),y=Number(opening.sill),width=Number(opening.width),height=Number(opening.height),border=Math.min(45,width/8,height/8);
       if(![x,y,width,height].every(Number.isFinite)||width<=0||height<=0)return [];
       const rect=(left,bottom,right,top)=>[[[left,bottom],[right,bottom],[right,top],[left,top]]];
       const id=`window:${opening.id}`;
+      if(opening.facadeId&&opening.type==='window'){
+        const outer=openingPolygon({...opening,outline:opening.displayOutline||opening.outline,width:width/1000,height:height/1000},1000,x,y),ring=outer[0];
+        const center=[ring.reduce((s,p)=>s+p[0],0)/ring.length,ring.reduce((s,p)=>s+p[1],0)/ring.length],factor=Math.max(.5,1-2*border/Math.min(width,height));
+        const inner=[ring.map(p=>p.map((v,i)=>center[i]+(v-center[i])*factor))],envelope=surface.grossShape||rect(0,0,surface.width,surface.height);
+        const glass=clipping.intersection(inner,envelope),frame=clipping.intersection(clipping.difference(outer,inner),envelope);
+        return [...glass.map((shape,i)=>({id:`${id}:${surface.id}:glass:${i}`,layer:'windows',shape,placement:face,thickness:6,referenceOnly:true,windowGlass:true})),...frame.map((shape,i)=>({id:`${id}:${surface.id}:frame:${i}`,layer:'windows',shape,placement:face,thickness:35,referenceOnly:true,windowFrame:true}))];
+      }
       if(opening.type==='door'){
         const doorId=`door:${opening.id}`,trim=Math.min(55,width/10,height/12);
         const piece=(suffix,shape,thickness,color,placement=face)=>({id:`${doorId}:${suffix}`,layer:'doors',shape,placement,thickness,referenceOnly:true,doorLeaf:true,visualColor:color});

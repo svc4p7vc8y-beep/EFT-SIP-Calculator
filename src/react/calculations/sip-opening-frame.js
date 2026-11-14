@@ -11,7 +11,7 @@ export function completeSipOpeningBoards(surface,members,settings,issue=()=>{}) 
     member.excluded=true;member.replacedByOpeningJamb=previous.id;member.source='Совпадает с общей стойкой проёмов';
   }
   for(const opening of surface.openings||[]){
-    if(opening.gap||!['window','door'].includes(opening.type))continue;
+    if(opening.facadeId||opening.gap||!['window','door'].includes(opening.type))continue;
     for(const [role,y]of [['opening-head',Number(opening.sill)+opening.height],...(Number(opening.sill)>0?[['opening-sill',Number(opening.sill)]]:[])]){
       const pieces=members.filter(m=>m.surfaceId===surface.id&&!m.excluded&&!m.seam&&m.axisA&&m.axisB&&Math.abs(m.axisA[1]-y)<.01&&Math.abs(m.axisB[1]-y)<.01&&Math.min(m.axisA[0],m.axisB[0])>=opening.x-.01&&Math.max(m.axisA[0],m.axisB[0])<=opening.x+opening.width+.01).sort((a,b)=>Math.min(...[a.axisA[0],a.axisB[0]])-Math.min(...[b.axisA[0],b.axisB[0]]));
       if(!pieces.length||pieces.some(m=>Object.keys(settings.memberOverrides?.[m.key]||{}).length))continue;

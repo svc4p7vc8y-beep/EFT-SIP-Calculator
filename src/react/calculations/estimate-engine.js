@@ -1,4 +1,8 @@
 import {cornerPlanStations} from './corner-rafters.js';
+import clipping from 'polygon-clipping';
+import {wallProfileArea} from './second-light-wall.js';
+import {facadeExclusionArea} from './facade-area.js';
+import {openingShapeArea} from '../../calculations/opening-shape.js';
 import {mainRoofModel,sharedTerracePosts,sharedGableProfile} from './shared-roof-supports.js';
 import { hasSeparateOverhangs, roofOverhangValue } from './roof-overhangs.js';
 import {partitionTopFit,partitionProfileArea,partitionProfileTopLength} from './partition-top-fit.js';
@@ -387,10 +391,12 @@ function calculateBuildingMetrics(project) {
     plan,
     metrics: (()=>{
       const original=calculatePlanMetrics(plan);
-      const walls=exteriorWallConstruction(plan,project.settings.sip,project.settings.roof,index===plans.length-1,project.services.roof);
+      const walls=exteriorWallConstruction(plan,project.settings.sip,project.settings.roof,index===plans.length-1,project.services.roof,project.services.sipCeiling);
       const roofSettings=project.settings.roof;
-      const gross=plan.house?.contourDefined===false?0:walls.reduce((s,w)=>s+w.length*(w.heightStart+w.heightEnd)/2,0);
-      return {...original,exteriorWallGrossArea:round(gross),exteriorWallNetArea:round(Math.max(0,gross-original.exteriorOpeningsArea)),wallConstruction:walls};
+      const gross=plan.house?.contourDefined===false?0:walls.reduce((s,w)=>s+wallProfileArea(w),0);
+      const facadeBase=(plan.openings||[]).filter(o=>o.facadeId&&o.include!==false&&o.subtractFromSip!==false).reduce((s,o)=>s+openingShapeArea(o,0,exteriorHeight(plan)),0);
+      const facadeExcluded=walls.reduce((s,w)=>s+facadeExclusionArea(plan,`Э${index+1}-С${w.index+1}`,[[[[0,0],[w.length*1000,0],...(w.topProfile||[[0,w.heightStart],[w.length,w.heightEnd]]).toReversed().map(p=>p.map(v=>v*1000))]]]),0);
+      return {...original,exteriorWallGrossArea:round(gross),exteriorWallNetArea:round(Math.max(0,gross-original.exteriorOpeningsArea+facadeBase-facadeExcluded)),wallConstruction:walls};
     })(),
   }));
   const base = floorPlans[0].metrics;
@@ -1322,7 +1328,12 @@ function roofSection(project, metrics, index, inputs, footprint) {
   const endWalls=constructedWalls.filter(w=>Math.abs(w.a[endAxis]-w.b[endAxis])<.001).sort((a,b)=>a.a[endAxis]-b.a[endAxis]);
   const sharedProfiles=footprint.included.length?constructedWalls.flatMap(w=>{const p=sharedGableProfile({mainRoofShape,footprint,ridgeAxis:roofAxes.ridgeAxis},w.start,w.end,(Number(roof.ridgeHeight)||0)*1000);return p?[p]:[];}):[];
   const sharedAreas=[0,1].map(side=>sharedProfiles.filter(p=>p.side===side).reduce((n,p)=>n+p.area,0));
-  const gableAreas=sharedProfiles.length?sharedAreas:mainRoofShape==='gable'&&endWalls.length===2?endWalls.map(triangleArea):[geometry.gableArea/2,geometry.gableArea/2];
+  const gableAreas=sharedProfiles.length?sharedAreas:mainRoofShape==='gable'&&endWalls.length===2?endWalls.map(w=>{
+    const span=w.externalLength*1000,rise=(Number(roof.ridgeHeight)||0)*1000,base=exteriorHeight(topPlan)*1000,trim=w.trimStart*1000,width=w.length*1000;
+    const triangle=[[[[-trim,base],[span/2-trim,base+rise],[span-trim,base]]]];
+    const envelope=clipping.intersection(triangle,[[[0,base],[width,base],[width,base+rise],[0,base+rise]]]);
+    return Math.max(0,triangleArea(w)-facadeExclusionArea(topPlan,`Э${metrics.floorPlans.length}-С${w.index+1}`,envelope));
+  }):[geometry.gableArea/2,geometry.gableArea/2];
   const flatSides=constructedWalls.filter(w=>Math.abs(w.heightStart-w.heightEnd)>.0001).slice(0,mainGableCount);
   const actualFlatSideArea=flatSides.reduce((s,w)=>s+w.length*((w.heightStart+w.heightEnd)/2-w.baseHeight),0);
   const actualFlatHighArea=constructedWalls.filter(w=>Math.abs(w.heightStart-w.heightEnd)<=.0001).reduce((s,w)=>s+w.length*Math.max(0,w.heightStart-w.baseHeight),0);

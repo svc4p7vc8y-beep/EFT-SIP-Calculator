@@ -153,7 +153,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     supports.push(support);
     if(item.type!=='foundation'&&!item.referenceOnly){
       if(!item.nodeRef.trim())issues.push(`${mark}: укажите рабочий узел.`);
-      members.push({id:mark,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',item.id)),material:ASSEMBLY_TYPES[item.type],profile:item.profile.replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
+      const count=item.facadeId&&item.packagePricing!=='package'?Math.max(1,Math.min(8,Number(item.packageCount)||1)):1;
+      for(let board=0;board<count;board++)members.push({id:count>1?`${mark}-Д${board+1}`:mark,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',count>1?`${item.id}:board:${board+1}`:item.id)),material:ASSEMBLY_TYPES[item.type],profile:(item.facadeId&&item.packagePricing!=='package'?item.packageProfile||item.profile:item.profile).replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:item.facadeId?(item.packagePricing==='package'?'Фасад · готовый пакет':`Фасад · доска ${board+1} из ${count}`):'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
     }
   }
   const byId=new Map(supports.map(s=>[s.id,s]));
@@ -184,7 +185,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       const dx=target.b[0]-target.a[0],dy=target.b[1]-target.a[1];
       const t=Math.max(0,Math.min(1,((p[0]-target.a[0])*dx+(p[1]-target.a[1])*dy)/(dx*dx+dy*dy||1)));
       const z=target.type==='post'?Math.max(target.a[2],target.b[2]):target.a[2]+t*(target.b[2]-target.a[2]);
-      if(pointDistance(p,target.a,target.b)>50 || Math.abs(p[2]-z)>50){item.connectionValid=false;issues.push(`${item.mark}: опирание на ${target.mark} не совпадает в плане или по высоте (расстояние более 50 мм).`);}
+      const facadeJoint=item.facadeId&&item.facadeId===target.facadeId&&item.nodeRef?.trim();
+      if(pointDistance(p,target.a,target.b)>50 || !facadeJoint&&Math.abs(p[2]-z)>50){item.connectionValid=false;issues.push(`${item.mark}: опирание на ${target.mark} не совпадает в плане или по высоте (расстояние более 50 мм).`);}
     }}
   }
   supports.forEach(item=>{item.loadPath=trace(item.id);if(!item.referenceOnly&&!item.loadPath.complete)issues.push(`${item.mark}: путь нагрузки до фундамента не заполнен, содержит цикл или несовпадающее опирание.`);});

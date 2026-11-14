@@ -142,6 +142,7 @@ export function windowReferenceMatch(product) {
 }
 export function windowPrice(product,tariffs=[]) {
   const area=windowGeometry(product).areaM2;
+  if(product.geometryPriceReview)return {mode:'unpriced',unitRub:null,label:'Геометрия изменена — подтвердите цену',source:'Прежняя цена сохранена в параметрах изделия; перед включением в смету подтвердите её для новых размеров'};
   if(validateWindow(product).length) return {mode:'invalid',unitRub:null,label:'Уточните параметры'};
   if(product.price?.mode==='design_unpriced') return {mode:'unpriced',unitRub:null,label:'Цена поставщика не задана',source:'Эскиз из библиотеки вариантов; назначьте цену проекта или подтверждённый тариф'};
   if(product.price?.mode==='manual') return product.price.amountRub!==null&&product.price.amountRub!==''&&Number(product.price.amountRub)>=0&&product.price.source?.trim()?{mode:'manual',unitRub:Number(product.price.amountRub),label:'Цена проекта, ручная',source:product.price.source}:{mode:'unpriced',unitRub:null,label:'Укажите сумму и источник ручной цены',source:'Ручной ввод проекта'};
