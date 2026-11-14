@@ -5,6 +5,8 @@ import {PARTITION_BOARD_PROFILES,partitionProfileColor,partitionProfileLabel} fr
 import {resizeRoomFromExterior} from '../planner/resize-room.js';
 import {roofSupportPlanGroups,movePlanRoofGroup,removePlanRoofGroup} from '../planner/roof-support-plan.js';
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
+import AllLayersCheckbox from '../components/AllLayersCheckbox.jsx';
+import {planLayerVisibility,setAllPlanLayers} from '../planner/plan-layer-visibility.js';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
@@ -5306,13 +5308,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const stairOpenings=floorCount>1?getFloorOpenings(project.upperFloors?.[0]):[];
   const floorOpening=stairOpenings.find(o=>selected?.type==='floorOpening'&&o.id===selected.id)||stairOpenings[0]||null;
   const floorOpeningArea=floorOpeningSummary({floorOpenings:stairOpenings}).area;
-  const visibleLayers = {
-    piles: plan.showPiles !== false,
-    binding: plan.showBinding !== false,
-    plan: plan.showPlan !== false,
-    roof: plan.showRoof === true,
-    frame: plan.showStructuralFrame === true,
-  };
+  const visibleLayers = planLayerVisibility(plan);
   const commitPlan = useCallback(
     (mutate) =>
       commit((next) => {
@@ -6584,7 +6580,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         </aside>
         {plan3DPlacement==='split'&&showPlan3D?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}>{frameWall===null?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
         <div className="planner-canvas" ref={plannerCanvasRef}>
-          <div className="plan-layer-tabs" aria-label="Слои проекта">
+          <div className="plan-canvas-toolbars">
+          <div className="plan-layer-tabs" role="group" aria-label="Слои проекта">
+            <AllLayersCheckbox compact label="Все слои плана" count={Object.values(visibleLayers).filter(Boolean).length} total={5} onChange={visible=>{commit(next=>setAllPlanLayers(next,activeFloor,visible));setActiveLayer('plan');setSelected(null);setFrameSelection(null);setTool('select');setPolygonDraft([]);}}/>
             {[
               ["piles", "Сваи", CircleDot],
               ["binding", "Обвязка", Layers3],
@@ -6617,7 +6615,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               </div>
             ))}
           </div>
-          <div className="canvas-history-controls">
+          <div className="canvas-history-controls" role="toolbar" aria-label="Масштаб и действия плана">
             <button title="Отменить" onClick={undo} disabled={!canUndo}>
               <Undo2 />
             </button>
@@ -6662,6 +6660,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             >
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
+          </div>
           </div>
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           {activeLayer==='frame'?<div className="roof-axis-controls"><button className="button primary" onClick={()=>setFrameWall('')}>Развёртка стены · каркас, окна и двери</button><span>Выберите стену на плане. Зелёные стойки — проектные опоры крыши.</span></div>:null}

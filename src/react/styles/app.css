@@ -7642,3 +7642,34 @@ select,
 .plan-screen-v2 .plan-layer-tabs{touch-action:pan-x;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 .plan-screen-v2 .plan-layer-tab{flex:none}
 .structural-plan-active .outer-wall,.structural-plan-active .partition-wall{opacity:.2}
+.plan-canvas-toolbars{display:contents}
+.all-layers-checkbox{display:flex;align-items:center;gap:7px;min-height:36px;padding:5px 8px;box-sizing:border-box;white-space:nowrap;font-size:12px;cursor:pointer;flex:none;color:#315d27;background:#f0f7e9;border:1px solid #c1d5b2;border-radius:7px}
+.all-layers-checkbox input{width:18px;height:18px;min-width:18px;margin:0;accent-color:#547f34;flex:none}
+.plan-layer-tabs>.all-layers-checkbox{flex-direction:column;justify-content:center;gap:3px;min-width:47px;min-height:44px;padding:4px;font-size:9px}
+/* Separate scroll surfaces: a toolbar gesture never rotates/pans the drawing. */
+@media (min-width:701px) and (max-width:1400px),(min-width:701px) and (pointer:coarse){
+ .plan-screen-v2 .planner-canvas>.plan-canvas-toolbars{position:absolute;z-index:9;top:12px;left:10px;right:10px;display:flex;flex-direction:column;gap:6px;min-width:0;pointer-events:none}
+ .plan-screen-v2 .planner-shell.is-fullscreen .planner-canvas>.plan-canvas-toolbars{top:64px}
+ .plan-screen-v2 .plan-canvas-toolbars>.plan-layer-tabs,.plan-screen-v2 .plan-canvas-toolbars>.canvas-history-controls{position:static!important;left:auto;right:auto;top:auto;display:flex!important;flex-wrap:nowrap!important;min-width:0;max-width:100%!important;width:100%;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;touch-action:pan-x;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;pointer-events:auto}
+ .plan-screen-v2 .plan-canvas-toolbars>.plan-layer-tabs>* ,.plan-screen-v2 .plan-canvas-toolbars>.canvas-history-controls>*{flex-shrink:0}
+ .plan-screen-v2 .plan-canvas-toolbars>.plan-layer-tabs{gap:4px;padding-bottom:3px}
+ .plan-screen-v2 .plan-canvas-toolbars .plan-layer-tab{flex:0 0 84px;grid-template-columns:minmax(44px,1fr) 32px}
+ .plan-screen-v2 .plan-canvas-toolbars>.canvas-history-controls>button{min-width:38px;min-height:40px}
+ .plan-screen-v2 .planner-tools-scroll{min-height:0;overflow-y:auto;touch-action:pan-y;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+ .plan-screen-v2 .planner-canvas>.roof-axis-controls,.plan-screen-v2 .planner-canvas>.bearing-selection-controls,.plan-screen-v2 .planner-canvas>.plan-stair-controls{top:146px}
+ .plan-screen-v2 .planner-shell.is-fullscreen .planner-canvas>.roof-axis-controls,.plan-screen-v2 .planner-shell.is-fullscreen .planner-canvas>.bearing-selection-controls,.plan-screen-v2 .planner-shell.is-fullscreen .planner-canvas>.plan-stair-controls{top:198px}
+ .plan-screen-v2 .planner-shell .plan-3d-pane{grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:34px 38px minmax(0,1fr)!important}
+ .plan-3d-pane .plan-3d-view-switch{grid-column:1;grid-row:1;min-width:0;max-width:100%;overflow-x:auto;touch-action:pan-x}
+ .plan-3d-pane .plan-3d-pane-head>div{grid-column:2;grid-row:1;min-width:0;max-width:110px;overflow-x:auto;touch-action:pan-x;justify-content:flex-start}
+ .plan-3d-pane .production-3d-toolbar{grid-column:1/-1;grid-row:2;justify-self:stretch;min-width:0;max-width:100%;overflow-x:auto;overflow-y:hidden;touch-action:pan-x;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+ .plan-3d-pane .production-3d-toolbar>*,.plan-3d-pane .plan-3d-view-switch>*,.plan-3d-pane .plan-3d-pane-head>div>*{flex-shrink:0}
+ .plan-screen-v2 .planner-shell .plan-3d-pane .production-3d-canvas{grid-row:3}
+ .plan-right-3d-view .production-3d-toolbar{touch-action:pan-x;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+}
+.plan-layer-tabs>.all-layers-checkbox{position:sticky;left:0;z-index:1}
+@media (min-width:701px) and (max-width:1400px){
+ .plan-screen-v2 .planner-shell:not(.is-fullscreen),.plan-screen-v2 .planner-shell:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.is-fullscreen:not(.inspector-collapsed),.plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen),.plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.three-pane.is-fullscreen:not(.inspector-collapsed){grid-template-columns:58px minmax(140px,1fr) 8px minmax(180px,min(42%,var(--plan-inspector-width)))!important}
+}
+@media (min-width:701px) and (pointer:coarse){
+ .plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen),.plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.three-pane.is-fullscreen:not(.inspector-collapsed){grid-template-columns:58px minmax(120px,min(26%,var(--plan-model-width))) 8px minmax(140px,1fr) 8px minmax(150px,min(29%,var(--plan-inspector-width)))!important}
+}
