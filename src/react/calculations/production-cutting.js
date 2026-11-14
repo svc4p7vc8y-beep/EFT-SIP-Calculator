@@ -91,25 +91,25 @@ export function stockCells(start,end,maximum,minimum=MIN_PANEL_WIDTH_MM) {
   else widths.push(remaining);
   let x=start;return widths.map(width=>{const cell={x,width};x+=width;return cell;});
 }
+// Polygonal facade pockets retain the real SIP area in either stock orientation.
+function tileManagedFacade(surface,panelWidth,panelLength,rotated){
+ const minimum=surface.minPanelWidthMm??MIN_PANEL_WIDTH_MM,maxX=rotated?panelLength:panelWidth,maxY=rotated?panelWidth:panelLength,result=[];
+ for(const geometry of surface.geometry){if(polygonAreaMm(geometry)<1)continue;const box=polygonBounds(geometry),columns=stockCells(box.x,box.x+box.width,maxX,minimum),rows=stockCells(box.y,box.y+box.height,maxY,minimum);
+  if(!columns||!rows)throw narrowPanelError(surface.name,minimum,{kind:'panel',name:'Участок SIP между элементами фасада',shape:geometry});
+  const parts=[];
+  for(const column of columns)for(const row of rows)for(const shape of clipping.intersection([geometry],rect(column.x,row.x,column.width,row.width))){const bounds=polygonBounds(shape),area=polygonAreaMm(shape);if(area<1)continue;parts.push({id:`${surface.id}-P${result.length+parts.length+1}`,surfaceId:surface.id,surface:surface.name,floor:surface.floor,thickness:surface.thickness,family:surface.family,shape,...bounds,area,orientation:rotated?'Горизонтально':'Вертикально',upperCourse:row.x>=panelLength});}
+  result.push(...mergeNarrowParts(parts,maxX,maxY,surface.name,minimum).map(part=>({...part,blankWidth:rotated?part.height:part.width,blankHeight:rotated?part.width:part.height})));
+ }
+ return result;
+}
 function tileStockWall(surface,panelWidth,panelLength) {
   const minimum=surface.minPanelWidthMm??MIN_PANEL_WIDTH_MM;
   if(surface.managedFacade){
-    const result=[];
-    // Sloping glazing and timber pockets are polygonal. Bounding opening
-    // rectangles would discard real SIP triangles above the lower corners.
-    for(const geometry of surface.geometry){
-      if(polygonAreaMm(geometry)<1)continue;
-      const box=polygonBounds(geometry),columns=stockCells(box.x,box.x+box.width,panelWidth,minimum),rows=stockCells(box.y,box.y+box.height,panelLength,minimum);
-      if(!columns||!rows)throw narrowPanelError(surface.name,minimum,{kind:'panel',name:'Участок SIP между элементами фасада',shape:geometry});
-      const parts=[];
-      for(const column of columns)for(const row of rows)for(const shape of clipping.intersection([geometry],rect(column.x,row.x,column.width,row.width))){
-        const bounds=polygonBounds(shape),area=polygonAreaMm(shape);if(area<1)continue;
-        parts.push({id:`${surface.id}-P${result.length+parts.length+1}`,surfaceId:surface.id,surface:surface.name,floor:surface.floor,thickness:surface.thickness,family:surface.family,shape,...bounds,area,blankWidth:bounds.width,blankHeight:bounds.height,orientation:'Вертикально',upperCourse:row.x>=panelLength});
-      }
-      result.push(...mergeNarrowParts(parts,panelWidth,panelLength,surface.name,minimum));
-    }
-    return result;
+    const choices=surface.layout?.direction==='y'?[true]:surface.layout?.direction==='x'?[false]:[false,true];let last;
+    for(const rotated of choices)try{const result=tileManagedFacade(surface,panelWidth,panelLength,rotated);if(rotated)surface.automaticDirection='y';return result;}catch(error){if(error.code!=='MIN_PANEL_WIDTH')throw error;last=error;}
+    throw last;
   }
+
   const bounds=polygonBounds(surface.geometry.flat());
   const anchors=[...new Set([bounds.x,bounds.x+bounds.width,...(surface.partitionSeams||[]),...(surface.roofSupportSeams||[]),...(surface.openings||[]).flatMap(o=>[o.x,o.x+o.width])])].sort((a,b)=>a-b);
   const parts=[];
@@ -211,11 +211,12 @@ function tileHorizontalWall(surface, panelWidth, panelLength) {
       const columns = balancedCells(left,right,panelLength,minimum);
       if (!columns) throw narrowPanelError(surface.name,minimum);
       for (const row of rows) for (const column of columns) {
-        const shape = rect(column.x,row.x,column.width,row.width);
+        for(const shape of clipping.intersection(surface.geometry,rect(column.x,row.x,column.width,row.width))){
         const box = polygonBounds(shape);
         parts.push({ id: `${surface.id}-P${parts.length+1}`, surfaceId:surface.id, surface:surface.name,
           floor:surface.floor, thickness:surface.thickness, family:surface.family, shape, ...box,
-          blankWidth:box.height, blankHeight:box.width, area:polygonAreaMm(shape), upperCourse:row.x>=bottom+panelLength });
+          blankWidth:box.height, blankHeight:box.width, area:polygonAreaMm(shape), upperCourse:row.x>=bottom+panelLength });}
+
       }
     }
   }
@@ -280,7 +281,8 @@ const mergeWalls = segments => {
 export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
   const minimum=surface.minPanelWidthMm??MIN_PANEL_WIDTH_MM;
   if (surface.blocked || surface.frameOnly || !surface.geometry.length) return [];
-  if(surface.gableColumns?.length){
+  if(surface.id.startsWith('ФР-')&&surface.layout?.direction==='y'&&!['originX','originY','step'].some(k=>presentNumber(surface.layout[k])))return tileManagedFacade(surface,panelWidth,panelLength,true);
+  if(surface.gableColumns?.length&&surface.layout?.direction!=='y'){
     const bounds=polygonBounds(surface.geometry.flat()),result=[];
     for(const [index,column]of surface.gableColumns.entries()){
       const rotated=column.width>panelWidth+.01;
@@ -314,7 +316,7 @@ export function tileSurface(surface, panelWidth, panelLength, step, staggered) {
   }
   if(surface.stockWall && !presentNumber(surface.layout?.originX) && !presentNumber(surface.layout?.originY) && !presentNumber(surface.layout?.step))
     return tileStockWall(surface,panelWidth,panelLength);
-  if (surface.layout?.direction === 'y' && !surface.horizontal && surface.openings?.length &&
+  if (surface.layout?.direction === 'y' && !surface.horizontal && !surface.id.startsWith('ФР-') && !surface.managedFacade && surface.openings?.length &&
       !presentNumber(surface.layout?.originX) && !presentNumber(surface.layout?.originY))
     return tileHorizontalWall(surface, panelWidth, panelLength);
   if (surface.layout?.direction === 'y' && !surface.transposed) {
@@ -372,7 +374,7 @@ export function tileProductionSurface(surface, panelWidth, panelLength, step, st
       // A taper may leave an unusable fragment between otherwise valid wall joints.
       // Keep the gable complete and flag the changed joint pattern for review.
       for(const direction of ['x','y'])try{
-        const parts=tileSurface({...surface,gableColumns:undefined,layout:{...layout,direction}},panelWidth,panelLength,step,staggered);
+        const parts=direction==='y'?tileManagedFacade({...surface,gableColumns:undefined},panelWidth,panelLength,true):tileSurface({...surface,gableColumns:undefined,layout:{...layout,direction}},panelWidth,panelLength,step,staggered);
         surface.gableColumns=undefined;surface.automaticGableDirection=direction;
         return parts;
       }catch(retryError){if(retryError.code!=='MIN_PANEL_WIDTH')throw retryError;}

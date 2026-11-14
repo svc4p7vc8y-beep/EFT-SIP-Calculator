@@ -162,8 +162,9 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     const upper=byId.get(post.upperSupport);
     if(!upper||upper.referenceOnly||!['purlin','beam'].includes(upper.type)){issues.push(`${post.mark}: верхний прогон не найден или не является несущим элементом.`);continue;}
     const dx=upper.b[0]-upper.a[0],dy=upper.b[1]-upper.a[1],t=Math.max(0,Math.min(1,((post.b[0]-upper.a[0])*dx+(post.b[1]-upper.a[1])*dy)/(dx*dx+dy*dy||1)));
-    const z=upper.a[2]+t*(upper.b[2]-upper.a[2]);
-    if(pointDistance(post.b,upper.a,upper.b)>50||Math.abs(post.b[2]-z)>50){issues.push(`${post.mark}: верх стойки не совпадает с ${upper.mark}.`);upper.connectionValid=false;}
+    const offset=post.upperBearing==='underside'?(Number(upper.profile.split(/[×xх]/)[1])||0)/2:0,a=upper.a.map((v,i)=>i===2?v-offset:v),b=upper.b.map((v,i)=>i===2?v-offset:v),z=a[2]+t*(b[2]-a[2]);
+    const allowance=post.upperBearing==='underside'?Math.max(50,((Number(upper.profile.split(/[×xх]/)[0])||0)+Math.max(...post.profile.split(/[×xх]/).map(Number)))/2+5):50;
+    if(pointDistance(post.b,a,b)>allowance||Math.abs(post.b[2]-z)>(post.upperBearing==='underside'?5:50)){issues.push(`${post.mark}: верх стойки не совпадает с ${upper.mark}.`);upper.connectionValid=false;}
   }
   const pathCache=new Map();
   const trace=(id,visited=new Set())=>{

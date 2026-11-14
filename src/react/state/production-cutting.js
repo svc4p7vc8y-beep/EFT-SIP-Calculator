@@ -83,6 +83,7 @@ export function normalizeProductionCutting(value = {}) {
       ...(item.estimateEnabled===undefined?{}:{estimateEnabled:item.estimateEnabled===true}),
       ...(item.estimateCatalogId===undefined?{}:{estimateCatalogId:String(item.estimateCatalogId||'').slice(0,100)}),
       ...(item.upperSupport===undefined?{}:{upperSupport:String(item.upperSupport||'').slice(0,200)}),
+      ...(item.upperBearing==='underside'?{upperBearing:'underside'}:{}),
       startSupport:String(item.startSupport||''),endSupport:String(item.endSupport||''),foundationRef:String(item.foundationRef||'').slice(0,200),
     })) : [],
     memberOverrides: value.memberOverrides && typeof value.memberOverrides === 'object' && !Array.isArray(value.memberOverrides) ? value.memberOverrides : {},

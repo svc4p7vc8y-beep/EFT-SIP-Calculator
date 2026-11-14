@@ -77,3 +77,15 @@ export function alignFacadeHandle(config,envelope,key,target,guides=[],tolerance
  const anchors=elevationAnchors({width:envelope.wall.width,height:envelope.wall.height,members,guides:[...guides,{axis:'z',value:envelope.mauerlatMm,label:'Мауэрлат'}]});
  return alignElevation(m.type==='post'?{x:target,z:0,xValues:[target],zValues:[]}:{x:m.a[0],z:target,width:m.b[0]-m.a[0],xValues:[],zValues:[target]},anchors,tolerance);
 }
+
+// Explicit geometry operation: align the post end to an existing horizontal beam underside.
+export function fitFacadePostToBeam(project,report,wall,config,key,supportId){
+ const envelope=facadeEnvelope(report,wall.id),candidate=applyFacade(project,config,envelope),post=candidate.settings.productionCutting.roofSupports.find(s=>s.facadeId===config.id&&s.facadeMemberKey===key&&s.type==='post');
+ const raw=candidate.settings.productionCutting.roofSupports.find(s=>s.id===supportId),derived=report.assembly.supports.find(s=>s.id===supportId),beam=raw?{...raw,a:[raw.x1,raw.y1,raw.z1],b:[raw.x2,raw.y2,raw.z2]}:derived;
+ if(!post||!beam||beam.facadeId===config.id||beam.referenceOnly||!['purlin','beam'].includes(beam.type))throw new Error('Выберите существующий несущий прогон или балку крыши.');
+ if(Math.abs(beam.a[2]-beam.b[2])>.1)throw new Error('Для наклонной балки задайте отметку и рабочий узел вручную.');
+ const [width,depth]=beam.profile.split(/[×xх]/).map(Number),postWidth=Number(config.boardWidthMm)*Number(config.plies),dx=beam.b[0]-beam.a[0],dy=beam.b[1]-beam.a[1],t=Math.max(0,Math.min(1,((post.x2-beam.a[0])*dx+(post.y2-beam.a[1])*dy)/(dx*dx+dy*dy||1))),distance=Math.hypot(post.x2-beam.a[0]-t*dx,post.y2-beam.a[1]-t*dy);
+ if(!(depth>0&&width>0)||distance>(postWidth+width)/2+5)throw new Error('Стойка не находится под выбранной балкой. Сначала совместите оси на плане.');
+ const z2=beam.a[2]-depth/2,layout=facadeLayout(config,envelope),required=Math.max(...layout.members.filter(m=>m.type==='beam'&&(m.startKey===key||m.endKey===key)).map(m=>(m.startKey===key?m.a[1]:m.b[1])+(wall.baseZMm||0)-Number(config.boardDepthMm)/2),post.z1);if(z2<required-.1)throw new Error('Балка ниже верхней обвязки фасада. Нельзя укоротить стойку и оставить верхний каркас без опоры. Задайте отдельный рабочий узел.');if(z2<=post.z1)throw new Error('Нижняя грань балки ниже основания стойки.');
+ return {...config,memberOverrides:{...config.memberOverrides,[key]:{...config.memberOverrides?.[key],z2,upperSupport:supportId,upperBearing:'underside'}}};
+}
