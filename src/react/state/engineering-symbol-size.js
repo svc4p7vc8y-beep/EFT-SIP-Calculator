@@ -2,6 +2,12 @@
 export function engineeringSymbolSize(item){
  const width=Math.max(.025,Number(item.width)||.1);
  const kind=String(item.kind||'');
- const bodyHeight=/boiler|water-heater/.test(kind)?.75:/radiator/.test(kind)?.6:/tank|expansion/.test(kind)?.5:/washer|dishwasher/.test(kind)?.85:Number(item.bodyHeightM)||Number(item.depth)||width;
+ const bodyHeight=Number(item.bodyHeightM)>0?Number(item.bodyHeightM):/boiler|water-heater/.test(kind)?.75:/radiator/.test(kind)?(Number(item.radiatorHeightMm)||600)/1000:/tank|expansion/.test(kind)?.5:/washer|dishwasher/.test(kind)?.85:/bathtub/.test(kind)?.6:/toilet/.test(kind)?.75:/sink|basin|vanity/.test(kind)?.3:/shower/.test(kind)?2:Number(item.depth)||width;
  return {width:width*100,height:Math.max(.025,bodyHeight)*100};
+}
+
+export function engineeringElevationCenter(item){
+ const floorStanding=/bathtub|washer|dishwasher|toilet|hydro-tank|shower/.test(item.kind||'');
+ const bottom=floorStanding&&(item.heightDatum==='bottom'||!item.heightKnown||!(Number(item.height)>0));
+ return (Number(item.height)||0)+(bottom?engineeringSymbolSize(item).height/200:0);
 }

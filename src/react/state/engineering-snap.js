@@ -1,5 +1,8 @@
 import {engineeringMoveIds,saveOutletPosition} from './engineering-move-group.js';
 import {moveEngineeringItem} from './engineering-scheme.js';
+import {INLINE_FITTING_KINDS} from '../data/pipe-components.js';
+import {engineeringElevationCenter} from './engineering-symbol-size.js';
+import {refreshDeviceOutlets} from './placement-connections.js';
 const pos=i=>({x:i.x,y:i.y,z:Number(i.height)||0});
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
 export function compatiblePorts(a,b,items){
@@ -36,6 +39,8 @@ export function wallConnectionSnap(items,id,patch,wall,tolerance=.10,connections
 }
 export function moveAndJoinWallItem(data,id,patch,wall){
  const item=data.items.find(i=>i.id===id);if(!item)return null;
+ if(item.kind==='connection-port'&&INLINE_FITTING_KINDS.has(data.items.find(i=>i.id===item.linkedApplianceId)?.kind))return null;
+ if(INLINE_FITTING_KINDS.has(item.kind))refreshDeviceOutlets(data.items,item.id,wall);
  const moving=engineeringMoveIds(data.items,data.portConnections,id);
  data.portConnections=(data.portConnections||[]).filter(c=>moving.has(c.fromId)===moving.has(c.toId));
  const external=data.portConnections.filter(c=>!moving.has(c.fromId)&&!moving.has(c.toId));
@@ -49,19 +54,33 @@ export function moveAndJoinWallItem(data,id,patch,wall){
 }
 export function rotateWallItem(data,id,wall){
  const item=data.items.find(i=>i.id===id);if(!item||!wall)return;
+ if(item.kind==='connection-port'){
+  const owner=data.items.find(i=>i.id===item.linkedApplianceId);if(!owner||INLINE_FITTING_KINDS.has(owner.kind))return;
+  const u=item.connectorU||0,v=item.connectorV||0;item.connectorU=v;item.connectorV=-u;
+  const angle=-(owner.rotation||0)*Math.PI/180,localU=item.connectorU*Math.cos(angle)+item.connectorV*Math.sin(angle),localV=-item.connectorU*Math.sin(angle)+item.connectorV*Math.cos(angle),side=Math.abs(localU)>Math.abs(localV)?localU<0?'left':'right':localV>0?'top':'bottom';
+  item.connectorPlanX=(wall.b.x-wall.a.x)/wall.length*item.connectorU;item.connectorPlanY=(wall.b.y-wall.a.y)/wall.length*item.connectorU;
+  const index=item.portIndex??Number(item.id.split('-').at(-1));owner.portLayout={...owner.portLayout,[index]:{...owner.portLayout?.[index],side}};data.portConnections=normalizedPortConnections(data.portConnections,data.items);return;
+ }
  const ux=(wall.b.x-wall.a.x)/wall.length,uy=(wall.b.y-wall.a.y)/wall.length;
  for(const port of data.items.filter(p=>p.linkedApplianceId===id&&p.followsAppliance)){
-  const s=(port.x-item.x)*ux+(port.y-item.y)*uy,z=(port.height||0)-(item.height||0),n=(port.x-item.x)*wall.normal.x+(port.y-item.y)*wall.normal.y;
+  const s=(port.x-item.x)*ux+(port.y-item.y)*uy,z=(port.height||0)-engineeringElevationCenter(item),n=(port.x-item.x)*wall.normal.x+(port.y-item.y)*wall.normal.y;
   if(Number.isFinite(port.connectorU)){const u=port.connectorU;port.connectorU=port.connectorV;port.connectorV=-u;}
-  port.x=item.x+ux*z+wall.normal.x*n;port.y=item.y+uy*z+wall.normal.y*n;port.height=(item.height||0)-s;
+  port.connectorPlanX=ux*(port.connectorU||0);port.connectorPlanY=uy*(port.connectorU||0);
+  port.x=item.x+ux*z+wall.normal.x*n;port.y=item.y+uy*z+wall.normal.y*n;port.height=engineeringElevationCenter(item)-s;
  }
  item.rotation=((item.rotation||0)+90)%360;data.portConnections=normalizedPortConnections(data.portConnections,data.items);
 }
 
 export function rotatePlanItem(data,id){
  const item=data.items.find(i=>i.id===id);if(!item)return;
+ if(item.kind==='connection-port'){
+  const owner=data.items.find(i=>i.id===item.linkedApplianceId);if(!owner||INLINE_FITTING_KINDS.has(owner.kind))return;
+  const dx=item.x-owner.x,dy=item.y-owner.y,l=Math.hypot(dx,dy)||1,x=Number.isFinite(item.connectorPlanX)?item.connectorPlanX:dx/l,y=Number.isFinite(item.connectorPlanY)?item.connectorPlanY:dy/l;
+  item.connectorPlanX=-y;item.connectorPlanY=x;const index=item.portIndex??Number(item.id.split('-').at(-1));owner.portLayout={...owner.portLayout,[index]:{...owner.portLayout?.[index],planRotation:((owner.portLayout?.[index]?.planRotation||0)+90)%360}};return;
+ }
  for(const port of data.items.filter(p=>p.linkedApplianceId===id&&p.followsAppliance)){
   const dx=port.x-item.x,dy=port.y-item.y;port.x=item.x-dy;port.y=item.y+dx;
+  if(Number.isFinite(port.connectorPlanX)){const x=port.connectorPlanX;port.connectorPlanX=-port.connectorPlanY;port.connectorPlanY=x;}
  }
  item.rotation=((item.rotation||0)+90)%360;data.portConnections=normalizedPortConnections(data.portConnections,data.items);
 }

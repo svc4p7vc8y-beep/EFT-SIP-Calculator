@@ -5,13 +5,15 @@ import { resolvedNetworkRoutes } from './placement-networks.js';
 const at = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: (a.z || 0) + ((b.z || 0) - (a.z || 0)) * t });
 const distance = (a,b) => Math.hypot(a.x-b.x,a.y-b.y,(a.z||0)-(b.z||0));
 export function wallRouteParts(route, wall) {
+  if(route.wallRef&&route.wallRef!==wall.ref&&route.wallRef.replace(/-\d+$/,'')===wall.ref.replace(/-\d+$/,''))return [];
   const ux=(wall.b.x-wall.a.x)/wall.length, uy=(wall.b.y-wall.a.y)/wall.length;
   const coordinates = p => ({ s:(p.x-wall.a.x)*ux+(p.y-wall.a.y)*uy, n:-(p.x-wall.a.x)*uy+(p.y-wall.a.y)*ux });
   const parts=[]; const tolerance=Math.max(.08,(route.clearanceMm||0)/1000+.04);
   for(let index=0;index<route.points.length-1;index++){
     const a=route.points[index],b=route.points[index+1],ca=coordinates(a),cb=coordinates(b);
     let low=0,high=1;
-    for(const [start,end,min,max]of[[ca.s,cb.s,0,wall.length],[ca.n,cb.n,-tolerance,tolerance]]){
+    const ranges=[[ca.s,cb.s,0,wall.length],...(route.wallRef===wall.ref?[]:[[ca.n,cb.n,-tolerance,tolerance]])];
+    for(const [start,end,min,max]of ranges){
       const delta=end-start;
       if(Math.abs(delta)<1e-8){if(start<min-1e-6||start>max+1e-6){high=-1;break;}}
       else{const limits=[(min-start)/delta,(max-start)/delta].sort((x,y)=>x-y);low=Math.max(low,limits[0]);high=Math.min(high,limits[1]);}

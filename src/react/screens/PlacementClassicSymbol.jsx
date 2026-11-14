@@ -1,4 +1,5 @@
 import PipeApplianceSymbol, { OUTLINE_PIPE_ICONS } from './PipeApplianceSymbol.jsx';
+import EngineeringDeviceSymbol from './EngineeringDeviceSymbol.jsx';
 import { findPlacementPreset } from '../state/placement-model.js';
 
 const line = { fill: 'none' };
@@ -99,8 +100,10 @@ export function CatalogSymbol({ preset, outline=false }) {
   return <svg viewBox="0 0 100 100" className={`placement-catalog-symbol ${preset.layer}`} aria-hidden="true"><PlacementSymbol icon={preset.icon} outline={outline}/></svg>;
 }
 
-export function PlacementSymbol({outline=false,...props}) {
+export function PlacementSymbol({outline=false,view,sections,...props}) {
  const icon=props.icon||findPlacementPreset(props.kind)?.icon||props.kind;
+ const deviceIcons=['bathtub','corner-bathtub','basin','sink','double-basin','vanity','toilet','bidet','washer','dryer','dishwasher','radiator'];
+ if(view&& (deviceIcons.includes(icon)||view==='plan'&&['boiler','electric-boiler','water-heater','hydro-tank','expansion-tank'].includes(icon)))return <EngineeringDeviceSymbol icon={icon} view={view} sections={sections}/>;
  if(outline&&['water-source','water-outlet','hot-outlet','drain','sewer-entry'].includes(icon)) {
   const color=icon==='hot-outlet'?'#bd5547':icon==='drain'||icon==='sewer-entry'?'#72579a':'#2979aa';
   return <g fill="none" stroke={color} strokeWidth="4"><path d="M40 5v57h20V5M33 62h34v15H33zM40 77v18m20-18v18"/></g>;

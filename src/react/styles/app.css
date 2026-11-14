@@ -7627,3 +7627,15 @@ select,
 .offline-work-notice{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid #dab75b;background:#fff5d9;color:#5f4514;padding:10px 13px;border-radius:10px;margin-bottom:10px}.offline-work-notice>span{flex:1;min-width:180px;font-size:12px}.offline-work-notice .button{padding:7px 10px;font-size:12px}.team-reconnect-overlay{position:fixed;inset:0;z-index:1500;overflow:auto;background:#203b3980;display:grid;place-items:center}.team-reconnect-overlay .team-gate{background:transparent;min-height:0;width:100%;box-sizing:border-box}.team-login-card{box-sizing:border-box}.team-login-card small{font-size:12px;line-height:1.4}.estimate-offline-price-note{padding:8px;border:1px solid #c8a85a;background:#fff8e6;font-size:11px}
 
 .project-tabbar-scroll{touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;cursor:grab}.project-tabbar-scroll:active{cursor:grabbing}.project-tabbar-scroll .project-tab{user-select:none;-webkit-user-select:none}.project-tab-scroll-arrow{flex:none;display:grid;place-items:center;width:28px;height:34px;padding:0;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)}.project-tab-scroll-arrow:disabled{opacity:.35}
+
+/* Touch tablets retain a vertical divider between detached 3D and plan. */
+@media (min-width:701px) and (max-width:1400px) and (pointer:coarse){
+ .plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen),.plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.three-pane.is-fullscreen:not(.inspector-collapsed){grid-template-columns:58px minmax(180px,min(28vw,var(--plan-model-width))) 8px minmax(160px,1fr) 8px minmax(200px,min(26vw,var(--plan-inspector-width)))!important;grid-template-rows:minmax(0,1fr)!important}
+ .plan-screen-v2 .planner-shell.three-pane .planner-tools{grid-column:1;grid-row:1}
+ .plan-screen-v2 .planner-shell.three-pane .plan-3d-pane{grid-column:2;grid-row:1;border-bottom:0}
+ .plan-screen-v2 .planner-shell.three-pane .model-resizer{display:block;grid-column:3;grid-row:1}
+ .plan-screen-v2 .planner-shell.three-pane .planner-canvas{grid-column:4;grid-row:1}
+ .plan-screen-v2 .planner-shell.three-pane .inspector-resizer{grid-column:5;grid-row:1}
+ .plan-screen-v2 .planner-shell.three-pane .planner-inspector{grid-column:6;grid-row:1}
+ .plan-screen-v2 .planner-shell.three-pane.is-fullscreen.inspector-collapsed{grid-template-columns:58px minmax(180px,28vw) 8px minmax(160px,1fr)!important;grid-template-rows:minmax(0,1fr)!important}
+}

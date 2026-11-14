@@ -12,6 +12,7 @@ export function pipeStemDirection(item, owner, wall = false) {
     const v = Number.isFinite(item.connectorV) ? -item.connectorV : 1;
     return {x:u, y:v};
   }
+  if(Number.isFinite(item.connectorPlanX)&&Number.isFinite(item.connectorPlanY))return {x:item.connectorPlanX,y:item.connectorPlanY};
   const dx = item.x - (owner?.x ?? item.x), dy = item.y - (owner?.y ?? item.y);
   const length = Math.hypot(dx, dy);
   return length > .001 ? {x:dx/length, y:dy/length} : {x:0,y:1};

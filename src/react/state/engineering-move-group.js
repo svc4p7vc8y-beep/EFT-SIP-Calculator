@@ -1,5 +1,5 @@
 import {INLINE_FITTING_KINDS} from '../data/pipe-components.js';
-import {engineeringSymbolSize} from './engineering-symbol-size.js';
+import {engineeringSymbolSize,engineeringElevationCenter} from './engineering-symbol-size.js';
 
 // A device carries its directly attached fittings, stopping at another appliance.
 // A fitting can still be detached and moved by itself.
@@ -21,9 +21,9 @@ export function translatedEngineeringItems(items,ids,delta){
  return items.map(i=>ids.has(i.id)?{...i,x:i.x+delta.x,y:i.y+delta.y,height:(i.height||0)+delta.z}:i);
 }
 export function saveOutletPosition(items,port,wall){
- const owner=items.find(i=>i.id===port.linkedApplianceId);if(!owner||!wall)return;
+ const owner=items.find(i=>i.id===port.linkedApplianceId);if(!owner||!wall||INLINE_FITTING_KINDS.has(owner.kind))return false;
  const size=engineeringSymbolSize(owner),ux=(wall.b.x-wall.a.x)/wall.length,uy=(wall.b.y-wall.a.y)/wall.length;
- const along=(port.x-owner.x)*ux+(port.y-owner.y)*uy,up=(port.height||0)-(owner.height||0),angle=(owner.rotation||0)*Math.PI/180;
+ const along=(port.x-owner.x)*ux+(port.y-owner.y)*uy,up=(port.height||0)-engineeringElevationCenter(owner),angle=(owner.rotation||0)*Math.PI/180;
  const u=along*Math.cos(angle)-up*Math.sin(angle),v=along*Math.sin(angle)+up*Math.cos(angle);
  const index=port.portIndex??Number(port.id.split('-').at(-1));
  owner.portLayout={...owner.portLayout,[index]:{...owner.portLayout?.[index],x:.5+u/(size.width/100),y:.5-v/(size.height/100)}};

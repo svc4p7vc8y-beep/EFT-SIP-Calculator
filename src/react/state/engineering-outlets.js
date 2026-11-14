@@ -22,9 +22,13 @@ export function outletAnchor(item,index,total,definition={}) {
  else if(['pressure-gauge','air-vent','pressure-switch','safety-group'].includes(icon))anchors=[at(.5,.95,'bottom')];
  if(!anchors&&INLINE_FITTING_KINDS.has(item.kind))anchors=[at(0,.5,'left'),at(1,.5,'right'),at(.5,0,'top')];
  const base=anchors?.[index]||at(definition.side==='left'?0:definition.side==='right'?1:.5,definition.side==='top'?0:definition.side==='bottom'?1:.5,definition.side||'bottom');
- const override=item.portLayout?.[index];
+ const saved=item.portLayout?.[index];
+ const override=INLINE_FITTING_KINDS.has(item.kind)&&saved?Object.fromEntries(Object.entries(saved).filter(([key])=>!['x','y','side'].includes(key))):saved;
  return override?{...base,...override,x:Number.isFinite(Number(override.x))?Number(override.x):base.x,y:Number.isFinite(Number(override.y))?Number(override.y):base.y}:base;
 }
+
+export const movableDeviceOutlet=(port,items)=>port?.kind==='connection-port'&&Boolean(items.find(i=>i.id===port.linkedApplianceId&&!INLINE_FITTING_KINDS.has(i.kind)));
+export const portHandleRadius=port=>Math.max(.5,Math.min(1.2,(Number(port.connectionDiameterMm)||20)/20));
 
 export function engineeringHistoryAction(event) {
  if(!(event.ctrlKey||event.metaKey)||event.altKey)return null;

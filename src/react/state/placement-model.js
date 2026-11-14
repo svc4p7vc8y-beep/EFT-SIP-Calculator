@@ -256,6 +256,7 @@ export function normalizePlacement(value,plans=[]) {
       ...(Number.isFinite(item.connectorU)&&Number.isFinite(item.connectorV)?{connectorU:item.connectorU,connectorV:item.connectorV}:{}),
       width: Math.max(.05, finite(item.width, .5)),
       depth: Math.max(.05, finite(item.depth, .5)),
+      ...(item.kind==='radiator-point'?{radiatorSections:Math.max(1,Math.min(40,Math.round(finite(item.radiatorSections,8)))),radiatorHeightMm:Math.max(150,Math.min(2500,finite(item.radiatorHeightMm,600)))}:{}),
       rotation: finite(item.rotation),
       height: Math.max(0, finite(item.height)),
       heightKnown: item.heightKnown === true || (item.heightKnown !== false && Number(item.height) > 0),
