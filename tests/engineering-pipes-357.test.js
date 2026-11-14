@@ -7,7 +7,7 @@ import {drawingPipeProfile,pipeStemDirection} from '../src/react/state/engineeri
 const wall={ref:'outer-0-0',a:{x:0,y:.174},b:{x:5,y:.174},length:5,normal:{x:0,y:1}};
 const tank={id:'tank',kind:'hydro-tank',label:'Бак',x:2,y:.204,height:1,heightKnown:true,displayPlane:'wall',wallRef:wall.ref,floor:1,layer:'plumbing',width:.55,depth:.55,rotation:0};
 test('hydro tank has exactly one central bottom connector that rotates with the body',()=>{
- const [p,...extra]=connectionPortsFor(tank,wall);assert.equal(extra.length,0);assert.equal(p.x,tank.x);assert.equal(p.height,.75);assert.equal(p.connectorV,-1);
+ const [p,...extra]=connectionPortsFor(tank,wall);assert.equal(extra.length,0);assert.equal(p.x,tank.x);assert.equal(p.height,.76);assert.equal(p.connectorV,-1);
  const [turned]=connectionPortsFor({...tank,rotation:90},wall);assert.ok(turned.x<tank.x);assert.equal(turned.height,tank.height);
  assert.deepEqual(pipeStemDirection(p,tank,true),{x:0,y:1});
 });

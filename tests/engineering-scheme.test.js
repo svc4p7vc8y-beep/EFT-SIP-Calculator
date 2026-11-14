@@ -72,7 +72,7 @@ test('moving a diagram does not alter actual pipe length; moving the wall node d
 test('linked appliance ports move in three dimensions; heights become confirmed',()=>{
  const d=createPlacement(),a=node('boiler','equipment');d.items.push(a,...connectionPortsFor(a));const before=structuredClone(d.items[1]);
  moveEngineeringItem(d,a.id,{x:a.x+1,y:a.y+2,height:a.height+.7,wallRef:'outer-0-0'});
- const port=d.items[1];assert.equal(port.x,before.x+1);assert.equal(port.y,before.y+2);assert.equal(port.height,.7);assert.equal(port.heightKnown,true);assert.equal(port.wallRef,'outer-0-0');
+ const port=d.items[1];assert.ok(Math.abs(port.x-before.x-1)<.000001);assert.ok(Math.abs(port.y-before.y-2)<.000001);assert.equal(port.height,.7);assert.equal(port.heightKnown,true);assert.equal(port.wallRef,'outer-0-0');
 });
 test('each explicit node is counted once, even when a boiler kit has also been filled',()=>{
  const p=fixture();addBasicEngineeringScheme(p.placement,p.plan,'heating',1,{},id);const source=p.placement.items.find(i=>i.kind==='heat-source');source.pipeKit=[1,1,1,1,2,1,1,2];

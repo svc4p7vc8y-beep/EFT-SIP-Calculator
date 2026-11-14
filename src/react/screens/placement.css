@@ -611,3 +611,17 @@
 .engineering-pipe-picker select,.engineering-pipe-picker input{font:inherit;font-size:12px;padding:5px;border:1px solid #bed0b5;border-radius:5px;max-width:100%;box-sizing:border-box;background:white;color:#284335}
 .engineering-pipe-picker select{width:163px}.engineering-pipe-picker input{width:65px}
 @media(max-width:700px){.engineering-catalog-groups button{padding:5px 3px}.engineering-pipe-picker{gap:5px;padding:5px}.engineering-pipe-picker select{width:140px}.engineering-pipe-picker input{width:58px}.placement-canvas-scroll>.engineering-pipe-picker{left:70px}}
+
+/* Compact library rail: names remain available on hover and to assistive technology. */
+.engineering-view-walls .placement-catalog-layout,.engineering-view-plan .placement-catalog-layout{grid-template-columns:36px minmax(0,1fr)!important}
+.engineering-catalog-groups button{justify-content:center;min-height:34px;padding:7px 3px}
+.engineering-outlet-settings{display:grid;gap:6px;padding:9px;border:1px solid #c8d8c0;border-radius:8px;font-size:12px}
+.engineering-outlet-settings details{border-top:1px solid #dce6d8;padding-top:5px}
+.engineering-outlet-settings summary{cursor:pointer;display:flex;align-items:center;gap:6px}
+.engineering-outlet-settings summary i{width:14px;height:3px;display:inline-block}
+.engineering-outlet-settings label{display:grid;gap:3px;margin-top:6px;min-width:0}
+.engineering-outlet-settings input,.engineering-outlet-settings select{width:100%;box-sizing:border-box;min-width:0;padding:5px;font-size:12px}
+.engineering-outlet-position{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.engineering-outlet-settings small{color:#5c6f60;line-height:1.4}
+.engineering-alignment-guide{pointer-events:none;stroke:#459c79;stroke-width:1;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}
+.engineering-alignment-target{pointer-events:none;stroke:#43a46f;stroke-width:7;opacity:.25;fill:none}

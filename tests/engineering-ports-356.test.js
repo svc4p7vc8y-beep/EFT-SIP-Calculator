@@ -54,8 +54,8 @@ test('migration places unconnected generated ports on appliance outlines and pre
  const migrated=normalizePlacement(data,[plan]);assert.ok(migrated.items.find(i=>i.id==='port-b-0').height>0);assert.equal(migrated.items.find(i=>i.id==='port-b-1').height,.9);
 });
 
-test('a floor appliance placed on the plan has its cold outlet projected to its wall, without an invented installation height',()=>{
- const washer={...device('wm','washer',2),y:.35,height:0,heightKnown:false,displayPlane:'auto',depth:.6};const ports=connectionPortsFor(washer,wall);assert.equal(ports.length,1);assert.equal(ports[0].y,.03);assert.equal(ports[0].height,0);assert.equal(ports[0].heightKnown,false);
+test('a floor appliance placed on the plan has its cold outlet projected to its wall, with an attached schematic outlet and an unconfirmed installation height',()=>{
+ const washer={...device('wm','washer',2),y:.35,height:0,heightKnown:false,displayPlane:'auto',depth:.6};const ports=connectionPortsFor(washer,wall);assert.equal(ports.length,1);assert.equal(ports[0].y,.03);assert.ok(ports[0].height>0);assert.equal(ports[0].heightKnown,false);
 });
 import {rotatePlanItem} from '../src/react/state/engineering-snap.js';
 test('plan rotation preserves installation heights while moving attached outlets with the appliance',()=>{

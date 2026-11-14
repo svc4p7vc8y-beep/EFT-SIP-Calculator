@@ -6,6 +6,8 @@ export function compatiblePorts(a,b,items){
  const adapter=[a,b].some(port=>/adapter|reducer/.test(items.find(i=>i.id===port.linkedApplianceId)?.kind||''));
  if(!adapter&&a.connectionMaterial&&b.connectionMaterial&&a.connectionMaterial!=='mixed'&&b.connectionMaterial!=='mixed'&&a.connectionMaterial!==b.connectionMaterial)return false;
  if(!adapter&&Number(a.connectionDiameterMm)>0&&Number(b.connectionDiameterMm)>0&&Number(a.connectionDiameterMm)!==Number(b.connectionDiameterMm))return false;
+ if(!adapter&&a.connectionThread&&b.connectionThread&&a.connectionThread!==b.connectionThread)return false;
+ if(a.connectionGender&&b.connectionGender&&a.connectionGender===b.connectionGender)return false;
  if(Number.isFinite(a.connectorU)&&Number.isFinite(b.connectorU)&&a.connectorU*b.connectorU+a.connectorV*b.connectorV>-.75)return false;
  return true;
 }
@@ -35,7 +37,7 @@ export function moveAndJoinWallItem(data,id,patch,wall){
  const moving=new Set([id,...data.items.filter(i=>i.linkedApplianceId===id&&i.followsAppliance).map(i=>i.id)]);
  data.portConnections=(data.portConnections||[]).filter(c=>!moving.has(c.fromId)&&!moving.has(c.toId));
  const snap=wallConnectionSnap(data.items,id,patch,wall,.10,data.portConnections);moveEngineeringItem(data,id,snap?.patch||patch);
- if(snap)data.portConnections.push({fromId:snap.fromId,toId:snap.toId});
+ if(snap){matchOutletSpecifications(data,snap.fromId,snap.toId);data.portConnections.push({fromId:snap.fromId,toId:snap.toId});}
  data.portConnections=normalizedPortConnections(data.portConnections,data.items);return snap;
 }
 export function rotateWallItem(data,id,wall){
@@ -55,4 +57,15 @@ export function rotatePlanItem(data,id){
   const dx=port.x-item.x,dy=port.y-item.y;port.x=item.x-dy;port.y=item.y+dx;
  }
  item.rotation=((item.rotation||0)+90)%360;data.portConnections=normalizedPortConnections(data.portConnections,data.items);
+}
+
+// Copy only unspecified values, never replace a project's explicit connector specification.
+export function matchOutletSpecifications(data,fromId,toId){
+ const a=data.items.find(i=>i.id===fromId),b=data.items.find(i=>i.id===toId);if(!a||!b)return;
+ for(const [port,other] of [[a,b],[b,a]]){
+  const owner=data.items.find(i=>i.id===port.linkedApplianceId),patch={};
+  for(const [field,key] of [['connectionThread','thread'],['connectionDiameterMm','diameterMm'],['connectionMaterial','material']])if(!port[field]&&other[field]&&other[field]!=='mixed'){port[field]=other[field];patch[key]=other[field];}
+  if(!port.connectionGender&&other.connectionGender){port.connectionGender=other.connectionGender==='male'?'female':'male';patch.gender=port.connectionGender;}
+  if(owner&&Object.keys(patch).length){const index=port.portIndex??Number(port.id.split('-').at(-1));owner.portLayout={...owner.portLayout,[index]:{...owner.portLayout?.[index],...patch}};}
+ }
 }
