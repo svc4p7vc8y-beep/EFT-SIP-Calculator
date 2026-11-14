@@ -105,3 +105,15 @@ export function matchOutletSpecifications(data,fromId,toId){
   if(owner&&Object.keys(patch).length){const index=port.portIndex??Number(port.id.split('-').at(-1));owner.portLayout={...owner.portLayout,[index]:{...owner.portLayout?.[index],...patch}};}
  }
 }
+// One transaction translates the selection, attached outlets and internal bends.
+export function moveEngineeringGroup(data,roots,delta,wall,rootId=roots[0]){
+ const ids=new Set(roots.flatMap(id=>[...engineeringMoveIds(data.items,data.portConnections,id)])),root=data.items.find(i=>i.id===rootId);if(!root)return;
+ let movement={...delta,z:Math.max(Number(delta.z)||0,-Math.min(...data.items.filter(i=>ids.has(i.id)).map(i=>Number(i.height)||0)))};
+ const snap=wall&&wallConnectionSnap(data.items,rootId,{x:root.x+delta.x,y:root.y+delta.y,height:(root.height||0)+movement.z},wall,.10,data.portConnections,ids);
+ if(snap)movement={x:snap.patch.x-root.x,y:snap.patch.y-root.y,z:snap.patch.height-(root.height||0)};
+ data.portConnections=(data.portConnections||[]).filter(c=>ids.has(c.fromId)===ids.has(c.toId));
+ for(const item of data.items.filter(i=>ids.has(i.id))){item.x+=movement.x;item.y+=movement.y;item.height=(item.height||0)+movement.z;item.heightKnown=true;}
+ for(const routes of Object.values(data.networks||{}))for(const route of routes)if(ids.has(route.fromId)&&ids.has(route.toId))route.points=route.points.map(p=>({...p,x:p.x+movement.x,y:p.y+movement.y,z:(p.z||0)+movement.z}));
+ if(snap){matchOutletSpecifications(data,snap.fromId,snap.toId);data.portConnections.push({fromId:snap.fromId,toId:snap.toId});}
+ data.portConnections=normalizedPortConnections(data.portConnections,data.items);return movement;
+}

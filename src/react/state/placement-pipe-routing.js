@@ -123,3 +123,21 @@ export function orthogonalPipePath(points, { plan, first = 'x', alongWall = fals
   }
   return keepWaypoints ? result.filter((point, i) => !i || distance(point, result[i - 1]) >= epsilon) : simplify(result);
 }
+// Orthogonal in the selected wall's station/height axes, not the house perimeter.
+export function orthogonalWallPath(points,wall,{clearanceMm=30,keepWaypoints=true}={}){
+ if(!wall||!points.length)return [];
+ const ux=(wall.b.x-wall.a.x)/wall.length,uy=(wall.b.y-wall.a.y)/wall.length,offset=clearanceMm/1000;
+ const local=p=>({s:(p.x-wall.a.x)*ux+(p.y-wall.a.y)*uy,z:Number(p.z)||0});
+ const world=(s,z)=>({x:wall.a.x+ux*s+wall.normal.x*offset,y:wall.a.y+uy*s+wall.normal.y*offset,z});
+ const result=[{...points[0]}];
+ for(let i=1;i<points.length;i++){
+  const a=local(points[i-1]),b=local(points[i]);if([a.s,b.s].some(s=>s<-.01||s>wall.length+.01)||Math.min(a.z,b.z)<0)return null;
+  const source=world(a.s,a.z),target=world(b.s,b.z);if(distance(result.at(-1),source)>.001)result.push(source);
+  // Follow the last user-defined leg when there is one; otherwise station first.
+  const last=result.length>1?local(result.at(-2)):null,vertical=last&&Math.abs(last.s-a.s)<.001&&Math.abs(last.z-a.z)>.001;
+  const bend=vertical?world(a.s,b.z):world(b.s,a.z);if(distance(result.at(-1),bend)>.001)result.push(bend);
+  if(distance(result.at(-1),target)>.001)result.push(target);
+  if(i===points.length-1&&distance(result.at(-1),points[i])>.001)result.push({...points[i]});
+ }
+ return keepWaypoints?result:simplify(result);
+}

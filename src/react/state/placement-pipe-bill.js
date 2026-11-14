@@ -77,7 +77,7 @@ export function addPipeBill(routes, equipment, addComponent, issues, explicitIte
     const directions = [...node.directions.values()], suffix = node.size ? ' · ' + node.size : '';
     const marker = (kind, name, explicitKinds) => {
       if (explicitItems.some(i => explicitKinds.includes(i.kind) && pointKey({ ...i, z: i.height }) === node.point)) return;
-      markers.push({ id: kind + ':' + node.medium + ':' + node.point + ':' + node.size, kind, label: name + suffix, ...node.position, routeId: node.routeId, medium: node.medium, system });
+      markers.push({ id: kind + ':' + node.medium + ':' + node.point + ':' + node.size, kind, label: name + suffix, ...node.position, directions:directions.map(v=>v.map(n=>n/1000)), routeId: node.routeId, medium: node.medium, system });
     };
     if (directions.length === 3) { addComponent(fittingName('Тройник трубы') + suffix, 1); countedTees.add(node.point); marker('tee', fittingName('Тройник трубы'), ['heat-tee','water-tee','sewer-tee','pp-tee','heat-pp-tee']); }
     else if (directions.length === 4) { addComponent(fittingName('Крестовина трубы') + suffix, 1); countedTees.add(node.point); marker('cross', fittingName('Крестовина трубы'), []); }

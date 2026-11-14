@@ -29,3 +29,6 @@ export function saveOutletPosition(items,port,wall){
  owner.portLayout={...owner.portLayout,[index]:{...owner.portLayout?.[index],x:.5+u/(size.width/100),y:.5-v/(size.height/100)}};
  port.followsAppliance=true;
 }
+export function engineeringGroupIds(items,connections,roots){
+ return new Set(roots.flatMap(id=>[...engineeringMoveIds(items,connections,id)]));
+}

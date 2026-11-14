@@ -1,5 +1,6 @@
+import {placementWallFaces} from './placement-walls.js';
 import { addPipeBill, pipeEquipmentKind } from './placement-pipe-bill.js';
-import { orthogonalPipePath } from './placement-pipe-routing.js';
+import { orthogonalPipePath,orthogonalWallPath } from './placement-pipe-routing.js';
 export const NETWORK_SYSTEMS = {
   plumbing: { label: 'Водоснабжение', prefix: 'В', media: [{ id: 'cold', label: 'ХВС' }, { id: 'hot', label: 'ГВС' }, { id: 'recirculation', label: 'Рециркуляция ГВС' }] },
   heating: { label: 'Отопление', prefix: 'О', media: [{ id: 'supply', label: 'Подача' }, { id: 'return', label: 'Обратка' }] },
@@ -75,7 +76,8 @@ export function resolvedNetworkRoutes(placement, system, floor, plan = null) {
             i === 0 || i === all.length - 1 || (p.x === from.x && p.y === from.y) || (p.x === to.x && p.y === to.y))
         : [point(from), ...route.points.slice(1, -1), point(to)];
       const options = { first: route.bendAxis, alongWall: route.auto && route.routing === 'wall', clearanceMm: route.clearanceMm, keepWaypoints: !route.auto };
-      const points = orthogonalPipePath(anchors, { ...options, plan });
+      const wall=plan&&route.plane==='wall'&&wallRef&&placementWallFaces(plan).find(w=>w.ref===wallRef);
+      const points = wall?orthogonalWallPath(anchors,wall,options):orthogonalPipePath(anchors, { ...options, plan });
       let resolved = points || orthogonalPipePath(anchors, { ...options, alongWall: false });
       if (system === 'sewer' && route.auto && route.medium === 'waste' && resolved) {
         resolved = resolved.filter((p, index, all) => !index || Math.hypot(p.x - all[index - 1].x, p.y - all[index - 1].y) > .0001);

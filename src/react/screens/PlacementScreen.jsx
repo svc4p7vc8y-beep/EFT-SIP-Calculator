@@ -1,3 +1,4 @@
+import {engineeringGroupIds} from '../state/engineering-move-group.js';
 import {engineeringPlanRotation} from '../state/engineering-projection.js';
 import {saveOutletPosition} from '../state/engineering-move-group.js';
 import EngineeringOutletSettings from './EngineeringOutletSettings.jsx';
@@ -5,7 +6,7 @@ import {engineeringHistoryAction,portHandleRadius,movableDeviceOutlet} from '../
 import EngineeringPipePicker from './EngineeringPipePicker.jsx';
 import EngineeringPipeStem from './EngineeringPipeStem.jsx';
 import {drawingPipeProfile} from '../state/engineering-pipe-tools.js';
-import {moveAndJoinWallItem,rotatePlanItem,rotateWallItem,normalizedPortConnections} from '../state/engineering-snap.js';
+import {moveEngineeringGroup,moveAndJoinWallItem,rotatePlanItem,rotateWallItem,normalizedPortConnections} from '../state/engineering-snap.js';
 import {CONNECTION_PORTS} from '../state/placement-connections.js';
 import {engineeringCatalogIncludes,engineeringDrawingPreset} from '../state/engineering-catalog.js';
 import EngineeringWallNavigator from './EngineeringWallNavigator.jsx';
@@ -13,7 +14,7 @@ import { INLINE_FITTING_KINDS } from '../data/pipe-components.js';
 import { pipeFittingMarkers } from '../state/placement-pipe-bill.js';
 import { insertPipeElement, removeInlineElement } from '../state/engineering-wall.js';
 import { ENGINEERING_SYSTEMS, addBasicEngineeringScheme, connectEngineeringItems, moveEngineeringItem } from '../state/engineering-scheme.js';
-import { orthogonalPipePath, pipeWallSnap } from '../state/placement-pipe-routing.js';
+import { orthogonalPipePath, orthogonalWallPath, pipeWallSnap } from '../state/placement-pipe-routing.js';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Eye, EyeOff, Plus, RotateCw, Route, Trash2, Undo2, Redo2, X, Ruler, Search, Printer, Camera, Download, Share2, ZoomIn, ZoomOut, Maximize2, Minimize2, LayoutGrid, BedDouble, CookingPot, Bath, Boxes, Refrigerator, WashingMachine, Heater, PlugZap, Lightbulb, House, CircuitBoard, Droplets, Wrench, LockKeyhole, LockKeyholeOpen, Unlink2, PencilLine, Check, Tag, ArrowUpFromLine, ImageDown, MousePointer2 } from 'lucide-react';
@@ -120,6 +121,7 @@ export default function PlacementScreen({ onNavigate }) {
   const [heightEditId, setHeightEditId] = useState(null);
   const [heightDraft, setHeightDraft] = useState('');
   const [selectedId, setSelectedId] = useState(null);
+  const [planGroup,setPlanGroup]=useState([]);
   const [selectedCircuitId, setSelectedCircuitId] = useState(null);
   const [armedCircuitNameId, setArmedCircuitNameId] = useState(null);
   const [editingCircuitNameId, setEditingCircuitNameId] = useState(null);
@@ -505,11 +507,12 @@ export default function PlacementScreen({ onNavigate }) {
     const from = items.find(i => i.id === pending.id), to = items.find(i => i.id === toId) || toNode;
     if (!from || !to) return false;
     const anchors = [{x:from.x,y:from.y,z:from.height||0},...pending.points,{x:to.x,y:to.y,z:to.height||0}];
-    if (!auto && !orthogonalPipePath(anchors,{plan,keepWaypoints:true})) return false;
+    const wall=from.wallRef===to.wallRef&&wallFaces.find(w=>w.ref===from.wallRef);
+    if (!auto && !(wall?orthogonalWallPath(anchors,wall,profile):orthogonalPipePath(anchors,{plan,keepWaypoints:true}))) return false;
     change(data => {
       const old = data.networks[pending.system].some(r => r.floor===activeFloor && r.medium===pending.medium && ((r.fromId===pending.id&&r.toId===toId)||(r.fromId===toId&&r.toId===pending.id)));
       const route = connectEngineeringItems(data,pending.system,activeFloor,pending.id,toId,pending.medium,createId);
-      if(route&&!old)Object.assign(route,{material:profile.material||'',diameterMm:profile.diameterMm||null,clearanceMm:profile.clearanceMm??30,auto,routing:auto?'wall':'orthogonal',points:anchors});
+      if(route&&!old)Object.assign(route,{material:profile.material||'',diameterMm:profile.diameterMm||null,clearanceMm:profile.clearanceMm??30,auto,routing:auto?'wall':'orthogonal',plane:'wall',wallRef:wall?.ref||'',points:anchors});
     }); return true;
   };
   const spliceWallPipe = (route,preset,point,wallRef) => {
@@ -526,7 +529,7 @@ export default function PlacementScreen({ onNavigate }) {
     change(data=>{
       data.items.push({id,kind:'pipe-junction',label:'Точка продолжения трубы',floor:activeFloor,layer:pending.system,x:at.x,y:at.y,height:at.z||0,heightKnown:true,wallRef:at.wallRef||selectedWallRef,width:.08,depth:.08,rotation:0,connectionMedium:pending.medium});
       const route=connectEngineeringItems(data,pending.system,activeFloor,pending.id,id,pending.medium,createId);
-      if(route)Object.assign(route,{material:profile.material||'',diameterMm:profile.diameterMm||null,clearanceMm:profile.clearanceMm??30,auto:false,routing:'orthogonal',points:[{x:items.find(i=>i.id===pending.id).x,y:items.find(i=>i.id===pending.id).y,z:items.find(i=>i.id===pending.id).height||0},...pending.points]});
+      if(route)Object.assign(route,{material:profile.material||'',diameterMm:profile.diameterMm||null,clearanceMm:profile.clearanceMm??30,auto:false,routing:'orthogonal',plane:'wall',wallRef:at.wallRef||selectedWallRef,points:[{x:items.find(i=>i.id===pending.id).x,y:items.find(i=>i.id===pending.id).y,z:items.find(i=>i.id===pending.id).height||0},...pending.points]});
     });
   };
   const onWallPosition = (station, height) => {
@@ -1050,13 +1053,17 @@ export default function PlacementScreen({ onNavigate }) {
   const beginDrag = (event, item) => {
     if(engineering&&item.kind==='connection-port'&&!movableDeviceOutlet(item,items))item=items.find(i=>i.id===item.linkedApplianceId)||item;
     if (mobileViewer || annotationTool || elementsLocked || drawingRoute || drawingDimension || networkPicking || assigningCircuit || event.button !== 0) return;
+    if(engineering&&(event.ctrlKey||event.metaKey)){
+      event.preventDefault();event.stopPropagation();setPlanGroup(old=>{const base=old.length?old:selectedId?[selectedId]:[];return base.includes(item.id)?base.filter(id=>id!==item.id):[...base,item.id];});setSelectedId(item.id);suppressClickRef.current=true;return;
+    }
     const point = pointFromEvent(event);
     if (!point) return;
     event.preventDefault();
     event.stopPropagation();
     svgRef.current?.setPointerCapture(event.pointerId);
     const origin = schematicPosition(item);
-    dragRef.current = { id: item.id, pointerId: event.pointerId, start: point, origin, last: origin, surface: item.surface };
+    dragRef.current = { id: item.id, pointerId: event.pointerId, start: point, origin, last: origin, surface: item.surface, ids:engineering&&planGroup.includes(item.id)?planGroup:[item.id] };
+    if(!planGroup.includes(item.id))setPlanGroup([item.id]);
     setSelectedId(item.id);
     setSelectedNetworkRouteId(null);
     setPresetId(null);
@@ -1163,7 +1170,7 @@ export default function PlacementScreen({ onNavigate }) {
     const location = drag.surface === 'facade' ? snapToFacade(candidate.position, contour) : insideWorkingArea(candidate.position) && item ? itemPosition(candidate.position, item) : null;
     if (!location) return;
     drag.last = location;
-    setDragPosition({ id: drag.id, ...location, guides: candidate.guides, neighborGuide: item?.layer === 'electric' ? nearestPointGuide(location, electricalGuidePoints, item.id) : null });
+    setDragPosition({ id: drag.id, ids:drag.ids, ...location, guides: candidate.guides, neighborGuide: item?.layer === 'electric' ? nearestPointGuide(location, electricalGuidePoints, item.id) : null });
   };
   const endDrag = event => {
     if (touchPointersRef.current.has(event.pointerId)) {
@@ -1230,6 +1237,7 @@ export default function PlacementScreen({ onNavigate }) {
         const route = networkRoutes.find(entry => entry.system === drag.system && entry.id === drag.routeId);
         if (route && !linesLocked) editNetworkGeometry(route, drag.points.map((entry, index) => index === drag.index ? location : entry));
       } else if (drag.routeId) updateRoutePoint(drag.routeId, drag.index, location);
+      else if(engineering&&drag.ids?.length>1&&!drag.label)change(data=>moveEngineeringGroup(data,drag.ids,{x:location.x-drag.origin.x,y:location.y-drag.origin.y,z:0},null,drag.id));
       else
       change(data => { const target = data.items.find(item => item.id === drag.id); if (target) {
         const mount = !drag.label && target.kind === 'junction-box' ? junctionWallMount(plan, location, selectedRoom) : null;
@@ -1527,7 +1535,7 @@ export default function PlacementScreen({ onNavigate }) {
         system={layer} medium={networkMedium} onMedium={setNetworkMedium} profile={wallProfile} onProfile={updateWallProfile} wallRef={selectedWallRef} onWall={setSelectedWallRef}
         mode={wallMode} onMode={setWallMode} activePreset={activePreset} onClearTool={clearWallTool} selectedId={selectedId} locked={elementsLocked} linesLocked={linesLocked}
         onSelect={(item,route)=>{if(item){setSelectedId(item.id);setPresetId(null);setSelectedNetworkRouteId(null);}else{setSelectedId(null);if(!route)setSelectedNetworkRouteId(null);}if(route){setSelectedNetworkRouteId(route.id);setLayer(route.system);setSidebarTab('groups');}}}
-        onPlace={placeWallNode} onMoveItem={(id,at,wallRef)=>{if(elementsLocked)return;const wall=wallFaces.find(w=>w.ref===wallRef),item=items.find(i=>i.id===id),offset=(item?.wallClearanceMm??(wall&&item?projectToWallFace(wall,item).distance*1000:0))/1000;change(data=>moveAndJoinWallItem(data,id,{x:at.x+(wall?.normal.x||0)*offset,y:at.y+(wall?.normal.y||0)*offset,height:at.z,wallRef,displayPlane:'wall'},wall));setSelectedId(id);}}
+        onMoveGroup={(ids,delta,wallRef,rootId)=>change(data=>moveEngineeringGroup(data,ids,delta,wallFaces.find(w=>w.ref===wallRef),rootId))} onPlace={placeWallNode} onMoveItem={(id,at,wallRef)=>{if(elementsLocked)return;const wall=wallFaces.find(w=>w.ref===wallRef),item=items.find(i=>i.id===id),offset=(item?.wallClearanceMm??(wall&&item?projectToWallFace(wall,item).distance*1000:0))/1000;change(data=>moveAndJoinWallItem(data,id,{x:at.x+(wall?.normal.x||0)*offset,y:at.y+(wall?.normal.y||0)*offset,height:at.z,wallRef,displayPlane:'wall'},wall));setSelectedId(id);}}
         onConnect={connectWallNodes} onInsert={spliceWallPipe} onMaterialize={materializeWallPoint} onSaveDraft={saveWallDraft}
         defaults={placement.engineeringDefaults?.[layer+'-'+activeFloor]} onBasic={options=>{setSelectedWallRef(options.wallRef);change(data=>addBasicEngineeringScheme(data,plan,layer,activeFloor,options,createId));}}/></Suspense>}
       <section className="placement-canvas-panel" style={engineering && engineeringView === 'walls' ? { display: 'none' } : undefined}><div className="placement-canvas-title"><div className="placement-canvas-caption"><strong>{selectedRoom ? `План этажа ${activeFloor} · навигатор` : `План этажа ${activeFloor}`}</strong><span>{selectedRoom ? `Выбрана: ${selectedRoom.name}` : drawingDimension ? dimensionStart ? 'Укажите вторую точку размера' : 'Укажите первую точку размера' : drawingRoute ? routeStartId ? 'Укажите угол или следующую электроточку; пробел завершает кабель' : 'Выберите начальный электроэлемент' : activePreset ? `Разместите: ${activePreset.label}${activePreset.surface === 'facade' ? ' у наружной стены' : ''}` : 'Выберите элемент слева или переместите существующий'}</span></div><div className="placement-viewport-tools" role="toolbar" aria-label="Масштаб и поле плана"><button className={elementsLocked ? 'placement-lock active' : 'placement-lock'} aria-pressed={elementsLocked} aria-label={elementsLocked ? 'Разблокировать элементы' : 'Заблокировать элементы'} title={elementsLocked ? 'Разблокировать элементы' : 'Заблокировать элементы от перемещения'} onClick={() => { setElementsLocked(value => !value); setDragPosition(null); dragRef.current = null; }}>{elementsLocked ? <LockKeyhole size={17}/> : <LockKeyholeOpen size={17}/>}</button><button className={linesLocked ? 'placement-lock active' : 'placement-lock'} aria-pressed={linesLocked} title={linesLocked ? 'Разблокировать линии' : 'Заблокировать линии от ручного перемещения'} onClick={() => setLinesLocked(value => !value)}><Route size={17}/> Линии</button><button onClick={undo} disabled={!canUndo} title="Отменить" aria-label="Отменить"><Undo2 size={17}/></button><button onClick={redo} disabled={!canRedo} title="Повторить" aria-label="Повторить"><Redo2 size={17}/></button><button onClick={captureWorkspace} disabled={snapshotBusy} title="Снимок рабочего поля" aria-label="Снимок рабочего поля"><Camera size={17}/></button><button data-view-control="true" title="Уменьшить масштаб" aria-label="Уменьшить масштаб" onClick={() => setZoom(current => clampZoom(current - 10))}><ZoomOut size={17}/></button><button data-view-control="true" className="placement-zoom-value" title="Сбросить масштаб и положение" aria-label={`Масштаб ${zoom}%. Сбросить масштаб и положение`} onClick={resetView}>{zoom}%</button><button data-view-control="true" title="Увеличить масштаб" aria-label="Увеличить масштаб" onClick={() => setZoom(current => clampZoom(current + 10))}><ZoomIn size={17}/></button><button title={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} aria-label={fullscreen ? 'Свернуть поле плана' : 'Развернуть поле плана на весь экран'} data-view-control="true" onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button></div></div>{layerToolbar}<div className="placement-canvas-scroll">{engineering ? <div className="placement-drawing-rail engineering-plan-tools" role="toolbar" aria-label="Инструменты сантехники на плане">
@@ -1604,13 +1612,14 @@ export default function PlacementScreen({ onNavigate }) {
           <path key={index} d={routeData((pipeSystem ? orthogonalPipePath(points, { plan }) : points) || [])} fill="none" stroke={networkColors[layer] || '#d48a21'} strokeWidth="4" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" pointerEvents="none"/>) : null}
         {dimensions.map(dimension => <DimensionLine key={dimension.id} points={dimension.points} label={dimension.label}/>)}
         {dimensionStart ? <circle cx={dimensionStart.x * 100} cy={dimensionStart.y * 100} r="7" fill="#497c7a" pointerEvents="none"/> : null}
-        {ENGINEERING_SYSTEMS.flatMap(system=>visible[system]?pipeFittingMarkers(networkRoutes.filter(r=>r.system===system),items.filter(i=>i.layer===system),system):[]).map(f=><g key={f.id} transform={`translate(${f.x*100} ${f.y*100})`} onClick={event=>{event.stopPropagation();setLayer(f.system);setSelectedNetworkRouteId(f.routeId);setSidebarTab('groups');}}><svg x="-10" y="-10" width="20" height="20" viewBox="0 0 100 100"><PlacementSymbol icon={f.kind}/></svg><title>Автоматически · {f.label}</title></g>)}
+        {ENGINEERING_SYSTEMS.flatMap(system=>visible[system]?pipeFittingMarkers(networkRoutes.filter(r=>r.system===system),items.filter(i=>i.layer===system),system):[]).map(f=><g key={f.id} transform={`translate(${f.x*100} ${f.y*100})`} onClick={event=>{event.stopPropagation();setLayer(f.system);setSelectedNetworkRouteId(f.routeId);setSidebarTab('groups');}}>{f.directions?.length?f.directions.map((d,i)=>{const L=Math.hypot(d[0],d[1]);return L>.001?<path key={i} d={`M0 0l${d[0]/L*5} ${d[1]/L*5}`} stroke={'#b88322'} strokeWidth="4.5" strokeLinecap="round" fill="none"/>:null;}):<svg x="-5" y="-5" width="10" height="10" viewBox="0 0 100 100"><PlacementSymbol icon={f.kind}/></svg>}<title>Автоматически · {f.label}</title></g>)}
         {displayedItems.filter(item => visible[item.layer] && !clusteredItemIds.has(item.id)).map(item => {
-          const location = dragPosition?.id === item.id ? dragPosition : schematicPosition(item);
+          const movingGroup=engineering&&dragPosition?.ids&&engineeringGroupIds(items,placement.portConnections,dragPosition.ids).has(item.id),base=schematicPosition(item),dragRoot=items.find(i=>i.id===dragPosition?.id);
+          const location = movingGroup&&dragRoot?{x:base.x+dragPosition.x-schematicPosition(dragRoot).x,y:base.y+dragPosition.y-schematicPosition(dragRoot).y}:dragPosition?.id === item.id ? dragPosition : base;
           const electrical = item.layer === 'electric';
           const displayWidth = electrical ? Math.max(item.width * 100, 36) : item.kind === 'connection-port' ? 4 : item.width * 100;
           const displayDepth = electrical ? Math.max(item.depth * 100, 36) : item.kind === 'connection-port' ? 4 : item.depth * 100;
-          return <g key={item.id} data-placement-id={item.id} transform={`translate(${location.x * 100} ${location.y * 100}) rotate(${engineering?engineeringPlanRotation(item,wallFaces.find(w=>w.ref===item.wallRef)):item.rotation||0})`} className={`placement-object ${item.kind==='connection-port'?'engineering-plan-port':''} ${selectedId === item.id ? 'selected' : ''}`} data-port-visible={engineering&&(networkPicking||selectedId===item.id||selectedId===item.linkedApplianceId)?'true':undefined} onPointerDown={event => beginDrag(event, item)} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } pickCanvasItem(item); }}>
+          return <g key={item.id} data-placement-id={item.id} transform={`translate(${location.x * 100} ${location.y * 100}) rotate(${engineering?engineeringPlanRotation(item,wallFaces.find(w=>w.ref===item.wallRef)):item.rotation||0})`} className={`placement-object ${item.kind==='connection-port'?'engineering-plan-port':''} ${selectedId === item.id||engineering&&planGroup.includes(item.id) ? 'selected' : ''}`} data-port-visible={engineering&&(networkPicking||selectedId===item.id||selectedId===item.linkedApplianceId)?'true':undefined} onPointerDown={event => beginDrag(event, item)} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } pickCanvasItem(item); }}>
             {(drawingRoute && electrical || assigningCircuit && electrical || networkPicking && item.layer === layer && !activePreset && !engineering) ? <circle r="23" fill="none" stroke={item.id === routeStartId || item.id === networkFromId ? '#e15f22' : item.id === networkToId ? '#a65bb6' : '#30a56e'} strokeWidth="2" strokeDasharray="4 3" pointerEvents="none"/> : null}
             {item.surface === 'facade' ? <line x1={(item.anchorX - location.x) * 100} y1={(item.anchorY - location.y) * 100} x2="0" y2="0" stroke="#4a9e94" strokeWidth="3" strokeDasharray="4 3" pointerEvents="none"/> : null}
             <rect x={-displayWidth / 2} y={-displayDepth / 2} width={displayWidth} height={displayDepth} fill="transparent" stroke="none"/>

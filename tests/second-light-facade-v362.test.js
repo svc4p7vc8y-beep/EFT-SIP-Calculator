@@ -23,7 +23,8 @@ function fixture(type='cold'){
 function prepared(type='cold'){
   const p=fixture(type),c=calculateProject(p),r=calculateProductionCutting(p,c);
   const wall=r.surfaces.find(s=>s.exterior&&r.surfaces.some(g=>g.parentWallId===s.id)),e=facadeEnvelope(r,wall.id),f=createFacade(e);
-  Object.assign(f,{nodeRef:'КР-1: проект соединений',foundationRef:'Ф-1: стойки → ростверк → сваи'});
+  // Preserve the v362 design as an explicit saved configuration. New v369 templates use the wall plate datum.
+  Object.assign(f,{autoClip:false,transomMm:Math.round(e.wall.height*.68),headInsetMm:400,nodeRef:'КР-1: проект соединений',foundationRef:'Ф-1: стойки → ростверк → сваи'});
   return {p,c,r,e,f};
 }
 test('second-light side wall fills only open-room ceiling band; quantity and cutting agree',()=>{
