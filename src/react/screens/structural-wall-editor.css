@@ -10,3 +10,4 @@
 .structural-workspace>aside{max-height:76dvh;overflow:auto;overscroll-behavior:contain;padding-right:4px}@media(max-width:650px){.structural-workspace>aside{max-height:60dvh}}
 
 .structural-tool-rail{overflow-x:hidden}.structural-tool-rail span{max-width:100%;overflow-wrap:anywhere;line-height:1.15}
+.structural-workspace main>svg path[stroke="#318fbd"],.structural-workspace main>svg path[stroke="#d57b14"]{vector-effect:non-scaling-stroke;stroke-width:1.25;stroke-dasharray:6 4}
