@@ -1,3 +1,4 @@
+import ProjectTabScroller from '../components/ProjectTabScroller.jsx';
 import AppChromeMetrics from '../components/AppChromeMetrics.jsx';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -724,7 +725,7 @@ export function App() {
       </header>
       <div className="project-tabbar no-print" role="tablist" aria-label="Открытые проекты">
         <span className="project-tabbar-label">ПРОЕКТЫ</span>
-        <div className="project-tabbar-scroll">
+        <ProjectTabScroller activeId={activeTabId}>
           {tabs.map((tab) => <div key={tab.id} className={`project-tab ${tab.id === activeTabId ? 'active' : ''}`}>
             <button role="tab" aria-selected={tab.id === activeTabId} className="project-tab-select" onClick={() => switchProjectTab(tab.id)} title={tab.serverName || tab.meta?.projectName || tab.meta?.customer || `Проект № ${tab.meta?.projectNum || '—'}`}>
               <ProjectSchemePreview plan={tab.plan} compact label={`Схема проекта № ${tab.meta?.projectNum || '—'}`} />
@@ -733,7 +734,7 @@ export function App() {
             </button>
             {tabs.length > 1 ? <button className="project-tab-close" onClick={() => closeProjectTab(tab.id)} aria-label={`Закрыть вкладку ${tab.serverName || tab.meta?.projectNum || ''}`}><X /></button> : null}
           </div>)}
-        </div>
+        </ProjectTabScroller>
         <button className="project-tab-add" onClick={newProject} title="Новый проект в отдельной вкладке" aria-label="Новая вкладка проекта"><Plus /><span>Новый проект</span></button>
         {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
       </div>

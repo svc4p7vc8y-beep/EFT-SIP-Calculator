@@ -1,0 +1,10 @@
+import {useEffect,useRef,useState} from 'react';
+import {ChevronLeft,ChevronRight} from 'lucide-react';
+export default function ProjectTabScroller({children,activeId}){
+ const ref=useRef(null),drag=useRef(null),suppress=useRef(false),[ends,setEnds]=useState({left:false,right:false});
+ const update=()=>{const el=ref.current;if(el)setEnds({left:el.scrollLeft>1,right:el.scrollLeft+el.clientWidth<el.scrollWidth-1});};
+ useEffect(()=>{const el=ref.current;if(!el)return;const observer=new ResizeObserver(update);observer.observe(el);for(const child of el.children)observer.observe(child);update();return()=>observer.disconnect();},[children]);
+ useEffect(()=>{ref.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});update();},[activeId]);
+ const scroll=direction=>{const el=ref.current;if(el)el.scrollBy({left:direction*Math.max(160,el.clientWidth*.7),behavior:'smooth'});};
+ return <><button type="button" className="project-tab-scroll-arrow" aria-label="Прокрутить проекты влево" disabled={!ends.left} onClick={()=>scroll(-1)}><ChevronLeft size={17}/></button><div ref={ref} className="project-tabbar-scroll" onScroll={update} onWheel={e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)&&ref.current?.scrollWidth>ref.current?.clientWidth){ref.current.scrollLeft+=e.deltaY;}}} onPointerDown={e=>{if(e.pointerType==='touch'||e.button!==0||e.target.closest('.project-tab-close'))return;drag.current={x:e.clientX,left:ref.current.scrollLeft,id:e.pointerId};}} onPointerMove={e=>{const d=drag.current;if(!d||d.id!==e.pointerId)return;const dx=e.clientX-d.x;if(Math.abs(dx)>5){suppress.current=true;ref.current.setPointerCapture(e.pointerId);ref.current.scrollLeft=d.left-dx;}}} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;suppress.current=false;}} onClickCapture={e=>{if(suppress.current){e.preventDefault();e.stopPropagation();suppress.current=false;}}}>{children}</div><button type="button" className="project-tab-scroll-arrow" aria-label="Прокрутить проекты вправо" disabled={!ends.right} onClick={()=>scroll(1)}><ChevronRight size={17}/></button></>;
+}

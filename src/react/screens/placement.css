@@ -625,3 +625,5 @@
 .engineering-outlet-settings small{color:#5c6f60;line-height:1.4}
 .engineering-alignment-guide{pointer-events:none;stroke:#459c79;stroke-width:1;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}
 .engineering-alignment-target{pointer-events:none;stroke:#43a46f;stroke-width:7;opacity:.25;fill:none}
+
+.engineering-port-handle{pointer-events:none;filter:drop-shadow(0 0 2px #ffffff)}.engineering-port-handle.is-snapped{stroke:#16834d;filter:drop-shadow(0 0 4px #42c67d)}

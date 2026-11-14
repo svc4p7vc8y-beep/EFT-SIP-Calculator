@@ -1,3 +1,4 @@
+import {saveOutletPosition} from '../state/engineering-move-group.js';
 import EngineeringOutletSettings from './EngineeringOutletSettings.jsx';
 import {engineeringHistoryAction} from '../state/engineering-outlets.js';
 import EngineeringPipePicker from './EngineeringPipePicker.jsx';
@@ -388,15 +389,16 @@ export default function PlacementScreen({ onNavigate }) {
   const updateItem = patch => {
     if (!selected) return;
     change(data => { const item = data.items.find(candidate => candidate.id === selected.id); if (item) {
+      if(engineering&&['x','y','height'].some(key=>Object.hasOwn(patch,key)))moveAndJoinWallItem(data,item.id,{x:item.x,y:item.y,height:item.height||0,...patch},wallFaces.find(w=>w.ref===item.wallRef));
       const priorCircuit = item.circuitId;
       const previousHeight = item.height || 0;
       Object.assign(item, patch, Object.hasOwn(patch, 'height') ? { heightKnown: true } : {});
-      if (Object.hasOwn(patch, 'height')) data.items.filter(port => port.linkedApplianceId === item.id && port.followsAppliance).forEach(port => { port.height = round((port.height || 0) + item.height - previousHeight); port.heightKnown = true; });
+      if (!engineering&&Object.hasOwn(patch, 'height')) data.items.filter(port => port.linkedApplianceId === item.id && port.followsAppliance).forEach(port => { port.height = round((port.height || 0) + item.height - previousHeight); port.heightKnown = true; });
       if (item.kind === 'two-way-switch' && Object.hasOwn(patch, 'controlsItemId')) {
         const pair = data.items.find(entry => entry.id === item.pairedSwitchId && entry.pairedSwitchId === item.id);
         if (pair) pair.controlsItemId = item.controlsItemId;
       }
-      if (Object.hasOwn(patch, 'x') || Object.hasOwn(patch, 'y')) {
+      if (!engineering&&(Object.hasOwn(patch, 'x') || Object.hasOwn(patch, 'y'))) {
         data.items.filter(entry => entry.linkedApplianceId === item.id && entry.followsAppliance).forEach(linked => Object.assign(linked, { x: round(linked.x + item.x - selected.x), y: round(linked.y + item.y - selected.y) }));
         if (item.linkedApplianceId) item.followsAppliance = false;
       }
@@ -404,6 +406,7 @@ export default function PlacementScreen({ onNavigate }) {
         const near = wallFaces.map(face => ({ face, distance: projectToWallFace(face, item)?.distance ?? Infinity })).sort((a, b) => a.distance - b.distance)[0];
         item.wallRef = near?.distance < .35 ? near.face.ref : '';
       }
+      if(engineering&&item.kind==='connection-port')saveOutletPosition(data.items,item,wallFaces.find(w=>w.ref===item.wallRef));
       if(engineering&&item.kind!=='connection-port')refreshDeviceOutlets(data.items,item.id,wallFaces.find(w=>w.ref===item.wallRef));
       if (['circuitId', 'controlsItemId', 'junctionItemId', 'pairedSwitchId'].some(key => Object.hasOwn(patch, key))) {
         rebuildAutoRoutes(data, priorCircuit); if (item.circuitId !== priorCircuit) rebuildAutoRoutes(data, item.circuitId);
@@ -1516,7 +1519,7 @@ export default function PlacementScreen({ onNavigate }) {
       {engineering && engineeringView === 'walls' && <Suspense fallback={<p>Загрузка стен комнаты…</p>}><EngineeringWallEditor connections={placement.portConnections||[]} canRotate={Boolean(selectedId||activePreset)} onRotate={rotateEngineeringSelection} controlsHost={wallControlsHost} layers={layerToolbar} onUndo={undo} hasSelection={Boolean(selectedId||selectedNetworkRouteId)} onRemove={()=>{if(selectedNetworkRouteId){change(data=>{data.networks[layer]=data.networks[layer].filter(r=>r.id!==selectedNetworkRouteId);});setSelectedNetworkRouteId(null);}else deleteSelection();}} onCreateJunction={(at,wallRef,medium)=>{if(linesLocked)return null;const id=createId(),wall=wallFaces.find(w=>w.ref===wallRef),offset=(wallProfile.clearanceMm??30)/1000;const node={id,kind:'pipe-junction',label:'Начало трубы',floor:activeFloor,layer,x:at.x+(wall?.normal.x||0)*offset,y:at.y+(wall?.normal.y||0)*offset,height:at.z,heightKnown:true,wallRef,width:.04,depth:.04,rotation:0,connectionMedium:medium};change(data=>data.items.push(node));return node;}} plan={plan} walls={wallFaces} rooms={rooms} roomId={selectedRoomId} onRoom={id=>{setSelectedRoomId(id);setSelectedWallRef('');}} items={items.filter(i=>ENGINEERING_SYSTEMS.includes(i.layer)||i.layer==='equipment'||CONNECTION_PORTS[i.kind])} routes={networkRoutes.filter(r=>ENGINEERING_SYSTEMS.includes(r.system))} visible={visible}
         system={layer} medium={networkMedium} onMedium={setNetworkMedium} profile={wallProfile} onProfile={updateWallProfile} wallRef={selectedWallRef} onWall={setSelectedWallRef}
         mode={wallMode} onMode={setWallMode} activePreset={activePreset} onClearTool={clearWallTool} selectedId={selectedId} locked={elementsLocked} linesLocked={linesLocked}
-        onSelect={(item,route)=>{if(item){setSelectedId(item.kind==='connection-port'?(item.linkedApplianceId||item.id):item.id);setPresetId(null);setSelectedNetworkRouteId(null);}else{setSelectedId(null);if(!route)setSelectedNetworkRouteId(null);}if(route){setSelectedNetworkRouteId(route.id);setLayer(route.system);setSidebarTab('groups');}}}
+        onSelect={(item,route)=>{if(item){setSelectedId(item.id);setPresetId(null);setSelectedNetworkRouteId(null);}else{setSelectedId(null);if(!route)setSelectedNetworkRouteId(null);}if(route){setSelectedNetworkRouteId(route.id);setLayer(route.system);setSidebarTab('groups');}}}
         onPlace={placeWallNode} onMoveItem={(id,at,wallRef)=>{if(elementsLocked)return;const wall=wallFaces.find(w=>w.ref===wallRef),item=items.find(i=>i.id===id),offset=(item?.wallClearanceMm??(wall&&item?projectToWallFace(wall,item).distance*1000:0))/1000;change(data=>moveAndJoinWallItem(data,id,{x:at.x+(wall?.normal.x||0)*offset,y:at.y+(wall?.normal.y||0)*offset,height:at.z,wallRef,displayPlane:'wall'},wall));setSelectedId(id);}}
         onConnect={connectWallNodes} onInsert={spliceWallPipe} onMaterialize={materializeWallPoint} onSaveDraft={saveWallDraft}
         defaults={placement.engineeringDefaults?.[layer+'-'+activeFloor]} onBasic={options=>{setSelectedWallRef(options.wallRef);change(data=>addBasicEngineeringScheme(data,plan,layer,activeFloor,options,createId));}}/></Suspense>}

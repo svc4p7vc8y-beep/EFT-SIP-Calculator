@@ -23,7 +23,7 @@ export function outletAnchor(item,index,total,definition={}) {
  if(!anchors&&INLINE_FITTING_KINDS.has(item.kind))anchors=[at(0,.5,'left'),at(1,.5,'right'),at(.5,0,'top')];
  const base=anchors?.[index]||at(definition.side==='left'?0:definition.side==='right'?1:.5,definition.side==='top'?0:definition.side==='bottom'?1:.5,definition.side||'bottom');
  const override=item.portLayout?.[index];
- return override?{...base,...override,x:Math.max(0,Math.min(1,Number(override.x??base.x))),y:Math.max(0,Math.min(1,Number(override.y??base.y)))}:base;
+ return override?{...base,...override,x:Number.isFinite(Number(override.x))?Number(override.x):base.x,y:Number.isFinite(Number(override.y))?Number(override.y):base.y}:base;
 }
 
 export function engineeringHistoryAction(event) {
