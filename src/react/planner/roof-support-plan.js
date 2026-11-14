@@ -36,10 +36,28 @@ export function movePlanRoofGroup(items,groupId,dx,dy,roofModel=null) {
   if(!group)throw new Error('Прогон не найден.');
   const ids=new Set(group.members.map(item=>item.id));
   const low=Math.min(...group.members.flatMap(item=>[Number(item.z1),Number(item.z2)])),mx=Math.round(dx*1000),my=Math.round(dy*1000);
-  const delta=(x,y,z)=>{
-    if(!roofModel||Math.abs(z-low)<1)return 0;
+  const delta=(x,y,z,follow=false)=>{
+    if(!roofModel||!follow&&Math.abs(z-low)<1)return 0;
     const old=roofAt(roofModel,x,y),next=roofAt(roofModel,x+mx,y+my);
+    if(follow&&!next.length)throw new Error('Прогон должен оставаться под кровлей.');
     return old.length&&next.length?Math.round(Math.max(...next.map(hit=>hit.z))-Math.max(...old.map(hit=>hit.z))):0;
   };
-  return items.map(item=>ids.has(item.id)?{...item,x1:Number(item.x1)+mx,y1:Number(item.y1)+my,z1:Number(item.z1)+(item.type==='post'||item.type==='sleeper'||(item.frameGroup&&item.flat&&item.type==='beam')?0:delta(Number(item.x1),Number(item.y1),Number(item.z1))),x2:Number(item.x2)+mx,y2:Number(item.y2)+my,z2:Number(item.z2)+(item.type==='sleeper'||(item.frameGroup&&item.flat&&item.type==='beam')?0:delta(Number(item.x2),Number(item.y2),Number(item.z2))),autoLocked:true}:item);
+  return items.map(item=>ids.has(item.id)?{...item,x1:Number(item.x1)+mx,y1:Number(item.y1)+my,z1:Number(item.z1)+(item.type==='post'||item.type==='sleeper'||(item.frameGroup&&item.flat&&item.type==='beam')?0:delta(Number(item.x1),Number(item.y1),Number(item.z1),item.planEndpointEditable===true)),x2:Number(item.x2)+mx,y2:Number(item.y2)+my,z2:Number(item.z2)+(item.type==='sleeper'||(item.frameGroup&&item.flat&&item.type==='beam')?0:delta(Number(item.x2),Number(item.y2),Number(item.z2),item.planEndpointEditable===true)),autoLocked:true}:item);
+}
+// A manually drawn purlin uses the existing roof planes and purchasing rules.
+export function drawPlanRoofPurlin(project,roofModel,a,b){
+ const mm=p=>[Math.round(p.x*1000),Math.round(p.y*1000)],A=mm(a),B=mm(b);
+ if(Math.hypot(A[0]-B[0],A[1]-B[1])<300)throw new Error('Минимальная длина прогона — 300 мм.');
+ const z=p=>{const hits=roofAt(roofModel,...p);if(!hits.length)throw new Error('Конец прогона должен находиться под кровлей.');return Math.round(Math.max(...hits.map(h=>h.z)));};
+ const config=project.settings.productionCutting.autoRoofSupports,id=`manual-purlin-${crypto.randomUUID()}`;
+ if(project.settings.productionCutting.roofSupports.length>=200)throw new Error('Достигнут лимит 200 опор.');
+ return {id,planGroupId:id,planEndpointEditable:true,planName:'Прогон',name:'Ручной прогон',type:'purlin',profile:config.purlinProfile,x1:A[0],y1:A[1],z1:z(A),x2:B[0],y2:B[1],z2:z(B),nodeRef:config.nodeRef||'',startSupport:'',endSupport:'',estimateEnabled:true,estimateCatalogId:config.purlinCatalogId||'',autoLocked:true};
+}
+export function resizePlanRoofPurlin(items,id,index,point,roofModel){
+ const group=roofSupportPlanGroups(items).find(g=>g.id===id),member=group?.members[0];
+ if(group?.members.length!==1||!member.planEndpointEditable)throw new Error('Концы опорной рамы редактируются в её развёртке.');
+ const suffix=index===0?'1':'2',other=index===0?'2':'1',x=Math.round(point.x*1000),y=Math.round(point.y*1000);
+ if(Math.hypot(x-member['x'+other],y-member['y'+other])<300)throw new Error('Минимальная длина прогона — 300 мм.');
+ const hits=roofAt(roofModel,x,y);if(!hits.length)throw new Error('Конец прогона должен находиться под кровлей.');
+ return items.map(i=>i.id===member.id?{...i,['x'+suffix]:x,['y'+suffix]:y,['z'+suffix]:Math.round(Math.max(...hits.map(h=>h.z)))}:i);
 }

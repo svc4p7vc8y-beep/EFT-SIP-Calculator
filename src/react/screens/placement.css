@@ -636,3 +636,5 @@
  .engineering-wall-tools,.engineering-plan-tools,.placement-drawing-rail{min-height:0;overflow-y:auto;touch-action:pan-y;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
  .engineering-wall-tools{max-height:100%}
 }
+
+.engineering-wall-tools,.engineering-plan-tools{background:transparent!important;border-color:transparent}.engineering-wall-tools button,.engineering-plan-tools button{background:#ffffff99}.engineering-wall-layerbar .placement-layers{flex-wrap:nowrap;overflow-x:auto;touch-action:pan-x}.engineering-wall-annotation{cursor:move}.engineering-wall-annotation text{font-size:11px;fill:#284637;stroke:#fff;stroke-width:3px;paint-order:stroke}.engineering-user-guide{stroke:#258fc1;stroke-width:1.2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}.engineering-guide-edge{stroke:#258fc1;stroke-width:5;opacity:.4;cursor:crosshair}

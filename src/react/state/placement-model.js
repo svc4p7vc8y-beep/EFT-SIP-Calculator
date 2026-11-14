@@ -126,7 +126,8 @@ export const PLACEMENT_PRESETS = [
   preset('hydro-tank', 'Гидроаккумулятор', 'equipment', 'engineering', .55, .55, 'hydro-tank'),
   preset('expansion-tank', 'Расширительный бак', 'equipment', 'engineering', .45, .45, 'expansion-tank'),
   preset('heat-pump', 'Тепловой насос', 'equipment', 'engineering', .8, .65, 'heat-pump'),
-  preset('water-filter', 'Фильтр воды', 'equipment', 'engineering', .45, .35, 'water-filter'),
+  preset('water-filter', 'Фильтр воды · большая колба', 'equipment', 'engineering', .24, .24, 'water-filter', {bodyHeightM:.6}),
+  preset('water-filter-small', 'Фильтр воды · малая колба', 'plumbing', 'water-sources', .14, .14, 'water-filter', {bodyHeightM:.32}),
   preset('gas-stove', 'Газовая плита', 'appliance', 'kitchen-appliances', .6, .6, 'gas-stove'),
   preset('electric-stove', 'Электрическая плита', 'appliance', 'kitchen-appliances', .6, .6, 'electric-stove'),
   preset('double-socket', 'Двойная розетка', 'electric', 'electric-points', .28, .12, 'double-socket', { height: .3 }),
@@ -240,6 +241,7 @@ export function normalizePlacement(value,plans=[]) {
     },
     electricalRouteMode: ['automatic', 'manual'].includes(value.electricalRouteMode) ? value.electricalRouteMode : routes.some(route => route?.auto === false) ? 'manual' : 'automatic',
     defaultRouteSurface: value.defaultRouteSurface === 'floor' ? 'floor' : 'ceiling',
+    wallGuides:Array.isArray(value.wallGuides)?value.wallGuides.filter(g=>g&&typeof g.id==='string'&&typeof g.wallRef==='string'&&['station','height'].includes(g.axis)&&Number.isFinite(g.value)&&g.value>=0&&g.value<100).slice(0,300):[],
     showAutoDimensions: value.showAutoDimensions !== false,
     items: items.filter(item => item && typeof item.id === 'string' && validLayers.has(item.layer)).map(item => ({
       ...item,

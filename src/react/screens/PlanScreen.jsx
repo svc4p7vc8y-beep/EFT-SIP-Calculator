@@ -1,3 +1,5 @@
+import {drawPlanRoofPurlin,resizePlanRoofPurlin} from '../planner/roof-support-plan.js';
+import {canEditPlanObject,planLayerTools,editRoofLine} from '../planner/layer-tools.js';
 import WindowConstruction from '../components/WindowConstruction.jsx';
 import { overhangEdgeOverrides, hasSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import {roofPlanLines,snapRoofLineOffset,saveRoofLines} from '../planner/roof-lines.js';
@@ -6,8 +8,8 @@ import {PARTITION_BOARD_PROFILES,partitionProfileColor,partitionProfileLabel} fr
 import {resizeRoomFromExterior} from '../planner/resize-room.js';
 import {roofSupportPlanGroups,movePlanRoofGroup,removePlanRoofGroup} from '../planner/roof-support-plan.js';
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
-import AllLayersCheckbox from '../components/AllLayersCheckbox.jsx';
-import {planLayerVisibility,setAllPlanLayers} from '../planner/plan-layer-visibility.js';
+
+import {planLayerVisibility} from '../planner/plan-layer-visibility.js';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
@@ -210,6 +212,8 @@ const TOOLS = [
   ["wall", "Перегородка", BrickWall],
   ["bearingWall", "Доски / несущие", BrickWall],
   ["structuralFrame", "Каркас / развёртка", PanelsTopLeft],
+  ["framePost", "Стойка", BrickWall], ["frameWindow", "Окно", PanelsTopLeft], ["frameDoor", "Дверь", DoorOpen],
+  ["roofAxis", "Прогон", Ruler], ["roofAuto", "Авторасстановка", RotateCw],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
@@ -1530,6 +1534,7 @@ function PlanCanvas({
         axes.points.push(other);
       }
     }
+    for(const q of [...(visibleLayers.roof?roofAxes.flatMap(l=>[l.a,l.b]):[]),...(visibleLayers.roof?roofSupportGroups.flatMap(g=>[g.a,g.b]):[]),...(visibleLayers.piles?foundation.points||[]:[])].filter(q=>q&&Number.isFinite(q.x)&&Number.isFinite(q.y))){axes.points.push(q);axes.xs.push(q.x);axes.ys.push(q.y);}
     const matrix = svgRef.current?.getScreenCTM?.();
     const screenScale = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
     const resolved=snapPointDetails(raw, axes, planSnapTolerances(layout.scale, screenScale, event.pointerType === 'touch'));
@@ -1594,6 +1599,7 @@ function PlanCanvas({
       next[key] = (next[key] || []).filter((item) => item.id !== id);
     });
   const objectDown = (event, type, id, extra = {}) => {
+    if(!canEditPlanObject(activeLayer,type))return;
     if(event.button!==0)return;
     if (type === "floorOpening") {
       if (tool === "delete") {
@@ -1618,7 +1624,7 @@ function PlanCanvas({
       setSelected(null);
       return;
     }
-    if(tool==='select'&&['roofAxis','roofSupport'].includes(type)){event.stopPropagation();selectExisting({type,id});begin(event,{kind:'move',type,id});return;}
+    if(tool==='select'&&['roofAxis','roofSupport'].includes(type)){event.stopPropagation();selectExisting({type,id});begin(event,{kind:extra.kind||'move',type,id,index:extra.index});return;}
     if (tool !== "select") return;
     if(type==='room'&&plan.layoutMode==='walls'){
       event.stopPropagation();selectExisting({type,id});return;
@@ -2038,9 +2044,9 @@ function PlanCanvas({
       );
       }
     }else if(current.type==='roofAxis'){
-      onMoveRoofAxis?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y);
+      onMoveRoofAxis?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y,current.kind==='roofEndpoint'?current.index:undefined);
     } else if(current.type==='roofSupport'){
-      onMoveRoofSupport?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y);
+      onMoveRoofSupport?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y,current.kind==='roofEndpoint'?current.index:undefined,finalGesture.end);
     } else {
       const next = previewPlan(plan, finalGesture);
       if (JSON.stringify(next) !== JSON.stringify(plan)) {
@@ -2400,7 +2406,7 @@ function PlanCanvas({
                   </>
                 ) : null}
                 {foreground(<><PlanLabelLeader label={{x:room.labelX??bounds.x+bounds.w/2,y:room.labelY??bounds.y+bounds.h/2}} ring={points} p={p}/>
-                <g className={`room-label-object ${selected?.type === "roomLabel" && selected.id === room.id ? "selected" : ""}`} onPointerDown={(event) => objectDown(event, "roomLabel", room.id)}>
+                <g visibility={shownPlan.showLabels===false?"hidden":undefined} className={`room-label-object ${selected?.type === "roomLabel" && selected.id === room.id ? "selected" : ""}`} onPointerDown={(event) => objectDown(event, "roomLabel", room.id)}>
                   <rect className="room-label-hit" x={labelCenter.x - roomLabelHitWidth / 2} y={labelCenter.y - roomLabelHitHeight / 2} width={roomLabelHitWidth} height={roomLabelHitHeight} rx="7" />
                   <text className="room-name" style={{ fontSize: roomLabelNameSize }} x={labelCenter.x} y={labelCenter.y - fittedMetaSize * 1.7}>{room.name}</text>
                   <text className="room-dimensions" style={{ fontSize: fittedMetaSize }} x={labelCenter.x} y={labelCenter.y}>{dimensionsLabel}</text>
@@ -2428,7 +2434,7 @@ function PlanCanvas({
             );
           })
         : null}
-      {visibleLayers.plan ? (shownPlan.annotations || []).map(annotation => {
+      {visibleLayers.plan && shownPlan.showLabels!==false ? (shownPlan.annotations || []).map(annotation => {
         const label = p(annotation.x, annotation.y);
         const target = p(annotation.targetX, annotation.targetY);
         const selectedNow = selected?.type === "annotation" && selected.id === annotation.id;
@@ -2979,14 +2985,16 @@ function PlanCanvas({
         : null}
       {visibleLayers.roof?roofSupportGroups.map(group=>{
         const moved=gesture?.type==='roofSupport'&&gesture.id===group.id,dx=moved?gesture.end.x-gesture.start.x:0,dy=moved?gesture.end.y-gesture.start.y:0;
-        const a=p(group.a.x+dx,group.a.y+dy),b=p(group.b.x+dx,group.b.y+dy);
-        return <g key={group.id} className="planner-object" data-roof-support-group={group.id} onPointerDown={event=>objectDown(event,'roofSupport',group.id)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><line pointerEvents="none" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={selected?.type==='roofSupport'&&selected.id===group.id?'#a44cdd':'#4866bf'} strokeWidth="7" strokeDasharray="14 5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-10} fontSize="14" fill="#263e87" stroke="#fff" strokeWidth="3" paintOrder="stroke" pointerEvents="none">{group.name}</text></g>;
+        const endpoint=moved&&gesture.kind==='roofEndpoint'?gesture.index:undefined,a=p(group.a.x+(endpoint===1?0:dx),group.a.y+(endpoint===1?0:dy)),b=p(group.b.x+(endpoint===0?0:dx),group.b.y+(endpoint===0?0:dy));
+        return <g key={group.id} className="planner-object" data-roof-support-group={group.id} onPointerDown={event=>objectDown(event,'roofSupport',group.id)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><line pointerEvents="none" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={selected?.type==='roofSupport'&&selected.id===group.id?'#a44cdd':'#4866bf'} strokeWidth="7" strokeDasharray="14 5"/>{activeLayer==='roof'&&group.members.length===1&&group.members[0].planEndpointEditable?[a,b].map((q,index)=><circle key={index} role="button" aria-label={`Конец ${index+1} · ${group.name}`} cx={q.x} cy={q.y} r="8" fill="white" stroke="#4866bf" strokeWidth="2" onPointerDown={e=>objectDown(e,'roofSupport',group.id,{kind:'roofEndpoint',index})}/>):null}<text x={(a.x+b.x)/2} y={(a.y+b.y)/2-10} fontSize="14" fill="#263e87" stroke="#fff" strokeWidth="3" paintOrder="stroke" pointerEvents="none">{group.name}</text></g>;
       }):null}
       {visibleLayers.roof?roofAxes.map(axis=>{
-        const moving=gesture?.type==='roofAxis'&&gesture.id===axis.id,delta=moving?(axis.axis==='x'?gesture.end.y-gesture.start.y:gesture.end.x-gesture.start.x):0;
-        const snap=snapRoofLineOffset(axis.offset+delta,axis.span,roofAxes.filter(other=>other.id!==axis.id).map(other=>other.offset));
-        const shift=moving?snap.offset-axis.offset:0,a=p(axis.a.x+(axis.axis==='y'?shift:0),axis.a.y+(axis.axis==='x'?shift:0)),b=p(axis.b.x+(axis.axis==='y'?shift:0),axis.b.y+(axis.axis==='x'?shift:0));
-        return <g key={axis.id} data-roof-axis={axis.id} onPointerDown={event=>objectDown(event,'roofAxis',axis.id)}><title>{axis.name}: потяните линию или круг. Прилипание к середине и зеркальному положению.</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#335dbe" strokeWidth="5" strokeDasharray="12 5" pointerEvents="none"/><circle cx={(a.x+b.x)/2} cy={(a.y+b.y)/2} r="9" fill="#fff" stroke="#335dbe" strokeWidth="3"/><text x={(a.x+b.x)/2+14} y={(a.y+b.y)/2-12} fontSize="15" fill="#183c8e" stroke="#fff" strokeWidth="4" paintOrder="stroke" pointerEvents="none">{axis.name}{moving&&snap.hint?` · ${snap.hint}`:''}</text>{moving&&snap.hint?<line x1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).x} y1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).y} x2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).x} y2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).y} stroke="#db8d12" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/>:null}</g>;
+        const moving=gesture?.type==='roofAxis'&&gesture.id===axis.id,endpoint=moving&&gesture.kind==='roofEndpoint'?gesture.index:undefined;
+        const preview=moving?editRoofLine(axis,gesture.end.x-gesture.start.x,gesture.end.y-gesture.start.y,endpoint):axis;
+        const snap=snapRoofLineOffset(preview.offset,axis.span,roofAxes.filter(other=>other.id!==axis.id).map(other=>other.offset)),offset=moving&&endpoint===undefined?snap.offset:preview.offset;
+        const a=p(axis.axis==='x'?preview.start:offset,axis.axis==='x'?offset:preview.start),b=p(axis.axis==='x'?preview.end:offset,axis.axis==='x'?offset:preview.end);
+
+        return <g key={axis.id} data-roof-axis={axis.id} onPointerDown={event=>objectDown(event,'roofAxis',axis.id)}><title>{axis.name}: потяните линию или круг. Прилипание к середине и зеркальному положению.</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#335dbe" strokeWidth="5" strokeDasharray="12 5" pointerEvents="none"/>{activeLayer==='roof'&&[a,b].map((q,index)=><circle key={index} role="button" aria-label={`Конец ${index+1} · ${axis.name}`} cx={q.x} cy={q.y} r="8" fill="white" stroke="#335dbe" strokeWidth="2" onPointerDown={e=>objectDown(e,'roofAxis',axis.id,{kind:'roofEndpoint',index})}/>)}<circle cx={(a.x+b.x)/2} cy={(a.y+b.y)/2} r="9" fill="#fff" stroke="#335dbe" strokeWidth="3"/><text x={(a.x+b.x)/2+14} y={(a.y+b.y)/2-12} fontSize="15" fill="#183c8e" stroke="#fff" strokeWidth="4" paintOrder="stroke" pointerEvents="none">{axis.name}{moving&&snap.hint?` · ${snap.hint}`:''}</text>{moving&&snap.hint?<line x1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).x} y1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).y} x2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).x} y2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).y} stroke="#db8d12" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/>:null}</g>;
       }):null}
       {visibleLayers.plan?bearingEdges.filter(edge=>edge.profile).map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),color=partitionProfileColor(edge.profile);return <g key={`profile-${edge.key}`} pointerEvents="none"><title>{edge.name} · доска {partitionProfileLabel(edge.profile)}{edge.bearing?' · несущая':''}</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#fff" strokeWidth="9"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth="6"/>{edge.bearing?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#173b2c" strokeWidth="2" strokeDasharray="7 5"/>:null}</g>;}):null}
       {tool==='bearingWall'?bearingEdges.map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),chosen=bearingSelection.includes(edge.key),color=edge.profile?partitionProfileColor(edge.profile):edge.bearing?'#138447':'#5083b7';return <g key={edge.key} data-bearing-edge={edge.key} onPointerDown={event=>{event.preventDefault();event.stopPropagation();onPickBearing?.(edge.key);}}><title>{edge.name} · {edge.bearing?'несущая':'обычная'} · {edge.profile?`доска ${partitionProfileLabel(edge.profile)}`:'общая доска проекта'} · нажмите для выбора</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/>{chosen?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f3b31b" strokeWidth="11" pointerEvents="none"/>:null}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={chosen?6:4} strokeDasharray={edge.profile?undefined:'8 4'} pointerEvents="none"/></g>;}):null}
@@ -3076,7 +3084,7 @@ function PlanCanvas({
           {hoverSnap.snap.matchedY ? <line x1="0" y1={q.y} x2={VIEW.width} y2={q.y} /> : null}
         </g>;
       })() : null}
-      {hoverSnap?.snap && (tool !== "select" || gesture)
+      {hoverSnap?.snap
         ? (() => {
             const displayPoint = hoverSnap.snap.displayPoint || hoverSnap.point;
             const q = p(displayPoint.x, displayPoint.y);
@@ -3108,8 +3116,8 @@ function PlanCanvas({
         const q = p(issue.point.x, issue.point.y);
         return <circle key={`plan-issue-${i}`} cx={q.x} cy={q.y} r="10" stroke="#b91c1c" strokeWidth="3" fill="#fee2e2" fillOpacity=".5" pointerEvents="none"><title>{issue.message}</title></circle>;
       }) : null}
-      {visibleLayers.frame&&frameProject?<Suspense fallback={null}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame} selected={frameSelection} onSelect={onSelectFrame} onMessage={onFrameMessage}/></Suspense>:null}
-      <g ref={setLabelLayer} className="plan-label-foreground"/>
+      {visibleLayers.frame&&frameProject?<Suspense fallback={null}><g pointerEvents={activeLayer==='frame'?undefined:'none'}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame} selected={frameSelection} onSelect={onSelectFrame} onMessage={onFrameMessage}/></g></Suspense>:null}
+      <g ref={setLabelLayer} className="plan-label-foreground" visibility={shownPlan.showLabels===false?"hidden":undefined}/>
       {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={VIEW.height - 148} width="650" height="140">
         <div xmlns="http://www.w3.org/1999/xhtml" role="alert" className="plan-collision-warning" onPointerDown={event => event.stopPropagation()}>
           <strong>Пересечение элементов: {openingConflicts.length}</strong>
@@ -5202,6 +5210,14 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
   );
 }
 
+function RoofPlanSelectionInspector({selection,project,commit,roofAxes,calculation}){
+ const member=project.settings.productionCutting.roofSupports.find(s=>s.id===selection.id),line=roofAxes.find(l=>l.id===selection.id);
+ const update=patch=>commit(next=>{Object.assign(next.settings.productionCutting.roofSupports.find(s=>s.id===member.id),patch);return next;});
+ if(member)return <div className="inspector-form"><h3>{member.name||'Опора кровли'}</h3><label>Сечение, мм<input value={member.profile} onChange={e=>update({profile:e.target.value})}/></label><NumberField label="Отметка начала" suffix="мм" value={member.z1} min={0} onChange={z1=>update({z1})}/><NumberField label="Отметка конца" suffix="мм" value={member.z2} min={0} onChange={z2=>update({z2})}/><label>Рабочий узел<textarea value={member.nodeRef||''} onChange={e=>update({nodeRef:e.target.value})}/></label><p>Концы и положение перемещаются на плане. Проверьте опирание и соединения по рабочему проекту.</p></div>;
+ if(line){const change=patch=>commit(next=>saveRoofLines(next,calculation,roofAxes.map(l=>l.id===line.id?{...l,...patch}:l)));return <div className="inspector-form"><h3>{line.name}</h3><NumberField label="Начало прогона" suffix="м" value={line.start} min={0} max={line.end-.3} onChange={start=>change({start:Math.min(line.end-.3,Math.max(0,start))})}/><NumberField label="Конец прогона" suffix="м" value={line.end} min={line.start+.3} max={line.length} onChange={end=>change({end:Math.max(line.start+.3,Math.min(line.length,end))})}/><NumberField label="Отступ прогона" suffix="м" value={line.offset} min={.05} max={line.span-.05} onChange={offset=>change({offset:Math.max(.05,Math.min(line.span-.05,offset))})}/></div>;}
+ return <p>Опорная рама. Геометрия её деталей редактируется в разделе «Производство и раскрой».</p>;
+}
+
 export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
   const team = useTeam();
   const { project, activeTabId, openTab, attachLibrary, commit, undo, redo, canUndo, canRedo } = useProject();
@@ -5227,6 +5243,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     } catch { /* A stale or malformed navigation hint must not modify the plan. */ }
   },[]);
   const [frameWall,setFrameWall]=useState(null);
+  const [frameTool,setFrameTool]=useState("select");
   const [frameSelection,setFrameSelection]=useState(null);
   const [polygonDraft, setPolygonDraft] = useState([]);
   const [viewportZoom, setViewportZoom] = useState(() =>
@@ -5496,7 +5513,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     });
   }, [libraryPlans, libraryOpen, project]);
   const selectTool = (id) => {
-    if(id==='structuralFrame'){setFrameWall('');setTool('select');return;}
+    if(['structuralFrame','framePost','frameWindow','frameDoor'].includes(id)){setFrameTool({framePost:'post',frameWindow:'window',frameDoor:'door'}[id]||'select');setFrameWall('');setTool('select');return;}
+    if(id==='roofAuto'){commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;});setTool('select');return;}
     if (id === 'extension' && plan.existingBuilding) {
       setTransferStatus('Для нового дома у существующего угла используйте открытый контур. «Пристройка-комната» добавит площадь повторно.');
       return;
@@ -5529,7 +5547,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           next.showPiles = true;
         });
     } else if (id === "bindingLine") setActiveLayer("binding");
-    else if (id !== "select" && id !== "delete") {
+    else if(id==='roofAxis')setActiveLayer('roof');
+    else if (id !== "select" && id !== "delete" && id !== "guide") {
       setActiveLayer("plan");
       if (plan.showPlan === false)
         commitPlan((next) => {
@@ -5575,11 +5594,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       setTool("select");
       setPolygonDraft([]);
     }
-    if (id === "roof" && window.matchMedia("(max-width: 820px)").matches) {
-      window.requestAnimationFrame(() => {
-        inspectorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    }
+
   };
   const handleCreated = useCallback((selection) => {
     setSelected(selection);
@@ -6478,51 +6493,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         </div>
         <div className="plan-status-total" aria-live="polite"><span>Итого</span><strong>{formatMoney(projectCalculation.totals.total)}</strong></div>
         <button type="button" className="plan-status-fullscreen" aria-label={isPlanFullscreen ? 'Свернуть план' : 'План во весь экран'} aria-pressed={isPlanFullscreen} onClick={() => { if (!isPlanFullscreen && window.innerWidth <= 760) setShowFullscreenInspector(false); setIsPlanFullscreen((value) => !value); }}>{isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{isPlanFullscreen ? 'Свернуть' : 'Во весь экран'}</span></button>
-        <div className="plan-view-switches">
-          <Toggle
-            label="Сваи"
-            checked={plan.showPiles !== false}
-            onChange={(value) =>
-              commitPlan((next) => {
-                next.showPiles = value;
-              })
-            }
-          />
-          <Toggle
-            label="Обвязка"
-            checked={plan.showBinding !== false}
-            onChange={(value) =>
-              commitPlan((next) => {
-                next.showBinding = value;
-              })
-            }
-          />
-          <Toggle
-            label="Размеры"
-            checked={plan.showDimensions !== false}
-            onChange={(value) =>
-              commitPlan((next) => {
-                next.showDimensions = value;
-              })
-            }
-          />
-          <button
-            type="button"
-            className="roof-rotate-button"
-            onClick={() =>
-              commitRoof(
-                "ridgeAxis",
-                project.settings.roof.ridgeAxis === "y" ? "x" : "y",
-              )
-            }
-            title="Повернуть направление крыши на 90 градусов"
-          >
-            <RotateCw />
-            Крыша: {roofAxisLabel(project.settings.roof.ridgeAxis)}
-          </button>
-        </div>
+
       </div>
-      <div ref={plannerShellRef} style={{'--plan-inspector-width':`${inspectorWidth}px`,'--plan-model-width':`${modelWidth}px`}} className={`planner-shell${plan3DPlacement==='split'&&showPlan3D?' three-pane':''}${isPlanFullscreen ? " is-fullscreen" : ""}${isPlanFullscreen && !showFullscreenInspector ? " inspector-collapsed" : ""}`}>
+      <div ref={plannerShellRef} style={{'--plan-inspector-width':`${inspectorWidth}px`,'--plan-model-width':`${modelWidth}px`}} className={`planner-shell${plan3DPlacement==='split'&&showPlan3D?' three-pane':''}${isPlanFullscreen ? " is-fullscreen" : ""}${!showFullscreenInspector ? " inspector-collapsed" : ""}`}>
         <aside className="planner-tools">
           {TOOLS.filter(([id]) => id === "select").map(([id, label, Icon]) => (
             <div className="planner-tools-fixed" key={id}>
@@ -6538,7 +6511,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </div>
           ))}
           <div className="planner-tools-scroll">
-            {TOOLS.filter(([id]) => !["select", "delete"].includes(id)).map(
+            {TOOLS.filter(([id]) => !["select", "delete"].includes(id)&&planLayerTools(activeLayer).includes(id)).map(
               ([id, label, Icon]) => (
                 <button
                   key={id}
@@ -6570,7 +6543,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               </div>
             ) : null}
           </div>
-          {TOOLS.filter(([id]) => id === "delete").map(([id, label, Icon]) => (
+          {TOOLS.filter(([id]) => id === "delete"&&planLayerTools(activeLayer).includes(id)).map(([id, label, Icon]) => (
             <div className="planner-tools-fixed planner-tools-delete" key={id}>
               <button
                 className={tool === id ? "active" : ""}
@@ -6588,7 +6561,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         <div className="planner-canvas" ref={plannerCanvasRef}>
           <div className="plan-canvas-toolbars">
           <div className="plan-layer-tabs" role="group" aria-label="Слои проекта">
-            <AllLayersCheckbox compact label="Все слои плана" count={Object.values(visibleLayers).filter(Boolean).length} total={5} onChange={visible=>{commit(next=>setAllPlanLayers(next,activeFloor,visible));setActiveLayer('plan');setSelected(null);setFrameSelection(null);setTool('select');setPolygonDraft([]);}}/>
             {[
               ["piles", "Сваи", CircleDot],
               ["binding", "Обвязка", Layers3],
@@ -6620,6 +6592,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 </button>
               </div>
             ))}
+            {[["showDimensions","Размеры",Ruler],["showLabels","Подписи",MessageSquareText]].map(([field,label,Icon])=><div className="plan-layer-tab" key={field}><button type="button" className="layer-select" aria-label={`Переключить ${label}`} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}><Icon/><span>{label}</span></button><button type="button" className="layer-visibility" aria-label={`${plan[field]!==false?'Скрыть':'Показать'} ${label}`} aria-pressed={plan[field]!==false} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}>{plan[field]!==false?<Eye/>:<EyeOff/>}</button></div>)}
           </div>
           <div className="canvas-history-controls" role="toolbar" aria-label="Масштаб и действия плана">
             <button title="Отменить" onClick={undo} disabled={!canUndo}>
@@ -6628,36 +6601,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             <button title="Повторить" onClick={redo} disabled={!canRedo}>
               <Redo2 />
             </button>
-            <span className="canvas-control-divider" aria-hidden="true" />
-            <button
-              title="Уменьшить масштаб"
-              aria-label="Уменьшить масштаб"
-              onClick={() => setViewportZoom((zoom) => Math.max(35, zoom - 10))}
-            >
-              <ZoomOut />
-            </button>
-            <button
-              className="canvas-zoom-value"
-              title="Сбросить масштаб и положение"
-              aria-label={`Масштаб ${viewportZoom}%. Сбросить масштаб и положение`}
-              onClick={() => {
-                setViewportZoom(100);
-                setViewportPan({ x: 0, y: 0 });
-              }}
-            >
-              {viewportZoom}%
-            </button>
-            <button
-              title="Увеличить масштаб"
-              aria-label="Увеличить масштаб"
-              onClick={() => setViewportZoom((zoom) => Math.min(2000, zoom + 10))}
-            >
-              <ZoomIn />
-            </button>
-            <span className="canvas-control-divider" aria-hidden="true" />
-            <button title={showPlan3D ? 'Скрыть 3D-вид' : 'Показать 3D-вид'} aria-label={showPlan3D ? 'Скрыть 3D-вид' : 'Показать 3D-вид'} aria-pressed={showPlan3D} onClick={() => setShowPlan3D((value) => !value)}><Box /></button>
-            {isPlanFullscreen ? <button title={showFullscreenInspector ? 'Скрыть панель параметров' : 'Показать панель параметров'} aria-label={showFullscreenInspector ? 'Скрыть панель параметров' : 'Показать панель параметров'} aria-pressed={showFullscreenInspector} onClick={() => setShowFullscreenInspector((value) => !value)}><ListTree /></button> : null}
-            <span className="canvas-control-divider" aria-hidden="true" />
+            <button title={showFullscreenInspector?'Скрыть параметры':'Показать параметры'} aria-label={showFullscreenInspector?'Скрыть параметры':'Показать параметры'} onClick={()=>setShowFullscreenInspector(v=>!v)}><ListTree/></button>
             <button
               title={isPlanFullscreen ? "Свернуть поле плана" : "Развернуть поле плана на весь экран"}
               aria-label={isPlanFullscreen ? "Свернуть поле плана" : "Развернуть поле плана на весь экран"}
@@ -6668,29 +6612,31 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </button>
           </div>
           </div>
-          {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
 
-          {activeLayer==='roof'?<div className="roof-axis-controls" role="group" aria-label="Линии опор кровли"><button type="button" className={`button ${tool==='roofAxis'?'primary':'secondary'}`} disabled={!roofAxes.length&&!project.settings.productionCutting.roofPlanLines?.enabled} onClick={()=>{setTool('roofAxis');setSelected(null);}}>Нарисовать прогон</button><button type="button" className="button secondary" onClick={()=>{setTool('select');setSelected(null);}}>Двигать линии</button><button type="button" className="button secondary" onClick={()=>commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;})}>Авторасстановка</button><span>Синие линии — опорные рамы. Тяните круг на линии. Оранжевая ось — подсказка симметрии.</span>{!roofAxes.length?<span>Автолинии доступны для наслонной двускатной кровли; проектные опоры добавляются справа.</span>:null}{roofAxes.filter(line=>selected?.type==='roofAxis'&&selected.id===line.id).map(line=><button type="button" className="button secondary" key={line.id} aria-label={`Удалить ${line.name}`} onClick={()=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(item=>item.id!==line.id)))}>× {line.name}</button>)}</div>:null}
           <PlanCanvas windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
-            onDrawRoofAxis={(a,b)=>{
+            onDrawRoofAxis={async(a,b)=>{
               const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;
               const along=axis==='x'?'x':'y',across=axis==='x'?'y':'x',start=Math.max(0,Math.min(length,Math.min(a[along],b[along]))),end=Math.max(0,Math.min(length,Math.max(a[along],b[along])));
               if(end-start<.3||roofAxes.length>=24){setTransferStatus('Линия должна быть не короче 300 мм; максимум 24 линии.');return;}
               const offset=snapRoofLineOffset((a[across]+b[across])/2,span,roofAxes.map(line=>line.offset)).offset;
+              if(!roofAxes.length&&projectCalculation.roof.rafterStructure?.system!=='layered'){
+                try{const {calculateProductionCutting}=await import('../calculations/production-cutting.js');const report=calculateProductionCutting(project,projectCalculation),A=axis==='x'?{x:start,y:offset}:{x:offset,y:start},B=axis==='x'?{x:end,y:offset}:{x:offset,y:end},member=drawPlanRoofPurlin(project,report.assembly.roofModel,A,B);commit(next=>{next.settings.productionCutting.roofSupports.push(member);return next;});setTransferStatus(`Прогон ${member.profile} добавлен в каркас и ведомость. Проверьте опирание и рабочие узлы.`);}catch(e){setTransferStatus(e.message);}return;
+              }
               commit(next=>saveRoofLines(next,projectCalculation,[...roofAxes,{id:`roof-axis-${crypto.randomUUID()}`,offset,start,end}]));setTransferStatus('Линия добавлена. Рисуйте следующую или включите «Выбор» и тяните круг на линии.');
             }}
             onDeleteRoofAxis={id=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(line=>line.id!==id)))}
-            onMoveRoofAxis={(id,dx,dy)=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.map(line=>{
-              if(line.id!==id)return line;const delta=line.axis==='x'?dy:dx,along=line.axis==='x'?dx:dy,shift=Math.max(-line.start,Math.min(line.length-line.end,along));return {...line,offset:snapRoofLineOffset(line.offset+delta,line.span,roofAxes.filter(other=>other.id!==id).map(other=>other.offset)).offset,start:line.start+shift,end:line.end+shift};
+            onMoveRoofAxis={(id,dx,dy,endpoint)=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.map(line=>{
+              if(line.id!==id)return line;const moved=editRoofLine(line,dx,dy,endpoint);return endpoint===undefined?{...moved,offset:snapRoofLineOffset(moved.offset,line.span,roofAxes.filter(other=>other.id!==id).map(other=>other.offset)).offset}:moved;
             })))}
             bearingEdges={bearingChoices} bearingSelection={bearingSelection} onPickBearing={key=>{const keys=bearingByLine?collinearBearingKeys(bearingChoices,key):[key];setBearingSelection(old=>keys.every(k=>old.includes(k))?old.filter(k=>!keys.includes(k)):[...new Set([...old,...keys])]);}}
             roofSupportGroups={activeFloor===floorCount?roofSupportPlanGroups(project.settings.productionCutting.roofSupports):[]}
             onDeleteRoofSupport={id=>commit(next=>{next.settings.productionCutting.roofSupports=windowSupportHeaders(next,removePlanRoofGroup(next.settings.productionCutting.roofSupports,id)).items;return next;})}
-            onMoveRoofSupport={async(id,dx,dy)=>{
+            onMoveRoofSupport={async(id,dx,dy,endpoint,point)=>{
               try{
                 const {calculateProductionCutting}=await import('../calculations/production-cutting.js');
                 const report=calculateProductionCutting(project,projectCalculation);
+                if(endpoint!==undefined){commit(next=>{next.settings.productionCutting.roofSupports=resizePlanRoofPurlin(next.settings.productionCutting.roofSupports,id,endpoint,point,report.assembly.roofModel);return next;});return;}
                 const preview=structuredClone(project);preview.settings.productionCutting.windowSupportHeaders={...preview.settings.productionCutting.windowSupportHeaders,enabled:true};
                 if(windowSupportHeaders(preview,movePlanRoofGroup(preview.settings.productionCutting.roofSupports,id,dx,dy,report.assembly.roofModel)).items.length>200)throw new Error('Превышен лимит 200 деталей опор. Существующая схема сохранена.');
                 commit(next=>{next.settings.productionCutting.windowSupportHeaders={...next.settings.productionCutting.windowSupportHeaders,enabled:true};const moved=movePlanRoofGroup(next.settings.productionCutting.roofSupports,id,dx,dy,report.assembly.roofModel);next.settings.productionCutting.roofSupports=windowSupportHeaders(next,moved).items;return next;});
@@ -6821,7 +6767,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <NumberField label="Точная ширина" value={boundsOf(polygonDraft).h} suffix="м" min={0.1} step={0.01} onChange={(value) => resizeDraftContour("h", value)} />
               <button className="button primary" disabled={polygonDraft.length < 3} onClick={finishPolygon}><Save />Замкнуть контур</button>
             </div>
-          ) : selected?.type === "floorOpening" ? (
+          ) : ["roofSupport","roofAxis"].includes(selected?.type) ? (<RoofPlanSelectionInspector selection={selected} project={project} commit={commit} roofAxes={roofAxes} calculation={projectCalculation}/>) : selected?.type === "floorOpening" ? (
             <FloorOpeningInspector floorOpening={floorOpening} house={plan.house} commitFloorOpening={commitFloorOpening} setSelected={setSelected} />
           ) : activeLayer === "roof" && !selected ? (
             <RoofLayerInspector
@@ -6895,7 +6841,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           tone={issues.length ? "danger" : ""}
         />
       </div>
-      {frameWall!==null?createPortal(<Suspense fallback={<p>Загружаю каркас…</p>}><StructuralWallEditor key={`${activeFloor}:${frameWall}`} floor={activeFloor} wallId={frameWall} onClose={()=>setFrameWall(null)}/></Suspense>,document.body):null}
+      {frameWall!==null?createPortal(<Suspense fallback={<p>Загружаю каркас…</p>}><StructuralWallEditor key={`${activeFloor}:${frameWall}`} floor={activeFloor} wallId={frameWall} initialTool={frameTool} onClose={()=>setFrameWall(null)}/></Suspense>,document.body):null}
       {directEstimatePrint ? <Suspense fallback={null}><div className="plan-estimate-print-host"><EstimatePrintScreen directPrint onDirectPrintDone={finishEstimatePrint} /></div></Suspense> : null}
     </div>
   );

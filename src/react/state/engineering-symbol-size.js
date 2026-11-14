@@ -2,7 +2,7 @@
 export function engineeringSymbolSize(item){
  const width=Math.max(.025,Number(item.width)||.1);
  const kind=String(item.kind||'');
- const bodyHeight=Number(item.bodyHeightM)>0?Number(item.bodyHeightM):/boiler|water-heater/.test(kind)?.75:/radiator/.test(kind)?(Number(item.radiatorHeightMm)||600)/1000:/tank|expansion/.test(kind)?.5:/washer|dishwasher/.test(kind)?.85:/bathtub/.test(kind)?.6:/toilet/.test(kind)?.75:/sink|basin|vanity/.test(kind)?.3:/shower/.test(kind)?2:Number(item.depth)||width;
+ const bodyHeight=Number(item.bodyHeightM)>0?Number(item.bodyHeightM):kind==='water-filter-small'?.32:kind==='water-filter'?.6:/boiler|water-heater/.test(kind)?.75:/radiator/.test(kind)?(Number(item.radiatorHeightMm)||600)/1000:/tank|expansion/.test(kind)?.5:/washer|dishwasher/.test(kind)?.85:/bathtub/.test(kind)?.6:/toilet/.test(kind)?.75:/sink|basin|vanity/.test(kind)?.3:/shower/.test(kind)?2:Number(item.depth)||width;
  return {width:width*100,height:Math.max(.025,bodyHeight)*100};
 }
 

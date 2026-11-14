@@ -24,6 +24,7 @@ export const CONNECTION_PORTS = {
   'water-heater': waterPair,
   manifold: [port('plumbing', 'cold', 'Вход ХВС'), port('plumbing', 'hot', 'Выход ГВС')],
   pump: [{...port('plumbing', 'cold', 'Вход'),side:'left'}, {...port('plumbing', 'cold', 'Выход'),side:'right'}],
+  'water-filter-small': [port('plumbing', 'cold', 'Вход ХВС'), port('plumbing', 'cold', 'Выход ХВС')],
   'water-filter': [port('plumbing', 'cold', 'Вход ХВС'), port('plumbing', 'cold', 'Выход ХВС')],
   bathtub: [...waterPair, drain],
   'corner-bathtub': [...waterPair, drain],

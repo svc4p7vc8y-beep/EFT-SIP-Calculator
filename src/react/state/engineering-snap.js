@@ -5,6 +5,7 @@ import {engineeringElevationCenter} from './engineering-symbol-size.js';
 import {refreshDeviceOutlets} from './placement-connections.js';
 const pos=i=>({x:i.x,y:i.y,z:Number(i.height)||0});
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+const projectedPortDistance=(a,b,wall)=>{const ux=(wall.b.x-wall.a.x)/wall.length,uy=(wall.b.y-wall.a.y)/wall.length;return Math.abs((a.x-b.x)*wall.normal.x+(a.y-b.y)*wall.normal.y)>.5?Infinity:Math.hypot((a.x-b.x)*ux+(a.y-b.y)*uy,a.z-b.z);};
 export function compatiblePorts(a,b,items){
  if(!a||!b||a.kind!=='connection-port'||b.kind!=='connection-port'||a.floor!==b.floor||a.layer!==b.layer||a.wallRef!==b.wallRef||a.id===b.id||!a.connectionMedium||a.connectionMedium!==b.connectionMedium||a.linkedApplianceId&&a.linkedApplianceId===b.linkedApplianceId)return false;
  const adapter=[a,b].some(port=>/adapter|reducer/.test(items.find(i=>i.id===port.linkedApplianceId)?.kind||''));
@@ -31,7 +32,7 @@ export function wallConnectionSnap(items,id,patch,wall,tolerance=.10,connections
  let best=null;
  for(const a of own){if(a.floor!==item.floor||occupied.has(a.id)&&connections.some(c=>(c.fromId===a.id||c.toId===a.id)&&ids.has(c.fromId)&&ids.has(c.toId)))continue;const moved={x:a.x+delta.x,y:a.y+delta.y,z:(a.height||0)+delta.z};for(const b of items){
   if(ids.has(b.id)||occupied.has(b.id)||b.floor!==item.floor||b.wallRef!==wall.ref||!compatiblePorts(a,b,items))continue;
-  const d=distance(moved,pos(b));if(d>tolerance||best&&d>=best.distance)continue;
+  const d=projectedPortDistance(moved,pos(b),wall);if(d>tolerance||best&&d>=best.distance)continue;
   const next={...patch,x:patch.x+b.x-moved.x,y:patch.y+b.y-moved.y,height:(patch.height??item.height??0)+(b.height||0)-moved.z};
   const station=((next.x-wall.a.x)*(wall.b.x-wall.a.x)+(next.y-wall.a.y)*(wall.b.y-wall.a.y))/wall.length;
   if(station<0||station>wall.length||next.height<0)continue;
@@ -43,7 +44,7 @@ export function nearbyWallPorts(items,id,patch,wall,tolerance=.16,connections=[]
  const moving=engineeringMoveIds(items,connections,id),delta={x:patch.x-item.x,y:patch.y-item.y,z:(patch.height??item.height??0)-(item.height||0)};
  const own=items.filter(p=>p.kind==='connection-port'&&moving.has(p.id)),near=new Set();
  for(const a of own)for(const b of items){if(b.kind!=='connection-port'||moving.has(b.id)||b.floor!==a.floor||b.wallRef!==wall.ref)continue;
-  if(distance({x:a.x+delta.x,y:a.y+delta.y,z:(a.height||0)+delta.z},pos(b))<=tolerance){near.add(a.id);near.add(b.id);}}
+  if(projectedPortDistance({x:a.x+delta.x,y:a.y+delta.y,z:(a.height||0)+delta.z},pos(b),wall)<=tolerance){near.add(a.id);near.add(b.id);}}
  return [...near];
 }
 export function moveAndJoinWallItem(data,id,patch,wall){
@@ -58,7 +59,7 @@ export function moveAndJoinWallItem(data,id,patch,wall){
  for(const member of data.items.filter(i=>moving.has(i.id))){member.x+=delta.x;member.y+=delta.y;member.height=(member.height||0)+delta.z;member.heightKnown=true;if(next.wallRef)member.wallRef=next.wallRef;}
  Object.assign(item,next);
  if(item.kind==='connection-port')saveOutletPosition(data.items,item,wall);
- if(snap){matchOutletSpecifications(data,snap.fromId,snap.toId);data.portConnections.push({fromId:snap.fromId,toId:snap.toId});}
+ if(snap){if(item.kind!=='connection-port')item.wallClearanceMm=Math.round(((item.x-wall.a.x)*wall.normal.x+(item.y-wall.a.y)*wall.normal.y)*1000);matchOutletSpecifications(data,snap.fromId,snap.toId);data.portConnections.push({fromId:snap.fromId,toId:snap.toId});}
  data.portConnections=normalizedPortConnections(data.portConnections,data.items);return snap;
 }
 export function rotateWallItem(data,id,wall){

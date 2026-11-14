@@ -2,7 +2,7 @@ import {INLINE_FITTING_KINDS,PIPE_COMPONENTS} from '../data/pipe-components.js';
 // Symbol connection coordinates (0..1), not manufacturer installation dimensions.
 const at=(x,y,side)=>({x,y,side});
 export function outletAnchor(item,index,total,definition={}) {
- const aliases={'heat-pump-point':'pump','water-heater-point':'water-heater','heat-source':'boiler','heating-hydro-tank':'expansion-tank','heat-expansion-tank':'expansion-tank','radiator-point':'radiator','heat-safety-group':'safety-group','water-inlet-filter':'water-filter','heat-filter':'water-filter','water-elbow':'elbow','heat-elbow':'elbow','sewer-elbow':'elbow','water-tee':'tee','heat-tee':'tee','sewer-tee':'tee','bathroom-sink':'basin','kitchen-sink':'sink','double-sink':'double-basin','washer-dryer':'washer','wall-toilet':'toilet','walk-in-shower':'shower'};
+ const aliases={'water-filter-small':'water-filter','heat-pump-point':'pump','water-heater-point':'water-heater','heat-source':'boiler','heating-hydro-tank':'expansion-tank','heat-expansion-tank':'expansion-tank','radiator-point':'radiator','heat-safety-group':'safety-group','water-inlet-filter':'water-filter','heat-filter':'water-filter','water-elbow':'elbow','heat-elbow':'elbow','sewer-elbow':'elbow','water-tee':'tee','heat-tee':'tee','sewer-tee':'tee','bathroom-sink':'basin','kitchen-sink':'sink','double-sink':'double-basin','washer-dryer':'washer','wall-toilet':'toilet','walk-in-shower':'shower'};
  const icon=PIPE_COMPONENTS.find(p=>p.id===item.kind)?.icon||aliases[item.kind]||item.kind;
  const pair=[at(.37,.96,'bottom'),at(.63,.96,'bottom')];
  let anchors;

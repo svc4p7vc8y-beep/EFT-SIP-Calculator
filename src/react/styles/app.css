@@ -7673,3 +7673,5 @@ select,
 @media (min-width:701px) and (pointer:coarse){
  .plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen),.plan-screen-v2 .planner-shell.three-pane:not(.is-fullscreen):has(.planner-inspector .room-summary),.plan-screen-v2 .planner-shell.three-pane.is-fullscreen:not(.inspector-collapsed){grid-template-columns:58px minmax(120px,min(26%,var(--plan-model-width))) 8px minmax(140px,1fr) 8px minmax(150px,min(29%,var(--plan-inspector-width)))!important}
 }
+
+.planner-tools{background:transparent!important;border-color:transparent!important;box-shadow:none!important}.planner-tools button{background:#ffffff99}.planner-tools-scroll{background:transparent}.planner-shell.inspector-collapsed:not(.three-pane){grid-template-columns:76px minmax(0,1fr)}.planner-shell.inspector-collapsed>.planner-inspector,.planner-shell.inspector-collapsed>.inspector-resizer{display:none}.planner-shell.three-pane.inspector-collapsed{grid-template-columns:76px var(--plan-model-width,320px) 8px minmax(0,1fr)}
