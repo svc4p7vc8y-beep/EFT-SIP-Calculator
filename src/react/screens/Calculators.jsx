@@ -610,6 +610,7 @@ function RoofConstructionPanels({
             }
             onChange={(value) => setSetting("roof", "rafterSection", value)}
             options={[
+              { value: "50x100", label: "50×100 мм" },
               { value: "50x150", label: "50×150 мм" },
               { value: "50x200", label: "50×200 мм" },
             ]}

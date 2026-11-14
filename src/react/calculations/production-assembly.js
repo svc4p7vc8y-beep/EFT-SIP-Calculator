@@ -153,8 +153,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     supports.push(support);
     if(item.type!=='foundation'&&!item.referenceOnly){
       if(!item.nodeRef.trim())issues.push(`${mark}: укажите рабочий узел.`);
-      const count=item.facadeId&&item.packagePricing!=='package'?Math.max(1,Math.min(8,Number(item.packageCount)||1)):1;
-      for(let board=0;board<count;board++)members.push({id:count>1?`${mark}-Д${board+1}`:mark,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',count>1?`${item.id}:board:${board+1}`:item.id)),material:ASSEMBLY_TYPES[item.type],profile:(item.facadeId&&item.packagePricing!=='package'?item.packageProfile||item.profile:item.profile).replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:item.facadeId?(item.packagePricing==='package'?'Фасад · готовый пакет':`Фасад · доска ${board+1} из ${count}`):'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
+      const count=(item.facadeId||item.frameWallId)&&item.packagePricing!=='package'?Math.max(1,Math.min(8,Number(item.packageCount)||1)):1;
+      for(let board=0;board<count;board++)members.push({id:count>1?`${mark}-Д${board+1}`:mark,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',count>1?`${item.id}:board:${board+1}`:item.id)),material:ASSEMBLY_TYPES[item.type],profile:((item.facadeId||item.frameWallId)&&item.packagePricing!=='package'?item.packageProfile||item.profile:item.profile).replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:item.facadeId?(item.packagePricing==='package'?'Фасад · готовый пакет':`Фасад · доска ${board+1} из ${count}`):'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
     }
   }
   const byId=new Map(supports.map(s=>[s.id,s]));

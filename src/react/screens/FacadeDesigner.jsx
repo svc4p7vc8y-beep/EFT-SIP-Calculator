@@ -11,9 +11,9 @@ const path=shape=>shape.map(poly=>poly.map(ring=>'M'+ring.map(p=>p.join(',')).jo
 const rub=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n);
 const field=(label,value,onChange,step=1)=><label>{label}<input type="number" step={step} value={value??''} onChange={e=>onChange(e.target.value===''?'':Number(e.target.value))}/></label>;
 
-export default function FacadeDesigner({onClose}){
+export default function FacadeDesigner({onClose,initialWallId='',initialFloor}){
   const {project,commit,undo,redo}=useProject();
-  const [floor,setFloor]=useState(Math.max(1,Number(project.meta.floors)||1)),[wallId,setWallId]=useState(''),[draft,setDraft]=useState(null),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[roomId,setRoomId]=useState(''),[tab,setTab]=useState('geometry');
+  const [floor,setFloor]=useState(initialFloor||Math.max(1,Number(project.meta.floors)||1)),[wallId,setWallId]=useState(initialWallId),[draft,setDraft]=useState(null),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[roomId,setRoomId]=useState(''),[tab,setTab]=useState('geometry');
   const drag=useRef(null),svg=useRef(null);
   const calculation=useMemo(()=>calculateProject(project),[project]);
   const report=useMemo(()=>calculateProductionCutting(project,calculation),[project,calculation]);

@@ -122,6 +122,8 @@ import {
 import { useProject } from "../state/ProjectContext.jsx";
 import { useTeam } from "../cloud/TeamContext.jsx";
 import { releasePlanLinkedQuantityOverrides } from "../state/estimate-edits.js";
+const StructuralPlanLayer=lazy(()=>import('./StructuralPlanLayer.jsx'));
+const StructuralWallEditor=lazy(()=>import('./StructuralWallEditor.jsx'));
 const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
@@ -1317,6 +1319,8 @@ function RoofPlanCaption({ plan, roof, p, model }) {
 }
 
 function PlanCanvas({
+  frameProject,
+  onOpenFrame,
   plan,
   minPanelWidthMm = 250,
   pileSettings,
@@ -2186,7 +2190,7 @@ function PlanCanvas({
   return (
     <svg
       ref={svgRef}
-      className={`plan-svg tool-${tool}${middlePanEnabled ? " viewport-pan-enabled" : ""}${isViewportPanning ? " is-viewport-panning" : ""}`}
+      className={`plan-svg${visibleLayers.frame?" structural-plan-active":""} tool-${tool}${middlePanEnabled ? " viewport-pan-enabled" : ""}${isViewportPanning ? " is-viewport-panning" : ""}`}
       viewBox={`0 0 ${VIEW.width} ${VIEW.height}`}
       role="img"
       aria-label="Редактор плана дома"
@@ -3092,6 +3096,7 @@ function PlanCanvas({
         const q = p(issue.point.x, issue.point.y);
         return <circle key={`plan-issue-${i}`} cx={q.x} cy={q.y} r="10" stroke="#b91c1c" strokeWidth="3" fill="#fee2e2" fillOpacity=".5" pointerEvents="none"><title>{issue.message}</title></circle>;
       }) : null}
+      {visibleLayers.frame&&frameProject?<Suspense fallback={null}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame}/></Suspense>:null}
       <g ref={setLabelLayer} className="plan-label-foreground"/>
       {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={VIEW.height - 148} width="650" height="140">
         <div xmlns="http://www.w3.org/1999/xhtml" role="alert" className="plan-collision-warning" onPointerDown={event => event.stopPropagation()}>
@@ -3293,6 +3298,7 @@ function RoofLayerInspector({ roof, commitRoof }) {
         value={roof.rafterSection || "50x150"}
         onChange={(value) => commitRoof("rafterSection", value)}
         options={[
+          { value: "50x100", label: "50 × 100 мм" },
           { value: "50x150", label: "50 × 150 мм" },
           { value: "50x200", label: "50 × 200 мм" },
         ]}
@@ -5207,6 +5213,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       else setSelected({type:'houseContour',id:'house'});
     } catch { /* A stale or malformed navigation hint must not modify the plan. */ }
   },[]);
+  const [frameWall,setFrameWall]=useState(null);
   const [polygonDraft, setPolygonDraft] = useState([]);
   const [viewportZoom, setViewportZoom] = useState(() =>
     Math.max(35, Math.min(2000, Number(project?.plan?.zoom) || 100)),
@@ -5297,6 +5304,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     binding: plan.showBinding !== false,
     plan: plan.showPlan !== false,
     roof: plan.showRoof === true,
+    frame: plan.showStructuralFrame === true,
   };
   const commitPlan = useCallback(
     (mutate) =>
@@ -5534,13 +5542,14 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       binding: "showBinding",
       plan: "showPlan",
       roof: "showRoof",
+      frame: "showStructuralFrame",
     }[id];
     commitPlan((next) => {
       next[field] = value;
     });
     if (value) setActiveLayer(id);
     else if (activeLayer === id) {
-      const fallback = ["plan", "roof", "binding", "piles"].find(
+      const fallback = ["plan", "frame", "roof", "binding", "piles"].find(
         (candidate) => candidate !== id && visibleLayers[candidate],
       );
       if (fallback) setActiveLayer(fallback);
@@ -6253,7 +6262,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+        <PlanCanvas frameProject={project} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6574,6 +6583,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               ["binding", "Обвязка", Layers3],
               ["plan", "План", Home],
               ["roof", "Крыша", RoofMarkIcon],
+              ["frame", "Силовой каркас", BrickWall],
             ].map(([id, label, Icon]) => (
               <div
                 key={id}
@@ -6647,8 +6657,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </button>
           </div>
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
+          {activeLayer==='frame'?<div className="roof-axis-controls"><button className="button primary" onClick={()=>setFrameWall('')}>Развёртка стены · каркас, окна и двери</button><span>Выберите стену на плане. Зелёные стойки — проектные опоры крыши.</span></div>:null}
           {activeLayer==='roof'?<div className="roof-axis-controls" role="group" aria-label="Линии опор кровли"><button type="button" className={`button ${tool==='roofAxis'?'primary':'secondary'}`} disabled={!roofAxes.length&&!project.settings.productionCutting.roofPlanLines?.enabled} onClick={()=>{setTool('roofAxis');setSelected(null);}}>Нарисовать прогон</button><button type="button" className="button secondary" onClick={()=>{setTool('select');setSelected(null);}}>Двигать линии</button><button type="button" className="button secondary" onClick={()=>commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;})}>Авторасстановка</button><span>Синие линии — опорные рамы. Тяните круг на линии. Оранжевая ось — подсказка симметрии.</span>{!roofAxes.length?<span>Автолинии доступны для наслонной двускатной кровли; проектные опоры добавляются справа.</span>:null}{roofAxes.filter(line=>selected?.type==='roofAxis'&&selected.id===line.id).map(line=><button type="button" className="button secondary" key={line.id} aria-label={`Удалить ${line.name}`} onClick={()=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(item=>item.id!==line.id)))}>× {line.name}</button>)}</div>:null}
-          <PlanCanvas minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+          <PlanCanvas frameProject={project} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={(a,b)=>{
               const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;
@@ -6872,6 +6883,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           tone={issues.length ? "danger" : ""}
         />
       </div>
+      {frameWall!==null?createPortal(<Suspense fallback={<p>Загружаю каркас…</p>}><StructuralWallEditor key={`${activeFloor}:${frameWall}`} floor={activeFloor} wallId={frameWall} onClose={()=>setFrameWall(null)}/></Suspense>,document.body):null}
       {directEstimatePrint ? <Suspense fallback={null}><div className="plan-estimate-print-host"><EstimatePrintScreen directPrint onDirectPrintDone={finishEstimatePrint} /></div></Suspense> : null}
     </div>
   );

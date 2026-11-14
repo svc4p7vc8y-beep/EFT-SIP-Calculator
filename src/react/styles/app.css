@@ -7639,3 +7639,6 @@ select,
  .plan-screen-v2 .planner-shell.three-pane .planner-inspector{grid-column:6;grid-row:1}
  .plan-screen-v2 .planner-shell.three-pane.is-fullscreen.inspector-collapsed{grid-template-columns:58px minmax(180px,28vw) 8px minmax(160px,1fr)!important;grid-template-rows:minmax(0,1fr)!important}
 }
+.plan-screen-v2 .plan-layer-tabs{touch-action:pan-x;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.plan-screen-v2 .plan-layer-tab{flex:none}
+.structural-plan-active .outer-wall,.structural-plan-active .partition-wall{opacity:.2}

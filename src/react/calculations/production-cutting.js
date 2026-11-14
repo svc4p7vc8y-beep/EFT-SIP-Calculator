@@ -4,6 +4,7 @@ import {facadeReservedShape,facadeEnvelope,facadeLayout} from './facade-design.j
 import {partitionTopFit} from './partition-top-fit.js';
 import {mixedPanelStock} from './mixed-panel-stock.js';
 import clipping from 'polygon-clipping';
+import {applyStructuralOffsets} from './structural-frame.js';
 import { refreshPartitionNotches } from './partition-geometry.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { bearingEdges, bearingForSegment, partitionProfileForSegment, splitAtBearingEdges, splitConnectorsAtBearing } from './bearing-walls.js';
@@ -1098,6 +1099,7 @@ export function calculateProductionCutting(project, calculation) {
     member.length=length;member.cutLength=Math.ceil(length+Math.max(0,endCutExtra))+2*Number(settings.endAllowanceMm||0);
     member.profile=override.profile?.trim()||member.profile;member.nodeRef=override.nodeRef||member.nodeRef||'';member.processing=override.processing||member.processing||'';member.excluded=override.exclude===true;
   }
+  applyStructuralOffsets(members,surfaces,settings,issue);
   refreshPartitionNotches(members);
   if(settings.roofDesign.enabled)for(const m of members){const face=assembly.roofModel.faces.find(f=>f.id===m.surfaceId);if(face&&!m.nodeRef)m.nodeRef=face.nodeRef||'';}
   if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');

@@ -221,8 +221,8 @@ function resolveRafterStructure(project, geometry, frameLength) {
     ? (geometry.wallSlopeLength || geometry.slopeLength) <= 7
       ? "50x150"
       : "50x200"
-    : roof.rafterSection === "50x200"
-      ? "50x200"
+    : ["50x100", "50x200"].includes(roof.rafterSection)
+      ? roof.rafterSection
       : "50x150";
   const boardWidth = 0.05;
   const module = step + boardWidth;
@@ -1486,7 +1486,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
     houseLength,
   );
   const rafterSection = rafterStructure.section;
-  const rafterDepth = rafterSection === "50x200" ? 0.2 : 0.15;
+  const rafterDepth = Number(rafterSection.split('x')[1]) / 1000;
   const riegelTopContour = houseContourPoints(project.upperFloors?.at(-1) || project.plan);
   const rectangularRoof = riegelTopContour.length === 4 && riegelTopContour.every((a, i) => {
     const b = riegelTopContour[(i + 1) % riegelTopContour.length];
@@ -1905,7 +1905,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
         makeLine(
           index,
           "roof",
-          rafterSection === "50x200"
+          rafterSection === "50x100" ? "Доска ест.влажн. сосна 50*100мм" : rafterSection === "50x200"
             ? "Доска ест. влажн. сосна 50х200мм"
             : "Доска ест. влажн. сосна 50х150мм",
           terraceRafterVolume,
@@ -2454,7 +2454,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
     makeLine(
       index,
       "roof",
-      rafterSection === "50x200"
+      rafterSection === "50x100" ? "Доска ест.влажн. сосна 50*100мм" : rafterSection === "50x200"
         ? "Доска ест. влажн. сосна 50х200мм"
         : "Доска ест. влажн. сосна 50х150мм",
       mainRafterVolume,

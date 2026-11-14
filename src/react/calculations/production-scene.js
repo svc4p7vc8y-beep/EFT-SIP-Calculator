@@ -50,7 +50,8 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const windowProducts=new Map((project.windowProducts||[]).filter(product=>product.openingId).map(product=>[product.openingId,product]));
   const windowPanels=report.surfaces.flatMap(surface=>{
     const wall=placements.get(surface.id);
-    if(!wall||surface.blocked||!['walls','partitions','gables'].includes(wall.layer))return [];
+    // Manufacturing blockers do not remove the designed opening from the model.
+    if(!wall||!['walls','partitions','gables'].includes(wall.layer))return [];
     const face={...wall,origin:wall.origin.map((value,index)=>value+wall.normal[index]*(Number(surface.thickness)/2+5))};
     return (surface.openings||[]).filter(opening=>!opening.gap&&(opening.type==='window'||opening.type==='door'&&surface.exterior&&project.services.openings!==false)).flatMap(opening=>{
       const x=Number(opening.x),y=Number(opening.sill),width=Number(opening.width),height=Number(opening.height),border=Math.min(45,width/8,height/8);
