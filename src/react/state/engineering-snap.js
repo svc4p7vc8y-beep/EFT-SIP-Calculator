@@ -12,7 +12,8 @@ export function compatiblePorts(a,b,items){
  if(!adapter&&Number(a.connectionDiameterMm)>0&&Number(b.connectionDiameterMm)>0&&Number(a.connectionDiameterMm)!==Number(b.connectionDiameterMm))return false;
  if(!adapter&&a.connectionThread&&b.connectionThread&&a.connectionThread!==b.connectionThread)return false;
  if(a.connectionGender&&b.connectionGender&&a.connectionGender===b.connectionGender)return false;
- if(Number.isFinite(a.connectorU)&&Number.isFinite(b.connectorU)&&a.connectorU*b.connectorU+a.connectorV*b.connectorV>-.75)return false;
+ // The endpoint is the attachment datum. Its drawn direction is adjustable on
+ // appliances and must not prevent coincident compatible outlets from joining.
  return true;
 }
 export function normalizedPortConnections(value,items){
@@ -36,6 +37,14 @@ export function wallConnectionSnap(items,id,patch,wall,tolerance=.10,connections
   if(station<0||station>wall.length||next.height<0)continue;
   best={fromId:a.id,toId:b.id,patch:next,distance:d};
  }}return best;
+}
+export function nearbyWallPorts(items,id,patch,wall,tolerance=.16,connections=[]){
+ const item=items.find(i=>i.id===id);if(!item||!wall)return [];
+ const moving=engineeringMoveIds(items,connections,id),delta={x:patch.x-item.x,y:patch.y-item.y,z:(patch.height??item.height??0)-(item.height||0)};
+ const own=items.filter(p=>p.kind==='connection-port'&&moving.has(p.id)),near=new Set();
+ for(const a of own)for(const b of items){if(b.kind!=='connection-port'||moving.has(b.id)||b.floor!==a.floor||b.wallRef!==wall.ref)continue;
+  if(distance({x:a.x+delta.x,y:a.y+delta.y,z:(a.height||0)+delta.z},pos(b))<=tolerance){near.add(a.id);near.add(b.id);}}
+ return [...near];
 }
 export function moveAndJoinWallItem(data,id,patch,wall){
  const item=data.items.find(i=>i.id===id);if(!item)return null;

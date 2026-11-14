@@ -13,8 +13,8 @@ const field=(label,value,onChange,step=1)=><label>{label}<input type="number" st
 
 export default function FacadeDesigner({onClose,initialWallId='',initialFloor}){
   const {project,commit,undo,redo}=useProject();
-  const [floor,setFloor]=useState(initialFloor||Math.max(1,Number(project.meta.floors)||1)),[wallId,setWallId]=useState(initialWallId),[draft,setDraft]=useState(null),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[roomId,setRoomId]=useState(''),[tab,setTab]=useState('geometry');
-  const drag=useRef(null),svg=useRef(null);
+  const [floor,setFloor]=useState(initialFloor||Math.max(1,Number(project.meta.floors)||1)),[wallId,setWallId]=useState(initialWallId),[draft,setDraft]=useState(null),[selected,setSelected]=useState(''),[message,setMessage]=useState(''),[roomId,setRoomId]=useState(''),[tab,setTab]=useState('geometry'),[drawPost,setDrawPost]=useState(false);
+  const drag=useRef(null),svg=useRef(null),drawnPost=useRef(false);
   const calculation=useMemo(()=>calculateProject(project),[project]);
   const report=useMemo(()=>calculateProductionCutting(project,calculation),[project,calculation]);
   const plan=floor===1?project.plan:project.upperFloors[floor-2];
@@ -87,11 +87,12 @@ export default function FacadeDesigner({onClose,initialWallId='',initialFloor}){
       </>}
     </aside>
     <main className="facade-canvas-panel"><div className="facade-caption"><b>{config?.name||'Развёртка стены и фронтона'}</b><span>{Math.round(width)} мм · вид со стороны начала стены</span></div>
-      <svg ref={svg} className="facade-canvas" viewBox={`${-pad} ${-height-pad} ${width+2*pad} ${height+2*pad}`} onPointerMove={onPointerMove} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}} aria-label="Развёртка фасада: перетаскивайте стойки">
+      {config?<div className="structural-drawing-tools"><button aria-pressed={drawPost} onClick={()=>setDrawPost(v=>!v)}>Нарисовать стойку фасада</button><span>Нажмите на развёртке, чтобы добавить ось. Стрелки ← → перемещают выбранную стойку.</span></div>:null}
+      <svg ref={svg} onClickCapture={e=>{if(drawnPost.current){drawnPost.current=false;e.stopPropagation();}}} tabIndex={0} onKeyDown={e=>{if(!config||!['ArrowLeft','ArrowRight'].includes(e.key))return;const index=config.posts.findIndex((_,i)=>(config.postRefs?.[i]||`post-${i}`)===selected);if(index<0)return;e.preventDefault();e.stopPropagation();patch({posts:config.posts.map((x,i)=>i===index?x+(e.key==='ArrowRight'?1:-1)*(e.shiftKey?100:10):x)});}} onPointerDown={e=>{if(!drawPost||!config||config.posts.length>=12)return;e.preventDefault();const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(svg.current.getScreenCTM().inverse()),key=`post-${crypto.randomUUID()}`;patch({posts:[...config.posts,Math.round(p.x/5)*5],postRefs:[...config.posts.map((_,i)=>config.postRefs?.[i]||`post-${i}`),key]});setSelected(key);setDrawPost(false);drawnPost.current=true;svg.current.focus();}} className="facade-canvas" viewBox={`${-pad} ${-height-pad} ${width+2*pad} ${height+2*pad}`} onPointerMove={onPointerMove} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}} aria-label="Развёртка фасада: перетаскивайте стойки">
         <g transform="scale(1,-1)">{envelope?<path d={path(envelope.shape)} fill="#f5f1e5" stroke="#96a08e" strokeWidth={width/800}/>:null}
         {layout?.windows.map(win=><g key={win.key} onClick={()=>setSelected(win.key)}><polygon points={win.outline.map(([x,y])=>`${x+win.x},${y+win.y}`).join(' ')} fill={selected===win.key?'#b5dedf':'#dcecef'} stroke="#628b96" strokeWidth={width/500}/><text x={win.x+win.width/2} y={-(win.y+Math.min(win.leftHeight,win.rightHeight)/2)} transform="scale(1,-1)" textAnchor="middle" fontSize={width/65} fill="#40616a">{Math.round(win.width)} × {Math.round(win.height)}</text></g>)}
         {members.map(member=><path key={member.key} d={path([member.shape])} fill={selected===member.key?'#94b96b':'#c8aa72'} stroke="#8a754c" strokeWidth={width/900} onClick={()=>setSelected(member.key)}/>)}
-        {config?.posts.map((x,i)=><circle key={i} cx={x} cy={-pad/3} r={width/100} fill="#5b872e" stroke="white" strokeWidth={width/1200} style={{cursor:'ew-resize'}} onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);drag.current={index:i};setSelected(config.postRefs?.[i]||`post-${i}`);}}><title>Переместить ось стойки {i+1}</title></circle>)}
+        {config?.posts.map((x,i)=><circle key={i} cx={x} cy={-pad/3} r={width/100} fill="#5b872e" stroke="white" strokeWidth={width/1200} style={{cursor:'ew-resize'}} onPointerDown={e=>{e.stopPropagation();svg.current.focus();e.currentTarget.setPointerCapture(e.pointerId);drag.current={index:i};setSelected(config.postRefs?.[i]||`post-${i}`);}}><title>Переместить ось стойки {i+1}</title></circle>)}
         {envelope?<line x1="0" y1={envelope.wall.baseHeight||envelope.wall.requestedHeight} x2={width} y2={envelope.wall.baseHeight||envelope.wall.requestedHeight} stroke="#99a893" strokeWidth={width/1000} strokeDasharray={`${width/100} ${width/140}`}/>:null}
         </g>
       </svg>

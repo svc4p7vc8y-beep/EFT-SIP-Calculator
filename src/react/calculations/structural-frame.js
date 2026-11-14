@@ -1,5 +1,6 @@
 import {boardFootprint} from './partition-geometry.js';
 import {houseContourPoints} from '../planner/geometry.js';
+import {applyFacade,facadeEnvelope} from './facade-design.js';
 
 export function wallPoint(wall,x,z=0){
   const length=Math.hypot(wall.planEnd[0]-wall.planStart[0],wall.planEnd[1]-wall.planStart[1])||1;
@@ -37,3 +38,24 @@ export function framePost(project,wall,{x,height,plies=2,width=50,depth=150,node
   return {id:`frame-post-${crypto.randomUUID()}`,frameWallId:wall.id,frameFloor:wall.floor,type:'post',name:`Стойка стены · ${plies} доски`,profile:`${width*plies}×${depth}`,packageCount:plies,packageProfile:`${width}×${depth}`,packagePricing:'board',x1:a[0],y1:a[1],z1:a[2],x2:b[0],y2:b[1],z2:b[2],nodeRef,foundationRef,estimateEnabled:true,estimateCatalogId:catalogId,startSupport:'',endSupport:''};
 }
 export {boardFootprint};
+
+export function moveFrameSelection(project,selection,delta,report){
+  if(!selection?.wall||!Number.isFinite(delta))return project;
+  const {wall}=selection;
+  if(selection.kind==='member'){
+    const key=selection.member.key,previous=project.settings.productionCutting.memberOverrides[key]||{};
+    project.settings.productionCutting.memberOverrides[key]={...previous,frameOffsetMm:(Number(previous.frameOffsetMm)||0)+delta};return project;
+  }
+  const post=project.settings.productionCutting.roofSupports.find(s=>s.id===selection.id);if(!post)return project;
+  if(post.facadeId){
+    const plan=wall.floor===1?project.plan:project.upperFloors[wall.floor-2],config=plan.facades?.find(f=>f.id===post.facadeId),index=config?.postRefs?.indexOf(post.facadeMemberKey);
+    if(!config||!(index>=0))throw new Error('Откройте конструктор фасада для изменения этой стойки.');
+    const changed={...config,posts:config.posts.map((x,i)=>i===index?x+delta:x)};
+    return applyFacade(project,changed,facadeEnvelope(report,wall.id));
+  }
+  const current=wallStation(wall,[post.x1,post.y1]),half=(Number(post.profile.split(/[×xх]/)[0])||50)/2;
+  if(current+delta<half||current+delta>wall.width-half)throw new Error('Стойка должна оставаться в пределах стены.');
+  const dx=(wall.planEnd[0]-wall.planStart[0])*delta/wall.width,dy=(wall.planEnd[1]-wall.planStart[1])*delta/wall.width;
+  for(const s of project.settings.productionCutting.roofSupports.filter(s=>s.id===post.id||s.id===post.id+'-foundation')){s.x1+=dx;s.x2+=dx;s.y1+=dy;s.y2+=dy;}
+  return project;
+}

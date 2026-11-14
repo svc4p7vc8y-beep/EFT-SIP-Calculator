@@ -9,6 +9,7 @@ const heatPair = [port('heating', 'supply', 'Подача'), port('heating', 're
 const drain = port('sewer', 'waste', 'Сток');
 
 export const CONNECTION_PORTS = {
+  'water-source': [{...port('plumbing','cold','Ввод воды'),side:'right'}],
   'hydro-tank': [{...port('plumbing', 'cold', 'Подключение ХВС'),side:'bottom'}],
   'expansion-tank': [port('heating', 'return', 'Подключение обратки')],
   'heat-pump': heatPair,
@@ -22,7 +23,7 @@ export const CONNECTION_PORTS = {
   'water-heater-point': waterPair,
   'water-heater': waterPair,
   manifold: [port('plumbing', 'cold', 'Вход ХВС'), port('plumbing', 'hot', 'Выход ГВС')],
-  pump: [port('plumbing', 'cold', 'Вход'), port('plumbing', 'cold', 'Выход')],
+  pump: [{...port('plumbing', 'cold', 'Вход'),side:'left'}, {...port('plumbing', 'cold', 'Выход'),side:'right'}],
   'water-filter': [port('plumbing', 'cold', 'Вход ХВС'), port('plumbing', 'cold', 'Выход ХВС')],
   bathtub: [...waterPair, drain],
   'corner-bathtub': [...waterPair, drain],
@@ -91,7 +92,7 @@ export function addMissingConnectionPorts(items,wallFor=()=>null,used=new Set())
   const generated=items.flatMap(item=>connectionPortsFor(item,wallFor(item))),byId=new Map(generated.map(i=>[i.id,i]));
   const preserved=items.map(item=>{
     const parent=owners.get(item.linkedApplianceId),next=byId.get(item.id);
-    if(item.kind!=='connection-port'||!item.followsAppliance||used.has(item.id)&&!INLINE_FITTING_KINDS.has(parent?.kind)||!next||!parent||!wallFor(parent))return item;
+    if(item.kind!=='connection-port'||!item.followsAppliance||used.has(item.id)&&parent?.kind!=='pump'&&!INLINE_FITTING_KINDS.has(parent?.kind)||!next||!parent||!wallFor(parent))return item;
     return {...item,x:next.x,y:next.y,height:next.height,heightKnown:next.heightKnown,connectorU:next.connectorU,connectorV:next.connectorV,connectorPlanX:next.connectorPlanX,connectorPlanY:next.connectorPlanY,displayPlane:'wall'};
   });
   return [...preserved,...generated.filter(item=>!ids.has(item.id))];

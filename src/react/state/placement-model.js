@@ -59,7 +59,7 @@ const ORIGINAL_PRESETS = [
   { id: 'boiler', label: 'Котёл', layer: 'equipment', width: .7, depth: .5 },
   { id: 'water-heater', label: 'Бойлер', layer: 'equipment', width: .55, depth: .55 },
   { id: 'manifold', label: 'Коллектор', layer: 'equipment', width: .7, depth: .3 },
-  { id: 'pump', label: 'Насос', layer: 'equipment', width: .5, depth: .4 },
+  { id: 'pump', label: 'Насос', layer: 'equipment', width: .18, depth: .16 },
   { id: 'vent-unit', label: 'Вентустановка', layer: 'equipment', width: 1, depth: .7 },
   { id: 'other-equipment', label: 'Другое оборудование', layer: 'equipment', width: .7, depth: .5 },
   { id: 'panel', label: 'Электрощит', layer: 'electric', width: .45, depth: .16 },
@@ -172,7 +172,7 @@ export const PLACEMENT_PRESETS = [
   preset('water-meter', 'Счётчик воды', 'plumbing', 'water-points', .2, .14, 'meter'),
   preset('water-elbow', 'Уголок водопровода', 'plumbing', 'water-points', .12, .12, 'elbow'),
   preset('water-coupling', 'Муфта водопровода', 'plumbing', 'water-points', .12, .1, 'coupling'),
-  preset('heat-pump-point', 'Циркуляционный насос отопления', 'heating', 'heat-sources', .3, .2, 'pump'),
+  preset('heat-pump-point', 'Циркуляционный насос отопления', 'heating', 'heat-sources', .18, .16, 'pump'),
   preset('heat-expansion-tank', 'Расширительный бак отопления', 'heating', 'heat-sources', .35, .3, 'expansion-tank'),
   preset('heat-safety-group', 'Группа безопасности отопления', 'heating', 'heat-sources', .3, .18, 'safety-group'),
   preset('heat-filter', 'Грязевик отопления', 'heating', 'heat-points', .2, .14, 'water-filter'),
@@ -206,7 +206,7 @@ const validLayers = new Set(PLACEMENT_LAYERS.map(layer => layer.id));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createPlacement() {
-  return { version: 10, engineeringDefaults: {}, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
+  return { version: 11, engineeringDefaults: {}, items: [], circuits: [], routes: [], dimensions: [], billOverrides: {}, billCustomRows: [], electricalBillSettings: { cableReservePercent: 10, endAllowanceM: 0, protection: 'none', protectionSpec: '', fastenerType: '', fastenerSpec: '', fastenerSpacingM: null, connectorModel: '', connectorModels: { 2: '221-412', 3: '221-413', 5: '221-415' }, junctionConnectors: true, lightConnectors: true, powerConnectors: true }, hiddenCircuitLineIds: [], hiddenCircuitPointIds: [], electricalRouteMode: 'automatic', defaultRouteSurface: 'ceiling', showAutoDimensions: true, activeLayer: 'furniture', visibleLayers: { furniture: true, appliance: true, equipment: true, electric: true, plumbing: true, heating: true, sewer: true, ventilation: true }, networks: normalizeNetworkRoutes() };
 }
 
 export function normalizePlacement(value,plans=[]) {
@@ -219,7 +219,7 @@ export function normalizePlacement(value,plans=[]) {
   const normalized = {
     ...base,
     ...value,
-    version: 10,
+    version: 11,
     activeLayer: PLACEMENT_LAYERS.some(layer => layer.id === value.activeLayer && !layer.future) ? value.activeLayer : base.activeLayer,
     visibleLayers: Object.fromEntries(Object.entries(base.visibleLayers).map(([key, fallback]) => [key, typeof value.visibleLayers?.[key] === 'boolean' ? value.visibleLayers[key] : fallback])),
     billOverrides: value.billOverrides && typeof value.billOverrides === 'object' && !Array.isArray(value.billOverrides) ? value.billOverrides : {},
@@ -312,7 +312,8 @@ export function normalizePlacement(value,plans=[]) {
     engineeringDefaults: normalizeEngineeringSettings(value.engineeringDefaults),
     networks: normalizeNetworkRoutes(value.networks),
   };
-  if (Number(value.version || 0) < 10) {
+  if (Number(value.version || 0) < 11) {
+    normalized.items=normalized.items.map(i=>i.kind==='pump'&&i.width===.5&&i.depth===.4||i.kind==='heat-pump-point'&&i.width===.3&&i.depth===.2?{...i,width:.18,depth:.16}:i);
     const faces=plans.map(plan=>plan?placementWallFaces(plan):[]),used=new Set([...Object.values(normalized.networks).flatMap(routes=>routes.flatMap(r=>[r.fromId,r.toId])),...(Array.isArray(value.portConnections)?value.portConnections:[]).flatMap(c=>[c?.fromId,c?.toId])]);
     const tanks=new Set(normalized.items.filter(i=>i.kind==='hydro-tank').map(i=>i.id));
     normalized.items=normalized.items.filter(i=>!(i.kind==='connection-port'&&tanks.has(i.linkedApplianceId)&&i.id===`port-${i.linkedApplianceId}-1`&&i.followsAppliance&&!used.has(i.id)));

@@ -1321,6 +1321,9 @@ function RoofPlanCaption({ plan, roof, p, model }) {
 function PlanCanvas({
   frameProject,
   onOpenFrame,
+  frameSelection,
+  onSelectFrame,
+  onFrameMessage,
   plan,
   minPanelWidthMm = 250,
   pileSettings,
@@ -1686,6 +1689,9 @@ function PlanCanvas({
     }
   };
   const pointerDownCapture = (event) => {
+    // The framing overlay owns its own selection/drag gesture. Do not leave
+    // its captured touch pointers in the room editor's pinch state.
+    if(event.target.closest?.('.structural-plan-layer'))return;
     if (middlePanEnabled && event.button === 1) {
       event.preventDefault();
       event.stopPropagation();
@@ -3096,7 +3102,7 @@ function PlanCanvas({
         const q = p(issue.point.x, issue.point.y);
         return <circle key={`plan-issue-${i}`} cx={q.x} cy={q.y} r="10" stroke="#b91c1c" strokeWidth="3" fill="#fee2e2" fillOpacity=".5" pointerEvents="none"><title>{issue.message}</title></circle>;
       }) : null}
-      {visibleLayers.frame&&frameProject?<Suspense fallback={null}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame}/></Suspense>:null}
+      {visibleLayers.frame&&frameProject?<Suspense fallback={null}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame} selected={frameSelection} onSelect={onSelectFrame} onMessage={onFrameMessage}/></Suspense>:null}
       <g ref={setLabelLayer} className="plan-label-foreground"/>
       {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={VIEW.height - 148} width="650" height="140">
         <div xmlns="http://www.w3.org/1999/xhtml" role="alert" className="plan-collision-warning" onPointerDown={event => event.stopPropagation()}>
@@ -5214,6 +5220,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     } catch { /* A stale or malformed navigation hint must not modify the plan. */ }
   },[]);
   const [frameWall,setFrameWall]=useState(null);
+  const [frameSelection,setFrameSelection]=useState(null);
   const [polygonDraft, setPolygonDraft] = useState([]);
   const [viewportZoom, setViewportZoom] = useState(() =>
     Math.max(35, Math.min(2000, Number(project?.plan?.zoom) || 100)),
@@ -6262,7 +6269,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas frameProject={project} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+        <PlanCanvas frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6575,7 +6582,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </div>
           ))}
         </aside>
-        {plan3DPlacement==='split'&&showPlan3D?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
+        {plan3DPlacement==='split'&&showPlan3D?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}>{frameWall===null?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
         <div className="planner-canvas" ref={plannerCanvasRef}>
           <div className="plan-layer-tabs" aria-label="Слои проекта">
             {[
@@ -6659,7 +6666,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           {tool==='stairOpening'?<div className="form-grid plan-stair-controls"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
           {activeLayer==='frame'?<div className="roof-axis-controls"><button className="button primary" onClick={()=>setFrameWall('')}>Развёртка стены · каркас, окна и двери</button><span>Выберите стену на плане. Зелёные стойки — проектные опоры крыши.</span></div>:null}
           {activeLayer==='roof'?<div className="roof-axis-controls" role="group" aria-label="Линии опор кровли"><button type="button" className={`button ${tool==='roofAxis'?'primary':'secondary'}`} disabled={!roofAxes.length&&!project.settings.productionCutting.roofPlanLines?.enabled} onClick={()=>{setTool('roofAxis');setSelected(null);}}>Нарисовать прогон</button><button type="button" className="button secondary" onClick={()=>{setTool('select');setSelected(null);}}>Двигать линии</button><button type="button" className="button secondary" onClick={()=>commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;})}>Авторасстановка</button><span>Синие линии — опорные рамы. Тяните круг на линии. Оранжевая ось — подсказка симметрии.</span>{!roofAxes.length?<span>Автолинии доступны для наслонной двускатной кровли; проектные опоры добавляются справа.</span>:null}{roofAxes.filter(line=>selected?.type==='roofAxis'&&selected.id===line.id).map(line=><button type="button" className="button secondary" key={line.id} aria-label={`Удалить ${line.name}`} onClick={()=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(item=>item.id!==line.id)))}>× {line.name}</button>)}</div>:null}
-          <PlanCanvas frameProject={project} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+          <PlanCanvas frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={(a,b)=>{
               const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;
@@ -6741,7 +6748,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               </div>
             </div>
             {showPlan3D ? <div className={`plan-right-3d-view size-${plan3DSize}`}>
-              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense>
+              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>{frameWall===null?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense>
             </div> : <p className="plan-right-3d-placeholder">3D-вид скрыт.</p>}
             {showPlan3D ? <div className="plan-right-3d-sizes" role="group" aria-label="Размер 3D-вида">
               {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}
