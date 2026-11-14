@@ -210,3 +210,13 @@ export function removeFacade(project,id,floor){
   next.settings.productionCutting.roofSupports=next.settings.productionCutting.roofSupports.filter(s=>s.facadeId!==id);
   return next;
 }
+
+// A horizontal row shares one elevation across all adjacent bays.
+export function facadeRowKey(config,memberKey){
+ const extra=(config.transoms||[]).find(t=>memberKey===`transom:${t.id}`||memberKey.startsWith(`transom-${t.id}-`));
+ return extra?`transom:${extra.id}`:memberKey==='main'||memberKey.startsWith('header-')?'main':null;
+}
+export function moveFacadeRow(config,memberKey,zMm){
+ const key=facadeRowKey(config,memberKey);if(!key)throw new Error('Выберите горизонтальный ряд перемычек.');
+ return moveFacadeTransom(config,key,zMm);
+}

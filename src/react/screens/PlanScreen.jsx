@@ -1,3 +1,4 @@
+import {calculateAdjustedPrice} from '../calculations/price-adjustments.js';
 import {drawPlanRoofPurlin,resizePlanRoofPurlin} from '../planner/roof-support-plan.js';
 import {canEditPlanObject,planLayerTools,editRoofLine} from '../planner/layer-tools.js';
 import WindowConstruction from '../components/WindowConstruction.jsx';
@@ -5399,7 +5400,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     () => calculateFoundation(project.plan, project.settings.piles),
     [project.plan, project.settings.piles],
   );
-  const projectCalculation = useMemo(() => calculateProject(project), [project]);
+  const projectCalculation = useMemo(() => calculateProject(project,{nodeTypeRules:team.nodeTypeRules}), [project,team.nodeTypeRules]);
+  const planAdjustedTotal=useMemo(()=>calculateAdjustedPrice(project,projectCalculation).total,[project,projectCalculation]);
   const roofAxes=roofPlanLines(project,projectCalculation);
   const bearingChoices=useMemo(()=>selectableBearingEdges(plan),[plan]);
   useEffect(()=>setBearingSelection([]),[activeFloor]);
@@ -6491,7 +6493,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             <button type="button" className="remove-floor" title="Удалить 2 этаж" aria-label="Удалить 2 этаж" onClick={removeSecondFloor}><Trash2 /></button>
           </> : null}
         </div>
-        <div className="plan-status-total" aria-live="polite"><span>Итого</span><strong>{formatMoney(projectCalculation.totals.total)}</strong></div>
+        <div className="plan-price-cards" aria-label="Стоимость проекта на плане" aria-live="polite">{[["Материалы",projectCalculation.totals.materials],["Работы",projectCalculation.totals.labor],["Итого",projectCalculation.totals.total],["Изменённая цена",planAdjustedTotal]].map(([label,value])=><div key={label}><span>{label}</span><strong>{formatMoney(value)}</strong></div>)}</div>
         <button type="button" className="plan-status-fullscreen" aria-label={isPlanFullscreen ? 'Свернуть план' : 'План во весь экран'} aria-pressed={isPlanFullscreen} onClick={() => { if (!isPlanFullscreen && window.innerWidth <= 760) setShowFullscreenInspector(false); setIsPlanFullscreen((value) => !value); }}>{isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{isPlanFullscreen ? 'Свернуть' : 'Во весь экран'}</span></button>
 
       </div>

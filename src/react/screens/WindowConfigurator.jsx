@@ -8,7 +8,7 @@ import OpeningMiniPlan from '../components/OpeningMiniPlan.jsx';
 import {calculateProject} from '../calculations/estimate-engine.js';
 import {downloadEstimateWorkbook} from '../export/xlsx.js';
 import './window-configurator.css';
-const FacadeDesigner=lazy(()=>import('./FacadeDesigner.jsx'));
+const StructuralWallEditor=lazy(()=>import('./StructuralWallEditor.jsx'));
 
 const rub=n=>new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
 const n=(value)=>Number(value)||0;
@@ -126,7 +126,7 @@ export default function WindowConfigurator({focusOpeningId=null,embedded=false})
     popup.focus();setTimeout(()=>popup.print(),350);
   };
   const priceMode=selected?.price?.mode||'unpriced';
-  if(showFacade&&!embedded)return <Suspense fallback={<p>Загрузка конструктора фасада…</p>}><FacadeDesigner onClose={()=>setShowFacade(false)}/></Suspense>;
+  if(showFacade&&!embedded)return <Suspense fallback={<p>Загрузка конструктора фасада…</p>}><StructuralWallEditor floor={project.plan.facades?.[0]?.floor||1} wallId={project.plan.facades?.[0]?.wallId} initialTool="facade" closeLabel="К окнам и дверям" onClose={()=>setShowFacade(false)}/></Suspense>;
   if(embedded) return <section className="window-configurator window-config-embedded" aria-label="Библиотека и параметры окна">
     <h3>Окно на плане</h3>
     {activeOpening?<p className="window-compact-opening">Проём: {Math.round(activeOpening.width*1000)} × {Math.round(activeOpening.height*1000)} мм · {activeOpening.floor} этаж</p>:null}
