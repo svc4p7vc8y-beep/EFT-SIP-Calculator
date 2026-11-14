@@ -27,3 +27,27 @@ export function missingMainRoofReason(report, project, scene) {
   const issue = report.issues.find(item => ['ROOF','ROOF_FORM','ROOF_FACE','ROOF_CONTOUR','ROOF_HIP_GEOMETRY'].includes(item.code));
   return issue?.message || 'Основная кровля не сформирована в 3D. Проверьте тип, геометрию скатов и сообщения раскроя.';
 }
+
+// One warning per message, even when several highlighted objects explain it.
+export function productionViewerWarnings({report,scene,blockedPreviews=[],roofWarning='',error='',project}) {
+  const rows=new Map();
+  const add=(message,target='',focus=null)=>{
+    if(!message)return;
+    const key=String(message).trim();
+    if(!rows.has(key))rows.set(key,{id:key,message:key,target,focusTargets:[]});
+    const row=rows.get(key);
+    if(focus&&!row.focusTargets.some(item=>item.id===focus.id))row.focusTargets.push(focus);
+  };
+  for(const preview of blockedPreviews){
+    for(const reason of preview.reasons.length?preview.reasons:[`${preview.id}: раскрой заблокирован`])add(reason,preview.id);
+  }
+  for(const blocker of scene.blockers||[])add(blocker.sourceMessage||`Ошибка геометрии: ${blocker.name}`,blocker.surfaceId,{id:blocker.id,name:blocker.name});
+  if(scene.missing?.length)add(`Нет пространственной привязки: ${scene.missing.join(', ')}. Нужен рабочий узел.`);
+  if(roofWarning)add(`Основная крыша: ${roofWarning}`);
+  const parapet=scene.parapetRequirement;
+  if(parapet?.shortfall>0)add(`Парапет высотой ${parapet.provided} мм не скрывает кровлю. Для выбранного уклона и слоёв требуется не менее ${parapet.required} мм от потолка. Измените высоту в параметрах; 3D и смета не повышают её автоматически.`);
+  for(const issue of report.issues||[])if(['PARTITION_ROOF_INTERSECTION','SUPPORT_ROOF_INTERSECTION','GABLE_OPENING'].includes(issue.code))add(issue.message,issue.target);
+  if(error)add(error);
+  if(project.services.terrace===false&&report.assembly.binding.some(m=>m.group==='platform'))add('В основании учтены сохранённые площадки, хотя раздел «Терраса» отключён. Их обвязка показана без настила; состав основания настраивается в «Сваи» → «Учитывать террасы и крыльца».');
+  return [...rows.values()];
+}
