@@ -48,7 +48,7 @@ export function createEstimateWorkbook(project, calculation) {
   estimateRows.push([], ['ИТОГО МАТЕРИАЛЫ', clientEstimate.totals.materials], ['ИТОГО РАБОТЫ', clientEstimate.totals.labor], ['ИТОГО ПО СМЕТЕ', clientEstimate.totals.total]);
   const windowRows=[['ЭФТ — ведомость окон · схемы для согласования'],['Марка','ID проёма','Форма','Ширина, мм','Высота, мм','Площадь, м²','Количество','Цена за изделие, ₽','Сумма, ₽','Статус','Источник цены','Профиль','Стеклопакет']];
   for(const product of project.windowProducts||[]){
-    const result=windowPrice(product,project.windowTariffs),geo=windowGeometry(product),qty=Number(product.quantity)||0;
+    const result=windowPrice(product,project.windowTariffs,project.priceMat),geo=windowGeometry(product),qty=Number(product.quantity)||0;
     windowRows.push([product.mark||'',product.openingId||'',product.shape||'',Number(product.widthMm||product.baseWidthMm)||0,Number(product.heightMm||Math.max(product.leftHeightMm||0,product.rightHeightMm||0))||0,geo.areaM2,qty,result.unitRub??'',result.unitRub==null?'':result.unitRub*qty,result.label,result.source||'',`${product.profile?.brand||''} ${product.profile?.system||''} ${product.profile?.installationDepthMm||''} мм`,product.glazing?.formula||'']);
   }
   const catalogRows = (items) => [['Код', 'Категория', 'Наименование', 'Ед.', 'Цена, ₽'], ...items.map((item) => [item.id, item.cat, item.name, item.unit, item.price])];

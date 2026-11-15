@@ -3116,6 +3116,7 @@ function openingSection(project, index) {
       (plan.openings || []).map((opening) => ({ ...opening, floor: floorIndex + 1 })),
     );
   const actualOpeningIds = new Set(openings.filter(opening=>opening.type==='window').map(opening=>opening.id));
+  const includedWindowIds=new Set(openings.filter(o=>o.type==='window'&&o.includeInEstimate!==false&&o.include!==false).map(o=>o.id));
   const configuredOpeningIds = new Set(products.map(product=>product.openingId).filter(id=>actualOpeningIds.has(id)));
   openings
     .filter((opening) => opening.includeInEstimate !== false)
@@ -3201,18 +3202,18 @@ function openingSection(project, index) {
     });
   const estimatedLinks = new Set();
   for (const product of products) {
-    if (product.openingId && !actualOpeningIds.has(product.openingId)) continue;
+    if (product.openingId && !includedWindowIds.has(product.openingId)) continue;
     if (product.openingId && estimatedLinks.has(product.openingId)) continue;
     if (product.openingId) estimatedLinks.add(product.openingId);
     const quantity = Number(product.quantity) || 0;
     if (quantity <= 0) continue;
-    const price = windowPrice(product,project.windowTariffs);
+    const price = windowPrice(product,project.windowTariffs,project.priceMat);
     const area = windowGeometry(product).areaM2;
     lines.push({
       id:`openings:window-product-${product.id}`, section:'openings',
-      catalogId:'MAT-240', name:`${product.mark||'Окно ПВХ'} · ${Math.round(Number(product.widthMm||product.baseWidthMm))}×${Math.round(Number(product.heightMm||Math.max(product.leftHeightMm||0,product.rightHeightMm||0)))} мм · ${area.toFixed(3)} м²`,
+      catalogId:price.catalogId||'MAT-240', name:`${product.mark||'Окно ПВХ'} · ${Math.round(Number(product.widthMm||product.baseWidthMm))}×${Math.round(Number(product.heightMm||Math.max(product.leftHeightMm||0,product.rightHeightMm||0)))} мм · ${area.toFixed(3)} м²`,
       unit:'шт',qty:quantity,price:price.unitRub??0,kind:'material',
-      source:price.source||price.label,estimateGroup:'Оконные изделия по конфигуратору',
+      source:price.source||price.label,estimateGroup:'Оконные изделия по конфигуратору',...(price.estimated?{priceEstimated:true}:{}),
       ...(price.unitRub==null?{pricePending:true}:{}),
     });
     // Installation and accessories remain independent opt-in rows with confirmed rates.

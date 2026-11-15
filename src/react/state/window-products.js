@@ -141,16 +141,24 @@ export function windowReferenceMatch(product) {
     return JSON.stringify(product.profile)===JSON.stringify(base.profile)&&JSON.stringify(product.glazing)===JSON.stringify(base.glazing)&&product.sealColor===base.sealColor&&product.glazingBead===base.glazingBead&&JSON.stringify(product.supportProfile)===JSON.stringify(base.supportProfile);
   })?.item||null;
 }
-export function windowPrice(product,tariffs=[]) {
+function facadeWindowBudget(product,priceMat){
+ if(!priceMat?.length||!(product.facadeId||String(product.openingId||'').startsWith('facade:'))||['manual','parametric'].includes(product.price?.mode)||validateWindow(product).length)return null;
+ const area=windowGeometry(product).areaM2,candidates=referenceProducts.filter(c=>windowConstructionKey(c.base)===windowConstructionKey(product)).sort((a,b)=>Math.abs(Math.log(a.item.areaM2Exact/area))-Math.abs(Math.log(b.item.areaM2Exact/area)));
+ if(candidates.length){const number=Number(product.price?.referenceNumber),item=(candidates.find(c=>c.item.number===number)||candidates[0]).item;return {mode:'facade_reference_area',unitRub:round(item.priceRubExact*area/item.areaM2Exact),estimated:true,label:'Ориентировочно · по площади образца',source:`Витражный фасад: расчёт № ${reference.quoteId}, образец № ${item.number}, ${item.priceRubExact} ₽ / ${item.areaM2Exact} м² × ${area.toFixed(4)} м². Дата исходной цены неизвестна; уточнить у изготовителя.`};}
+ const row=priceMat.find(r=>r.id==='MAT-241')||priceMat.find(r=>r.id==='MAT-240');if(!row||!['м2','м²'].includes(row.unit)||!(Number(row.price)>0))return null;
+ return {mode:'facade_budget',unitRub:round(area*Number(row.price)*2),estimated:true,catalogId:row.id,label:'Ориентировочно · витражное остекление',source:`Прайс проекта ${row.id}: ${row.price} ₽/м² × 2 (действующий коэффициент панорамного остекления) × ${area.toFixed(4)} м². ${row.priceNote||''} Это ориентировочная стоимость, не предложение изготовителя.`};
+}
+export function windowPrice(product,tariffs=[],priceMat=[]) {
+  const budget=()=>facadeWindowBudget(product,priceMat);
   const area=windowGeometry(product).areaM2;
-  if(product.geometryPriceReview)return {mode:'unpriced',unitRub:null,label:'Геометрия изменена — подтвердите цену',source:'Прежняя цена сохранена в параметрах изделия; перед включением в смету подтвердите её для новых размеров'};
+  if(product.geometryPriceReview)return budget()||{mode:'unpriced',unitRub:null,label:'Геометрия изменена — подтвердите цену',source:'Прежняя цена сохранена в параметрах изделия; перед включением в смету подтвердите её для новых размеров'};
   if(validateWindow(product).length) return {mode:'invalid',unitRub:null,label:'Уточните параметры'};
   if(product.price?.mode==='reference_area'){
     const item=reference.items.find(i=>i.number===Number(product.price.referenceNumber)),base=item&&createWindowFromReference(item);
-    if(!base||windowConstructionKey(base)!==windowConstructionKey(product))return {mode:'unpriced',unitRub:null,label:'Конструктив изменён — выберите новый образец'};
+    if(!base||windowConstructionKey(base)!==windowConstructionKey(product))return budget()||{mode:'unpriced',unitRub:null,label:'Конструктив изменён — выберите новый образец'};
     return {mode:'reference_area',unitRub:round(item.priceRubExact*area/item.areaM2Exact),label:'Оценка по площади конструктива',source:`Расчёт № ${reference.quoteId}, образец № ${item.number}: ${item.priceRubExact} ₽ / ${item.areaM2Exact} м². Дата исходной цены не установлена; это не новая оферта поставщика.`};
   }
-  if(product.price?.mode==='design_unpriced') return {mode:'unpriced',unitRub:null,label:'Цена поставщика не задана',source:'Эскиз из библиотеки вариантов; назначьте цену проекта или подтверждённый тариф'};
+  if(product.price?.mode==='design_unpriced') return budget()||{mode:'unpriced',unitRub:null,label:'Цена поставщика не задана',source:'Эскиз из библиотеки вариантов; назначьте цену проекта или подтверждённый тариф'};
   if(product.price?.mode==='manual') return product.price.amountRub!==null&&product.price.amountRub!==''&&Number(product.price.amountRub)>=0&&product.price.source?.trim()?{mode:'manual',unitRub:Number(product.price.amountRub),label:'Цена проекта, ручная',source:product.price.source}:{mode:'unpriced',unitRub:null,label:'Укажите сумму и источник ручной цены',source:'Ручной ввод проекта'};
   if(product.price?.mode==='parametric') return parametricWindowPrice(product,tariffs.find(t=>t.id===product.price?.tariffId))||{mode:'unpriced',unitRub:null,label:'Нет подтверждённого параметрического тарифа',source:'Уточните тариф и производственные измерения'};
   const exact=windowReferenceMatch(product);
@@ -158,7 +166,7 @@ export function windowPrice(product,tariffs=[]) {
   if(product.profile?.brand===basis.profileBrand&&product.profile?.system===basis.profileSystem&&product.profile?.installationDepthMm===60&&product.profile?.color==='white'&&product.glazing?.formula===basis.glazingFormula&&product.glazing?.thicknessMm===32&&product.sealColor==='black'&&product.glazingBead==='straight'&&Number(product.supportProfile?.heightMm)===30&&product.sections.every(s=>!s.hardwareSystem||['Vorne','Roto_NX'].includes(s.hardwareSystem))&&area>=.36&&area<=3.6) {
     return {mode:'preliminary',unitRub:round(4983.868694574176+4786.709802929846*area),label:'Предварительный ориентир',source:'Регрессия по 12 позициям расчёта № 273803; ошибка отдельных позиций до 31%; возможность изготовления подтвердить у поставщика'};
   }
-  return {mode:'unpriced',unitRub:null,label:'Требуется цена поставщика',source:'Для этой системы или геометрии нет подтверждённого тарифа'};
+  return budget()||{mode:'unpriced',unitRub:null,label:'Требуется цена поставщика',source:'Для этой системы или геометрии нет подтверждённого тарифа'};
 }
 export function windowConstructionKey(product){
  return JSON.stringify([product.shape,product.sectionAxis||'vertical',(product.sections||[]).map(s=>[s.openingMode,s.hardwareSystem||null]),product.profile,product.glazing,product.sealColor,product.glazingBead,product.supportProfile]);
@@ -173,6 +181,6 @@ export function resizeWindowProduct(product,patch){
  }else if(['manual','parametric'].includes(product.price?.mode))next.geometryPriceReview=true;
  return next;
 }
-export function windowTotals(products,tariffs=[]) {
-  return products.reduce((result,product)=>{const qty=Number(product.quantity)||0,price=windowPrice(product,tariffs);result.quantity+=qty;result.areaM2+=windowGeometry(product).areaM2*qty;if(price.unitRub!=null)result.priceRub+=price.unitRub*qty;else result.unpriced+=qty;return result;},{quantity:0,areaM2:0,priceRub:0,unpriced:0});
+export function windowTotals(products,tariffs=[],priceMat=[]) {
+  return products.reduce((result,product)=>{const qty=Number(product.quantity)||0,price=windowPrice(product,tariffs,priceMat);result.quantity+=qty;result.areaM2+=windowGeometry(product).areaM2*qty;if(price.unitRub!=null)result.priceRub+=price.unitRub*qty;else result.unpriced+=qty;return result;},{quantity:0,areaM2:0,priceRub:0,unpriced:0});
 }
