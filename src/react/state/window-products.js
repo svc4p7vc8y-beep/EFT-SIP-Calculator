@@ -8,6 +8,7 @@ export const WINDOW_SHAPES = [
   {id:'triangle',label:'Треугольник'},
 ];
 export const WINDOW_OPENINGS = [
+  {id:'door_left',label:'Дверь · петли слева'}, {id:'door_right',label:'Дверь · петли справа'},
   {id:'fixed',label:'Глухая'}, {id:'turn_left',label:'Поворотная левая'},
   {id:'turn_right',label:'Поворотная правая'}, {id:'tilt',label:'Откидная'},
   {id:'tilt_turn_left',label:'Поворотно-откидная левая'},

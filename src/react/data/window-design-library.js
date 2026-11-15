@@ -16,6 +16,9 @@ export const WINDOW_DESIGN_LIBRARY = [
   {id:'panorama',label:'Панорамное глухое',widthMm:2000,heightMm:2200,sections:['fixed']},
   {id:'panorama-opening',label:'Панорамное с открыванием',widthMm:2200,heightMm:2200,sections:['fixed','tilt_turn_right']},
   {id:'transom',label:'Окно с фрамугой',widthMm:1200,heightMm:1600,sectionAxis:'horizontal',sections:['fixed','bottom_hinged_transom']},
+  {id:'door-block-left',label:'Оконно-дверной блок · дверь слева',widthMm:2400,heightMm:2300,sections:['door_left','fixed']},
+  {id:'door-block-right',label:'Оконно-дверной блок · дверь справа',widthMm:2400,heightMm:2300,sections:['fixed','door_right']},
+  {id:'door-block-double',label:'Оконно-дверной блок · распашные двери',widthMm:3000,heightMm:2300,sections:['fixed','door_left','door_right','fixed']},
   {id:'triangle',label:'Треугольное',shape:'triangle',widthMm:1400,heightMm:900,sections:['fixed']},
   {id:'trapezoid',label:'Трапециевидное',shape:'trapezoid_sloped_top',widthMm:1500,heightMm:1200,leftHeightMm:900,rightHeightMm:1200,sections:['fixed']},
 ];

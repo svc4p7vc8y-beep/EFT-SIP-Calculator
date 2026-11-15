@@ -1,6 +1,6 @@
 import {wallPoint,wallStation,framePost} from './structural-frame.js';
 import {combinedWall,gableLinks} from './drawing-workbench.js';
-import {applyFacade,facadeEnvelope,removeFacade,moveFacadeTransom,appendFacadeTransom,moveFacadeRow,facadeLayout,facadeRowKey} from './facade-design.js';
+import {applyFacade,facadeEnvelope,removeFacade,moveFacadeTransom,appendFacadeTransom,moveFacadeRow,facadeLayout,facadeRowKey,removeFacadePost} from './facade-design.js';
 import {updateLinkedWindowDimensions} from '../state/window-opening-link.js';
 import {elevationAnchors,alignElevation,elevationWallKey} from './elevation-guides.js';
 
@@ -45,7 +45,7 @@ export function editElevationSupport(project,report,wall,member,patch){
 export function removeElevationSupport(project,report,wall,member){
  const support=project.settings.productionCutting.roofSupports.find(s=>s.id===member.id);if(!support)return project;
  if(support.facadeId){const config=wallFacade(project,wall),index=config.postRefs?.indexOf(support.facadeMemberKey);
-  if(index>=0){if(config.posts.length<=2)throw new Error('Сохраните минимум две крайние стойки фасада.');return applyFacade(project,{...config,posts:config.posts.filter((_,i)=>i!==index),postRefs:config.postRefs.filter((_,i)=>i!==index)},facadeEnvelope(report,wall.id));}
+  if(index>=0){if(config.posts.length<=2)throw new Error('Сохраните минимум две крайние стойки фасада.');return applyFacade(project,removeFacadePost(config,index),facadeEnvelope(report,wall.id));}
   return editElevationSupport(project,report,wall,member,{exclude:true});
  }
  project.settings.productionCutting.roofSupports=project.settings.productionCutting.roofSupports.filter(s=>s.id!==member.id&&s.id!==member.id+'-foundation');return project;

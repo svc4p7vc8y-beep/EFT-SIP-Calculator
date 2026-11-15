@@ -53,37 +53,40 @@ export function facadeLayout(config,envelope){
     const left=posts[i],right=posts[i+1],x=left+postWidth/2+clearance,w=right-left-postWidth-2*clearance;
     const headerKey=`header-${stations[i].key}-${stations[i+1].key}`,bayTransom=Number(config.transomOverrides?.[headerKey]??transom);
     members.push({key:`header-${stations[i].key}-${stations[i+1].key}`,name:`Перемычка ${i+1}`,type:'beam',a:[left,bayTransom],b:[right,bayTransom],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:stations[i].key,endKey:stations[i+1].key});
-    // A sloped cap follows every roof vertex. A ridge must be a supported node.
-    const vertices=[x,x+w,...envelope.shape.flatMap(p=>p[0].map(p=>p[0])).filter(v=>v>x+.1&&v<x+w-.1)].sort((a,b)=>a-b);
-    const unique=[...new Set(vertices)];
-    if(unique.length>2)errors.push(`Пролёт ${i+1}: излом кровли должен совпадать со стойкой. Добавьте стойку под коньком.`);
-    const topLeft=facadeHeight(envelope.shape,left)-inset,topRight=facadeHeight(envelope.shape,right)-inset;
-    members.push({key:`cap-${stations[i].key}-${stations[i+1].key}`,name:`Верхняя балка ${i+1}`,type:'beam',a:[left,topLeft],b:[right,topRight],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:stations[i].key,endKey:stations[i+1].key});
-    const capSlope=(topRight-topLeft)/(right-left),capHalf=depth/2*Math.sqrt(1+capSlope**2);
-    const capBottom=at=>topLeft+capSlope*(at-left)-capHalf;
+    // Roof shape is independent of the number of full-height posts.
+    const roofXs=[left,...envelope.shape.flatMap(p=>p[0].map(p=>p[0])).filter(v=>v>left+.1&&v<right-.1),right].sort((a,b)=>a-b);
+    const unique=[...new Set(roofXs)],capPoints=unique.map(at=>[at,facadeHeight(envelope.shape,at)-inset]);
+    const breaks=capPoints.slice(1,-1).filter((p,j)=>{const a=capPoints[j],b=capPoints[j+2];return Math.abs((p[1]-a[1])/(p[0]-a[0])-(b[1]-p[1])/(b[0]-p[0]))>.0001;}).map(p=>p[0]);
+    const capNodes=[capPoints[0],...capPoints.filter(p=>breaks.includes(p[0])),capPoints.at(-1)];
+    if(breaks.length)warnings.push(`Пролёт ${i+1}: верхняя балка сохраняет излом скатов без сквозной стойки. Опирание и соединение в коньке требуют рабочего узла.`);
+    for(let j=0;j<capNodes.length-1;j++)members.push({key:`cap-${stations[i].key}-${stations[i+1].key}${capNodes.length>2?`-segment-${j}`:''}`,name:`Верхняя балка ${i+1}${capNodes.length>2?` · скат ${j+1}`:''}`,type:'beam',a:capNodes[j],b:capNodes[j+1],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:j===0?stations[i].key:undefined,endKey:j===capNodes.length-2?stations[i+1].key:undefined});
+    const capBottom=at=>{const j=Math.max(0,capNodes.findIndex((p,j)=>j<capNodes.length-1&&at<=capNodes[j+1][0]) ),a=capNodes[j],b=capNodes[j+1],slope=(b[1]-a[1])/(b[0]-a[0]);return a[1]+slope*(at-a[0])-depth/2*Math.sqrt(1+slope*slope);};
     const add=(row,bottom,l,r)=>{
       const h=Math.max(l,r)-bottom;
       if(!(w>0&&h>150&&Math.min(l,r)>bottom+150)){errors.push(`Пролёт ${i+1}, ${row==='lower'?'нижнее':'верхнее'} окно: недостаточная высота.`);return;}
       const roughTop=at=>row==='upper'?capBottom(at):transom-depth/2;
       windows.push({key:`${row}-${i}`,x,y:bottom,width:w,height:h,outline:[[0,0],[w,0],[w,r-bottom],[0,l-bottom]],roughOutline:[[0,0],[w+2*clearance,0],[w+2*clearance,roughTop(x+w+clearance)-bottom+clearance],[0,roughTop(x-clearance)-bottom+clearance]],shape:Math.abs(l-r)<1?'rectangle':'trapezoid_sloped_top',leftHeight:l-bottom,rightHeight:r-bottom});
     };
-    if(config.autoClip||config.transoms?.length){
+    if(config.autoClip||config.transoms?.length||breaks.length){
       const extras=(Array.isArray(config.transoms)?config.transoms:[]).filter(t=>!t.fromPost||stations.findIndex(s=>s.key===t.fromPost)<=i&&stations.findIndex(s=>s.key===t.toPost)>i).slice(0,24);
       const bars=[{id:'main',zMm:bayTransom},...extras].sort((a,b)=>a.zMm-b.zMm);
       for(const t of extras)members.push({key:`transom-${t.id}-${stations[i].key}-${stations[i+1].key}`,transomId:t.id,name:'Горизонтальная перемычка',type:'beam',a:[left,Number(t.zMm)],b:[right,Number(t.zMm)],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:stations[i].key,endKey:stations[i+1].key});
       if(bars.some((t,j)=>!finite(t.zMm)||Number(t.zMm)<=sill+depth/2+clearance||j&&t.zMm-bars[j-1].zMm<depth+2*clearance+100))errors.push(`Пролёт ${i+1}: перемычки расположены слишком близко или ниже подоконника.`);
-      const top=Math.max(capBottom(x),capBottom(x+w)),under=[[[x,sill],[x+w,sill],[x+w,Math.max(sill,capBottom(x+w)-clearance)],[x,Math.max(sill,capBottom(x)-clearance)]]];
+      const topXs=[x,...breaks.filter(v=>v>x&&v<x+w),x+w],top=Math.max(...topXs.map(capBottom)),under=[[[x,sill],[x+w,sill],...topXs.slice().reverse().map(v=>[v,Math.max(sill,capBottom(v)-clearance)])]];
       const limits=[{id:'sill',zMm:sill-depth/2-clearance},...bars,{id:'roof',zMm:top+depth/2+clearance}];
       for(let j=0;j<limits.length-1;j++){
         const lo=limits[j].zMm+depth/2+clearance,hi=limits[j+1].zMm-depth/2-clearance;
         if(hi<=lo||!config.lower&&hi<=bayTransom||!config.upper&&lo>=bayTransom)continue;
-        const shapes=clipping.intersection(under,rect(x,lo,w,hi-lo));
+        const splits=lo>=bayTransom?[x,...breaks.filter(v=>v>x&&v<x+w),x+w]:[x,x+w];
+        for(let split=0;split<splits.length-1;split++){const splitLeft=splits[split]+(split?clearance:0),splitRight=splits[split+1]-(split<splits.length-2?clearance:0);
+        const shapes=clipping.intersection(under,rect(splitLeft,lo,splitRight-splitLeft,hi-lo));
         let ring=shapes[0]?.[0];if(!ring)continue;if(ring[0][0]===ring.at(-1)[0]&&ring[0][1]===ring.at(-1)[1])ring=ring.slice(0,-1);
         const minX=Math.min(...ring.map(p=>p[0])),maxX=Math.max(...ring.map(p=>p[0])),minY=Math.min(...ring.map(p=>p[1])),maxY=Math.max(...ring.map(p=>p[1]));
         if(maxX-minX<100||maxY-minY<100)continue;
         const outline=ring.map(([a,b])=>[a-minX,b-minY]),leftHeight=Math.max(...outline.filter(p=>Math.abs(p[0])<1).map(p=>p[1])),rightHeight=Math.max(...outline.filter(p=>Math.abs(p[0]-(maxX-minX))<1).map(p=>p[1])),shape=ring.length===3?'triangle':Math.abs(leftHeight-rightHeight)<1?'rectangle':'trapezoid_sloped_top';
-        const key=limits[j].id==='sill'?`lower-${i}`:limits[j].id==='main'?`upper-${i}`:`band-${limits[j].id}-${i}`;
+        const key=(limits[j].id==='sill'?`lower-${i}`:limits[j].id==='main'?`upper-${i}`:`band-${limits[j].id}-${i}`)+(split?`-ridge-${split}`:'');
         windows.push({key,x:minX,y:minY,width:maxX-minX,height:maxY-minY,outline,roughOutline:outline,shape,apexPosition:shape==='triangle'?outline.reduce((a,b)=>a[1]>b[1]?a:b)[0]/(maxX-minX):undefined,leftHeight,rightHeight});
+        }
       }
     }else{
     if(config.lower)add('lower',sill,transom-depth/2-clearance,transom-depth/2-clearance);
@@ -136,6 +139,10 @@ function expandFacadeRing(ring,gap){
 function resetFacadePanePositions(config){
  for(const v of Object.values(config.windowOverrides||{}))for(const key of ['xMm','sillMm','widthMm','heightMm'])delete v[key];
  return config;
+}
+export function removeFacadePost(config,index){
+ if(config.posts.length<=2)throw new Error('Сохраните две крайние стойки.');
+ return {...resetFacadePanePositions(structuredClone(config)),posts:config.posts.filter((_,i)=>i!==index),postRefs:config.postRefs.filter((_,i)=>i!==index)};
 }
 export function moveFacadeTransom(config,key,zMm){
  if(!Number.isFinite(zMm))throw new Error('Задайте отметку перемычки.');

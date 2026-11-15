@@ -18,6 +18,7 @@ export function elevationContext(project,report,wall){
  const nodes=(assembly.nodes||[]).filter(n=>n.floor===(wall.floor||1)&&Math.abs(distance([n.x,n.y]))<=tol&&wallStation(wall,[n.x,n.y])>=0&&wallStation(wall,[n.x,n.y])<=L).map(n=>({...n,station:wallStation(wall,[n.x,n.y]),z:-Number(project.settings.sip.floorThickness)-500,label:n.nodeRef||n.id,heightUnknown:true}));
  for(const r of roof.filter(r=>r.source?.nodeRef))for(const [i,p] of [r.a,r.b].entries())nodes.push({id:`${r.id}-node-${i}`,station:p[0],z:p[1],label:r.source.nodeRef,heightUnknown:false});
  const plan=wall.floor===1?project.plan:project.upperFloors[wall.floor-2],origins=wall.exterior?houseContourPoints(plan).map(p=>[p.x*1000,p.y*1000]).filter(p=>Math.abs(distance(p))<=tol).map(p=>wallStation(wall,p)).filter(s=>s>=-tol&&s<=tol):[];
+ const partitions=(report.surfaces||[]).filter(s=>s.floor===wall.floor&&!s.exterior&&s.planStart&&s.id!==wall.id).flatMap(s=>{const a=[...s.planStart,base],b=[...s.planEnd,base],da=distance(a),db=distance(b);let point;if(Math.abs(da)<=tol)point=a;else if(Math.abs(db)<=tol)point=b;else if(da*db<0){const t=da/(da-db);point=a.map((v,i)=>v+(b[i]-v)*t);}if(!point)return [];const x=wallStation(wall,point);return x>=0&&x<=L?[{id:s.id,x,height:s.height,label:s.name,thickness:s.thickness||100}]:[];});
  const originStation=origins.length?Math.min(0,...origins):0;
- return {roof,binding,piles,nodes,originStation,minZ:Math.min(0,...binding.map(s=>Math.min(s.a[1],s.b[1])-s.depth/2),...piles.map(p=>p.z-280),...nodes.map(n=>n.z-80))};
+ return {roof,binding,piles,nodes,partitions,originStation,minZ:Math.min(0,...binding.map(s=>Math.min(s.a[1],s.b[1])-s.depth/2),...piles.map(p=>p.z-280),...nodes.map(n=>n.z-80))};
 }
