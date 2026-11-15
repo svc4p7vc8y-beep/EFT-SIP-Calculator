@@ -1,3 +1,4 @@
+import {inheritFacadeMaterial} from './facade-frame-material.js';
 import { AUTO_ROOF_LAYOUT } from '../state/auto-roof-supports.js';
 import { mauerlatProfile } from './roof-wall-plate.js';
 
@@ -47,6 +48,6 @@ export function planSupportMaterials(project, supports = project.settings?.produ
     if (item.type === 'beam' && item.frameGroup && item.flat && item.name.includes('нижний пояс')) {
       return { ...item, type: 'sleeper', name: item.name.replace('нижний пояс', 'лежень (нижний пояс)') };
     }
-    return replacements.get(item.id) || item;
+    return inheritFacadeMaterial(project,replacements.get(item.id) || item);
   }), ...sleepers];
 }

@@ -18,7 +18,8 @@ export function calculateDeliveryVolume(project,calculation){
   const dimensions=name.match(/(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм/i);
   const section=gluedPackage && text.match(/\((\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм\)/i) || text.match(/(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*мм/i);
   const num=s=>Number(s.replace(',','.'));let volume=null,formula='Нет габаритов или объёма упаковки';
-  if(['м³','м3'].includes(line.unit)){volume=line.qty;formula='Объём из закупочной строки сметы';}
+  if(line.materialVolumeM3!=null&&positive(line.materialVolumeM3)){volume=Number(line.materialVolumeM3)*(positive(line.materialVolumeBasisQty)?Number(line.qty)/Number(line.materialVolumeBasisQty):1);formula='Фактический объём фасадного каркаса; длина в смете — эквивалент материала';}
+  else if(['м³','м3'].includes(line.unit)){volume=line.qty;formula='Объём из закупочной строки сметы';}
   else if(line.catalogId==='MAT-FOUNDATION-BLOCK'){
     const d=project.settings.piles.blockDimensions||{},sizes=[d.widthMm,d.lengthMm,d.heightMm];
     if(sizes.every(positive)){volume=line.qty*sizes.reduce((v,n)=>v*Number(n),1)/1e9;formula='Количество блоков × редактируемые габариты блока';}

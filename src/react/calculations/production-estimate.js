@@ -13,12 +13,13 @@ export function productionEstimateLines(project,system=project.settings?.roof?.s
   const length=Math.hypot(coords[3]-coords[0],coords[4]-coords[1],coords[5]-coords[2])/1000;
   if(!(length>0))continue;
   if(item.type==='post'&&(coords[0]!==coords[3]||coords[1]!==coords[4]||coords[5]<=coords[2]))continue;
-  const catalog = item.planGroupId||item.facadeId||item.frameWallId ? supportCatalog(project, item.packageProfile||item.profile, item.estimateCatalogId)
+  const catalog = item.houseFrameMaterial?item.houseFrameMaterial.catalog:item.planGroupId||item.facadeId||item.frameWallId ? supportCatalog(project, item.packageProfile||item.profile, item.estimateCatalogId)
     : (project.priceMat || []).find(row => row.id === item.estimateCatalogId);
   if (!item.planGroupId&&!item.facadeId&&!item.frameWallId && (!catalog || !['м³', 'м3', 'м.п.', 'м'].includes(catalog.unit))) continue;
   const unit = catalog?.unit || 'м³';
-  const qty=Math.ceil((['м³','м3'].includes(unit)?length*section[0]*section[1]/1e6:length*((item.facadeId||item.frameWallId)&&item.packagePricing!=='package'?Number(item.packageCount)||1:1))*1e6)/1e6;
-  lines.push({id:`production-support-${item.id}`,section:'roof',catalogId:catalog?.id,name:`${item.name||'Проектный элемент'} · ${item.profile} · ${Math.round(length*1000)} мм`,kind:'material',unit,qty,price:Number(catalog?.price)||0,pricePending:!(Number(catalog?.price)>0),source:'Проектные элементы · чистый объём без запаса'});
+  const volume=length*section[0]*section[1]/1e6;
+  const qty=Math.ceil((['м³','м3'].includes(unit)?volume:item.houseFrameMaterial?volume*1e6/item.houseFrameMaterial.areaMm2:length*((item.facadeId||item.frameWallId)&&item.packagePricing!=='package'?Number(item.packageCount)||1:1))*1e6)/1e6;
+  lines.push({id:`production-support-${item.id}`,section:'roof',catalogId:catalog?.id,name:`${item.houseFrameMaterial?item.houseFrameMaterial.name+' · ':''}${item.name||'Проектный элемент'} · ${item.profile} · ${Math.round(length*1000)} мм`,kind:'material',unit,qty,price:Number(catalog?.price)||0,pricePending:!(Number(catalog?.price)>0),...(item.houseFrameMaterial?{materialVolumeM3:volume,materialVolumeBasisQty:qty}:{}),source:item.houseFrameMaterial?`Материал основного каркаса · ${item.houseFrameMaterial.name}. Фактический объём ${volume.toFixed(6)} м³; ${unit==='м.п.'||unit==='м'?'эквивалентная длина по объёму / сечению '+item.houseFrameMaterial.width+'×'+item.houseFrameMaterial.depth+' мм':'объём изделия'}. Без дополнительного запаса; сечения и пакет заданы проектом.`:'Проектные элементы · чистый объём без запаса'});
  }
  for(const item of project.settings?.productionCutting?.manualParts||[]){
   if(!item.estimateEnabled||seen.has(`manual-${item.id}`))continue;

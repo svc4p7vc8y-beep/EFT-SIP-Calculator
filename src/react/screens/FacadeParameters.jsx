@@ -1,8 +1,10 @@
+import {houseFrameMaterial} from '../calculations/facade-frame-material.js';
 import {useState} from 'react';
 import {moveFacadeTransom,appendFacadeTransom,removeFacadePost} from '../calculations/facade-design.js';
 const field=(label,value,change,step=1)=><label>{label}<input type="number" step={step} value={value??''} onChange={e=>change(e.target.value===''?'':Number(e.target.value))}/></label>;
 export default function FacadeParameters({config,patch,envelope,layout,project}){
  const [tab,setTab]=useState('geometry'),width=envelope.wall.width;
+ const frameMaterial=houseFrameMaterial(project);
  const supportCandidates=project.settings.productionCutting.roofSupports.filter(s=>s.facadeId!==config.id&&!s.referenceOnly&&s.type!=='foundation');
  return <div className="facade-parameters">
         <div className="facade-tabs"><button aria-pressed={tab==='geometry'} onClick={()=>setTab('geometry')}>Геометрия</button><button aria-pressed={tab==='frame'} onClick={()=>setTab('frame')}>Каркас</button><button aria-pressed={tab==='supports'} onClick={()=>setTab('supports')}>Опоры</button></div>
@@ -17,8 +19,8 @@ export default function FacadeParameters({config,patch,envelope,layout,project})
         </>:null}
         {tab==='frame'?<>
           <h3>Пакет досок по проекту</h3><div className="facade-fields">{field('Толщина доски, мм',config.boardWidthMm,v=>patch({boardWidthMm:v}))}{field('Ширина доски, мм',config.boardDepthMm,v=>patch({boardDepthMm:v}))}{field('Досок в пакете, шт',config.plies,v=>patch({plies:v}))}</div>
-          <label>Цена прайса относится к<select value={config.packagePricing||'board'} onChange={e=>patch({packagePricing:e.target.value})}><option value="board">Отдельной доске пакета</option><option value="package">Готовому пакету / клеёному брусу</option></select></label>
-          <label>Материал пакета<select value={config.catalogId} onChange={e=>patch({catalogId:e.target.value})}><option value="">По сечению / требуется цена</option>{project.priceMat.filter(r=>['м³','м3','м.п.','м'].includes(r.unit)).map(r=><option key={r.id} value={r.id}>{r.name} · {r.price} ₽/{r.unit}</option>)}</select></label>
+          {!config.catalogId?<p className="facade-note">Материал дома: {frameMaterial.name}. Сечение и число досок остаются проектными; в смету попадает фактический объём, пересчитанный в единицы этой позиции прайса.</p>:null}<label>Цена прайса относится к<select disabled={!config.catalogId} value={!config.catalogId?'house':config.packagePricing||'board'} onChange={e=>patch({packagePricing:e.target.value})}>{!config.catalogId?<option value="house">Материалу каркаса дома · по объёму</option>:null}<option value="board">Отдельной доске пакета</option><option value="package">Готовому пакету / клеёному брусу</option></select></label>
+          <label>Материал пакета<select value={config.catalogId} onChange={e=>patch({catalogId:e.target.value})}><option value="">Как основной каркас дома</option>{project.priceMat.filter(r=>['м³','м3','м.п.','м'].includes(r.unit)).map(r=><option key={r.id} value={r.id}>{r.name} · {r.price} ₽/{r.unit}</option>)}</select></label>
           <label>Рабочий узел, соединения<textarea value={config.nodeRef} onChange={e=>patch({nodeRef:e.target.value})} placeholder="Ссылка на чертёж, соединение пакета, крепёж"/></label><label>Основание / путь до фундамента<input value={config.foundationRef} onChange={e=>patch({foundationRef:e.target.value})} placeholder="Балка, ростверк и узел по проекту"/></label>
           <h3>Крепёж и монтаж по проекту</h3>
           {(config.extras||[]).map((extra,i)=>{const edit=change=>patch({extras:config.extras.map((v,j)=>i===j?{...v,...change}:v)});return <div className="facade-link" key={extra.id}>

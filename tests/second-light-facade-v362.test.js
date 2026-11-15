@@ -64,8 +64,9 @@ for(const type of ['cold','sip'])test(`facade ${type}: polygonal glazing spans w
   const productArea=n.windowProducts.reduce((s,p)=>s+windowGeometry(p).areaM2,0);
   assert.ok(productArea>0);assert.ok(n.plan.openings.reduce((s,o)=>s+openingShapeArea(o),0)>productArea,'mounting openings are distinct from glazing dimensions');
 });
-test('facade boards are counted once, have individual cutting rows and preserve existing supports',()=>{
+test('manual loose-board facade material keeps individual cutting rows and existing supports',()=>{
   const {p,e,f}=prepared();p.settings.productionCutting.roofSupports.push({id:'existing',type:'purlin',name:'Прогон',profile:'100×150',nodeRef:'КР-2',x1:1000,y1:3000,z1:4000,x2:5000,y2:3000,z2:4000,startSupport:'',endSupport:''});
+  f.catalogId='MAT-023';
   const n=applyFacade(p,f,e),c=calculateProject(n),r=calculateProductionCutting(n,c),layout=facadeLayout(f,e),lines=productionEstimateLines(n);
   assert.ok(n.settings.productionCutting.roofSupports.some(s=>s.id==='existing'));
   assert.equal(lines.filter(l=>l.id.startsWith('production-support-facade:')).length,layout.members.length);
