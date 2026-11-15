@@ -603,8 +603,10 @@ export function calculateProductionCutting(project, calculation) {
       const eligible = edges.filter(edge => (outer == null || edge.outer === outer) && (!edge.outer || services.sipWalls));
       const choices = openingWallCandidates(opening, eligible);
       const nearest = choices[0], key = `${floor}:${opening.id}`;
-      const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? mm(opening.sillHeight) : opening.type === 'door' ? 0 : settings.windowSillMm);
-      const row = { key, id: opening.id, type: opening.type, facadeId:opening.facadeId,productShape:opening.productShape,windowProduct:project.windowProducts?.find(p=>p.openingId===opening.id),outline:opening.outline,displayOutline:opening.displayOutline, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Дверь'} ${++openingNumber}`, sill: sillValue, width: mm(opening.width), height: mm(opening.height), wallId: nearest?.edge.id };
+      // Facade pockets and timber share fractional millimetres; rounding only the opening creates false SIP slivers.
+      const openingMm=opening.facadeId?value=>(Number(value)||0)*1000:mm;
+      const sillValue = opening.type === 'gap' ? 0 : settings.openingSills[key] ?? (presentNumber(opening.sillHeight) ? openingMm(opening.sillHeight) : opening.type === 'door' ? 0 : settings.windowSillMm);
+      const row = { key, id: opening.id, type: opening.type, facadeId:opening.facadeId,productShape:opening.productShape,windowProduct:project.windowProducts?.find(p=>p.openingId===opening.id),outline:opening.outline,displayOutline:opening.displayOutline, gap: opening.type === 'gap', name: `${floor} этаж · ${opening.type === 'window' ? 'Окно' : opening.type === 'gap' ? 'Разрыв' : 'Дверь'} ${++openingNumber}`, sill: sillValue, width: openingMm(opening.width), height: openingMm(opening.height), wallId: nearest?.edge.id };
       if (!row.gap) openings.push(row);
       if(row.gap){
         const result=gapFragments(opening,eligible);
@@ -616,7 +618,7 @@ export function calculateProductionCutting(project, calculation) {
         issue('OPENING_WALL', `${row.name}: стена не найдена или привязка неоднозначна. Раскрой возможных стен заблокирован; уточните положение и ориентацию на плане.`, key);
         choices.filter(choice=>choice.distance<=Math.max(Number(plan.wallThickness)||.174,.1)+.03).forEach(choice=>blockedWalls.add(choice.edge.id)); continue;
       }
-      assigned.get(nearest.edge.id).push({ ...row, x: mm(nearest.u) - row.width / 2 });
+      assigned.get(nearest.edge.id).push({ ...row, x: openingMm(nearest.u) - row.width / 2 });
     }
     for (const edge of edges) {
       if (edge.outer && !services.sipWalls) continue;
@@ -770,14 +772,16 @@ export function calculateProductionCutting(project, calculation) {
         const rise = mm(roofSettings.ridgeHeight), span = roof.ridgeAxis === 'y' ? bounds.width : bounds.height;
         // The roof datum follows the centre of the rafter. SIP reaches its upper face.
         const rafterDepth=Number(String(roofSettings.rafterSection||'').split(/[×xх]/)[1])||0;
-        const upperFaceOffset = Math.round(rafterDepth/2*Math.sqrt(1+(2*rise/span)**2));
-        const height = rise + upperFaceOffset;
+        const upperFaceOffset = rafterDepth/2*Math.sqrt(1+(2*rise/span)**2);
+        const levels=productionLevels(project,plans.length),roofDatum=assembly.roofModel?.roofBase??levels.roofBase;
         const along=roof.ridgeAxis==='y'?1:0;
         const endWalls=surfaces.filter(s=>s.floor===plans.length&&/^Э\d+-С\d+$/.test(s.id)&&Math.abs(s.planStart[along]-s.planEnd[along])<1).sort((a,b)=>a.planStart[along]-b.planStart[along]);
         const endEdges=exteriorWallConstruction(plans.at(-1),sip,roofSettings,true,services.roof).filter(w=>Math.abs((along===0?w.a.x-w.b.x:w.a.y-w.b.y))<.001).sort((a,b)=>(along===0?a.a.x-b.a.x:a.a.y-b.a.y));
         for (let i = 1; i <= Math.min(2, Number(roofSettings.gableCount) || 0); i++) {
           const wall=endWalls[i-1],trim=wall?Math.max(0,(span-wall.width)/2):0;
-          const clipped=clipping.intersection([[[0,0],[span,0],[span,upperFaceOffset],[span/2,height],[0,upperFaceOffset],[0,0]]],rect(trim,0,span-2*trim,height));
+          // The end panel starts at the wall top, while rafters may bear above the ceiling/plate.
+          const datumRise=roofDatum-(levels.bases[plans.length-1]+(wall?.height??exteriorHeight(plans.at(-1))*1000)),topOffset=upperFaceOffset+datumRise,topHeight=rise+topOffset;
+          const clipped=clipping.intersection([[[0,0],[span,0],[span,topOffset],[span/2,topHeight],[0,topOffset],[0,0]]],rect(trim,0,span-2*trim,Math.max(0,topHeight)));
           // Keep the same per-end material resolution as the estimate engine.
           const selected=roofSettings.type==='combo'?roofSettings.gableSideTypes?.[i===1?'first':'second']:null;
           const type=selected==='sip'?'sip':selected==='frame'?'cold':roof.mainGableType;
@@ -787,7 +791,7 @@ export function calculateProductionCutting(project, calculation) {
             const localY=Number(o.sill)-wall.height,rawHole=openingPolygon({...o,width:o.width/1000,height:o.height/1000},1000,o.x,localY),upperHole=clipping.intersection(rawHole,gableShape);
             const fullShape=clipping.union(gableShape,rect(0,-wall.height,wall.width,wall.height));
             const excess=clipping.difference(rawHole,fullShape).reduce((sum,p)=>sum+polygonAreaMm(p),0);
-            const cap=Math.min(...[o.x,o.x+o.width].map(x=>wall.height+upperFaceOffset+rise*(1-Math.abs(2*(x+trim)/span-1)))),clearance=cap-Number(o.sill)-o.height;
+            const cap=Math.min(...[o.x,o.x+o.width].map(x=>wall.height+topOffset+rise*(1-Math.abs(2*(x+trim)/span-1)))),clearance=cap-Number(o.sill)-o.height;
             if(excess>1||type!=='sip'&&!o.facadeId){
               issue('GABLE_OPENING',`${o.name}: проём пересекает стену и фронтон${type!=='sip'?' с каркасом, требуется рабочая схема обрамления':` и выходит за наклонный верх фронтона на ${Math.max(0,Math.ceil(-clearance))} мм. При прежней ширине и высоте отметка низа должна быть не выше ${Math.floor(cap-o.height)} мм`}. Проверьте высоту, отметку низа и положение на плане.`,o.key);
               blocked=true;wall.blocked=true;
@@ -800,7 +804,9 @@ export function calculateProductionCutting(project, calculation) {
           if(reserved.length)holes.push(clipping.intersection(reserved,gableShape));
           const gableSurface=addGable(`ФР-${i}`, `Фронтон ${i}`,subtract(gableShape,holes),type);
           gableSurface.grossShape=gableShape;
-          if(type==='sip')gableSurface.topExtensionAreaMm2=upperFaceOffset*gableSurface.width;
+          const legacyOffset=Math.round(upperFaceOffset),legacyHeight=rise+legacyOffset;
+          gableSurface.legacyRoofDatumShape=clipping.intersection([[[0,0],[span,0],[span,legacyOffset],[span/2,legacyHeight],[0,legacyOffset],[0,0]]],rect(trim,0,span-2*trim,legacyHeight)).map(p=>p.map(r=>r.map(([x,y])=>[x-trim,y])));
+          if(type==='sip')gableSurface.topExtensionAreaMm2=Math.max(0,topOffset)*gableSurface.width;
           gableSurface.blocked=blocked;gableSurface.openings=transfers.map(o=>({...o,sill:Number(o.sill)-(wall?.height||0)}));
           if(wall)gableSurface.parentWallId=wall.id;
           // With a zero knee wall, use the actual top-floor contour and datum,

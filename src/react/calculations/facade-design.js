@@ -15,7 +15,7 @@ export function facadeEnvelope(report,wallId){
   const dx=wall.planEnd[0]-wall.planStart[0],dy=wall.planEnd[1]-wall.planStart[1],length=Math.hypot(dx,dy)||1;
   const plates=(report.assembly?.roofTimbers||[]).filter(m=>!m.excluded&&m.worldA&&m.worldB&&/Мауэрлат/.test(m.material||m.name||'')).map(m=>{const a=m.worldA,b=m.worldB,L=Math.hypot(b[0]-a[0],b[1]-a[1])||1,parallel=Math.abs(((b[0]-a[0])*dx+(b[1]-a[1])*dy)/(L*length)),distance=Math.abs((a[0]-wall.planStart[0])*dy-(a[1]-wall.planStart[1])*dx)/length;return {m,score:distance+(parallel<.98?100000:0)};}).sort((a,b)=>a.score-b.score);
   const plate=plates[0]?.score<350?plates[0].m:null,mauerlatMm=plate?(plate.worldA[2]+plate.worldB[2])/2-(wall.baseZMm||0):wall.height;
-  return {wall,mauerlatMm,mauerlatSource:plate?.id||'',shape:clipping.union(...shapes),key:JSON.stringify([facadeSourceKey(wall),...gables.map(s=>s.grossShape)])};
+  return {wall,mauerlatMm,mauerlatSource:plate?.id||'',shape:clipping.union(...shapes),key:JSON.stringify([facadeSourceKey(wall),...gables.map(s=>s.grossShape)]),legacyRoofDatumKey:gables.some(s=>s.legacyRoofDatumShape)?JSON.stringify([facadeSourceKey(wall),...gables.map(s=>s.legacyRoofDatumShape||s.grossShape)]):null};
 }
 export function facadeHeight(shape,x){
   const values=[];
@@ -38,7 +38,7 @@ export function facadeLayout(config,envelope){
   const stations=(config.posts||[]).map((x,i)=>({x:Number(x),key:config.postRefs?.[i]||`post-${i}`})).sort((a,b)=>a.x-b.x);
   const errors=[],warnings=[],posts=stations.map(s=>s.x),width=envelope.wall.width;
   const bw=Number(config.boardWidthMm),depth=Number(config.boardDepthMm),plies=Number(config.plies),postWidth=bw*plies,clearance=Number(config.clearanceMm),sill=Number(config.sillMm),transom=Number(config.transomMm),inset=Number(config.headInsetMm);
-  if(config.sourceKey!==envelope.key)errors.push('Контур стены или кровли изменился. Обновите контур фасада и проверьте размеры.');
+  if(config.sourceKey!==envelope.key&&!(envelope.legacyRoofDatumKey&&config.sourceKey===envelope.legacyRoofDatumKey))errors.push('Контур стены или кровли изменился. Обновите контур фасада и проверьте размеры.');
   if(![bw,depth,plies,clearance,sill,transom,inset,...posts].every(finite)||bw<20||depth<50||bw>500||depth>1000||!Number.isInteger(plies)||plies<1||plies>8||clearance<0||sill<0||transom<=sill||inset<depth/2||posts.length<2||posts.length>12){errors.push('Проверьте размеры, пакет досок и число стоек (2–12).');return {errors,warnings,windows:[],members:[],shape:envelope.shape};}
   if(posts[0]<postWidth/2||posts.at(-1)>width-postWidth/2||posts.some((x,i)=>i&&x-posts[i-1]<postWidth+2*clearance+150))errors.push('Стойки или межстоечные проёмы не помещаются на фасаде.');
   if(!config.nodeRef?.trim())warnings.push('Рабочие узлы и крепёж не заданы. Несущая способность пакета досок не подтверждена.');

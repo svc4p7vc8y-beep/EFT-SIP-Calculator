@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDefaultProject,createUpperFloorPlan,migrateProject} from '../src/react/state/project-model.js';
 import {calculateProject} from '../src/react/calculations/estimate-engine.js';
-import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
+import {calculateProductionCutting,polygonAreaMm} from '../src/react/calculations/production-cutting.js';
 import {productionScene} from '../src/react/calculations/production-scene.js';
 import {gableLinks} from '../src/react/calculations/drawing-workbench.js';
 import {productionLevels} from '../src/react/calculations/production-levels.js';
@@ -38,7 +38,7 @@ test('attic framing, including corner backing and upper plates, stays below its 
 });
 function windowHouse(sill){const p=attic();p.upperFloors[0].wallHeight=1;p.settings.roof.ridgeAxis='y';p.settings.roof.type='sip';p.settings.roof.gableType='sip';p.settings.roof.ridgeHeight=1.5;p.upperFloors[0].openings=[{id:'win',type:'window',outer:true,orientation:'h',x:3.2140926248084782,y:7,width:1.2,height:1.2,sillHeight:sill,subtractFromSip:true}];return p;}
 test('valid window crossing the knee wall is cut in both the wall and gable',()=>{
- const p=windowHouse(.3);Object.assign(p.upperFloors[0].openings[0],{x:3.125,width:1.25});const before=JSON.stringify(p),r=run(p),row=r.openings.find(o=>o.id==='win'),wall=r.surfaces.find(s=>s.id===row.wallId),gable=r.surfaces.find(s=>s.id===row.gableId);assert.ok(gable);assert.equal(wall.blocked,false);assert.equal(gable.blocked,false);assert.ok(r.parts.some(s=>s.surfaceId===wall.id));assert.ok(r.parts.some(s=>s.surfaceId===gable.id));const area=s=>s.geometry.reduce((sum,p)=>sum+Math.abs(p[0].reduce((v,a,i)=>{const b=p[0][(i+1)%p[0].length];return v+a[0]*b[1]-a[1]*b[0];},0))/2,0);assert.ok(area(wall)<5000*1000);assert.ok(area(gable)<5000*1500/2);assert.equal(r.issues.some(i=>i.code==='GABLE_OPENING'),false);assert.equal(JSON.stringify(p),before);
+ const p=windowHouse(.3);Object.assign(p.upperFloors[0].openings[0],{x:3.125,width:1.25});const before=JSON.stringify(p),r=run(p),row=r.openings.find(o=>o.id==='win'),wall=r.surfaces.find(s=>s.id===row.wallId),gable=r.surfaces.find(s=>s.id===row.gableId);assert.ok(gable);assert.equal(wall.blocked,false);assert.equal(gable.blocked,false);assert.ok(r.parts.some(s=>s.surfaceId===wall.id));assert.ok(r.parts.some(s=>s.surfaceId===gable.id));const area=s=>s.geometry.reduce((sum,p)=>sum+Math.abs(p[0].reduce((v,a,i)=>{const b=p[0][(i+1)%p[0].length];return v+a[0]*b[1]-a[1]*b[0];},0))/2,0);assert.ok(area(wall)<5000*1000);assert.ok(area(gable)<gable.grossShape.reduce((sum,poly)=>sum+polygonAreaMm(poly),0));assert.equal(r.issues.some(i=>i.code==='GABLE_OPENING'),false);assert.equal(JSON.stringify(p),before);
 });
 test('window above the gable envelope blocks manufacturing but remains visible as a warning preview',()=>{
  const p=windowHouse(.85),r=run(p),row=r.openings.find(o=>o.id==='win'),scene=productionScene(r,p);assert.ok(r.issues.some(i=>i.code==='GABLE_OPENING'));assert.ok(row.topClearance<0);assert.equal(r.parts.some(p=>[row.wallId,row.gableId].includes(p.surfaceId)),false);assert.ok(scene.previews.some(s=>s.surfaceId===row.wallId));assert.ok(scene.previews.some(s=>s.surfaceId===row.gableId));assert.equal(p.upperFloors[0].openings[0].sillHeight,.85);
