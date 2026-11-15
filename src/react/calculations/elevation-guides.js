@@ -18,3 +18,13 @@ export function alignElevation(box,anchors,tolerance=30,snap=true){
  }
  return {x:box.x+change.x,z:box.z+change.z,guides:aligned};
 }
+// User guides are geometry-free annotations; divisions never create openings or timber.
+export function equalElevationGuides(span,count,axis='x',group='equal'){
+ if(!Number.isFinite(span)||span<=0||!Number.isInteger(count)||count<2||count>1000)throw new Error('Укажите целое число частей от 2 до 1000.');
+ return Array.from({length:count-1},(_,i)=>({id:crypto.randomUUID(),axis,value:span*(i+1)/count,origin:0,direction:1,divisionGroup:group,label:`${i+1}/${count}`}));
+}
+export function snapElevationGuide(guide,anchors,tolerance=30){
+ if(!['x','z'].includes(guide.axis))return {guide,matches:[]};
+ const nearest=anchors.filter(a=>a.axis===guide.axis&&(!guide.id||a.id!==guide.id)&&Math.abs(a.value-guide.value)<=tolerance).sort((a,b)=>Math.abs(a.value-guide.value)-Math.abs(b.value-guide.value))[0];
+ return {guide:nearest?{...guide,value:nearest.value}:guide,matches:nearest?[nearest]:[]};
+}

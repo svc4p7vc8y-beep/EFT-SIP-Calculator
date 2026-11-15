@@ -17,3 +17,14 @@
 .facade-3d-controls{margin:6px 0;padding:7px;border:1px solid #cfddc8;border-radius:8px;background:#fff}.facade-3d-controls label{display:grid;gap:4px;margin:6px 0;font-size:12px}.facade-3d-controls input,.facade-3d-controls select{min-width:0;width:100%;padding:6px;box-sizing:border-box}.facade-3d-controls>div{display:flex;gap:4px;flex-wrap:wrap}.facade-3d-controls button{padding:6px;border:1px solid #b9cdae;border-radius:6px;background:#eff5ea;font-size:11px}.facade-3d-controls small{display:block;font-size:11px;color:#58705c}
 
 .facade-parameters{display:grid;gap:10px;min-width:0}.facade-parameters .facade-tabs{display:flex;gap:3px}.facade-parameters .facade-tabs button{flex:1;padding:6px;font-size:11px}.facade-parameters .facade-tabs [aria-pressed=true]{background:#cfe5bc}.facade-parameters .facade-fields,.facade-parameters .facade-posts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.facade-parameters .facade-posts>div{display:flex;gap:3px;align-items:end}.facade-parameters .facade-link{display:grid;gap:7px;padding-bottom:10px;border-bottom:1px solid #dce5d4}.structural-workspace .facade-parameters select{max-width:100%}.facade-edit-overlay circle{cursor:grab;vector-effect:non-scaling-stroke;stroke-width:1.5}.facade-edit-overlay path{cursor:grab}.structural-workspace>aside:has(.facade-parameters){display:flex;flex-direction:column;gap:10px}.structural-workspace>aside:has(.facade-parameters)>*{flex-shrink:0}
+/* One scrolling properties column: nested window controls must never shrink or clip. */
+.structural-workspace>aside{overflow-x:hidden;overflow-y:auto;touch-action:pan-y;display:block;overscroll-behavior:contain;scrollbar-gutter:stable}
+.structural-workspace>aside>*{flex-shrink:0}
+.structural-workspace>aside .window-config-embedded{border:0;border-radius:0;background:transparent;overflow:visible;max-height:none;margin:0;padding:0!important;flex:none}
+.structural-workspace .window-config-embedded .window-gallery-cards{max-height:none;overflow:visible}
+.structural-workspace .window-config-embedded .window-sections>div{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:8px;border-bottom:1px solid #d8e4df}
+.structural-workspace .window-config-embedded .window-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.elevation-guide-source{cursor:crosshair;stroke:transparent;transition:stroke .12s}
+.elevation-guide-source:hover{stroke:#e4b550;stroke-opacity:.45}
+.structural-workspace .elevation-divisions{min-width:0;margin:12px 0;padding:10px;border:1px solid #d8e4df;border-radius:8px}
+.structural-workspace .elevation-divisions button{width:100%;margin:4px 0}
