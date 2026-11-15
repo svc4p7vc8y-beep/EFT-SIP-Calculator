@@ -1,3 +1,4 @@
+import {createWindowFromDesign,supplierAreaEstimate} from '../state/window-products.js';
 import {cornerPlanStations} from './corner-rafters.js';
 import clipping from 'polygon-clipping';
 import {wallProfileArea} from './second-light-wall.js';
@@ -3160,10 +3161,14 @@ function openingSection(project, index) {
             name: `${type} ${width}×${height} мм · ${area} м²`,
             unit: pricedByArea ? "м2" : "шт",
             exactQuantity: pricedByArea,
-            priceMultiplier: panoramic ? 2 : 1,
+            priceMultiplier: 1,
           },
         ),
       );
+      if(panoramic){
+        const estimate=supplierAreaEstimate(createWindowFromDesign({id:'plan-panorama',label:'Панорама',widthMm:width,heightMm:height,sections:['fixed']}));
+        if(estimate&&area>0){const line=lines[lines.length-1];line.price=round(estimate.unitRub/area,2);line.source=estimate.source;line.priceEstimated=true;}
+      }
       const workCatalogId = opening.type === "window"
         ? "LAB-140"
         : thermalBreak
@@ -3182,7 +3187,7 @@ function openingSection(project, index) {
           "openings",
           work,
           opening.type === "window" ? area : 1,
-          { key: `work-${openingIndex}`, kind: "labor", catalogId: workCatalogId, exactQuantity: opening.type === "window", priceMultiplier: panoramic ? 2 : 1 },
+          { key: `work-${openingIndex}`, kind: "labor", catalogId: workCatalogId, exactQuantity: opening.type === "window", priceMultiplier: 1 },
         ),
       );
       if (!garage)

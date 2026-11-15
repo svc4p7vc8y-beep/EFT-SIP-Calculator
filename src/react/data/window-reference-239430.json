@@ -1,0 +1,243 @@
+{
+  "schema": "eft.window-reference.v1",
+  "quoteId": "239430",
+  "supplier": "Окна Столицы",
+  "label": "PROPLEX BASIS · 239430",
+  "issueDate": "2026-11-02",
+  "priceStatus": "supplier_specification_estimate",
+  "currency": "RUB",
+  "basis": {
+    "material": "PVC",
+    "profileBrand": "PROPLEX",
+    "profileSystem": "BASIS",
+    "profileInstallationDepthMm": 58,
+    "profileColor": "white",
+    "glazingFormula": "4-10-4-10-4",
+    "glazingThicknessMm": 32,
+    "sealColor": "black",
+    "glazingBead": "straight",
+    "supportProfileHeightMm": null,
+    "view": "inside"
+  },
+  "items": [
+    {
+      "quoteId": "239430",
+      "number": 1,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 1120,
+      "heightMm": 620,
+      "sections": [
+        "tilt"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 0.6944,
+      "priceRubExact": 6172.85,
+      "sourcePage": 2
+    },
+    {
+      "quoteId": "239430",
+      "number": 2,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 600,
+      "heightMm": 600,
+      "sections": [
+        "tilt"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 0.36,
+      "priceRubExact": 4171.75,
+      "sourcePage": 2
+    },
+    {
+      "quoteId": "239430",
+      "number": 3,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 1120,
+      "heightMm": 1200,
+      "sections": [
+        "fixed",
+        "tilt_turn_right"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 1.344,
+      "priceRubExact": 9900.75,
+      "sourcePage": 3
+    },
+    {
+      "quoteId": "239430",
+      "number": 4,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 600,
+      "heightMm": 600,
+      "sections": [
+        "tilt_turn_right"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 0.36,
+      "priceRubExact": 4973.89,
+      "sourcePage": 3
+    },
+    {
+      "quoteId": "239430",
+      "number": 5,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 1120,
+      "heightMm": 900,
+      "sections": [
+        "tilt_turn_right"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 1.008,
+      "priceRubExact": 9110.87,
+      "sourcePage": 4
+    },
+    {
+      "quoteId": "239430",
+      "number": 6,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 1200,
+      "heightMm": 1200,
+      "sections": [
+        "fixed",
+        "tilt_turn_right"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 1.44,
+      "priceRubExact": 10270.17,
+      "sourcePage": 4
+    },
+    {
+      "quoteId": "239430",
+      "number": 7,
+      "qty": 1,
+      "kind": "door",
+      "shape": "rectangle",
+      "widthMm": 900,
+      "heightMm": 2000,
+      "sections": [
+        "door_left"
+      ],
+      "hardware": "REZE",
+      "areaM2Exact": 1.8,
+      "priceRubExact": 22192.53,
+      "sourcePage": 5,
+      "profile": {
+        "brand": "KBE",
+        "system": "ВД Внутрь/58 KBE",
+        "installationDepthMm": 58,
+        "color": "white"
+      },
+      "threshold": "Холодный алюминиевый порог KBE 58",
+      "accessoriesNote": "Ручка Fluence и цилиндр указаны отдельно в комплектующих спецификации, страница 8."
+    },
+    {
+      "quoteId": "239430",
+      "number": 8,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 1800,
+      "heightMm": 2000,
+      "sections": [
+        "fixed",
+        "turn_right"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 3.6,
+      "priceRubExact": 19405.11,
+      "sourcePage": 5
+    },
+    {
+      "quoteId": "239430",
+      "number": 9,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 1800,
+      "heightMm": 1200,
+      "sections": [
+        "fixed",
+        "tilt_turn_right",
+        "fixed"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 2.16,
+      "priceRubExact": 13527.01,
+      "sourcePage": 6
+    },
+    {
+      "quoteId": "239430",
+      "number": 10,
+      "qty": 1,
+      "kind": "window",
+      "shape": "rectangle",
+      "widthMm": 800,
+      "heightMm": 1200,
+      "sections": [
+        "tilt_turn_right"
+      ],
+      "hardware": "Vorne",
+      "areaM2Exact": 0.96,
+      "priceRubExact": 8403.04,
+      "sourcePage": 6
+    },
+    {
+      "quoteId": "239430",
+      "number": 11,
+      "qty": 1,
+      "kind": "window",
+      "shape": "trapezoid_sloped_top",
+      "widthMm": 900,
+      "heightMm": 1100,
+      "sections": [
+        "fixed"
+      ],
+      "hardware": null,
+      "areaM2Exact": 0.855,
+      "priceRubExact": 6452.98,
+      "sourcePage": 7,
+      "leftHeightMm": 800,
+      "rightHeightMm": 1100
+    },
+    {
+      "quoteId": "239430",
+      "number": 12,
+      "qty": 1,
+      "kind": "window",
+      "shape": "triangle",
+      "widthMm": 1000,
+      "heightMm": 866,
+      "sections": [
+        "fixed"
+      ],
+      "hardware": null,
+      "areaM2Exact": 0.433,
+      "priceRubExact": 4952.75,
+      "sourcePage": 7,
+      "apexPosition": 0.5
+    }
+  ],
+  "totals": {
+    "productRowsRub": 119533.7,
+    "accessoriesRub": 3571.74,
+    "specificationRub": 123105.44
+  },
+  "notes": [
+    "Цены строк изделий; комплектующие страницы 8 учитываются отдельно и не распределяются автоматически.",
+    "Доставка заявлена включённой в спецификацию; отдельная стоимость доставки к каждой строке не добавляется.",
+    "Пересчёт по площади — ориентир, изготовление и новый заказ подтверждает производитель.",
+    "Исходный PDF содержит реквизиты и адрес доставки и не публикуется."
+  ]
+}

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createDefaultProject } from '../src/react/state/project-model.js';
 import { calculateProject } from '../src/react/calculations/estimate-engine.js';
 
-test('panoramic glazing doubles only product and installation prices, not area or shared catalog', () => {
+test('panoramic glazing uses supplier area estimate without doubling product or installation', () => {
   const project = createDefaultProject();
   project.plan.openings.push({ id: 'wide-window', type: 'window', windowType: 'standard', width: 3, height: 2.5, outer: true });
   const normal = calculateProject(project).lines;
@@ -23,10 +23,11 @@ test('panoramic glazing doubles only product and installation prices, not area o
   assert.equal(work.catalogId, 'LAB-140');
   assert.equal(product.qty, 7.5);
   assert.equal(work.qty, 7.5);
-  assert.equal(product.price, normalProduct.price * 2);
-  assert.equal(work.price, normalWork.price * 2);
+  assert.equal(product.price, 7703.3);
+  assert.match(product.source,/273803/);
+  assert.equal(work.price, normalWork.price);
   assert.equal(fastener.price, normalFastener.price);
-  assert.equal(product.qty * product.price + work.qty * work.price, 187500);
+  assert.equal(product.qty * product.price + work.qty * work.price, 78608.1);
   assert.equal(project.priceMat.find((item) => item.id === 'MAT-241').price, catalogProductPrice);
   assert.equal(project.priceLab.find((item) => item.id === 'LAB-140').price, catalogWorkPrice);
 });

@@ -1,7 +1,14 @@
 import reference from '../data/window-reference-273803.json' with {type:'json'};
+import quote239422 from '../data/window-reference-239422.json' with {type:'json'};
+import quote239430 from '../data/window-reference-239430.json' with {type:'json'};
 import {WINDOW_DESIGN_LIBRARY} from '../data/window-design-library.js';
 
 export const WINDOW_REFERENCE = reference;
+export const WINDOW_SUPPLIER_QUOTES = [reference,quote239422,quote239430];
+export const WINDOW_REFERENCE_ITEMS = WINDOW_SUPPLIER_QUOTES.flatMap(q=>q.items.map(item=>q===reference?item:{...item,quoteId:q.quoteId}));
+export const windowQuote = item => WINDOW_SUPPLIER_QUOTES.find(q=>q.quoteId===(item?.quoteId||'273803'))||reference;
+const sourceQuoteId = product => product.price?.referenceQuoteId||product.price?.sourceId||String(product.presetId||'').match(/^(\d+)-\d+$/)?.[1]||'273803';
+const sourceItem = product => WINDOW_REFERENCE_ITEMS.find(i=>windowQuote(i).quoteId===sourceQuoteId(product)&&i.number===(Number(product.price?.referenceNumber)||Number(String(product.presetId||'').match(/^\d+-(\d+)$/)?.[1])));
 export const WINDOW_SHAPES = [
   {id:'rectangle',label:'Прямоугольник'},
   {id:'trapezoid_sloped_top',label:'Трапеция'},
@@ -67,19 +74,21 @@ export function validateWindow(product) {
 }
 const referenceMode = mode => mode==='tilt_turn'?'tilt_turn_right':mode==='turn'?'turn_right':mode;
 export function createWindowFromReference(item, overrides={}) {
+  const quote=windowQuote(item),basis=quote.basis;
   return {
     id:globalThis.crypto?.randomUUID?.()||`window-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    openingId:null,presetId:`273803-${item.number}`,mark:`ОК-${String(item.number).padStart(2,'0')}`,
+    openingId:null,presetId:`${quote.quoteId}-${item.number}`,mark:`ОК-${String(item.number).padStart(2,'0')}`,
     quantity:item.qty,shape:item.shape,sectionAxis:'vertical',widthMm:item.widthMm??item.baseWidthMm,
     baseWidthMm:item.baseWidthMm,heightMm:item.heightMm??null,
     leftHeightMm:item.leftHeightMm,rightHeightMm:item.rightHeightMm,apexPosition:item.apexPosition??.5,
-    sections:item.sections.map((mode,index)=>({id:`section-${index+1}`,openingMode:referenceMode(mode),ratio:1,hardwareSystem:mode==='fixed'?null:item.hardware,handleSide:mode==='fixed'?null:'left'})),
-    profile:{brand:basis.profileBrand,system:basis.profileSystem,installationDepthMm:basis.profileInstallationDepthMm,color:basis.profileColor},
+    sections:item.sections.map((mode,index)=>({id:`section-${index+1}`,openingMode:referenceMode(mode),ratio:1,hardwareSystem:mode==='fixed'?null:item.hardware,handleSide:mode==='fixed'?null:referenceMode(mode).endsWith('_left')?'right':'left'})),
+    profile:item.profile||{brand:basis.profileBrand,system:basis.profileSystem,installationDepthMm:basis.profileInstallationDepthMm,color:basis.profileColor},
     glazing:{formula:basis.glazingFormula,thicknessMm:basis.glazingThicknessMm},
     sealColor:basis.sealColor,glazingBead:basis.glazingBead,
     supportProfile:{heightMm:basis.supportProfileHeightMm,includedInOverallHeight:null},
     roughOpening:null,installationGaps:{leftMm:null,rightMm:null,topMm:null,bottomMm:null},
-    options:{},price:{mode:'historical_supplier_quote',amountRub:item.priceRubExact,sourceId:reference.quoteId,issueDate:null,history:[]},
+    kind:item.kind||'window',threshold:item.threshold||null,accessoriesNote:item.accessoriesNote||null,
+    options:{},price:{mode:'historical_supplier_quote',amountRub:item.priceRubExact,sourceId:quote.quoteId,issueDate:quote.issueDate||null,history:[]},
     ...overrides,
   };
 }
@@ -90,12 +99,12 @@ export function createWindowFromDesign(design, overrides={}) {
     shape:design.shape||'rectangle',sectionAxis:design.sectionAxis||'vertical',
     widthMm:design.widthMm,baseWidthMm:design.widthMm,heightMm:design.heightMm,
     leftHeightMm:design.leftHeightMm??null,rightHeightMm:design.rightHeightMm??null,
-    sections:design.sections.map((openingMode,index)=>({id:`section-${index+1}`,openingMode,ratio:1,hardwareSystem:openingMode==='fixed'?null:source.hardware,handleSide:openingMode.endsWith('_right')?'right':openingMode==='fixed'?null:'left'})),
+    sections:design.sections.map((openingMode,index)=>({id:`section-${index+1}`,openingMode,ratio:1,hardwareSystem:openingMode==='fixed'?null:source.hardware,handleSide:openingMode.endsWith('_left')?'right':openingMode==='fixed'?null:'left'})),
     price:{mode:'design_unpriced',history:[]},...overrides,
   });
 }
 export {WINDOW_DESIGN_LIBRARY};
-const referenceProducts=reference.items.map(item=>({item,base:createWindowFromReference(item)}));
+const referenceProducts=WINDOW_REFERENCE_ITEMS.map(item=>({item,base:createWindowFromReference(item)}));
 export function normalizeWindowProducts(value) {
   if(!Array.isArray(value)) return [];
   const ids=new Set();
@@ -134,35 +143,54 @@ export function parametricWindowPrice(product,tariff) {
 }
 export function windowReferenceMatch(product) {
   if(Object.values(product.options||{}).some(Boolean)) return null;
-  return referenceProducts.find(({base})=>{
+  return [...referenceProducts].sort((a,b)=>Number(windowQuote(b.item).quoteId===sourceQuoteId(product))-Number(windowQuote(a.item).quoteId===sourceQuoteId(product))).find(({base})=>{
     const matching=['shape','sectionAxis','widthMm','heightMm','leftHeightMm','rightHeightMm','apexPosition'].every(key=>(product[key]??null)===(base[key]??null));
     if(!matching||product.sections.length!==base.sections.length) return false;
     if(product.sections.some((section,i)=>section.openingMode!==base.sections[i].openingMode||section.hardwareSystem!==base.sections[i].hardwareSystem||section.handleSide!==base.sections[i].handleSide||Math.abs(sectionWidths(product)[i]-sectionWidths(base)[i])>.01)) return false;
     return JSON.stringify(product.profile)===JSON.stringify(base.profile)&&JSON.stringify(product.glazing)===JSON.stringify(base.glazing)&&product.sealColor===base.sealColor&&product.glazingBead===base.glazingBead&&JSON.stringify(product.supportProfile)===JSON.stringify(base.supportProfile);
   })?.item||null;
 }
-function facadeWindowBudget(product,priceMat){
- if(!priceMat?.length||!(product.facadeId||String(product.openingId||'').startsWith('facade:'))||['manual','parametric'].includes(product.price?.mode)||validateWindow(product).length)return null;
- const area=windowGeometry(product).areaM2,candidates=referenceProducts.filter(c=>windowConstructionKey(c.base)===windowConstructionKey(product)).sort((a,b)=>Math.abs(Math.log(a.item.areaM2Exact/area))-Math.abs(Math.log(b.item.areaM2Exact/area)));
- if(candidates.length){const number=Number(product.price?.referenceNumber),item=(candidates.find(c=>c.item.number===number)||candidates[0]).item;return {mode:'facade_reference_area',unitRub:round(item.priceRubExact*area/item.areaM2Exact),estimated:true,label:'Ориентировочно · по площади образца',source:`Витражный фасад: расчёт № ${reference.quoteId}, образец № ${item.number}, ${item.priceRubExact} ₽ / ${item.areaM2Exact} м² × ${area.toFixed(4)} м². Дата исходной цены неизвестна; уточнить у изготовителя.`};}
- const row=priceMat.find(r=>r.id==='MAT-241')||priceMat.find(r=>r.id==='MAT-240');if(!row||!['м2','м²'].includes(row.unit)||!(Number(row.price)>0))return null;
- return {mode:'facade_budget',unitRub:round(area*Number(row.price)*2),estimated:true,catalogId:row.id,label:'Ориентировочно · витражное остекление',source:`Прайс проекта ${row.id}: ${row.price} ₽/м² × 2 (действующий коэффициент панорамного остекления) × ${area.toFixed(4)} м². ${row.priceNote||''} Это ориентировочная стоимость, не предложение изготовителя.`};
+// Source selection is an estimate of similar construction, never a manufacturing tariff.
+export function supplierAreaEstimate(product){
+ if(validateWindow(product).length)return null;
+ const area=windowGeometry(product).areaM2,door=(product.sections||[]).some(s=>s.openingMode.startsWith('door_'));
+ const normalize=m=>m.replace('door_','turn_').replace('_left','_side').replace('_right','_side');
+ const modes=p=>(p.sections||[]).map(s=>normalize(s.openingMode));
+ const candidates=referenceProducts.filter(c=>c.base.shape===product.shape&&((c.item.kind==='door')===door));
+ const score=c=>{
+  const pm=modes(product),cm=modes(c.base);
+  return (JSON.stringify(pm)===JSON.stringify(cm)?0:8)+Math.abs(pm.length-cm.length)*2+
+   (c.base.profile.brand===product.profile?.brand&&c.base.profile.system===product.profile?.system?0:4)+
+   (c.base.glazing.formula===product.glazing?.formula?0:1)+Math.abs(Math.log(c.item.areaM2Exact/area));
+ };
+ candidates.sort((a,b)=>score(a)-score(b));
+ const preferred=sourceItem(product),chosen=candidates.find(c=>c.item===preferred&&score(c)<=score(candidates[0])+.001)||candidates[0];
+ if(!chosen)return null;
+ const {item,base}=chosen,quote=windowQuote(item),different=windowConstructionKey(base)!==windowConstructionKey(product);
+ return {mode:'facade_reference_area',unitRub:round(item.priceRubExact*area/item.areaM2Exact),estimated:true,label:'Ориентировочно · по площади образца',source:`Расчёт № ${quote.quoteId}${quote.issueDate?` от ${quote.issueDate}`:' · дата неизвестна'}, образец № ${item.number} (${base.profile.brand} ${base.profile.system}): ${item.priceRubExact} ₽ / ${item.areaM2Exact} м² × ${area.toFixed(4)} м².${different?' Близкий образец: конструктив и комплектация отличаются; подтвердить стоимость у изготовителя.':''}${quote.quoteId!=='273803'?' Отдельные комплектующие со стр. 8 не включены.':''}`};
+}
+function projectWindowBudget(product,priceMat){
+ if(!priceMat?.length||['manual','parametric'].includes(product.price?.mode)||validateWindow(product).length)return null;
+ const estimate=supplierAreaEstimate(product);if(estimate)return estimate;
+ const area=windowGeometry(product).areaM2,row=priceMat.find(r=>r.id==='MAT-241')||priceMat.find(r=>r.id==='MAT-240');if(!row||!['м2','м²'].includes(row.unit)||!(Number(row.price)>0))return null;
+ return {mode:'facade_budget',unitRub:round(area*Number(row.price)),estimated:true,catalogId:row.id,label:'Ориентировочно · витражное остекление',source:`Прайс проекта ${row.id}: ${row.price} ₽/м² × ${area.toFixed(4)} м². Это ориентировочная стоимость; подтвердить у изготовителя.`};
 }
 export function windowPrice(product,tariffs=[],priceMat=[]) {
-  const budget=()=>facadeWindowBudget(product,priceMat);
+  const budget=()=>projectWindowBudget(product,priceMat);
   const area=windowGeometry(product).areaM2;
   if(product.geometryPriceReview)return budget()||{mode:'unpriced',unitRub:null,label:'Геометрия изменена — подтвердите цену',source:'Прежняя цена сохранена в параметрах изделия; перед включением в смету подтвердите её для новых размеров'};
   if(validateWindow(product).length) return {mode:'invalid',unitRub:null,label:'Уточните параметры'};
   if(product.price?.mode==='reference_area'){
-    const item=reference.items.find(i=>i.number===Number(product.price.referenceNumber)),base=item&&createWindowFromReference(item);
+    const item=sourceItem(product),base=item&&createWindowFromReference(item);
     if(!base||windowConstructionKey(base)!==windowConstructionKey(product))return budget()||{mode:'unpriced',unitRub:null,label:'Конструктив изменён — выберите новый образец'};
-    return {mode:'reference_area',unitRub:round(item.priceRubExact*area/item.areaM2Exact),label:'Оценка по площади конструктива',source:`Расчёт № ${reference.quoteId}, образец № ${item.number}: ${item.priceRubExact} ₽ / ${item.areaM2Exact} м². Дата исходной цены не установлена; это не новая оферта поставщика.`};
+    return {mode:'reference_area',estimated:true,unitRub:round(item.priceRubExact*area/item.areaM2Exact),label:'Оценка по площади конструктива',source:`Расчёт № ${windowQuote(item).quoteId}${windowQuote(item).issueDate?` от ${windowQuote(item).issueDate}`:""}, образец № ${item.number}: ${item.priceRubExact} ₽ / ${item.areaM2Exact} м². Оценка по площади; комплектующие и стоимость подтвердить у изготовителя.`};
   }
   if(product.price?.mode==='design_unpriced') return budget()||{mode:'unpriced',unitRub:null,label:'Цена поставщика не задана',source:'Эскиз из библиотеки вариантов; назначьте цену проекта или подтверждённый тариф'};
   if(product.price?.mode==='manual') return product.price.amountRub!==null&&product.price.amountRub!==''&&Number(product.price.amountRub)>=0&&product.price.source?.trim()?{mode:'manual',unitRub:Number(product.price.amountRub),label:'Цена проекта, ручная',source:product.price.source}:{mode:'unpriced',unitRub:null,label:'Укажите сумму и источник ручной цены',source:'Ручной ввод проекта'};
   if(product.price?.mode==='parametric') return parametricWindowPrice(product,tariffs.find(t=>t.id===product.price?.tariffId))||{mode:'unpriced',unitRub:null,label:'Нет подтверждённого параметрического тарифа',source:'Уточните тариф и производственные измерения'};
   const exact=windowReferenceMatch(product);
-  if(exact) return {mode:'historical_supplier_quote',unitRub:exact.priceRubExact,label:'Историческая цена поставщика',source:'Расчёт № 273803; дата не установлена, срок действия 3 рабочих дня'};
+  if(exact) return {mode:'historical_supplier_quote',unitRub:exact.priceRubExact,label:'Историческая цена поставщика',source:`Расчёт № ${windowQuote(exact).quoteId}${windowQuote(exact).issueDate?` от ${windowQuote(exact).issueDate}, стр. ${exact.sourcePage}. Отдельные комплектующие со стр. 8 не включены.`:'; дата не установлена, срок действия 3 рабочих дня'}`};
+  const linkedEstimate=budget();if(linkedEstimate)return linkedEstimate;
   if(product.profile?.brand===basis.profileBrand&&product.profile?.system===basis.profileSystem&&product.profile?.installationDepthMm===60&&product.profile?.color==='white'&&product.glazing?.formula===basis.glazingFormula&&product.glazing?.thicknessMm===32&&product.sealColor==='black'&&product.glazingBead==='straight'&&Number(product.supportProfile?.heightMm)===30&&product.sections.every(s=>!s.hardwareSystem||['Vorne','Roto_NX'].includes(s.hardwareSystem))&&area>=.36&&area<=3.6) {
     return {mode:'preliminary',unitRub:round(4983.868694574176+4786.709802929846*area),label:'Предварительный ориентир',source:'Регрессия по 12 позициям расчёта № 273803; ошибка отдельных позиций до 31%; возможность изготовления подтвердить у поставщика'};
   }
@@ -175,9 +203,9 @@ export function resizeWindowProduct(product,patch){
  const next={...product,...patch},changed=['widthMm','baseWidthMm','heightMm','leftHeightMm','rightHeightMm','apexPosition'].some(k=>Object.hasOwn(patch,k)&&patch[k]!==product[k]);
  if(!changed)return next;
  const oldSpan=Number(product.sectionAxis==='horizontal'?product.heightMm:product.widthMm||product.baseWidthMm),span=Number(next.sectionAxis==='horizontal'?next.heightMm:next.widthMm||next.baseWidthMm);if(!patch.sections&&oldSpan>0&&span>0&&span!==oldSpan)next.sections=product.sections.map(s=>s.widthMm?{...s,widthMm:s.widthMm*span/oldSpan}:s);
- const number=Number(product.price?.referenceNumber)||Number(String(product.presetId||'').match(/^273803-(\d+)$/)?.[1]),item=reference.items.find(i=>i.number===number);
+ const item=sourceItem(product),number=item?.number;
  if(item&&windowConstructionKey(createWindowFromReference(item))===windowConstructionKey(next)&&!['manual','parametric','design_unpriced'].includes(product.price?.mode)){
-  next.price={...product.price,mode:'reference_area',referenceNumber:number,baseAmountRub:item.priceRubExact,baseAreaM2:item.areaM2Exact};next.geometryPriceReview=false;
+  next.price={...product.price,mode:'reference_area',referenceNumber:number,referenceQuoteId:windowQuote(item).quoteId,baseAmountRub:item.priceRubExact,baseAreaM2:item.areaM2Exact};next.geometryPriceReview=false;
  }else if(['manual','parametric'].includes(product.price?.mode))next.geometryPriceReview=true;
  return next;
 }

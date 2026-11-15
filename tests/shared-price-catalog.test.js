@@ -54,7 +54,8 @@ test('project estimate price overrides stay local while preserving quantity and 
   assert.equal(raw.estimateOverrides[0].price, 99);
   raw.plan.openings.push({ id: 'pano', type: 'window', windowType: 'panoramic', width: 2, height: 2, outer: true });
   const pano = calculateProject(applySharedPriceCatalog(raw, common, 2)).lines.find(line => line.id === 'openings:opening-1');
-  assert.equal(pano.price, common.priceMat.find(row => row.id === pano.catalogId).price * 2);
+  assert.equal(pano.price, 7703.3);
+  assert.match(pano.source,/273803/);
 });
 
 test('zero shared price stays unpriced instead of falling back to a saved manual rate', () => {

@@ -156,6 +156,7 @@ export async function downloadEstimatePdf(source, filename, { save = true } = {}
         continue;
       }
       resumePortrait();
+      if(child.hasAttribute('data-pdf-new-page')&&y>margin)newPage();
       if (child.classList.contains('print-only')) {
         for (const section of child.children) {
           if (section.querySelector('tbody tr')) await addTableSection(section);
