@@ -1,3 +1,5 @@
+import {expandMemberPackages} from './member-packages.js';
+import {supplementalGables} from './supplemental-gables.js';
 import {sharedGableProfile} from './shared-roof-supports.js';
 import {openingPolygon} from '../../calculations/opening-shape.js';
 import {facadeReservedShape,facadeEnvelope,facadeLayout} from './facade-design.js';
@@ -843,6 +845,7 @@ export function calculateProductionCutting(project, calculation) {
       } else issue('GABLE', 'Фронтоны сложной или односкатной кровли: требуются отдельные развёртки и проёмы.');
     }
   }
+  for(const extra of supplementalGables(project,calculation,assembly,surfaces))addSurface(extra);
   for(const plan of plans)for(const facade of plan.facades||[]){
     const envelope=facadeEnvelope({surfaces},facade.wallId);
     const errors=envelope?facadeLayout(facade,envelope).errors:['Стена фасада удалена или не построена.'];
@@ -1047,6 +1050,8 @@ export function calculateProductionCutting(project, calculation) {
   const sipJunctionConflicts=sipMemberIntersections(members);
   for(const s of surfaces){const conflicts=sipJunctionConflicts.filter(c=>c.surfaceId===s.id);if(conflicts.length)issue('SIP_JUNCTION',`${s.name}: ${conflicts.some(c=>c.geometryError)?'неподтверждённые проверки геометрии / пересечения':'пересечения деревянных деталей'} ×${conflicts.length} (${conflicts.slice(0,5).map(c=>c.memberIds.join(' / ')).join('; ')}). Откройте развёртку и согласуйте стык/врубку по рабочему узлу; пересечение не считается готовым соединением.`,s.id);}
   const notices = [...profileMismatches].map(value => `Сечение раскроя / сметы: ${value} мм. Смета не изменена; подтвердите проектный профиль.`);
+  for(const g of surfaces.filter(s=>s.supplementalGable))notices.push(`${g.name}: добавлен участок над существующей стеной; включён в раскрой. Сверьте закупку и смету: автоматические нормы нижних стен не заменены.`);
+  for(const [key,value]of Object.entries(settings.memberOverrides))if(Number(value.packageCount)>1)notices.push(`Пакет ${members.find(m=>m.key===key)?.id||'элемента'}: ${value.packageCount} доски включены в раскрой. Нормы коммерческой сметы не заменены; сверяйте ведомость и закупку.`);
   for(const surface of surfaces.filter(s=>s.topExtensionAreaMm2>10000))notices.push(`${surface.name}: до верхней грани стропил добавлена полоса SIP около ${round(surface.topExtensionAreaMm2/1e6)} м². Проверьте закупку: коммерческая смета не пересчитана по этой полосе.`);
   if(assembly.usesRoofPlanes&&!settings.roofDesign.enabled&&Math.abs(assembly.roofModel.faces.filter(face=>face.group==='main'&&face.warm).reduce((sum,face)=>sum+face.area,0)-Number(roof.mainWarmSlopeArea||0))>.01)issue('ROOF_LAYOUT_ESTIMATE',`SIP-кровля: площадь основной кровли по геометрии раскроя ${round(assembly.roofModel.faces.filter(face=>face.group==='main'&&face.warm).reduce((sum,face)=>sum+face.area,0))} м², сметная площадь ${roof.mainWarmSlopeArea} м². Свесы продолжают уклон стен; действующая смета не изменена, закупку нужно согласовать.`, 'Кровля');
   const ids = new Set(); let manualCount = 0;
@@ -1109,6 +1114,7 @@ export function calculateProductionCutting(project, calculation) {
   }
   applyStructuralOffsets(members,surfaces,settings,issue);
   applyManualWallFrames(members,surfaces,settings,issue);
+  members.splice(0,members.length,...expandMemberPackages(members,settings));
   refreshPartitionNotches(members);
   if(settings.roofDesign.enabled)for(const m of members){const face=assembly.roofModel.faces.find(f=>f.id===m.surfaceId);if(face&&!m.nodeRef)m.nodeRef=face.nodeRef||'';}
   if (Object.keys(settings.memberOverrides).some(key=>!overrideKeys.has(key))) issue('STALE_MEMBER', 'Часть правок соединителей устарела после изменения геометрии/типа соединителя и не применяется.');

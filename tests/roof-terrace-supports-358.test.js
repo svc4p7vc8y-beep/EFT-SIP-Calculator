@@ -29,7 +29,7 @@ test('a notched house with a shared terrace has posts in the scene and matching 
 });
 test('shared rectangular roof builds and anchors both end gables to house walls, independently of manual support frames',()=>{
  const p=sharedTerraceFixture(),c=calculateProject(p),r=calculateProductionCutting(p,c),gables=r.surfaces.filter(s=>s.id.startsWith('ФР-'));
- assert.equal(gables.length,2);assert.ok(gables.every(s=>s.frameOnly&&s.parentWallId));assert.equal(p.settings.productionCutting.roofSupports.length,0);
+ assert.equal(gables.filter(s=>!s.supplementalGable).length,2);assert.equal(gables.filter(s=>s.supplementalGable).length,2);assert.ok(gables.every(s=>s.frameOnly&&s.parentWallId));assert.equal(p.settings.productionCutting.roofSupports.length,0);
  assert.ok(r.members.some(m=>m.surfaceId===gables[0].id&&m.source==='Каркас фронтона'));
  p.settings.roof.gableType='none';assert.equal(calculateProductionCutting(p,calculateProject(p)).surfaces.filter(s=>s.id.startsWith('ФР-')).length,0);
 });

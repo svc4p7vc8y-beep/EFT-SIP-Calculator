@@ -1,4 +1,4 @@
-import {wallPoint,wallStation} from './structural-frame.js';
+import {wallPoint,wallStation,framePost} from './structural-frame.js';
 import {combinedWall,gableLinks} from './drawing-workbench.js';
 import {applyFacade,facadeEnvelope,removeFacade,moveFacadeTransom,appendFacadeTransom,moveFacadeRow,facadeLayout,facadeRowKey} from './facade-design.js';
 import {updateLinkedWindowDimensions} from '../state/window-opening-link.js';
@@ -9,6 +9,9 @@ export function elevationOpenings(project,wall){
  const plan=wall.floor===1?project.plan:project.upperFloors[wall.floor-2],facade=wallFacade(project,wall),result=(wall.openings||[]).filter(o=>!o.gap&&!o.facadeId);
  for(const o of plan.openings.filter(o=>o.facadeId&&o.facadeId===facade?.id))result.push({...o,x:o.facadeXMm,sill:o.sillHeight*1000,width:o.width*1000,height:o.height*1000});
  return result;
+}
+export function elevationWallShape(report,wall){
+ return combinedWall(report,wall,gableLinks(report,report.settings.gableLinks)).surface.geometry;
 }
 export function elevationFrame(project,report,wall){
  const facade=wallFacade(project,wall),combined=combinedWall(report,wall,gableLinks(report,report.settings.gableLinks)),base=Number(wall.baseZMm)||0;
@@ -30,8 +33,8 @@ export function moveElevationMember(project,report,wall,member,dx,dz=0){
   const delta=wallPoint(wall,dx),origin=wallPoint(wall,0),vx=delta[0]-origin[0],vy=delta[1]-origin[1];
   for(const item of project.settings.productionCutting.roofSupports.filter(i=>i.id===s.id||i.id===s.id+'-foundation')){item.x1+=vx;item.x2+=vx;item.y1+=vy;item.y2+=vy;item.z1+=dz;item.z2+=dz;}return project;
  }
- const value=project.settings.productionCutting.memberOverrides[member.key]||{};
- project.settings.productionCutting.memberOverrides[member.key]={...value,frameOffsetMm:(Number(value.frameOffsetMm)||0)+dx,frameVerticalOffsetMm:(Number(value.frameVerticalOffsetMm)||0)+dz};return project;
+ const key=member.packageParentKey||member.key,value=project.settings.productionCutting.memberOverrides[key]||{};
+ project.settings.productionCutting.memberOverrides[key]={...value,frameOffsetMm:(Number(value.frameOffsetMm)||0)+dx,frameVerticalOffsetMm:(Number(value.frameVerticalOffsetMm)||0)+dz};return project;
 }
 export function editElevationSupport(project,report,wall,member,patch){
  const support=project.settings.productionCutting.roofSupports.find(s=>s.id===member.id);if(!support)return project;
@@ -63,8 +66,8 @@ export function roofElevationGuides(project,wall){
  return result;
 }
 
-export function addElevationTransom(project,report,wall,x1,x2,z){
- const config=wallFacade(project,wall);if(!config)throw new Error('Сначала создайте панорамный фасад на этой стене.');
+export function addElevationTransom(project,report,wall,x1,x2,z,options={}){
+ const config=wallFacade(project,wall);if(!config){const left=Math.max(0,Math.min(x1,x2)),right=Math.min(wall.width,Math.max(x1,x2));if(right-left<100)throw new Error('Перемычка должна быть не короче 100 мм.');const mid=(left+right)/2,post=framePost(project,wall,{x:mid,height:1,plies:options.plies||2,nodeRef:options.nodeRef||''}),point=wallPoint(wall,mid),a=wallPoint(wall,left,z),b=wallPoint(wall,right,z);project.settings.productionCutting.roofSupports.push({...post,id:`frame-beam-${crypto.randomUUID()}`,type:'beam',name:`Перемычка стены · ${post.packageCount} доски`,x1:a[0]+post.x1-point[0],y1:a[1]+post.y1-point[1],z1:a[2],x2:b[0]+post.x1-point[0],y2:b[1]+post.y1-point[1],z2:b[2]});return project;}
  const nearest=x=>config.posts.map((p,i)=>({p,i})).sort((a,b)=>Math.abs(a.p-x)-Math.abs(b.p-x))[0].i;
  const a=nearest(Math.min(x1,x2)),b=nearest(Math.max(x1,x2));
  const from=Math.min(a,b),to=Math.max(a,b);if(from===to)throw new Error('Перемычка должна соединять две разные стойки.');
@@ -88,4 +91,10 @@ export function fitFacadePostToBeam(project,report,wall,config,key,supportId){
  if(!(depth>0&&width>0)||distance>(postWidth+width)/2+5)throw new Error('Стойка не находится под выбранной балкой. Сначала совместите оси на плане.');
  const z2=beam.a[2]-depth/2,layout=facadeLayout(config,envelope),required=Math.max(...layout.members.filter(m=>m.type==='beam'&&(m.startKey===key||m.endKey===key)).map(m=>(m.startKey===key?m.a[1]:m.b[1])+(wall.baseZMm||0)-Number(config.boardDepthMm)/2),post.z1);if(z2<required-.1)throw new Error('Балка ниже верхней обвязки фасада. Нельзя укоротить стойку и оставить верхний каркас без опоры. Задайте отдельный рабочий узел.');if(z2<=post.z1)throw new Error('Нижняя грань балки ниже основания стойки.');
  return {...config,memberOverrides:{...config.memberOverrides,[key]:{...config.memberOverrides?.[key],z2,upperSupport:supportId,upperBearing:'underside'}}};
+}
+
+export function setElevationPackage(project,report,wall,member,count){
+ if(![1,2,3].includes(count))throw new Error('Выберите 1, 2 или 3 доски.');
+ if(member.kind==='support'){const item=project.settings.productionCutting.roofSupports.find(s=>s.id===member.id),section=String(item.packageProfile||item.profile).split(/[×xх]/).map(Number);return editElevationSupport(project,report,wall,member,{packageCount:count,packageProfile:`${section[0]}×${section[1]}`,packagePricing:'board',profile:`${section[0]*count}×${section[1]}`});}
+ const key=member.packageParentKey||member.key;project.settings.productionCutting.memberOverrides[key]={...project.settings.productionCutting.memberOverrides[key],packageCount:count};return project;
 }

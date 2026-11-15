@@ -28,3 +28,11 @@
 .elevation-guide-source:hover{stroke:#e4b550;stroke-opacity:.45}
 .structural-workspace .elevation-divisions{min-width:0;margin:12px 0;padding:10px;border:1px solid #d8e4df;border-radius:8px}
 .structural-workspace .elevation-divisions button{width:100%;margin:4px 0}
+.structural-workspace{grid-template-columns:68px minmax(0,1fr) 10px minmax(230px,var(--frame-inspector-width,320px));gap:8px}
+.structural-inspector-resizer{cursor:col-resize;touch-action:none;align-self:stretch;min-height:100px;border-radius:5px;background:linear-gradient(90deg,transparent 3px,#d2ddca 3px,#d2ddca 7px,transparent 7px)}
+.structural-inspector-resizer:hover,.structural-inspector-resizer:focus{background:#bfd6ac;outline:1px solid #86a56d}
+@media(max-width:1000px) and (min-width:651px){.structural-workspace{grid-template-columns:58px minmax(0,1fr) 10px minmax(230px,var(--frame-inspector-width,280px))}}
+@media(max-width:650px){.structural-workspace{grid-template-columns:48px minmax(0,1fr)}.structural-inspector-resizer{display:none}}
+/* The lazy window stylesheet caps the compact gallery at 260px. Do not combine that cap with visible overflow. */
+.structural-workspace>aside .window-config-embedded .window-choice-gallery.is-compact .window-gallery-cards{height:auto!important;max-height:none!important;overflow:visible!important;grid-auto-rows:auto}
+.structural-workspace>aside .window-compact-library,.structural-workspace>aside .window-choice-gallery{height:auto;max-height:none}

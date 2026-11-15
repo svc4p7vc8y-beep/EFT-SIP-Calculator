@@ -21,6 +21,7 @@ export function applyStructuralOffsets(members,surfaces,settings,issue){
     const override=settings.memberOverrides?.[m.key],dx=Number(override?.frameOffsetMm)||0,dz=Number(override?.frameVerticalOffsetMm)||0;
     if(!dx&&!dz)continue;
     const wall=surfaces.find(s=>s.id===m.surfaceId);
+    if(wall?.planStart&&m.a&&m.b&&Math.abs(m.a[1]-m.b[1])<1){if(Math.min(m.a[0],m.b[0])+dx<0||Math.max(m.a[0],m.b[0])+dx>wall.width||m.a[1]+dz<0){issue('FRAME_OFFSET',`${m.id}: перемычка выходит за стену.`,m.key);continue;}m.a=[m.a[0]+dx,m.a[1]+dz];m.b=[m.b[0]+dx,m.b[1]+dz];if(m.outline)m.outline=m.outline.map(([x,y])=>[x+dx,y+dz]);continue;}
     if(!wall?.planStart||!m.a||!m.b||Math.abs(m.a[0]-m.b[0])>1||!Number.isFinite(dx)||!Number.isFinite(dz)||Math.abs(dx)>100000||Math.abs(dz)>100000){issue('FRAME_OFFSET',`${m.id}: перемещение допустимо только для вертикальной стойки стены.`,m.key);continue;}
     const half=(Number(m.faceWidth)||Number(m.profile?.split(/[×xх]/)[0])||50)/2,x=m.a[0]+dx;
     if(x-half<-.1||x+half>wall.width+.1||(wall.openings||[]).some(o=>x+half>o.x&&x-half<o.x+o.width&&Math.max(m.a[1],m.b[1])+dz>Number(o.sill)&&Math.min(m.a[1],m.b[1])+dz<Number(o.sill)+o.height)){
