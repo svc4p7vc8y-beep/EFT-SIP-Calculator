@@ -1,3 +1,4 @@
+import {insetWindowRing} from './window-frame-geometry.js';
 import { exteriorHeight } from '../../calculations/floor-height.js';
 import clipping from 'polygon-clipping';
 import {openingPolygon} from '../../calculations/opening-shape.js';
@@ -54,14 +55,13 @@ export function productionScene(report,project,{includePlatforms=report.settings
     if(!wall||!['walls','partitions','gables'].includes(wall.layer))return [];
     const face={...wall,origin:wall.origin.map((value,index)=>value+wall.normal[index]*(Number(surface.thickness)/2+5))};
     return (surface.openings||[]).filter(opening=>!opening.gap&&(opening.type==='window'||opening.type==='door'&&surface.exterior&&project.services.openings!==false)).flatMap(opening=>{
-      const x=Number(opening.x),y=Number(opening.sill),width=Number(opening.width),height=Number(opening.height),border=Math.min(45,width/8,height/8);
+      const x=Number(opening.x),y=Number(opening.sill),width=Number(opening.width),height=Number(opening.height),border=Math.min(60,width/8,height/8);
       if(![x,y,width,height].every(Number.isFinite)||width<=0||height<=0)return [];
       const rect=(left,bottom,right,top)=>[[[left,bottom],[right,bottom],[right,top],[left,top]]];
       const id=`window:${opening.id}`;
-      if((opening.facadeId||opening.productShape)&&opening.type==='window'){
+      if((opening.facadeId||opening.productShape||windowProducts.has(opening.id)&&opening.displayOutline)&&opening.type==='window'){
         const outer=openingPolygon({...opening,outline:opening.displayOutline||opening.outline,width:width/1000,height:height/1000},1000,x,y),ring=outer[0];
-        const center=[ring.reduce((s,p)=>s+p[0],0)/ring.length,ring.reduce((s,p)=>s+p[1],0)/ring.length],factor=Math.max(.5,1-2*border/Math.min(width,height));
-        const inner=[ring.map(p=>p.map((v,i)=>center[i]+(v-center[i])*factor))],envelope=surface.grossShape||rect(0,0,surface.width,surface.height);
+        const inset=insetWindowRing(ring,border),inner=inset.length?[inset]:[],envelope=surface.grossShape||rect(0,0,surface.width,surface.height);
         const glass=clipping.intersection(inner,envelope),frame=clipping.intersection(clipping.difference(outer,inner),envelope);
         const product=windowProducts.get(opening.id),mullions=[];let cursor=0;if(product)for(const size of sectionWidths(product).slice(0,-1)){cursor+=size;const horizontal=product.sectionAxis==='horizontal',ratio=cursor/Number(horizontal?product.heightMm:product.widthMm);mullions.push(...clipping.intersection(rect(horizontal?x:x+width*ratio-border/2,horizontal?y+height*(1-ratio)-border/2:y,horizontal?x+width:x+width*ratio+border/2,horizontal?y+height*(1-ratio)+border/2:y+height),outer,envelope));}frame.push(...mullions);
         return [...glass.map((shape,i)=>({id:`${id}:${surface.id}:glass:${i}`,layer:'windows',shape,placement:face,thickness:6,referenceOnly:true,windowGlass:true})),...frame.map((shape,i)=>({id:`${id}:${surface.id}:frame:${i}`,layer:'windows',shape,placement:face,thickness:35,referenceOnly:true,windowFrame:true}))];
@@ -85,7 +85,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
       const product=windowProducts.get(opening.id),sectionCount=product?.sections?.length||1;
       const span=product?.sectionAxis==='horizontal'?height:width;
       const divisions=sectionCount>1?sectionWidths(product).slice(0,-1).reduce((state,part)=>{state.total+=part;state.values.push(state.total/span);return state;},{total:0,values:[]}).values:[];
-      const imposts=divisions.filter(ratio=>ratio>0&&ratio<1).map((ratio,index)=>product.sectionAxis==='horizontal'?{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+border,y+height*ratio-border/3,x+width-border,y+height*ratio+border/3),placement:face,thickness:35,referenceOnly:true,windowFrame:true}:{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+width*ratio-border/3,y+border,x+width*ratio+border/3,y+height-border),placement:face,thickness:35,referenceOnly:true,windowFrame:true});
+      const imposts=divisions.filter(ratio=>ratio>0&&ratio<1).map((ratio,index)=>product.sectionAxis==='horizontal'?{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+border,y+height*ratio-border/2,x+width-border,y+height*ratio+border/2),placement:face,thickness:35,referenceOnly:true,windowFrame:true}:{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+width*ratio-border/2,y+border,x+width*ratio+border/2,y+height-border),placement:face,thickness:35,referenceOnly:true,windowFrame:true});
       return [glass,...frame,...imposts];
     });
   });

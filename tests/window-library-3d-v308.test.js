@@ -28,7 +28,8 @@ test('3D window geometry follows the assigned opening and remains a separate lay
   assert.ok(openingSurface);
   const opening=openingSurface.openings.find(item=>item.id==='window-3d-test');
   const glass=windowParts.find(item=>item.windowGlass);
-  assert.deepEqual(glass.shape[0][0],[opening.x+45,opening.sill+45]);
+  assert.deepEqual(glass.shape[0][0],[opening.x+60,opening.sill+60]);
+  const impost=windowParts.find(item=>item.id.includes(':impost:'));assert.equal(Math.max(...impost.shape[0].map(p=>p[0]))-Math.min(...impost.shape[0].map(p=>p[0])),60);
   assert.equal(glass.placement.origin[2],scene.bases[0]);
   assert.ok(windowParts.every(item=>item.referenceOnly));
   assert.ok(report.parts.every(item=>item.layer!=='windows'));
