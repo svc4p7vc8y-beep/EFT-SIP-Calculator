@@ -18,7 +18,7 @@ export function windowOpeningOverlays({product,outer,envelope,face,id}){
   const left=mode.endsWith('_left'),right=mode.endsWith('_right');
   if(left||right){const hx=left?r-margin:l+margin,hy=mode.startsWith('door_')?Math.min(t-margin,b+1050):(b+t)/2;shapes.push({kind:'handle',shape:rect(hx-9,hy-45,hx+9,hy+45)});}
   else if(mode==='tilt'||mode==='bottom_hinged_transom')shapes.push({kind:'handle',shape:rect((l+r)/2-40,t-margin-8,(l+r)/2+40,t-margin+8)});
-  for(const side of [1])for(const [j,part] of shapes.entries())for(const [k,shape] of clipping.intersection(part.shape,outer,envelope).entries())result.push({id:`${id}:opening:${i}:${side}:${j}:${k}`,layer:'windows',shape,placement:{...face,origin:face.origin.map((v,n)=>v+face.normal[n]*side*23)},thickness:3,referenceOnly:true,windowOpeningMark:true,windowHandle:part.kind==='handle',visualColor:part.kind==='handle'?'#3c4145':'#174c60'});
+  for(const side of [-1,1])for(const [j,part] of shapes.entries())for(const [k,shape] of clipping.intersection(part.shape,outer,envelope).entries())result.push({id:`${id}:opening:${i}:${side}:${j}:${k}`,layer:'windows',shape,placement:{...face,origin:face.origin.map((v,n)=>v+face.normal[n]*side*23)},thickness:3,referenceOnly:true,windowOpeningMark:true,windowHandle:part.kind==='handle',visualColor:part.kind==='handle'?'#3c4145':'#174c60'});
  }
  return result;
 }
