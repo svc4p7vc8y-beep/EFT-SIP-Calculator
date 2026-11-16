@@ -24,7 +24,7 @@ export function buildReleasePages(release) {
   const contentIndex=pages.length;
   for(const [i,floor]of report.assembly.floors.entries()){
     const plan=i===0?project.plan:project.upperFloors[i-1];
-    add('АР',`План этажа ${floor.floor}`,<><PrintPlanDiagram plan={plan} pileSettings={project.settings.piles} roofSettings={project.settings.roof} floorOpening={i===0?project.upperFloors[0]?.floorOpenings:plan.floorOpenings} options={{showPiles:false,showBinding:false,showRoof:false,showRooms:true,showOpenings:true,showDimensions:true}}/><p>План по сохранённой геометрии, без самовольного назначения проектных осей и высот. Недостающие оси перечислены в реестре выпуска.</p></>,{direction:'сверху'});
+    add('АР',`План этажа ${floor.floor}`,<><PrintPlanDiagram project={project} plan={plan} pileSettings={project.settings.piles} roofSettings={project.settings.roof} floorOpening={i===0?project.upperFloors[0]?.floorOpenings:plan.floorOpenings} options={{showPiles:false,showBinding:false,showRoof:false,showRooms:true,showOpenings:true,showDimensions:true}}/><p>План по сохранённой геометрии, без самовольного назначения проектных осей и высот. Недостающие оси перечислены в реестре выпуска.</p></>,{direction:'сверху'});
     const clear=calculateClearAreas(plan);
     for(const [j,list]of chunks((plan.rooms||[]).filter(r=>r.include!==false).map(r=>[r.name||r.id,fmt(clear.rooms[r.id]?.contourArea),fmt(clear.rooms[r.id]?.clearArea)])).entries())add('АР',`Экспликация этажа ${floor.floor} · ${j+1}`,<ReleaseTable columns={['Помещение','Площадь по границам, м²','Площадь в свету, м²']} rows={list}/>,{direction:'сверху'});
   }

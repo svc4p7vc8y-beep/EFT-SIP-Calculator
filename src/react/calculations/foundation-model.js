@@ -68,7 +68,7 @@ export function platformBindingLines(plan, settings = {}) {
     return perimeterRows({...p,foundation:{mode:'separate'}},2.5,plan.house).filter(r => r.side !== attached).map(r => ({
       ...r, id:`platform-binding-${p.id}-${r.side}`,name:`${p.kind === 'porch' ? 'Крыльцо' : 'Терраса'} · ${r.side}`,
       platformId:p.id, include:true, auto:true
-    }));
+    })).filter(r=>!(plan.bindingLines||[]).some(l=>l.id===r.id&&l.group==='platform'));
   });
 }
 
@@ -260,9 +260,9 @@ export function calculateFoundation(plan, settings = {}) {
   };
   const spacing = Math.max(0.5, Number(settings.spacing) || 2.5);
   const houseRows = (plan.pileRows || []).filter((row) => row.group !== 'platform');
-  const housePoints = uniquePoints([houseRows.flatMap(pileRowPoints).concat((plan.piles || []).map((pile) => ({ ...pile, source: 'house' })))], 0.05);
+  const housePoints = uniquePoints([houseRows.flatMap(pileRowPoints).concat((plan.piles || []).filter(p=>p.foundationSource!=='platform').map((pile) => ({ ...pile, source: 'house' })))], 0.05);
   const platforms = settings.includePlatforms === false ? [] : (plan.platforms || []).filter((platform) => platform.include !== false && platform.foundation?.mode !== 'none');
-  const platformPoints = platforms.flatMap((platform) => perimeterRows(platform, spacing, plan.house).flatMap(pileRowPoints));
+  const platformPoints = [...platforms.flatMap((platform) => perimeterRows(platform, spacing, plan.house).flatMap(pileRowPoints)),...(settings.includePlatforms===false?[]:(plan.piles||[]).filter(p=>p.foundationSource==='platform'))];
   // Опора террасы/крыльца рядом с домовой опорой считается общей, даже если геометрически точки не совпали идеально.
   // Это убирает бессмысленные дубли свай вдоль примыкания площадки к дому.
   const sharedReuseDistance = Math.max(0.18, Math.min(0.6, Number(settings.sharedPileReuseDistance) || spacing * 0.2));
@@ -286,9 +286,9 @@ export function calculateFoundation(plan, settings = {}) {
     ? bindingLinesFromBlockPoints(points).filter(l=>[.1,.25,.5,.75,.9].every(t=>inFootprint({x:l.x1+(l.x2-l.x1)*t,y:l.y1+(l.y2-l.y1)*t})))
     : Array.isArray(plan.bindingLines) ? plan.bindingLines : bindingLinesFromPileRows(houseRows);
   const lineLength=line=>Math.hypot(line.x2-line.x1,line.y2-line.y1);
-  const houseBindingLength = bindingLines.filter((line) => line.include !== false&&(!automaticBlocks||line.group!=='platform')).reduce((sum, line) => sum + lineLength(line), 0);
+  const houseBindingLength = bindingLines.filter((line) => line.include !== false&&line.group!=='platform').reduce((sum, line) => sum + lineLength(line), 0);
   const platformLines = automaticBlocks ? [] : platformBindingLines(plan, settings);
-  const platformBinding = automaticBlocks?bindingLines.filter(l=>l.include!==false&&l.group==='platform').reduce((s,l)=>s+lineLength(l),0):platformLines.reduce((sum,line)=>sum+lineLength(line),0);
+  const platformBinding = bindingLines.filter(l=>l.include!==false&&l.group==='platform').reduce((s,l)=>s+lineLength(l),0)+platformLines.reduce((sum,line)=>sum+lineLength(line),0);
   const bindingLength = houseBindingLength + platformBinding;
   const bindingType=settings.bindingType==='timber'?'timber':'boards';
   const boardWidth = bindingType==='timber'?0.15:Math.max(0.01, (Number(settings.bindingBoardWidthMm) || 50) / 1000);

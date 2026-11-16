@@ -1,3 +1,4 @@
+import {railingLayout,projectPlatformPosts} from './platform-railings.js';
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { roofAt, roofHeight } from './roof-project.js';
 import { platformDeckFrame, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
@@ -36,6 +37,7 @@ export function platformAssembly(project, calculation, roofModel) {
     const deckThicknessMm=project.settings.terrace?.deckBoard==='28x145'?28:PLATFORM_DECK_THICKNESS_MM;
     const deckFrame=platformDeckFrame(p,deckThicknessMm);
     return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:deckThicknessMm,steps,faces,posts,ties,
+      railing:railingLayout(p,[...posts,...projectPlatformPosts(project,p,result||{}).filter(q=>!posts.some(s=>s.id===q.id))],result?.postSection),
       frameMembers:deckFrame.members,stringers:deckFrame.stringers,joistSpacingMm:deckFrame.joistSpacingMm,frameIssues:deckFrame.issues,
       foundationMode:p.foundation.mode,bindingMode:p.binding.mode,referenceOnly:true};
   });

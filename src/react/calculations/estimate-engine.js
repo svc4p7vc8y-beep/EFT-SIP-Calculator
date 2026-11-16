@@ -1,3 +1,4 @@
+import {railingEstimateLines} from './platform-railings.js';
 import {createWindowFromDesign,supplierAreaEstimate} from '../state/window-products.js';
 import {cornerPlanStations} from './corner-rafters.js';
 import clipping from 'polygon-clipping';
@@ -3024,7 +3025,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
   };
 }
 
-function terraceSection(project, index, inputs) {
+function terraceSection(project, index, inputs, roof) {
   if (!project.services.terrace) return { lines: [], area: 0 };
   const platforms = project.plan.platforms.filter(
     (platform) => platform.include !== false,
@@ -3056,6 +3057,7 @@ function terraceSection(project, index, inputs) {
   return {
     area: round(area),
     lines: compact([
+      ...railingEstimateLines(project,roof),
       makeLine(index, "terrace", "Монтаж каркаса террасы", area, {
         key: "frame-work",
         kind: "labor",
@@ -3544,7 +3546,7 @@ export function calculateProject(project, { nodeTypeRules = {}, stockCandidate =
     }
   }
   const sip = sipSection(project, metrics, index, inputs, roof);
-  const terrace = terraceSection(project, index, inputs);
+  const terrace = terraceSection(project, index, inputs, roof);
   const openings = openingSection(project, index);
   const engineering = engineeringSection(project, index, inputs, metrics);
   const finishes = finishSections(project, index, inputs, metrics);

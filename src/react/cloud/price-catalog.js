@@ -1,14 +1,16 @@
+import {RAILING_LABOR_DEFAULT} from '../data/railing-rates.js';
 // Server catalog is an overlay, never an undoable edit to the house plan.
 export function applySharedPriceCatalog(project, catalog, revision) {
   if (project.localPriceCatalog || !catalog || !(revision > 0)) return project;
-  const byId = new Map([...catalog.priceMat, ...catalog.priceLab].map(row => [row.id, row]));
+  const priceLab=catalog.priceLab.some(r=>r.id===RAILING_LABOR_DEFAULT.id)?catalog.priceLab:[...catalog.priceLab,{...RAILING_LABOR_DEFAULT}];
+  const byId = new Map([...catalog.priceMat, ...priceLab].map(row => [row.id, row]));
   const currentPrice = line => {
     if (!line.catalogId) return { ...line, price: Math.max(0, Number(line.price) || 0), pricePending: !(Number(line.price) > 0) };
     const row = byId.get(line.catalogId);
     const price = line.priceOverride !== undefined ? Number(line.priceOverride) : Number(row?.price);
     return { ...line, ...(row ? { kind: row.kind, unit: row.unit } : {}), price: Number.isFinite(price) ? price : 0, pricePending: !(price > 0) };
   };
-  return { ...project, priceMat: catalog.priceMat, priceLab: catalog.priceLab, sharedPriceCatalog: { revision, source: 'server' },
+  return { ...project, priceMat: catalog.priceMat, priceLab, sharedPriceCatalog: { revision, source: 'server' },
     customEstimateLines: (project.customEstimateLines || []).map(currentPrice),
     request: project.request ? { ...project.request, items: (project.request.items || []).map(currentPrice) } : project.request };
 }

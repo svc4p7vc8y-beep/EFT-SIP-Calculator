@@ -1,3 +1,5 @@
+import RailingPlanLayer from './RailingPlanLayer.jsx';
+import {projectRailingLayouts} from '../calculations/platform-railings.js';
 import { useId } from 'react';
 import { stairStepGeometry, stairOpeningPolygon } from '../planner/stair-steps.js';
 import { floorOpeningSummary } from '../planner/floor-openings.js';
@@ -154,7 +156,7 @@ function PrintRoofTopLayer({ plan, roof = {}, p }) {
   </g>;
 }
 
-export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSettings, floorOpening }) {
+export function PrintPlanDiagram({ project,railingRoof,plan, pileSettings, options = {}, roofSettings, floorOpening }) {
   const clearAreas=calculateClearAreas(plan);
   const wallClipId=useId().replace(/:/g,'');
   const bounds = planBounds({...plan,floorOpenings:Array.isArray(floorOpening)?floorOpening:plan.floorOpenings,floorOpening:Array.isArray(floorOpening)?undefined:floorOpening||plan.floorOpening}, options, roofSettings);
@@ -219,6 +221,7 @@ export function PrintPlanDiagram({ plan, pileSettings, options = {}, roofSetting
         <text className="print-platform-area" style={{fontSize:labelSize * .8}} x={q.x + item.w * scale / 2} y={q.y + item.h * scale / 2 + labelSize}>{formatNumber(item.w * item.h)} м²</text>
       </g>;
     }) : null}
+    {showPlatforms&&project&&plan===project.plan?<RailingPlanLayer layouts={projectRailingLayouts(project,railingRoof)} p={p}/>:null}
     {showContour || showRooms || options.showRoof ? <polygon className="print-house-fill" points={houseScreen.map((point) => `${point.x},${point.y}`).join(' ')} /> : null}
     {options.showRoof ? <PrintRoofTopLayer plan={plan} roof={roofSettings} p={p} /> : null}
     {options.showRoof && showPlatforms ? (plan.platforms || []).filter(item => item.include !== false && item.roof?.shape === 'continuation').map(item => {
@@ -318,8 +321,8 @@ export function PrintProjectDiagrams({ project, calculation }) {
   if (!includePlan && !includeRoof && !separatePileSheet) return null;
   const diagramCount = (includePlan ? floorPlans.length : 0) + (includeRoof ? 1 : 0) + (separatePileSheet ? 1 : 0);
   return <section className={`print-diagrams ${diagramCount > 1 ? 'two' : 'one'}`} aria-label="Иллюстрации проекта">
-    {includePlan ? floorPlans.map((floorPlan, floorIndex) => <article className={options.separatePlanSheets !== false ? 'print-diagram-sheet floor-sheet' : ''} key={`floor-${floorIndex + 1}`}><h2>План {floorIndex + 1} этажа</h2><PrintPlanDiagram plan={floorPlan} floorOpening={floorCount > 1 ? (project.upperFloors?.[0]?.floorOpenings||project.upperFloors?.[0]?.floorOpening) : null} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={printDiagramLayers('floor', options, floorIndex, separatePileSheet)} /></article>) : null}
-    {separatePileSheet ? <article className="print-diagram-sheet pile-sheet"><h2>{project.settings.piles?.pileType === 'concreteBlock' ? 'Бетонные блоки и обвязка' : 'Свайное поле и обвязка'}</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} options={printDiagramLayers('foundation', options)} /></article> : null}
-    {includeRoof ? <article className={separateRoofSheet ? "print-diagram-sheet roof-sheet" : ""}><h2>Крыша на контуре дома</h2><PrintPlanDiagram plan={project.plan} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={printDiagramLayers('roof', options)} /></article> : null}
+    {includePlan ? floorPlans.map((floorPlan, floorIndex) => <article className={options.separatePlanSheets !== false ? 'print-diagram-sheet floor-sheet' : ''} key={`floor-${floorIndex + 1}`}><h2>План {floorIndex + 1} этажа</h2><PrintPlanDiagram project={project} railingRoof={calculation.roof} plan={floorPlan} floorOpening={floorCount > 1 ? (project.upperFloors?.[0]?.floorOpenings||project.upperFloors?.[0]?.floorOpening) : null} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={printDiagramLayers('floor', options, floorIndex, separatePileSheet)} /></article>) : null}
+    {separatePileSheet ? <article className="print-diagram-sheet pile-sheet"><h2>{project.settings.piles?.pileType === 'concreteBlock' ? 'Бетонные блоки и обвязка' : 'Свайное поле и обвязка'}</h2><PrintPlanDiagram project={project} railingRoof={calculation.roof} plan={project.plan} pileSettings={project.settings.piles} options={printDiagramLayers('foundation', options)} /></article> : null}
+    {includeRoof ? <article className={separateRoofSheet ? "print-diagram-sheet roof-sheet" : ""}><h2>Крыша на контуре дома</h2><PrintPlanDiagram project={project} railingRoof={calculation.roof} plan={project.plan} pileSettings={project.settings.piles} roofSettings={project.settings.roof} options={printDiagramLayers('roof', options)} /></article> : null}
   </section>;
 }

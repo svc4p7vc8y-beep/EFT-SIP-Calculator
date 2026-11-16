@@ -1,3 +1,10 @@
+import {foundationGrid,createFoundationGrid,moveFoundationRow,moveFoundationPile} from '../planner/foundation-editing.js';
+import {addRailing,railingSelection,removeRailing,moveRailing,addStairRailing} from '../planner/railing-editing.js';
+import {projectRailingLayouts} from '../calculations/platform-railings.js';
+import RailingPlanLayer from '../components/RailingPlanLayer.jsx';
+import FoundationGridLayer from '../components/FoundationGridLayer.jsx';
+import FoundationGridDialog from './FoundationGridDialog.jsx';
+import RailingInspector from './RailingInspector.jsx';
 import {calculateAdjustedPrice} from '../calculations/price-adjustments.js';
 import {drawPlanRoofPurlin,resizePlanRoofPurlin} from '../planner/roof-support-plan.js';
 import {canEditPlanObject,planLayerTools,editRoofLine} from '../planner/layer-tools.js';
@@ -196,6 +203,7 @@ const DRAW_TOOLS = new Set([
   "wall",
   "dimension",
   "pileRow",
+  "railing",
   "bindingLine",
   "terrace",
   "porch",
@@ -222,6 +230,8 @@ const TOOLS = [
   ["dimension", "Размер", Ruler],
   ["guide", "Временная направляющая", Ruler],
   ["annotation", "Надпись со стрелкой", MessageSquareText],
+  ["foundationGrid", "Сетка / ряды", Grid3X3],
+  ["railing", "Ограждение", Fence],
   ["pile", "Отдельная свая", CircleDot],
   ["pileRow", "Ряд свай", ListTree],
   ["bindingLine", "Обвязка", Layers3],
@@ -285,6 +295,9 @@ function previewPlan(source, gesture) {
     gesture.type === "platform" ? gesture.id : null,
     { partitionFaces: gesture.type === 'room' },
   );
+  if(gesture.type==='railing')return moveRailing(plan,gesture.id,dx,dy,gesture.kind==='railingEndpoint'?gesture.index:undefined,end);
+  if(gesture.kind==='freePile'){const [x,y]=gesture.id.split(':').map(Number);moveFoundationPile(plan,{x,y},end,gesture.pileSettings);return plan;}
+  if(['pileRow','bindingLine'].includes(gesture.type)&&gesture.kind==='move')return moveFoundationRow(plan,gesture.id,dx,dy,gesture.type==='pileRow'?'pileRows':'bindingLines');
   const itemFor = (key) => plan[key].find((item) => item.id === gesture.id);
   if(gesture.kind==='gapEndpoint'){
     const gap=itemFor('wallGaps');
@@ -1329,6 +1342,8 @@ function RoofPlanCaption({ plan, roof, p, model }) {
 
 function PlanCanvas({
   frameProject,
+  platformRoofResults,
+  onMaterializeBinding,
   windowProducts=[],
   onOpenFrame,
   frameSelection,
@@ -1450,6 +1465,7 @@ function PlanCanvas({
       calculateFoundation(shownPlan, pileSettings),
     [shownPlan,pileSettings],
   );
+  const railingLayouts=useMemo(()=>frameProject?projectRailingLayouts({...frameProject,plan:shownPlan},platformRoofResults):[],[frameProject,shownPlan,platformRoofResults]);
   const rowPileSources=useMemo(()=>(shownPlan.pileRows||[]).flatMap(row=>pileRowPoints(row).map((candidate,index)=>({row,index,candidate})).filter(({index})=>index>0&&index<Math.max(2,Math.round(row.count)||2)-1)),[shownPlan.pileRows]);
   const unifiedWalls = useMemo(
     () => unifiedWallSegments(shownPlan),
@@ -1498,6 +1514,8 @@ function PlanCanvas({
       current?.type === "platform" ? current.id : null,
       { partitionFaces: ['room', 'polygon', 'extension'].includes(tool) || current?.type === 'room' },
     );
+    if(['railing','select'].includes(tool))for(const q of railingLayouts.flatMap(l=>[...(l.roofPosts||[]),...l.posts])){const point={x:q.a[0]/1000,y:q.a[1]/1000};axes.points.push(point);axes.xs.push(point.x);axes.ys.push(point.y);}
+    if(['piles','binding'].includes(activeLayer)&&plan.foundationGrid?.enabled){const g=foundationGrid(plan);for(let i=0;i<=g.columns;i++)axes.xs.push(g.x+i*g.width/g.columns);for(let i=0;i<=g.rows;i++)axes.ys.push(g.y+i*g.height/g.rows);}
     for (const guide of temporaryGuides) {
       if (guide.axis === 'x') axes.xs.push(guide.target);
       else axes.ys.push(guide.target);
@@ -1566,6 +1584,7 @@ function PlanCanvas({
         window.alert('В режиме построения стенами комната определяется стенами. Для объединения комнат выберите и удалите разделяющую стену.');
         return;
       }
+      if(type==='railing'){removeRailing(next,id);return;}
       if (type === "derivedPile") {
         const [x, y] = id.split(":").map(Number);
         next.excludedPiles = [...(next.excludedPiles || []), { x, y }];
@@ -1638,7 +1657,7 @@ function PlanCanvas({
           type,
           id,
           index: extra.index,
-          rowId: extra.rowId,
+          rowId: extra.rowId,pileSettings,
         });
         return;
       }
@@ -1655,7 +1674,7 @@ function PlanCanvas({
       return;
     }
     selectExisting({ type, id });
-    begin(event, { kind: extra.kind || "move", type, id, index: extra.index, rowId: extra.rowId,snapTolerance:Math.max(.03,Math.min(.2,12/layout.scale)) });
+    begin(event, { kind: extra.kind || "move", type, id, index: extra.index, rowId: extra.rowId,pileSettings,snapTolerance:Math.max(.03,Math.min(.2,12/layout.scale)) });
   };
   const addAt = (point, type) => {
     if (type === "pile") {
@@ -1990,6 +2009,9 @@ function PlanCanvas({
             id,
           });
         }
+      } else if(current.type==='railing'&&distance>=.1){
+        const reservedId=crypto.randomUUID(),preferred=selected?.type==='platform'?selected.id:undefined,selectedId=addRailing(structuredClone(plan),finalGesture.start,finalGesture.end,preferred,reservedId);if(selectedId)commitPlan(next=>{addRailing(next,finalGesture.start,finalGesture.end,preferred,reservedId);});
+        if(selectedId)selectCreated({type:'railing',id:selectedId});else onFrameMessage?.('Начните ограждение на террасе, крыльце или рядом с их ступенями.');
       } else if (distance >= 0.3) {
         const id = uid(current.type);
         commitPlan((next) => {
@@ -2052,6 +2074,7 @@ function PlanCanvas({
       const next = previewPlan(plan, finalGesture);
       if (JSON.stringify(next) !== JSON.stringify(plan)) {
         commitPlan((target) => Object.assign(target, next));
+        if(current.kind==='freePile'){const id=`moved-pile-${current.id}`;if(next.piles.some(p=>p.id===id))setSelected({type:'pile',id});}
         if(current.kind==='rowPile'){
           const row=(next.pileRows||[]).find(item=>item.id===current.rowId),moved=row&&pileRowPoints(row)[current.index];
           if(moved)setSelected({type:'derivedPile',id:`${roundCoord(moved.x)}:${roundCoord(moved.y)}`});
@@ -2792,7 +2815,7 @@ function PlanCanvas({
                 key={binding.id}
                 className="planner-object binding-object"
                 onPointerDown={(event) =>
-                  (shownPlan.bindingLines||[]).some(l=>l.id===binding.id)&&objectDown(event, "bindingLine", binding.id)
+                  (shownPlan.bindingLines||[]).some(l=>l.id===binding.id)?objectDown(event, "bindingLine", binding.id):(activeLayer==='binding'&&tool==='select'?(event.stopPropagation(),onMaterializeBinding?.(binding)):undefined)
                 }
               >
                 <line
@@ -3105,7 +3128,7 @@ function PlanCanvas({
       {tool==='select'&&visibleLayers.piles&&shownPlan.showPiles!==false?foundation.points.filter(point=>!hasManualPileAt(point)).map(point=>{
         const id=`${roundCoord(point.x)}:${roundCoord(point.y)}`,q=p(point.x,point.y);
         const source=rowPileSources.find(({candidate})=>Math.hypot(candidate.x-point.x,candidate.y-point.y)<.015);
-        return <circle key={`pile-hit-${id}`} className="derived-pile-handle" aria-label={`Выбрать расчётную сваю ${id}`} cx={q.x} cy={q.y} r="11" fill="#fff" fillOpacity="0.001" pointerEvents="all" onPointerDown={event=>objectDown(event,'derivedPile',id,source?{kind:'rowPile',rowId:source.row.id,index:source.index}:{})}/>;
+        return <circle key={`pile-hit-${id}`} className="derived-pile-handle" aria-label={`Выбрать расчётную сваю ${id}`} cx={q.x} cy={q.y} r="11" fill="#fff" fillOpacity="0.001" pointerEvents="all" onPointerDown={event=>objectDown(event,'derivedPile',id,{kind:'freePile'})}/>;
       }):null}
       {selectedPlatform && (visibleLayers.plan || visibleLayers.roof || visibleLayers.piles || visibleLayers.binding) ? <g className="platform-resize-handles">
         {rectanglePoints({ x: selectedPlatform.x, y: selectedPlatform.y }, { x: selectedPlatform.x + selectedPlatform.w, y: selectedPlatform.y + selectedPlatform.h }).map((point, index) => {
@@ -3117,6 +3140,8 @@ function PlanCanvas({
         const q = p(issue.point.x, issue.point.y);
         return <circle key={`plan-issue-${i}`} cx={q.x} cy={q.y} r="10" stroke="#b91c1c" strokeWidth="3" fill="#fee2e2" fillOpacity=".5" pointerEvents="none"><title>{issue.message}</title></circle>;
       }) : null}
+      {visibleLayers.plan&&floorKey===1?<RailingPlanLayer layouts={railingLayouts} p={p} selected={selected} onPointerDown={objectDown}/>:null}
+      {['piles','binding'].includes(activeLayer)?<FoundationGridLayer plan={shownPlan} p={p}/>:null}
       {visibleLayers.frame&&frameProject?<Suspense fallback={null}><g pointerEvents={activeLayer==='frame'?undefined:'none'}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame} selected={frameSelection} onSelect={onSelectFrame} onMessage={onFrameMessage}/></g></Suspense>:null}
       <g ref={setLabelLayer} className="plan-label-foreground" visibility={shownPlan.showLabels===false?"hidden":undefined}/>
       {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={VIEW.height - 148} width="650" height="140">
@@ -3500,6 +3525,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
       if (item) mutate(item);
     });
   const remove = () => {
+    if(selected.type==='railing'){commitPlan(next=>removeRailing(next,selected.id));setSelected(null);return;}
     if(selected.type==='room'&&plan.layoutMode==='walls'){
       window.alert('В режиме построения стенами удалите разделяющую стену, а не комнату.');
       return;
@@ -3542,6 +3568,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
   const dimension = selected.type === "dimension" ? get("dimensions") : null;
   const gap = selected.type === "gap" ? get("wallGaps") : null;
   const pile = selected.type === "pile" ? get("piles") : null;
+  if(selected.type==='railing'){const {platform,run}=railingSelection(plan,selected.id);return platform&&run?<RailingInspector platform={platform} run={run} onChange={mutate=>commitPlan(next=>{const pair=railingSelection(next,selected.id);if(pair.run)mutate(pair.platform,pair.run);})} onDelete={()=>{commitPlan(next=>removeRailing(next,selected.id));setSelected(null);}}/>:null;}
   if (selected.type === "derivedPile") {
     const [x, y] = String(selected.id).split(":").map(Number);
     return (
@@ -3553,10 +3580,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
             {formatNumber(x)} × {formatNumber(y)} м
           </strong>
         </div>
-        <p className="inspector-note">
-          Внутреннюю сваю можно выбрать и перетащить вдоль ряда. Концевые сваи
-          перемещаются ручками ряда. Удаление исключает сваю из расчёта проекта.
-        </p>
+        <p className="inspector-note">Любую сваю можно перетащить отдельно в любом направлении. Ряд перемещается за линию; концы ряда — за квадратные ручки. Ручное положение сохраняется.</p>
+        <div className="form-grid">{['x','y'].map(axis=><NumberField key={axis} label={`Свая ${axis.toUpperCase()}`} value={axis==='x'?x:y} suffix="м" step={.01} onChange={value=>{const target={x,y,[axis]:value},preview=structuredClone(plan),id=moveFoundationPile(preview,{x,y},target);if(id){commitPlan(next=>{moveFoundationPile(next,{x,y},target);});setSelected({type:'pile',id});}}}/>)}</div>
         <button
           className="button danger-button"
           onClick={() => {
@@ -3781,6 +3806,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           {platform.kind === "porch" ? "Крыльцо" : "Терраса"} ·{" "}
           {formatNumber(platform.w * platform.h)} м²
         </h3>
+        <p className="inspector-note">Для ограждения выберите инструмент «Ограждение» слева и проведите участок на плане. Высота 950 мм, три ригеля; промежуточные стойки добавляются автоматически.</p>
+        {Number(platform.steps)>0?<div className="button-row">{[0,1].map(side=><button key={side} onClick={()=>{const preview=structuredClone(plan),id=addStairRailing(preview,platform.id,side);if(id){commitPlan(next=>{next.platforms.find(p=>p.id===platform.id).railings=preview.platforms.find(p=>p.id===platform.id).railings;});setSelected({type:'railing',id});}}}>Ограждение лестницы · {side?'справа':'слева'}</button>)}</div>:null}
         <div className="form-grid">
           <NumberField
             label="Размер X"
@@ -4168,6 +4195,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
             }
           />
         </Field>
+        <div className="form-grid">{['x','y'].map(axis=><NumberField key={axis} label={`Положение ряда ${axis.toUpperCase()}`} value={axis==='x'?pileRow.x1:pileRow.y1} suffix="м" step={.01} onChange={value=>commitPlan(next=>moveFoundationRow(next,pileRow.id,axis==='x'?value-pileRow.x1:0,axis==='y'?value-pileRow.y1:0))}/>)}</div>
         <div className="form-grid">
           <NumberField
             label="Количество свай"
@@ -4213,8 +4241,8 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
         </div>
         <p className="inspector-note">
           Зелёный ряд стоит точно по оси. Красный показывает небольшое случайное
-          смещение; янтарный — диагональный ряд. Внутреннюю сваю можно
-          перетащить вдоль ряда; соседние сваи не совмещаются.
+          смещение; янтарный — диагональный ряд. Каждую сваю можно
+          перемещать отдельно; ряд целиком — за линию или стрелками.
         </p>
         <button className="button danger-button" onClick={remove}>
           <Trash2 />
@@ -4536,6 +4564,7 @@ function MobileSelectionAdjuster({
                     : "piles";
   const deleteSelected = () => {
     if (!selected) return;
+    if(selected.type==='railing'){commitPlan(next=>removeRailing(next,selected.id));setSelected(null);return;}
     if(selected.type==='room'&&plan.layoutMode==='walls'){
       window.alert('В режиме построения стенами удалите разделяющую стену, а не комнату.');
       return;
@@ -5228,6 +5257,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
   const [activeFloor, setActiveFloor] = useState(1);
   const [activeLayer, setActiveLayer] = useState("plan");
+  const [foundationGridOpen,setFoundationGridOpen]=useState(false);
   const [selected, setSelected] = useState(null);
   const [sourceFocus,setSourceFocus]=useState(null);
   useEffect(()=>{
@@ -5515,6 +5545,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     });
   }, [libraryPlans, libraryOpen, project]);
   const selectTool = (id) => {
+    if(id==='foundationGrid'){if(activeFloor!==1){setTransferStatus('Основание редактируется на первом этаже.');return;}setFoundationGridOpen(true);setTool('select');return;}
     if(['structuralFrame','framePost','frameWindow','frameDoor'].includes(id)){setFrameTool({framePost:'post',frameWindow:'window',frameDoor:'door'}[id]||'select');setFrameWall('');setTool('select');return;}
     if(id==='roofAuto'){commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;});setTool('select');return;}
     if (id === 'extension' && plan.existingBuilding) {
@@ -5530,7 +5561,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     setStairSetupRequired(false);
     if (
       activeFloor !== 1 &&
-      ["pile", "pileRow", "bindingLine", "terrace", "porch"].includes(id)
+      ["pile", "pileRow", "bindingLine", "terrace", "porch", "railing"].includes(id)
     ) {
       setTransferStatus("Сваи, обвязка, терраса и крыльцо редактируются на 1 этаже");
       return;
@@ -5947,6 +5978,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         !editing
       ) {
         event.preventDefault();
+        if(selected.type==='railing'){commitPlan(next=>removeRailing(next,selected.id));setSelected(null);return;}
         if(selected.type==='roofSupport'){
           commit(next=>{next.settings.productionCutting.roofSupports=windowSupportHeaders(next,removePlanRoofGroup(next.settings.productionCutting.roofSupports,selected.id)).items;return next;});
           setSelected(null);return;
@@ -6034,13 +6066,21 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           });
           return;
         }
+        if(selected.type==='derivedPile'){
+          const [x,y]=selected.id.split(':').map(Number),target={x:x+dx,y:y+dy},preview=structuredClone(plan);
+          const id=moveFoundationPile(preview,{x,y},target,project.settings.piles);
+          if(id){commitPlan(next=>{moveFoundationPile(next,{x,y},target,project.settings.piles);});setSelected({type:'pile',id});}
+          return;
+        }
         commitPlan((next) => {
           if (selected.type === "outerDimensions") {
             next.outerDimensionOffset = {
               x: roundCoord((next.outerDimensionOffset?.x || 0) + dx),
               y: roundCoord((next.outerDimensionOffset?.y || 0) + dy),
             };
-          } else nudgePlanSelection(next, selected, dx, dy);
+          } else if(selected.type==='railing')moveRailing(next,selected.id,dx,dy);
+          else if(['pileRow','bindingLine'].includes(selected.type))moveFoundationRow(next,selected.id,dx,dy,selected.type==='pileRow'?'pileRows':'bindingLines');
+          else nudgePlanSelection(next, selected, dx, dy);
         });
       }
     };
@@ -6048,7 +6088,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     return () => window.removeEventListener("keydown", keydown);
   }, [selected, commitPlan, commit, projectCalculation, commitFloorOpening, floorOpening, undo, redo, isPlanFullscreen]);
   const toolHint =
-    tool === "select"
+    tool === "railing" ? "Проведите ограждение между опорами на террасе, крыльце или ступенях. Поручень цельный; промежуточные стойки добавятся автоматически." : tool === "select"
       ? "Сначала выберите элемент, затем перетаскивайте его или ручки. Пробел — «Выбор», Ctrl+Z — отмена."
       : tool === "polygon"
         ? "Ставьте углы комнаты. После третьей точки щёлкните по первой точке — контур замкнётся автоматически."
@@ -6288,7 +6328,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+        <PlanCanvas platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6319,6 +6359,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           Два пальца: масштаб и перемещение · до 2000%
         </div>
       </div>
+      {foundationGridOpen?<FoundationGridDialog plan={plan} kind={activeLayer==='binding'?'binding':'piles'} onClose={()=>setFoundationGridOpen(false)} onChange={commitPlan} onSelect={setSelected} onCreate={replace=>{commit(next=>{const target=activeFloor===1?next.plan:next.upperFloors[activeFloor-2];createFoundationGrid(target,activeLayer==='binding'?'binding':'piles',replace);if(activeLayer==='binding')next.settings.piles.autoSyncBinding=false;return next;});setTransferStatus('Сетка применена. Сваи и ряды можно выбирать и перемещать отдельно.');}}/>:null}
       {bindingSetupOpen ? (
         <section className="mobile-binding-setup">
           <div className="mobile-sheet-grabber" />
@@ -6413,6 +6454,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           onDeleteForever={deleteLibraryPlanForever}
         />
       ) : null}
+      {foundationGridOpen?<FoundationGridDialog plan={plan} kind={activeLayer==='binding'?'binding':'piles'} onClose={()=>setFoundationGridOpen(false)} onChange={commitPlan} onSelect={setSelected} onCreate={replace=>{commit(next=>{const target=activeFloor===1?next.plan:next.upperFloors[activeFloor-2];createFoundationGrid(target,activeLayer==='binding'?'binding':'piles',replace);if(activeLayer==='binding')next.settings.piles.autoSyncBinding=false;return next;});setTransferStatus('Сетка применена. Сваи и ряды можно выбирать и перемещать отдельно.');}}/>:null}
       {bindingSetupOpen ? (
         <section className="foundation-setup-dialog" role="dialog" aria-modal="true" aria-label="Сваи и обвязка">
           <header>
@@ -6615,7 +6657,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           </div>
 
-          <PlanCanvas windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+          <PlanCanvas platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={async(a,b)=>{
               const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;

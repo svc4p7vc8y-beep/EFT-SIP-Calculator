@@ -1,3 +1,4 @@
+import {normalizeRailings} from './railing-model.js';
 const FOUNDATION_MODES = new Set(['shared', 'separate', 'none']);
 const BINDING_MODES = new Set(['shared', 'separate', 'none']);
 const ROOF_MODES = new Set(['none', 'cold', 'warm', 'shared']);
@@ -46,6 +47,8 @@ export function normalizeTerracePlatform(platform = {}) {
   const roof = platform.roof || {};
   return {
     ...platform,
+    railings:normalizeRailings(platform.railings),
+    railingSettings:{heightMm:950,bottomGapMm:100,maxSpanMm:1500,...(platform.railingSettings||{})},
     joistSpacingMm: Number.isFinite(Number(platform.joistSpacingMm)) && Number(platform.joistSpacingMm) >= 200 && Number(platform.joistSpacingMm) <= 1200
       ? Number(platform.joistSpacingMm) : 500,
     foundation: { ...platform.foundation, mode: foundationMode },
