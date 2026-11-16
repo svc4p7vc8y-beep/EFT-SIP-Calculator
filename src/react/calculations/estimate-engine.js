@@ -1,3 +1,4 @@
+import {includeWindowProductInEstimate} from '../state/window-estimate.js';
 import {railingEstimateLines} from './platform-railings.js';
 import {createWindowFromDesign,supplierAreaEstimate} from '../state/window-products.js';
 import {cornerPlanStations} from './corner-rafters.js';
@@ -3209,6 +3210,7 @@ function openingSection(project, index) {
     });
   const estimatedLinks = new Set();
   for (const product of products) {
+    if (!includeWindowProductInEstimate(product, actualOpeningIds.size>0)) continue;
     if (product.openingId && !includedWindowIds.has(product.openingId)) continue;
     if (product.openingId && estimatedLinks.has(product.openingId)) continue;
     if (product.openingId) estimatedLinks.add(product.openingId);

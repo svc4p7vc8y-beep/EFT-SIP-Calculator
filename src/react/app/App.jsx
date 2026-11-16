@@ -1,3 +1,4 @@
+import {saveProjectFile} from '../storage/save-project-file.js';
 import ProjectTabScroller from '../components/ProjectTabScroller.jsx';
 import AppChromeMetrics from '../components/AppChromeMetrics.jsx';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -152,27 +153,8 @@ function createProjectFile(project, requestedName) {
   return new File([contents], filename, { type: "application/json" });
 }
 
-async function downloadProject(project, requestedName) {
-  const file = createProjectFile(project, requestedName);
-  const blob = new Blob([file], {
-    type: "application/json;charset=utf-8",
-  });
-  const filename = file.name;
-  if (!standaloneCalculator && typeof window.showSaveFilePicker === 'function') {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: filename,
-      types: [{ description: 'Проект EFT', accept: { 'application/json': ['.json'] } }],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return;
-  }
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+async function downloadProject(project, requestedName, downloadOnly=false) {
+  return saveProjectFile(createProjectFile(project, requestedName), {downloadOnly:downloadOnly||standaloneCalculator});
 }
 
 function Screen({ active, calculation, teamProps, onNavigate, onOpenLibraryPlan, planCommand, onPlanCommandHandled }) {
@@ -493,17 +475,17 @@ export function App() {
     } catch (error) { setNotice(`Не удалось применить изменения: ${error.message}`); }
     finally { setApplyProjectBusy(false); }
   };
-  const confirmSaveProject = async () => {
+  const confirmSaveProject = async (downloadOnly=false) => {
     if (saveFileBusy) return;
     setSaveFileBusy(true);
     setSaveFileError('');
     try {
-      await downloadProject(project, saveFileName);
+      const result=await downloadProject(project, saveFileName, downloadOnly);
       checkpoint();
       setSaveFileOpen(false);
-      setNotice('Файл проекта сохранён; резервная копия обновлена.');
+      setNotice(result.mode==='file'?`Файл ${result.filename} записан и проверен в выбранной папке.`:`Файл ${result.filename} передан в загрузки браузера. Проверьте список загрузок.`);
     } catch (error) {
-      if (error?.name !== 'AbortError') setSaveFileError('Не удалось сохранить файл. Проверьте доступ к выбранной папке и повторите попытку.');
+      setSaveFileError(error?.name==='AbortError'?'Сохранение отменено. Можно повторить или скачать файл через браузер.':`Не удалось подтвердить запись файла. ${error?.message||''} Нажмите «Скачать через браузер» для резервного способа сохранения.`);
     } finally {
       setSaveFileBusy(false);
     }
@@ -902,7 +884,7 @@ export function App() {
           <header><div><h2>Сохранить проект как</h2><p>{standaloneCalculator ? 'Укажите имя файла. Проект скачается через загрузки браузера.' : 'Укажите имя файла. В поддерживаемом браузере затем выберите папку сохранения.'}</p></div><button type="button" className="icon-button" aria-label="Закрыть" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}><X/></button></header>
           <label>Название файла<input autoFocus value={saveFileName} onChange={event => setSaveFileName(event.target.value)} aria-label="Название файла проекта"/></label>
           {saveFileError ? <p role="alert">{saveFileError}</p> : null}
-          <footer><button type="button" className="button secondary" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}>Отмена</button><button type="submit" className="button" disabled={saveFileBusy}>{saveFileBusy ? 'Сохранение…' : (standaloneCalculator ? 'Скачать файл' : 'Выбрать место и сохранить')}</button></footer>
+          <footer><button type="button" className="button secondary" onClick={() => setSaveFileOpen(false)} disabled={saveFileBusy}>Отмена</button>{!standaloneCalculator?<button type="button" className="button secondary" disabled={saveFileBusy} onClick={()=>confirmSaveProject(true)}>Скачать через браузер</button>:null}<button type="submit" className="button" disabled={saveFileBusy}>{saveFileBusy ? 'Сохранение…' : (standaloneCalculator ? 'Скачать файл' : 'Выбрать место и сохранить')}</button></footer>
         </form>
       </div> : null}
       {closingTabId ? <div className="modal-backdrop project-save-backdrop">
