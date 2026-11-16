@@ -22,3 +22,9 @@ export function suggestWindowForOpening(project,openingId){
  const candidates=WINDOW_REFERENCE_ITEMS.filter(i=>i.shape===shape).slice().sort((a,b)=>Math.abs(Math.log((a.widthMm||a.baseWidthMm)/w))+Math.abs(Math.log((a.heightMm||Math.max(a.leftHeightMm,a.rightHeightMm))/h))-(Math.abs(Math.log((b.widthMm||b.baseWidthMm)/w))+Math.abs(Math.log((b.heightMm||Math.max(b.leftHeightMm,b.rightHeightMm))/h))));
  return candidates.length?fitWindowChoice(project,createWindowFromReference(candidates[0],{openingId})):null;
 }
+
+export function windowDivision(product,axis){
+ const first={id:'section-1',openingMode:'fixed',...(product.sections?.[0]||{}),widthMm:null,ratio:1};
+ if(axis==='none')return {sectionAxis:'vertical',sections:[first]};
+ return {sectionAxis:axis==='horizontal'?'horizontal':'vertical',sections:product.sections?.length>1?product.sections.map(s=>({...s,widthMm:null})): [first,{id:'section-2',openingMode:'fixed',ratio:1,widthMm:null,hardwareSystem:null,handleSide:null}]};
+}

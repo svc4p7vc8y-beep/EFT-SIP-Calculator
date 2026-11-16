@@ -1,3 +1,4 @@
+import {windowOpeningOverlays} from './window-opening-3d.js';
 import {insetWindowRing} from './window-frame-geometry.js';
 import { exteriorHeight } from '../../calculations/floor-height.js';
 import clipping from 'polygon-clipping';
@@ -64,7 +65,8 @@ export function productionScene(report,project,{includePlatforms=report.settings
         const inset=insetWindowRing(ring,border),inner=inset.length?[inset]:[],envelope=surface.grossShape||rect(0,0,surface.width,surface.height);
         const glass=clipping.intersection(inner,envelope),frame=clipping.intersection(clipping.difference(outer,inner),envelope);
         const product=windowProducts.get(opening.id),mullions=[];let cursor=0;if(product)for(const size of sectionWidths(product).slice(0,-1)){cursor+=size;const horizontal=product.sectionAxis==='horizontal',ratio=cursor/Number(horizontal?product.heightMm:product.widthMm);mullions.push(...clipping.intersection(rect(horizontal?x:x+width*ratio-border/2,horizontal?y+height*(1-ratio)-border/2:y,horizontal?x+width:x+width*ratio+border/2,horizontal?y+height*(1-ratio)+border/2:y+height),outer,envelope));}frame.push(...mullions);
-        return [...glass.map((shape,i)=>({id:`${id}:${surface.id}:glass:${i}`,layer:'windows',shape,placement:face,thickness:6,referenceOnly:true,windowGlass:true})),...frame.map((shape,i)=>({id:`${id}:${surface.id}:frame:${i}`,layer:'windows',shape,placement:face,thickness:35,referenceOnly:true,windowFrame:true}))];
+        const overlays=windowOpeningOverlays({product,outer,envelope,face,id:`${id}:${surface.id}`});
+        return [...overlays,...glass.map((shape,i)=>({id:`${id}:${surface.id}:glass:${i}`,layer:'windows',shape,placement:face,thickness:6,referenceOnly:true,windowGlass:true})),...frame.map((shape,i)=>({id:`${id}:${surface.id}:frame:${i}`,layer:'windows',shape,placement:face,thickness:35,referenceOnly:true,windowFrame:true}))];
       }
       if(opening.type==='door'){
         const doorId=`door:${opening.id}`,trim=Math.min(55,width/10,height/12);
@@ -84,9 +86,10 @@ export function productionScene(report,project,{includePlatforms=report.settings
       const frame=[[x,y,x+width,y+border],[x,y+height-border,x+width,y+height],[x,y+border,x+border,y+height-border],[x+width-border,y+border,x+width,y+height-border]].map(([left,bottom,right,top],index)=>({id:`${id}:frame:${index}`,layer:'windows',shape:rect(left,bottom,right,top),placement:face,thickness:35,referenceOnly:true,windowFrame:true}));
       const product=windowProducts.get(opening.id),sectionCount=product?.sections?.length||1;
       const span=product?.sectionAxis==='horizontal'?height:width;
-      const divisions=sectionCount>1?sectionWidths(product).slice(0,-1).reduce((state,part)=>{state.total+=part;state.values.push(state.total/span);return state;},{total:0,values:[]}).values:[];
-      const imposts=divisions.filter(ratio=>ratio>0&&ratio<1).map((ratio,index)=>product.sectionAxis==='horizontal'?{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+border,y+height*ratio-border/2,x+width-border,y+height*ratio+border/2),placement:face,thickness:35,referenceOnly:true,windowFrame:true}:{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+width*ratio-border/2,y+border,x+width*ratio+border/2,y+height-border),placement:face,thickness:35,referenceOnly:true,windowFrame:true});
-      return [glass,...frame,...imposts];
+      const divisions=sectionCount>1?sectionWidths(product).slice(0,-1).reduce((state,part)=>{state.total+=part;state.values.push(state.total/Number(product.sectionAxis==='horizontal'?product.heightMm:(product.widthMm||product.baseWidthMm)));return state;},{total:0,values:[]}).values:[];
+      const imposts=divisions.filter(ratio=>ratio>0&&ratio<1).map((ratio,index)=>product.sectionAxis==='horizontal'?{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+border,y+height*(1-ratio)-border/2,x+width-border,y+height*(1-ratio)+border/2),placement:face,thickness:35,referenceOnly:true,windowFrame:true}:{id:`${id}:impost:${index}`,layer:'windows',shape:rect(x+width*ratio-border/2,y+border,x+width*ratio+border/2,y+height-border),placement:face,thickness:35,referenceOnly:true,windowFrame:true});
+      const overlays=windowOpeningOverlays({product,outer:rect(x,y,x+width,y+height),envelope:surface.grossShape||rect(0,0,surface.width,surface.height),face,id});
+      return [glass,...frame,...imposts,...overlays];
     });
   });
   // Invalid manufacturing surfaces remain visible as warning previews, never

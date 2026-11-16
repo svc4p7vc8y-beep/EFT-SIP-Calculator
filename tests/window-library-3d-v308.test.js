@@ -23,7 +23,8 @@ test('3D window geometry follows the assigned opening and remains a separate lay
   project.windowProducts=[createWindowFromDesign(WINDOW_DESIGN_LIBRARY.find(item=>item.id==='two-opening'),{openingId:'window-3d-test'})];
   const estimate=calculateProject(project),report=calculateProductionCutting(project,estimate),scene=productionScene(report,project);
   const windowParts=scene.panels.filter(item=>item.layer==='windows');
-  assert.equal(windowParts.length,6);
+  assert.equal(windowParts.filter(item=>!item.windowOpeningMark).length,6);
+  assert.ok(windowParts.some(item=>item.windowOpeningMark));
   const openingSurface=report.surfaces.find(surface=>surface.openings?.some(opening=>opening.id==='window-3d-test'));
   assert.ok(openingSurface);
   const opening=openingSurface.openings.find(item=>item.id==='window-3d-test');
