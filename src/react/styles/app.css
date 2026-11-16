@@ -7682,3 +7682,24 @@ select,
 
 /* Each drawing pane owns its tools at every width, including wide split views. */
 .plan-screen-v2 .planner-canvas>.plan-canvas-toolbars{position:absolute;z-index:9;top:12px;left:10px;right:10px;display:flex;flex-direction:column;gap:6px;min-width:0;pointer-events:none}.plan-screen-v2 .planner-shell.is-fullscreen .planner-canvas>.plan-canvas-toolbars{top:64px}.plan-screen-v2 .plan-canvas-toolbars>.plan-layer-tabs,.plan-screen-v2 .plan-canvas-toolbars>.canvas-history-controls{position:static!important;display:flex!important;flex-wrap:nowrap!important;width:100%;min-width:0;max-width:100%!important;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;touch-action:pan-x;pointer-events:auto}.plan-canvas-toolbars>.plan-layer-tabs>*,.plan-canvas-toolbars>.canvas-history-controls>*{flex-shrink:0}.plan-screen-v2 .planner-shell .plan-3d-pane{min-width:0;grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:34px 42px minmax(0,1fr)!important}.plan-3d-pane .production-3d-toolbar{grid-column:1/-1!important;grid-row:2!important;min-width:0;max-width:100%;width:100%;box-sizing:border-box;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;touch-action:pan-x;justify-self:stretch}.plan-3d-pane .production-3d-toolbar>*{flex-shrink:0}.plan-3d-pane .plan-3d-view-switch{grid-column:1!important;grid-row:1!important;min-width:0;overflow-x:auto;white-space:nowrap}.plan-3d-pane .plan-3d-pane-head>div{grid-column:2!important;grid-row:1!important;max-width:150px;overflow-x:auto;white-space:nowrap}.plan-3d-pane .production-3d-canvas{grid-row:3!important}.plan-3d-pane .production-blocked-legend{max-width:100px;font-size:9px}.structural-workspace .facade-parameters label:has(input[type=checkbox]){display:flex;flex-direction:row;align-items:center;gap:7px}.structural-workspace .facade-parameters input[type=checkbox]{width:16px;min-width:16px;height:16px;margin:0}
+
+/* Legible opening selection in the plan's narrow parameters column. */
+.opening-mini-floors{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.opening-mini-floor{width:100%;min-width:0;max-width:none}
+.opening-mini-floor svg{height:clamp(240px,32vh,360px);min-height:240px}
+.opening-mini-marker .opening-mini-dot{fill:#1763a6;stroke:#fff;stroke-width:2.5;vector-effect:non-scaling-stroke}
+.opening-mini-marker.door .opening-mini-dot{fill:#94501f}
+.opening-mini-marker .opening-mini-hit{fill:transparent;stroke:none;pointer-events:all}
+.opening-mini-marker .opening-mini-selection{fill:#fff;stroke:#184c30;stroke-width:3;vector-effect:non-scaling-stroke}
+.opening-mini-marker .opening-mini-number{fill:#fff;stroke:none;font-family:Arial,sans-serif;font-weight:700;pointer-events:none}
+.opening-mini-marker:focus-visible .opening-mini-dot{stroke:#172ae3;stroke-width:3}
+.opening-mini-floor>small{display:block;font-size:11px;line-height:1.4;color:var(--muted)}
+.parameter-opening-sketch{margin:0 0 12px;padding:8px;border:1px solid var(--line);border-radius:8px;background:#f6faf7;display:grid;justify-items:center;gap:4px}
+.parameter-opening-sketch svg{display:block;width:100%;max-width:300px;height:170px}
+.parameter-opening-sketch .window-svg-title{font-size:13px;fill:#274539}
+.parameter-opening-sketch .window-svg-foot{display:none}
+.parameter-opening-sketch figcaption{font-size:11px;line-height:1.4;text-align:center;color:var(--muted)}
+
+.opening-mini-plan>header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.opening-mini-plan>header strong{font-size:13px}.opening-mini-plan>header button{flex-shrink:0;min-height:36px;border:1px solid #b9cdb9;border-radius:7px;padding:5px 8px;background:#edf5e7;color:#274539;cursor:pointer}.opening-mini-plan.expanded{position:fixed;inset:4dvh 4vw;max-width:1000px;max-height:92dvh;margin:auto;z-index:2400;box-shadow:0 0 0 100vmax #173b3260;overflow:auto;box-sizing:border-box}.opening-mini-plan.expanded .opening-mini-floor svg{height:clamp(280px,65dvh,650px)}
+
+.opening-mini-backdrop{position:fixed;inset:0;z-index:2400;background:#173b3260}.opening-mini-backdrop .opening-mini-plan.expanded{box-shadow:0 12px 60px #173b3240}

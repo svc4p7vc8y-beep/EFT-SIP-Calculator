@@ -1,3 +1,4 @@
+import OpeningSketch from '../components/OpeningSketch.jsx';
 import {HORIZONTAL_LAYOUT_DIRECTIONS} from '../calculations/surface-orientation.js';
 import { OVERHANG_FIELDS, roofOverhangValue, resetSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import { buildingTypeOptions } from '../data/building-types.js';
@@ -1390,6 +1391,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   <OpeningEditor
                     key={`${floor}-${opening.id}`}
                     opening={opening}
+                    product={project.windowProducts?.find(p=>p.openingId===opening.id)||floorPlans[floor-1]?.facades?.find(f=>f.id===opening.facadeId)?.windowOverrides?.[opening.facadeWindowKey]?.productTemplate}
                     index={index}
                     floor={floor}
                     focused={focusedOpeningId === opening.id}
@@ -1832,7 +1834,7 @@ function PlatformEditor({ platform, index, project, update }) {
   );
 }
 
-function OpeningEditor({ opening, index, floor, commit, update, focused }) {
+function OpeningEditor({ opening, product, index, floor, commit, update, focused }) {
   const kind =
     opening.type === "window" ? "window" : opening.doorType || "entrance";
   const changeKind = (value) =>
@@ -1864,6 +1866,7 @@ function OpeningEditor({ opening, index, floor, commit, update, focused }) {
         </strong>
         <span>{formatNumber(opening.width * opening.height, 2)} м²</span>
       </header>
+      <OpeningSketch opening={opening} product={product} index={index}/>
       <div className="form-grid four">
         <SelectField
           label="Изделие"
