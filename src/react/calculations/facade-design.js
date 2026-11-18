@@ -47,12 +47,12 @@ export function facadeLayout(config,envelope){
   posts.forEach((x,i)=>{
     const top=facadeHeight(envelope.shape,x)-inset;
     if(!config.autoClip&&top<=transom+depth/2)errors.push(`Стойка ${i+1}: верхняя часть фасада ниже перемычки.`);
-    members.push({key:stations[i].key,name:`Стойка ${i+1}`,type:'post',a:[x,0],b:[x,Math.max(1,top,config.autoClip?transom+depth/2:0)],profile:`${postWidth}×${depth}`,cutWidth:postWidth});
+    members.push({key:stations[i].key,name:`Стойка ${i+1}`,type:'post',a:[x,0],b:[x,config.fullHeight?facadeHeight(envelope.shape,x):Math.max(1,top,config.autoClip?transom+depth/2:0)],profile:`${postWidth}×${depth}`,cutWidth:postWidth});
   });
   for(let i=0;i<posts.length-1;i++){
     const left=posts[i],right=posts[i+1],x=left+postWidth/2+clearance,w=right-left-postWidth-2*clearance;
     const headerKey=`header-${stations[i].key}-${stations[i+1].key}`,bayTransom=Number(config.transomOverrides?.[headerKey]??transom);
-    members.push({key:`header-${stations[i].key}-${stations[i+1].key}`,name:`Перемычка ${i+1}`,type:'beam',a:[left,bayTransom],b:[right,bayTransom],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:stations[i].key,endKey:stations[i+1].key});
+    if(!config.fullHeight)members.push({key:`header-${stations[i].key}-${stations[i+1].key}`,name:`Перемычка ${i+1}`,type:'beam',a:[left,bayTransom],b:[right,bayTransom],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:stations[i].key,endKey:stations[i+1].key});
     // Roof shape is independent of the number of full-height posts.
     const roofXs=[left,...envelope.shape.flatMap(p=>p[0].map(p=>p[0])).filter(v=>v>left+.1&&v<right-.1),right].sort((a,b)=>a-b);
     const unique=[...new Set(roofXs)],capPoints=unique.map(at=>[at,facadeHeight(envelope.shape,at)-inset]);
@@ -69,7 +69,7 @@ export function facadeLayout(config,envelope){
     };
     if(config.autoClip||config.transoms?.length||breaks.length){
       const extras=(Array.isArray(config.transoms)?config.transoms:[]).filter(t=>!t.fromPost||stations.findIndex(s=>s.key===t.fromPost)<=i&&stations.findIndex(s=>s.key===t.toPost)>i).slice(0,24);
-      const bars=[{id:'main',zMm:bayTransom},...extras].sort((a,b)=>a.zMm-b.zMm);
+      const bars=[...(!config.fullHeight?[{id:'main',zMm:bayTransom}]:[]),...extras].sort((a,b)=>a.zMm-b.zMm);
       for(const t of extras)members.push({key:`transom-${t.id}-${stations[i].key}-${stations[i+1].key}`,transomId:t.id,name:'Горизонтальная перемычка',type:'beam',a:[left,Number(t.zMm)],b:[right,Number(t.zMm)],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:stations[i].key,endKey:stations[i+1].key});
       if(bars.some((t,j)=>!finite(t.zMm)||Number(t.zMm)<=sill+depth/2+clearance||j&&t.zMm-bars[j-1].zMm<depth+2*clearance+100))errors.push(`Пролёт ${i+1}: перемычки расположены слишком близко или ниже подоконника.`);
       const topXs=[x,...breaks.filter(v=>v>x&&v<x+w),x+w],top=Math.max(...topXs.map(capBottom)),under=[[[x,sill],[x+w,sill],...topXs.slice().reverse().map(v=>[v,Math.max(sill,capBottom(v)-clearance)])]];
@@ -147,7 +147,7 @@ export function removeFacadePost(config,index){
 export function moveFacadeTransom(config,key,zMm){
  if(!Number.isFinite(zMm))throw new Error('Задайте отметку перемычки.');
  const next=resetFacadePanePositions(structuredClone(config));next.autoClip=true;
- if(key==='main'){next.transomMm=zMm;next.transomOverrides={};}
+ if(key==='main'){next.transomMm=zMm;next.transomOverrides={};next.fullHeight=false;}
  else {const extra=(next.transoms||[]).find(t=>key===`transom:${t.id}`||key.startsWith(`transom-${t.id}-`));if(extra)extra.zMm=zMm;else if(key.startsWith('header-'))next.transomOverrides={...next.transomOverrides,[key]:zMm};else throw new Error('Выберите горизонтальную перемычку.');}
  return next;
 }
@@ -156,8 +156,22 @@ export function appendFacadeTransom(config,zMm,fromPost,toPost){
  return {...resetFacadePanePositions(structuredClone(config)),autoClip:true,transoms:[...(config.transoms||[]),{id:crypto.randomUUID(),zMm,fromPost:fromPost||config.postRefs?.[0],toPost:toPost||config.postRefs?.at(-1)}]};
 }
 export function facadeReservedShape(plan,wallId){
-  const shapes=(plan.facades||[]).filter(f=>f.wallId===wallId).flatMap(f=>f.memberShapes||[]).filter(p=>Array.isArray(p)&&p.length&&p.length<=8&&p.every(r=>Array.isArray(r)&&r.length>=3&&r.length<=32&&r.every(v=>Array.isArray(v)&&v.length===2&&v.every(n=>Number.isFinite(n)&&Math.abs(n)<=100000))));
+  const shapes=(plan.facades||[]).filter(f=>f.wallId===wallId).flatMap(f=>(f.memberShapes||[]).filter(p=>Array.isArray(p)&&p.length&&p.length<=8&&p.every(r=>Array.isArray(r)&&r.length>=3&&r.length<=32&&r.every(v=>Array.isArray(v)&&v.length===2&&v.every(n=>Number.isFinite(n)&&Math.abs(n)<=100000)))).map(shape=>{
+    // The saved mounting clearance is a joint, not a separate SIP strip.
+    // Only the vertical outer jamb pocket can meet the wall edge this way.
+    // Wider wall piers and all actual member coordinates remain untouched.
+    const points=shape.flat(),xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),left=Math.min(...xs),right=Math.max(...xs),width=Number(f.widthMm),gap=Math.max(0,Number(f.clearanceMm)||0);
+    if(Math.max(...ys)-Math.min(...ys)<=right-left)return shape;
+    const joinLeft=left>0&&left<=gap+.001,joinRight=width>0&&width-right>0&&width-right<=gap+.001;
+    return shape.map(r=>r.map(([x,y])=>[joinLeft&&Math.abs(x-left)<.001?0:joinRight&&Math.abs(x-right)<.001?width:x,y]));
+  }));
   return shapes.length?clipping.union(...shapes):[];
+}
+
+// An explicit design command, never a migration of an existing facade.
+export function fullHeightFacade(config){
+  const next=resetFacadePanePositions(structuredClone(config));
+  return {...next,fullHeight:true,autoClip:true,lower:true,upper:true,sillMm:Math.max(0,Number(next.clearanceMm)||0),headInsetMm:Number(next.boardDepthMm)/2,transoms:[],transomOverrides:{}};
 }
 export function applyFacade(project,config,envelope){
   const layout=facadeLayout(config,envelope);

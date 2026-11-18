@@ -1,5 +1,13 @@
 // Tie a blocked surface to the issue that stopped its fabrication. Opening
 // errors target an opening key, so they must be resolved through the surface.
+export function wallHeightStockNote(report,wall){
+  if(!wall?.exterior||wall.frameOnly)return '';
+  const parts=(report.parts||[]).filter(p=>p.surfaceId===wall.id);
+  const length=Number(wall.sourcePanelLengthMm??report.panelLength);
+  if(!(length>0)||!parts.some(p=>p.upperCourse)||!(wall.height>length+.5))return '';
+  return `Высота стены ${Math.round(wall.height)} мм, длина исходной панели ${Math.round(length)} мм. Верхний ряд закрывает оставшуюся высоту ${Math.round(wall.height-length)} мм. Для стены без добора выберите подходящую длину панели в раскрое; высота стены автоматически не уменьшается.`;
+}
+
 export function blockedSurfaceReasons(report, surfaceId) {
   const surface = report.surfaces.find(item => item.id === surfaceId);
   if (!surface?.blocked) return [];

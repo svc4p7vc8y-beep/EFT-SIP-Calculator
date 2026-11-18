@@ -81,10 +81,10 @@ export function RoofPerspective({assembly,yaw=0}) {
   const baseZ=assembly.roofModel?.roofBase||0;
   const extra=[...(assembly.roofTimbers||[]).filter(s=>s.worldA&&s.worldB).map(s=>({id:s.id,profile:s.profile,flat:s.flat,normal:s.normal,a:s.worldA.map((v,i)=>i===2?v-baseZ:v),b:s.worldB.map((v,i)=>i===2?v-baseZ:v)})),
     ...(assembly.supports||[]).filter(s=>!s.referenceOnly).map(s=>({id:s.id,profile:s.profile,flat:s.flat,normal:s.normal,a:s.a.map((v,i)=>i===2?v-baseZ:v),b:s.b.map((v,i)=>i===2?v-baseZ:v)}))];
-  const lines=[...roofAxonometricLines(assembly),...extra];if(!lines.length)return null;
+  const lines=[...roofAxonometricLines(assembly),...extra],warmFaces=assembly.roofDrawing?.model?assembly.roofModel.faces.filter(f=>f.warm):[];if(!lines.length&&!warmFaces.length)return null;
   const angle=yaw*Math.PI/180;
   const project=p=>{const x=p[0]*Math.cos(angle)-p[1]*Math.sin(angle),y=p[0]*Math.sin(angle)+p[1]*Math.cos(angle);return [(x-y)*.866,(x+y)*.5-p[2]];};
-  const faces=[];
+  const faces=warmFaces.map(f=>{const coords=f.vertices.map(p=>[p[0],p[1],p[2]-baseZ]);return {key:`plane:${f.id}`,points:coords.map(project),depth:coords.reduce((sum,p)=>sum+p[0]+p[1]+p[2],0)/coords.length,fill:'#d9e7ee'};});
   for(const l of lines){
     const frame=beamFrame(l.a,l.b,l.normal||[0,0,1]);if(!frame)continue;
     const [first=50,second=150]=l.profile.split(/[×xх]/).map(Number);
@@ -96,7 +96,7 @@ export function RoofPerspective({assembly,yaw=0}) {
   }
   faces.sort((a,b)=>a.depth-b.depth);
   const all=faces.flatMap(f=>f.points),xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y,pad=Math.max(w,h)*.06;
-  return <svg className="roof-document-drawing" viewBox={`${x-pad} ${y-pad} ${w+2*pad} ${h+2*pad}`} role="img" aria-label="Аксонометрия стропильной системы">{faces.map(f=><polygon key={f.key} points={pts(f.points)} fill={f.fill} stroke="#62451e" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}<text x={x+w/2} y={y+h+pad*.8} textAnchor="middle" fontSize={pad*.3}>Схема стропил, мауэрлата, ригелей и опор · узлы по проекту</text></svg>;
+  return <svg className="roof-document-drawing" viewBox={`${x-pad} ${y-pad} ${w+2*pad} ${h+2*pad}`} role="img" aria-label="Аксонометрия стропильной системы">{faces.map(f=><polygon key={f.key} points={pts(f.points)} fill={f.fill} stroke="#62451e" strokeWidth=".5" vectorEffect="non-scaling-stroke"/>)}<text x={x+w/2} y={y+h+pad*.8} textAnchor="middle" fontSize={pad*.3}>{warmFaces.length?'Наружные плоскости кровли и опоры · основание и разуклонка по проекту':'Схема стропил, мауэрлата, ригелей и опор · узлы по проекту'}</text></svg>;
 }
 
 export function BindingSection({assembly}) {

@@ -1,6 +1,6 @@
 import {houseFrameMaterial} from '../calculations/facade-frame-material.js';
 import {useState} from 'react';
-import {moveFacadeTransom,appendFacadeTransom,removeFacadePost} from '../calculations/facade-design.js';
+import {moveFacadeTransom,appendFacadeTransom,removeFacadePost,fullHeightFacade} from '../calculations/facade-design.js';
 const field=(label,value,change,step=1)=><label>{label}<input type="number" step={step} value={value??''} onChange={e=>change(e.target.value===''?'':Number(e.target.value))}/></label>;
 export default function FacadeParameters({config,patch,envelope,layout,project}){
  const [tab,setTab]=useState('geometry'),width=envelope.wall.width;
@@ -10,6 +10,7 @@ export default function FacadeParameters({config,patch,envelope,layout,project})
         <div className="facade-tabs"><button aria-pressed={tab==='geometry'} onClick={()=>setTab('geometry')}>Геометрия</button><button aria-pressed={tab==='frame'} onClick={()=>setTab('frame')}>Каркас</button><button aria-pressed={tab==='supports'} onClick={()=>setTab('supports')}>Опоры</button></div>
         {tab==='geometry'?<>
           <label>Название<input value={config.name} onChange={e=>patch({name:e.target.value})}/></label>
+          <button aria-pressed={!!config.fullHeight} title="Сохранить стойки, убрать промежуточные горизонтальные перемычки и заполнить высоту до верхней балки. Изменения сначала показаны на развертке." onClick={()=>patch(fullHeightFacade(config))}>Остекление на всю высоту</button>
           <div className="facade-fields">{field('Низ окон, мм',config.sillMm,v=>patch({sillMm:v}))}{field('Ось перемычки, мм',config.transomMm,v=>patch(moveFacadeTransom(config,'main',v)))}{field('Отступ от кровли, мм',config.headInsetMm,v=>patch({headInsetMm:v}))}{field('Монтажный зазор, мм',config.clearanceMm,v=>patch({clearanceMm:v}))}</div>
           <label className="facade-check"><input type="checkbox" checked={config.lower} onChange={e=>patch({lower:e.target.checked})}/>Нижний ряд</label><label className="facade-check"><input type="checkbox" checked={config.upper} onChange={e=>patch({upper:e.target.checked})}/>Верхний ряд по скатам</label>
           <button onClick={()=>patch({...moveFacadeTransom(config,'main',Math.round(envelope.mauerlatMm)),headInsetMm:Math.min(Number(config.headInsetMm)||100,100)})}>Перемычка на мауэрлат · {Math.round(envelope.mauerlatMm)} мм</button><button onClick={()=>patch(appendFacadeTransom(config,Math.max(Number(config.sillMm)+350,Number(config.transomMm)-500)))}>＋ Горизонтальная перемычка</button>{(config.transoms||[]).map(t=><div key={t.id}>{field('Отметка дополнительной перемычки, мм',t.zMm,z=>patch(moveFacadeTransom(config,`transom:${t.id}`,z)),5)}<button onClick={()=>patch({transoms:config.transoms.filter(v=>v.id!==t.id)})}>Убрать перемычку</button></div>)}

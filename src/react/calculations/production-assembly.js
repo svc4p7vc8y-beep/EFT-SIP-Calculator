@@ -249,7 +249,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const warmPlatform=assembly.roofModel.faces.some(face=>face.group?.startsWith('terrace:')&&face.warm);
   assembly.usesRoofPlanes=settings.roofDesign.enabled||plainSipGable||automaticSipHip||automaticSipFlat||automaticColdHip||automaticColdContour||automaticSipContour;
   assembly.usesPlatformRoofPlanes=warmPlatform;
-  if((plainSipGable||automaticSipHip||automaticSipContour)&&!settings.roofDesign.enabled){
+  if((plainSipGable||automaticSipHip||automaticSipFlat||automaticSipContour)&&!settings.roofDesign.enabled){
     assembly.roofDrawing.model=assembly.roofModel;
     const outline=assembly.roofModel.projection[0]?.[0];if(outline)assembly.roofOutline=outline.slice(0,-1);
   }
