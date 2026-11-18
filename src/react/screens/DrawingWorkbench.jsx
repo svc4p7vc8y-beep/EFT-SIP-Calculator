@@ -24,6 +24,9 @@ import ProductionIdentityInfo from './ProductionIdentityInfo.jsx';
 import DrawingInspector from './DrawingInspector.jsx';
 import WorkbenchSettingsDialog from './WorkbenchSettingsDialog.jsx';
 import WorkbenchStock from './WorkbenchStock.jsx';
+import {openProductionPrint} from '../export/production-print.js';
+import {panelCutMapPages} from '../calculations/panel-cut-maps.js';
+import {PanelCutMapPage} from './PanelCutMaps.jsx';
 import { CONSTRUCTION_CATEGORIES as categories, WORKBENCH_MODES, scopedWorkbenchItems, scopedWorkbenchStock, scopedPurchases, timberMaterialSummary, locateWorkbenchItem } from './workbench-model.js';
 import SourceChangesInfo from './SourceChangesInfo.jsx';
 import CeilingSupportChecks from './CeilingSupportChecks.jsx';
@@ -46,7 +49,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
   const [selection,setSelection]=useState([]),[bottom,setBottom]=useState('assembly'),[expanded,setExpanded]=useState(false);
   const [zoomByView,setZoomByView]=useState({}),[pan,setPan]=useState(false),[fit,setFit]=useState(0);
   const [full,setFull]=useState(false),[sheetId,setSheetId]=useState('1'),[selectedSheets,setSelectedSheets]=useState([]),[paper,setPaper]=useState('A3');
-  const [printing,setPrinting]=useState(null),[printError,setPrintError]=useState('');
+  const [printing,setPrinting]=useState(null),[printError,setPrintError]=useState(''),[pdfBusy,setPdfBusy]=useState(false);
   const [measure,setMeasure]=useState(false),[measureStart,setMeasureStart]=useState(null),[measureCursor,setMeasureCursor]=useState(null);
   const [offsets,setOffsets]=useState({}),[locatorMode,setLocatorMode]=useState('plan'),[documentationOpened,setDocumentationOpened]=useState(false);
   const [workMode,setWorkMode]=useState('construction'),[scope,setScope]=useState('surface'),[floor,setFloor]=useState(1);
@@ -110,12 +113,16 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
   const select3D=id=>{const support=report.assembly.supports.find(s=>s.mark===id||s.id===id),face=report.assembly.roofModel.faces.find(f=>f.id===id);if(support||face){setCategory('roof');setSurfaceId(face?.id||support?.faceId||'');setSelection([support?.mark||face.id]);setInspectorTab('properties');return;}const item=report.parts.find(p=>p.id===id)||report.members.find(m=>m.id===id);if(item?.worldA&&item.faceId){setCategory('roof');setSurfaceId(item.faceId);setSelection([id]);setInspectorTab('properties');return;}const s=report.surfaces.find(s=>s.id===(item?.surfaceId||id));if(s){const keep=view==='model3d';setFloor(s.floor||floor);go(drawingCategory(s),s.id);if(keep)setView('model3d');}setSelection([id]);};
   const openWall=id=>{const s=report.surfaces.find(s=>s.id===id||s.layoutKey===id);if(s){setFloor(s.floor||floor);go(drawingCategory(s),s.id);setInspectorTab('properties');setWorkMode('construction');}};
   useEffect(()=>{const cleanup=()=>{document.body.classList.remove('print-production');if(title.current!==null){document.title=title.current;title.current=null;}setPrinting(null);};window.addEventListener('afterprint',cleanup);return()=>{window.removeEventListener('afterprint',cleanup);document.body.classList.remove('print-production');if(title.current!==null)document.title=title.current;};},[]);
-  const print=(ids,current=false,detail=false)=>{
-    if(pending||!report)return;
+  const print=async(ids,current=false,detail=false,stock=false,pdf=false)=>{
+    if(current&&workMode==='production'&&bottom==='stock'){stock=true;current=false;}
+    if(pending||pdfBusy||!report)return;
     if(root.current?.querySelector('[aria-invalid="true"]')){setPrintError('Исправьте несохранённые значения перед печатью.');return;}
         if(current&&view==='cover'){ids=pages.filter(p=>p.title.startsWith('Покрытие ·')).map(p=>p.id);current=false;if(!ids.length){setPrintError('Сначала задайте размеры листа покрытия.');return;}}
     setPrintError('');title.current=document.title;document.title=project.meta.projectName||project.meta.projectNum||'Домокомплект';
-    flushSync(()=>setPrinting({ids,current,detail}));document.body.classList.add('print-production');window.print();
+    flushSync(()=>setPrinting({ids,current,detail,stock}));
+    try{if(pdf){setPdfBusy(true);const {downloadProductionPdf}=await import('../export/production-pdf.js');await downloadProductionPdf(document.querySelector('body>.production-print'),{paper,filename:`${document.title}-${stock?'карты-раскроя':currentTitle}`});}else openProductionPrint(document.querySelector('body>.production-print'),{title:document.title,paper});}
+    catch(error){setPrintError(error.message);}
+    finally{setPdfBusy(false);setPrinting(null);if(title.current!==null){document.title=title.current;title.current=null;}}
   };
   const exportTable=()=>{const rows=[['Материал','Размер / сечение','Ед.','Количество'],...purchases.map(r=>[r.name,r.profile,r.unit,r.qty])];download(`${project.meta.projectName||'Домокомплект'}-закупка.csv`,serializeCsv(rows),'text/csv;charset=utf-8');};
   const issueClick=issue=>{const target=locateWorkbenchItem(report,issue.target);if(target.surface||target.member){showItem(target.panel?.id||target.member?.id||target.surface.id);return;}if(issue.code==='ASSEMBLY'||issue.code==='ROOF_SUPPORTS'){go('supports');setWorkMode('construction');}else onSettings();};
@@ -141,7 +148,8 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     return <p className="cut-empty">Для этой конструкции нет деталей. Проверьте включение раздела в параметрах проекта.</p>;
   };
   if(!report)return <section className="screen cutting-screen"><h1>Чертежи и сборка</h1><p role="status">{error||'Подготавливаю геометрию и ведомости…'}</p></section>;
-  const currentTitle=surface?.name||categories.find(([id])=>id===category)?.[1]||({supports:'Опоры и проектные элементы',starter:'Стартовая доска'})[category]||'Домокомплект';
+  const currentTitle=category==='piles'?(report.assembly.foundationType==='concreteBlock'?'План бетонных блоков':'Свайное поле'):surface?.name||categories.find(([id])=>id===category)?.[1]||({supports:'Опоры и проектные элементы',starter:'Стартовая доска'})[category]||'Домокомплект';
+  const stockPages=panelCutMapPages(stockReport||report).map((page,i)=>({id:`КР${i+1}`,title:`Карты раскроя · ${page.format.height}×${page.format.width}`,content:<PanelCutMapPage page={page} report={stockReport||report} projectName={project.meta.projectName||project.meta.projectNum}/> }));
   const currentPages=[{id:'В',title:currentTitle,content:<>{scene()}<p>Размеры: мм. {report.revision}. Геометрическая деталировка; несущие узлы по рабочему проекту.</p></>}];
   const detailPages=chosenPanel?[{id:'Д',title:`${mark(chosenPanel)} · ×${selection.length}`,content:<><DrawingCanvas surface={{...chosenPanel,name:mark(chosenPanel),geometry:[chosenPanel.shape]}} parts={[chosenPanel]} layers={defaultLayers}/><p>{chosenPanel.width}×{chosenPanel.height}×{chosenPanel.thickness} мм. Позиции: {selection.map(mark).join(', ')}</p></>}]:chosenMember?[{id:'Д',title:`${mark(chosenMember)} · ×${selection.length}`,content:<><h2>{chosenMember.material} · {chosenMember.profile} мм</h2><p>Чистая длина {chosenMember.length} мм; заготовка {chosenMember.cutLength} мм.</p><p>Узел: {chosenMember.nodeRef||'не задан'}. {chosenMember.processing||'Обработка по рабочему узлу'}</p><p>Позиции: {selection.map(mark).join(', ')}</p></>}]:[];
   return <section ref={root} className={`screen cutting-screen drawing-workbench ${full?'workbench-full':''}`}>
@@ -151,7 +159,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     <div className="workbench-main" hidden={workMode==='documentation'}>
     <div hidden={workMode==='checks'}><div className="drawing-navigation"><label>Этаж<select aria-label="Этаж чертежей" value={floor} onChange={e=>{setFloor(Number(e.target.value));setSurfaceId('');setSelection([]);setTool('select');}}>{Array.from({length:Math.max(1,project.meta.floors||1)},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
       {candidates.length?<><button aria-label="Предыдущая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)-1+candidates.length)%candidates.length].id)}><ChevronLeft size={18}/></button><select aria-label="Выбранная конструкция" value={surface.id} onChange={e=>{setSurfaceId(e.target.value);setSelection([]);}}>{candidates.map(s=><option key={s.id} value={s.id}>{s.name}{s.blocked?' · есть замечания':''}</option>)}</select><button aria-label="Следующая конструкция" onClick={()=>go(category,candidates[(candidates.indexOf(surface)+1)%candidates.length].id)}><ChevronRight size={18}/></button></>:null}
-      <label>Формат<select aria-label="Формат печати вида" value={paper} onChange={e=>setPaper(e.target.value)}><option>A3</option><option>A4</option></select></label><button disabled={pending||view==='model3d'} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button>
+      <label>Формат<select aria-label="Формат печати вида" value={paper} onChange={e=>setPaper(e.target.value)}><option>A3</option><option>A4</option></select></label><button disabled={pending||pdfBusy||view==='model3d'} onClick={()=>print(null,true)}><Printer size={16}/>Печать вида</button><button disabled={pending||pdfBusy||view==='model3d'} onClick={()=>print(null,true,false,false,true)}>{pdfBusy?'Формирую PDF…':'PDF листа'}</button>
     </div>
     <div className="workbench-view-bar" role="group" aria-label="Виды конструкции"><div className="workbench-view-icons">{viewOptions.map(([id,label,Icon])=><button key={id} title={label} aria-label={label} aria-pressed={view===id} onClick={()=>{setView(id);setTool('select');}}><Icon size={18}/><span>{label}</span></button>)}</div><ViewSwitcher items={viewOptions.map(([id,label])=>({id,label,description:surface?.name||'Конструкция'}))} selected={view} onChange={id=>{setView(id);setTool('select');}} label="Вид конструкции"/><button className="workbench-view-full" onClick={()=>setFull(!full)} aria-label={full?'Свернуть вид':'Развернуть вид'}>{full?<Minimize size={18}/>:<Maximize size={18}/>}</button></div>
     {measure?<p role="status">{measureStart?'Укажите вторую точку':'Укажите первую точку'}; размер сохраняется в проекте. Подписи редактируются инструментом «Подписи».</p>:null}
@@ -163,7 +171,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     {category === 'binding' ? <BindingRuleCheck result={report.constructionRuleChecks?.bindingStraightSupport} value={settings.bindingJointToleranceMm} update={update} NumberInput={NumberInput} pending={pending}/> : null}
     </div><fieldset className={`drawing-content ${pending?'is-pending':''}`}>
       <div className="drawing-editor-grid" hidden={workMode==='checks'} onTouchStart={onViewTouchStart} onTouchEnd={onViewTouchEnd}>
-{workMode==='production'&&bottom==='stock'?<div className="drawing-special-view"><WorkbenchStock report={stockReport} StockSheets={StockSheets} onSelect={showItem} selected={selection}/></div>:view==='model3d'?<Suspense fallback={<p role="status">Загружаю 3D…</p>}><ProductionHouse3D report={report} project={project} selected={selection} onSelect={select3D} controlsRef={threeControls} pan={pan} large/></Suspense>:
+{workMode==='production'&&bottom==='stock'?<div className="drawing-special-view"><WorkbenchStock onPdf={()=>print(null,false,false,true,true)} pdfBusy={pdfBusy} onPrint={()=>print(null,false,false,true)} report={stockReport} StockSheets={StockSheets} onSelect={showItem} selected={selection}/></div>:view==='model3d'?<Suspense fallback={<p role="status">Загружаю 3D…</p>}><ProductionHouse3D report={report} project={project} selected={selection} onSelect={select3D} controlsRef={threeControls} pan={pan} large/></Suspense>:
 category==='roof'&&view==='roofproject'?<div className="drawing-special-view"><Suspense fallback={<p>Загрузка проекта кровли…</p>}><RoofDesignTool {...{project,calculation,report,settings,update,NumberInput}} selectedFaceId={chosenRoofFace?.id||''} selectedSupport={chosenSupport?.mark||''} onSelectFace={id=>setSelection([id])} onSelectSupport={id=>setSelection([id])} onSelectMember={id=>setSelection([id])} onRoofTypeChange={changeRoofType} onOpen3D={()=>setView('model3d')}/></Suspense></div>:view==='starter'||category==='roof'&&view==='cover'?<div className="drawing-special-view">{scene()}</div>:category==='supports'||view==='edit'||category==='roof'&&view==='overlay'?<AssemblyPlan report={report} settings={settings} update={update} NumberInput={NumberInput} compact/>:<div className="drawing-stage"><DrawingViewport key={`${viewKey}:${fit}`} zoom={zoom} pan={pan} onZoom={setZoom} offset={offsets[viewKey]||[0,0]} onOffset={offset=>setOffsets(old=>({...old,[viewKey]:offset}))}>{scene()}</DrawingViewport></div>
 }
       <DrawingToolRail tool={pan?'pan':measure?'measure':labelTool?'labels':'select'} onTool={setTool} canMeasure={!!drawing&&view==='drawing'} pending={pending} onSupports={()=>{go('supports');setView('edit');}}/>
@@ -217,6 +225,6 @@ category==='roof'&&view==='roofproject'?<div className="drawing-special-view"><S
     </div>
     {showLayers&&view!=='model3d'?<div className="drawing-layers">{Object.entries({panels:'Панели',frame:'Каркас и соединители',dimensions:'Размеры',labels:'Марки'}).map(([key,label])=><label key={key}><input type="checkbox" checked={layers[key]} onChange={e=>setLayers({...layers,[key]:e.target.checked})}/>{label}</label>)}<button onClick={()=>setLayers(defaultLayers)}>Все слои</button><label>Текст<select value={fontScale} onChange={e=>setFontScale(Number(e.target.value))}>{[.8,1,1.25,1.5].map(n=><option key={n} value={n}>{Math.round(n*100)}%</option>)}</select></label></div>:null}
 </div>{settingsOpen?<WorkbenchSettingsDialog pending={pending} onClose={()=>setSettingsOpen(false)}>{settingsContent}</WorkbenchSettingsDialog>:null}
-    {printing?createPortal(<MountingAlbum project={project} report={report} pages={printing.detail?detailPages:printing.current?currentPages:pages} selectedIds={printing.ids} paper={paper}/>,document.body):null}
+    {printing?createPortal(<MountingAlbum project={project} report={report} pages={printing.stock?stockPages:printing.detail?detailPages:printing.current?currentPages:pages} selectedIds={printing.ids} paper={paper}/>,document.body):null}
   </section>;
 }

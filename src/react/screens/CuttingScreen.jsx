@@ -3,6 +3,7 @@ import { useProject } from '../state/ProjectContext.jsx';
 import { normalizeProductionCutting } from '../state/production-cutting.js';
 import { productionMark as mark, productionFamily } from '../calculations/production-assembly.js';
 import DrawingWorkbench from './DrawingWorkbench.jsx';
+import PanelCutMaps from './PanelCutMaps.jsx';
 import ProductionSettings from './ProductionSettings.jsx';
 import '../styles/cutting.css';
 const ProjectDocumentation=lazy(()=>import('./ProjectDocumentation.jsx'));
@@ -36,9 +37,7 @@ function StarterBoardDiagram({ walls = [] }) {
   <div className="cut-table-wrap"><table><thead><tr><th>Стена</th><th>Длина, мм</th><th>Стартовая доска · марка, от–до, длина</th><th>Проёмы от начала стены</th></tr></thead><tbody>{walls.map(wall=><tr key={wall.id}><td>{wall.name}</td><td>{n(wall.length)}</td><td>{wall.boards.map(board=><div key={mark(board.id)}>{mark(board.id)}: {n(board.start)}–{n(board.end)} · {n(board.length)} мм · {board.profile}</div>)}</td><td>{wall.openings.map(opening=><div key={opening.id}>{opening.name}: {n(opening.start)}–{n(opening.end)} · {n(opening.width)} мм · {opening.noBoard?'без доски':'доска продолжается'}</div>)}</td></tr>)}</tbody></table></div></div>;
 }
 
-function StockSheets({ report, onSelect, selected=[] }) {
-  return <div className="cut-stock-grid">{report.panelStock.sheets.map(sheet => <article key={sheet.id} className="cut-stock"><h3>{sheet.id} · {sheet.thickness} мм · {productionFamily(sheet.family)}</h3><p>{n(sheet.width)} × {n(sheet.height)} мм</p><svg viewBox={`-30 -30 ${sheet.width + 60} ${sheet.height + 60}`} role="img" aria-label={`Карта заготовки ${sheet.id}`}><rect width={sheet.width} height={sheet.height} fill="#f7f4e9" stroke="#859471" />{sheet.parts.map(part => <g key={part.id} role={onSelect?"button":undefined} tabIndex={onSelect?0:undefined} aria-label={`Деталь ${mark(part)} в заготовке`} onClick={()=>onSelect?.(part.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onSelect?.(part.id);}}}><rect x={part.x} y={part.y} width={part.width} height={part.height} fill={selected.includes(part.id)?'#92ba67':'#dbe8d1'} stroke="#54713c" strokeWidth="1" vectorEffect="non-scaling-stroke" /><text x={part.x + part.width / 2} y={part.y + part.height / 2} fontSize="35" textAnchor="middle">{mark(part)}{part.rotated ? ' ↻90°' : ''}</text></g>)}</svg><small>{sheet.parts.map(part => `${mark(part)}: X ${n(part.x)}, Y ${n(part.y)}, ${n(part.width)}×${n(part.height)}${part.rotated ? ' · поворот 90°' : ''}`).join('; ')}</small></article>)}</div>;
-}
+function StockSheets(props){return <PanelCutMaps {...props}/>;}
 
 export default function CuttingScreen({calculation,onNavigate}) {
   const { project, commit, recordMarks } = useProject();

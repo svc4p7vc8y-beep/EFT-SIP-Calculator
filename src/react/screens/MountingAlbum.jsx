@@ -11,6 +11,8 @@ import { WallLocator, DrawingCanvas } from './DrawingCanvas.jsx';
 import ConstructionNode from './ConstructionNodes.jsx';
 import { boardFootprint } from '../calculations/partition-geometry.js';
 import WallPanelPlan from './WallPanelPlan.jsx';
+import {panelCutMapPages} from '../calculations/panel-cut-maps.js';
+import {PanelCutMapPage} from './PanelCutMaps.jsx';
 import { MARK_LEGEND } from '../calculations/production-cutting.js';
 import {roofProjectSheets} from './RoofProjectSheets.jsx';
 
@@ -114,6 +116,7 @@ export function buildMountingPages(report) {
   for(const [i,groups]of chunks(report.panelGroups,6).entries())add(`Каталог одинаковых панелей · ${i+1}`,<div className="album-parts">{groups.map(({part,qty})=><article key={part.id}><h3>{mark(part)} · ×{qty}</h3><TechnicalDrawing surface={{...part,geometry:[part.shape],horizontal:true,name:part.id}} parts={[part]}/><p>{num(part.width)}×{num(part.height)}×{part.thickness} мм</p></article>)}</div>);
   for(const [i,rows]of chunks(partitionRows,16).entries())add(`Закупка перегородок · ${i+1}`,<><Schedule items={rows}/><p>Отдельный заказ перегородок, не суммировать повторно с общим заказом дома. Доски без дополнительного запаса; крепёж из сметы и явно заданных проектных количеств.</p>{procurement.unplaced.length?<p>Не размещены в досках: {procurement.unplaced.join(', ')}. Заказ неполный.</p>:null}{!procurement.screws.length&&!procurement.manual.some(r=>r.valid)?<p>Крепёж каркасных перегородок не задан — уточнить по рабочим узлам.</p>:null}</>);
   for(const [i,groups]of chunks(groupMembers(report.members.filter(m=>m.surfaceId?.includes('-ПГ')&&!m.excluded)),18).entries())add(`Сводная деталировка перегородок · ${i+1}`,<Schedule items={groups.map(g=>({name:`${g.member.material} · ${mark(g.member)+' и однотипные'}`,profile:g.member.profile,length:g.member.length,qty:g.qty}))}/>);
+  for(const page of panelCutMapPages(report))add(`Карты раскроя SIP · ${page.format.height}×${page.format.width} · ${page.format.thickness} мм · ${page.page}`,<PanelCutMapPage page={page} report={report}/>);
   const contentsCount=Math.ceil((pages.length-1)/32);
   const contents=chunks(pages.slice(1).map((p,i)=>({title:p.title,page:i+2+contentsCount})),32).map((list,i)=>({title:`Ведомость листов монтажного альбома${i?` · ${i+1}`:''}`,content:<div className="album-contents">{chunks(list,16).map((column,j)=><table key={j}><thead><tr><th>Лист</th><th>Наименование</th></tr></thead><tbody>{column.map(row=><tr key={row.page}><td>{row.page}</td><td>{row.title}</td></tr>)}</tbody></table>)}</div>}));
   pages.splice(1,0,...contents);
