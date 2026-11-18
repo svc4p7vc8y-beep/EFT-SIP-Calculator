@@ -3,6 +3,7 @@ import { normalizeConstructionSources } from './construction-sources.js';
 import { normalizeSourceBaseline } from './source-baseline.js';
 import { normalizeAutoRoofSupports } from './auto-roof-supports.js';
 import {normalizeRoofDesign} from './roof-design.js';
+import {normalizeRoofEditor} from '../planner/roof-support-editor.js';
 
 export function normalizeDrawingLabels(value) {
   const record=v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.entries(v).slice(0,2000):[];
@@ -56,6 +57,7 @@ export function normalizeProductionCutting(value = {}) {
     counterLathProfile: typeof value.counterLathProfile==='string'?value.counterLathProfile.trim().replace(/[xх]/g,'×'):'',
     rafterGeometry: value.rafterGeometry==='estimate'?'estimate':'wallSlope',
     autoRoofSupports: normalizeAutoRoofSupports(value.autoRoofSupports),
+    roofEditor: normalizeRoofEditor(value.roofEditor),
     windowSupportHeaders:{enabled:value.windowSupportHeaders?.enabled===true,bearingMm:value.windowSupportHeaders?.bearingMm==null?150:Number(value.windowSupportHeaders.bearingMm)},
     roofFrameConfig: value.roofFrameConfig&&typeof value.roofFrameConfig==='object'?{variant:['single','double','triple','a-frame'].includes(value.roofFrameConfig.variant)?value.roofFrameConfig.variant:'double',profile:value.roofFrameConfig.profile==='50×100'?'50×100':'50×150',gapMm:Number(value.roofFrameConfig.gapMm)||590,baseZ:value.roofFrameConfig.baseZ==null?'':value.roofFrameConfig.baseZ,alignSipPosts:value.roofFrameConfig.alignSipPosts!==false,replaceRidge:value.roofFrameConfig.replaceRidge===true,sourceKey:typeof value.roofFrameConfig.sourceKey==='string'?value.roofFrameConfig.sourceKey:''}:null,
     profileMode: value.profileMode === 'estimate' ? 'estimate' : 'saved',

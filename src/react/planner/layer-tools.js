@@ -8,7 +8,7 @@ export function planObjectLayer(type){
 export function canEditPlanObject(active,type){return planObjectLayer(type)===active;}
 export function planLayerTools(layer){
  const shared=['select','guide','delete'];
- if(layer==='roof')return [...shared,'roofAxis','roofAuto'];
+ if(layer==='roof')return [...shared,'roofPan','roofAxis','roofBeam','roofPost','roofAuto'];
  if(layer==='frame')return ['select','structuralFrame','framePost','frameWindow','frameDoor'];
  if(layer==='piles')return [...shared,'pile','pileRow','foundationGrid'];
  if(layer==='binding')return [...shared,'bindingLine','foundationGrid'];

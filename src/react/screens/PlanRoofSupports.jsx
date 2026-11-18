@@ -1,6 +1,8 @@
 import {useState} from 'react';
 import {useProject} from '../state/ProjectContext.jsx';
 import {roofSupportPlanGroups,copyPlanRoofGroup} from '../planner/roof-support-plan.js';
+import {normalizeRoofEditor,syncRoofEditorPosts} from '../planner/roof-support-editor.js';
+import {roofEditorBearingContext} from '../calculations/roof-editor-bearing.js';
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 import {NumberField} from '../components/ui.jsx';
 import {ROOF_JUNCTION_SKETCH,roofJunctionSketch} from '../calculations/roof-junction-sketch.js';
@@ -33,7 +35,7 @@ export default function PlanRoofSupports({project,calculation,onSelect,onDraw,em
     setBusy(true);setMessage('Строю опору по текущей кровле…');
     try{
       const [{calculateProductionCutting},{roofSupportFrame},{generateRoofSupportLayout}]=await Promise.all([import('../calculations/production-cutting.js'),import('../calculations/roof-support-frame.js'),import('../calculations/auto-roof-supports.js')]);
-      const next=structuredClone(project);next.settings.productionCutting.windowSupportHeaders={bearingMm:150,...next.settings.productionCutting.windowSupportHeaders,enabled:true};
+      const next=structuredClone(project);if(selectedMode==='frame')next.settings.productionCutting.windowSupportHeaders={bearingMm:150,...next.settings.productionCutting.windowSupportHeaders,enabled:true};
       const report=calculateProductionCutting(next,calculation);
       const config={...report.settings.autoRoofSupports,variant:'single',profile:'50×150',gapMm:590};
       if(selectedMode==='purlin'&&!truss){
@@ -42,13 +44,20 @@ export default function PlanRoofSupports({project,calculation,onSelect,onDraw,em
       }
       const proposal=selectedMode==='frame'?roofSupportFrame(next,report,config):generateRoofSupportLayout(next,report,config);
       if(proposal.errors.length)throw new Error(proposal.errors.join(' '));
-      const available=roofSupportPlanGroups(proposal.items);
+      const available=roofSupportPlanGroups(selectedMode==='purlin'&&!truss?proposal.items.filter(item=>item.type!=='post').map(item=>({...item,startSupport:'',endSupport:''})):proposal.items);
       if(!available.length)throw new Error('Для этой кровли опора не сформирована. Проверьте тип кровли и сечения.');
       const samePosition=(a,b)=>a.type===b.type&&a.profile===b.profile&&['x1','y1','z1','x2','y2','z2'].every(key=>Math.abs(Number(a[key])-Number(b[key]))<.1);
       const added=available.filter(group=>!groups.some(saved=>saved.members.length===group.members.length&&group.members.every(item=>saved.members.some(existing=>samePosition(item,existing)))))
         .map(group=>copyPlanRoofGroup(group.members,`plan-support-${crypto.randomUUID()}`));
       if(!added.length)throw new Error('Такая схема уже добавлена. Выберите опору на плане, чтобы её передвинуть.');
       const items=added.flat();
+      if(selectedMode==='purlin'&&!truss){
+        const c=normalizeRoofEditor(project.settings.productionCutting.roofEditor);
+        const result=syncRoofEditorPosts(project,[...project.settings.productionCutting.roofSupports,...items],items.map(m=>m.id),c,roofEditorBearingContext(project,report));
+        commit(current=>{current.settings.productionCutting.roofSupports=result.items;return current;});
+        if(added.length===1)onSelect?.(items[0].id);
+        setMessage(result.warnings.join(' ')||`Добавлено прогонов: ${added.length}. Автостойки ${c.autoPosts?'включены':'выключены'}.`);return;
+      }
       if(windowSupportHeaders(next,[...next.settings.productionCutting.roofSupports,...items]).items.length>200)throw new Error('Слишком много деталей опор: разделите схему на проекты.');
       commit(current=>{
         current.settings.productionCutting.windowSupportHeaders={bearingMm:150,...current.settings.productionCutting.windowSupportHeaders,enabled:true};
@@ -57,13 +66,13 @@ export default function PlanRoofSupports({project,calculation,onSelect,onDraw,em
         current.settings.productionCutting.roofSupports=result.items;return current;
       });
       if(added.length===1)onSelect?.(items[0].planGroupId);
-      setMessage(`Добавлено групп опор: ${added.length}. Выберите цветную линию на плане. Прогоны, стойки и лежни перемещаются вместе. Материал показан в смете.`);
+      setMessage(`Добавлено групп опор: ${added.length}. Выберите цветную линию на плане. Каждую деталь можно выбрать и редактировать на плане. Материал показан в смете.`);
     }catch(error){setMessage(error.message);}finally{setBusy(false);}
   };
   const refreshHeaders=()=>{if(windowSupportHeaders({...project,settings:{...project.settings,productionCutting:{...project.settings.productionCutting,windowSupportHeaders:{...project.settings.productionCutting.windowSupportHeaders,enabled:true}}}}).items.length>200){setMessage('Превышен лимит 200 деталей опор. Существующие детали сохранены.');return;}commit(next=>{next.settings.productionCutting.windowSupportHeaders={bearingMm:150,...next.settings.productionCutting.windowSupportHeaders,enabled:true};next.settings.productionCutting.roofSupports=windowSupportHeaders(next).items;return next;});};
   const controls=<div className="inspector-form plan-roof-support-controls">
     {onDraw&&(calculation.roof.layeredFrame?.items>0||project.settings.productionCutting.roofPlanLines?.enabled)?<><button type="button" className="button primary" onClick={onDraw}>Нарисовать / передвинуть линии на крыше</button><p>Автоматические рамы уже показаны синими линиями в слое «Крыша». Рисуйте новые линии и тяните круг на существующей. Подсказка показывает симметрию.</p></>:null}
-    <label className="field">Добавляемая опора<select aria-label="Добавляемая опора" value={selectedMode} onChange={event=>setMode(event.target.value)}><option value="frame" disabled={truss}>Опорный каркас под стропилами</option><option value="purlin">Прогон со стойками / ферма выбранной системы</option></select></label>
+    <label className="field">Добавляемая опора<select aria-label="Добавляемая опора" value={selectedMode} onChange={event=>setMode(event.target.value)}><option value="frame" disabled={truss}>Опорный каркас под стропилами</option><option value="purlin">Прогон / ферма выбранной системы</option></select></label>
     <button type="button" className="button primary" disabled={busy} onClick={add}>{busy?'Строю…':'Добавить прогон / ферму на план'}</button>
     {canSketch?<><button type="button" className="button secondary" disabled={busy} onClick={buildSketch}>{hasSketch?'Обновить схему опор коньков':'Показать схему опор коньков'}</button><p>Стойки, подкосы и лежни под коньками. Для лежней вне заданных несущих линий укажите рабочее основание. Схема видна в 3D и не входит в смету и раскрой.</p></>:null}
     {hasSketch?<button type="button" className="button secondary" disabled={busy} onClick={()=>commit(next=>{next.settings.productionCutting.roofSupports=next.settings.productionCutting.roofSupports.filter(item=>item.autoLayout!==ROOF_JUNCTION_SKETCH);return next;})}>Убрать схему опор коньков</button>:null}

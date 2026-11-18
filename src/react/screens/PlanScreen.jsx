@@ -6,7 +6,9 @@ import FoundationGridLayer from '../components/FoundationGridLayer.jsx';
 import FoundationGridDialog from './FoundationGridDialog.jsx';
 import RailingInspector from './RailingInspector.jsx';
 import {calculateAdjustedPrice} from '../calculations/price-adjustments.js';
-import {drawPlanRoofPurlin,resizePlanRoofPurlin} from '../planner/roof-support-plan.js';
+import {drawPlanRoofPurlin} from '../planner/roof-support-plan.js';
+import {normalizeRoofEditor,roofEditablePlanGroups,snapRoofEditorPoint,roofGestureOperation} from '../planner/roof-support-editor.js';
+import RoofSupportPlanLayer from '../components/RoofSupportPlanLayer.jsx';
 import {canEditPlanObject,planLayerTools,editRoofLine} from '../planner/layer-tools.js';
 import WindowConstruction from '../components/WindowConstruction.jsx';
 import { overhangEdgeOverrides, hasSeparateOverhangs } from '../calculations/roof-overhangs.js';
@@ -140,6 +142,7 @@ const StructuralWallEditor=lazy(()=>import('./StructuralWallEditor.jsx'));
 const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
+const RoofMemberInspector=lazy(()=>import('./RoofMemberInspector.jsx'));
 const PlanRoofSupports=lazy(()=>import('./PlanRoofSupports.jsx'));
 const InlineWindowConfigurator=lazy(()=>import('./WindowConfigurator.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
@@ -208,7 +211,7 @@ const DRAW_TOOLS = new Set([
   "terrace",
   "porch",
   "stairOpening",
-  "roofAxis",
+  "roofAxis", "roofBeam",
 ]);
 const TOOLS = [
   ["select", "Выбор", MousePointer2],
@@ -222,7 +225,7 @@ const TOOLS = [
   ["bearingWall", "Доски / несущие", BrickWall],
   ["structuralFrame", "Каркас / развёртка", PanelsTopLeft],
   ["framePost", "Стойка", BrickWall], ["frameWindow", "Окно", PanelsTopLeft], ["frameDoor", "Дверь", DoorOpen],
-  ["roofAxis", "Прогон", Ruler], ["roofAuto", "Авторасстановка", RotateCw],
+  ["roofPan", "Переместить вид", MousePointer2], ["roofAxis", "Прогон", Ruler], ["roofBeam", "Балка", Ruler], ["roofPost", "Стойка кровли", BrickWall], ["roofAuto", "Авторасстановка", RotateCw],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
@@ -1379,8 +1382,10 @@ function PlanCanvas({
   floorKey = 1,
   sourceFocus = null,
   roofSupportGroups = [],
+  roofEditor = {},
   roofAxes = [],
   onDrawRoofAxis,
+  onDrawRoofPost,
   onMoveRoofAxis,
   onDeleteRoofAxis,
   bearingEdges = [],
@@ -1508,6 +1513,21 @@ function PlanCanvas({
   const resolvePlanPoint = (event) => {
     const raw = rawPlanPoint(event);
     const current = gestureRef.current;
+    if(activeLayer==='roof'&&(current?.type==='roofSupport'||['roofAxis','roofBeam','roofPost'].includes(tool))){
+      const config=normalizeRoofEditor(roofEditor),excluded=[...(current?.ids||[current?.id])];
+      if(current?.kind==='roofRotate')return {point:raw,snap:null};
+      const source=roofSupportGroups.flatMap(g=>g.members);if(config.autoPosts)excluded.push(...source.filter(m=>m.editorAutoPost&&excluded.includes(m.parentPurlinId)).map(m=>m.id));
+      const member=source.find(m=>m.id===current?.id);
+      const center=member?{x:(Number(member.x1)+Number(member.x2))/2000,y:(Number(member.y1)+Number(member.y2))/2000}:null;
+      const moving=current&&current.kind==='move'&&center;
+      const target=moving?{x:(center.x+raw.x-current.start.x)*1000,y:(center.y+raw.y-current.start.y)*1000}:{x:raw.x*1000,y:raw.y*1000};
+      const contour=houseContourPoints(plan),outer=contour.map((a,i)=>({a,b:contour[(i+1)%contour.length],key:`outer-${i}`,bearing:true}));
+      const walls=[...outer,...bearingEdges.filter(e=>e.bearing)].map(e=>({id:e.key,a:{x:e.a.x*1000,y:e.a.y*1000},b:{x:e.b.x*1000,y:e.b.y*1000}}));
+      const axes=[{a:{x:0,y:plan.house.h*500},b:{x:plan.house.w*1000,y:plan.house.h*500}},{a:{x:plan.house.w*500,y:0},b:{x:plan.house.w*500,y:plan.house.h*1000}}];
+      const resolved=snapRoofEditorPoint(target,{items:source,walls,axes,excluded,tolerance:Math.min(200,Math.max(10,14/layout.scale*1000)),enabled:config.snap&&!event.altKey,grid:100});
+      const point=moving?{x:raw.x+(resolved.point.x-target.x)/1000,y:raw.y+(resolved.point.y-target.y)/1000}:{x:resolved.point.x/1000,y:resolved.point.y/1000};
+      return {point,snap:resolved.snap?{...resolved.snap,kind:'point',displayPoint:{x:resolved.point.x/1000,y:resolved.point.y/1000}}:null};
+    }
     const axes = collectSnapAxes(
       plan,
       current?.type === "room" ? current.id : null,
@@ -1574,8 +1594,8 @@ function PlanCanvas({
       ...value,
       pointerId: event.pointerId,
       clientStart: {x:event.clientX,y:event.clientY},
-      start: toPlan(event),
-      end: toPlan(event),
+      start: value.type==='roofSupport'?rawPlanPoint(event):toPlan(event),
+      end: value.type==='roofSupport'?rawPlanPoint(event):toPlan(event),
     });
   };
   const deleteObject = (type, id) =>
@@ -1644,7 +1664,16 @@ function PlanCanvas({
       setSelected(null);
       return;
     }
-    if(tool==='select'&&['roofAxis','roofSupport'].includes(type)){event.stopPropagation();selectExisting({type,id});begin(event,{kind:extra.kind||'move',type,id,index:extra.index});return;}
+    if(tool==='select'&&['roofAxis','roofSupport'].includes(type)){
+      event.stopPropagation();
+      const previous=selected?.type===type?selected.ids||[selected.id]:[];
+      if(type==='roofSupport'&&(event.ctrlKey||event.metaKey)){
+        const ids=previous.includes(id)?previous.filter(key=>key!==id):[...previous,id];
+        selectExisting(ids.length?{type,id:ids.at(-1),ids}:null);return;
+      }
+      const ids=type==='roofSupport'&&previous.includes(id)?previous:[id];
+      selectExisting({type,id,ids});begin(event,{kind:extra.kind||'move',type,id,ids,index:extra.index});return;
+    }
     if (tool !== "select") return;
     if(type==='room'&&plan.layoutMode==='walls'){
       event.stopPropagation();selectExisting({type,id});return;
@@ -1773,9 +1802,10 @@ function PlanCanvas({
       return;
     }
     if(tool==='bearingWall')return;
-    if (tool === "select") {
-      setSelected(null);
-      onSelected?.(null);
+    if(tool==='roofPost'){onDrawRoofPost?.(point);return;}
+    if (tool === "select"||tool==='roofPan') {
+      if(tool==='select')setSelected(null);
+      if(tool==='select')onSelected?.(null);
       panGestureRef.current = {
         pointerId: event.pointerId,
         x: event.clientX,
@@ -1900,7 +1930,7 @@ function PlanCanvas({
     setHoverSnap(resolved);
     if (!gestureRef.current || event.pointerId !== gestureRef.current.pointerId)
       return;
-    setGesture((current) => ({ ...current, end: current.kind === 'temporaryGuide' ? rawPlanPoint(event) : resolved.point }));
+    setGesture((current) => ({ ...current, altKey:event.altKey, end: current.kind === 'temporaryGuide' ? rawPlanPoint(event) : resolved.point }));
   };
   const pointerUp = (event) => {
     if (panGestureRef.current?.pointerId === event.pointerId) {
@@ -1928,7 +1958,7 @@ function PlanCanvas({
       finishPointer(event);
       return;
     }
-    const finalGesture = { ...current, end: toPlan(event) };
+    const finalGesture = { ...current, altKey:event.altKey, end: toPlan(event) };
     if(current.kind!=='draw'&&!pointerDragged(current.clientStart,event)){
       svgRef.current?.releasePointerCapture?.(event.pointerId);
       setGesture(null);finishPointer(event);return;
@@ -1952,7 +1982,7 @@ function PlanCanvas({
         finalGesture.end.x - finalGesture.start.x,
         finalGesture.end.y - finalGesture.start.y,
       );
-      if(current.type==='roofAxis'){if(distance>=.3)onDrawRoofAxis?.(finalGesture.start,finalGesture.end);
+      if(['roofAxis','roofBeam'].includes(current.type)){if(distance>=.3)onDrawRoofAxis?.(finalGesture.start,finalGesture.end,current.type==='roofBeam'?'beam':'purlin');
       }else if (["room", "extension", "terrace", "porch", "stairOpening"].includes(current.type)) {
         const points = rectanglePoints(finalGesture.start, finalGesture.end);
         const bounds = boundsOf(points);
@@ -2069,7 +2099,7 @@ function PlanCanvas({
     }else if(current.type==='roofAxis'){
       onMoveRoofAxis?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y,current.kind==='roofEndpoint'?current.index:undefined);
     } else if(current.type==='roofSupport'){
-      onMoveRoofSupport?.(current.id,finalGesture.end.x-current.start.x,finalGesture.end.y-current.start.y,current.kind==='roofEndpoint'?current.index:undefined,finalGesture.end);
+      onMoveRoofSupport?.(current.ids||[current.id],roofGestureOperation(roofSupportGroups.flatMap(g=>g.members),finalGesture,roofEditor));
     } else {
       const next = previewPlan(plan, finalGesture);
       if (JSON.stringify(next) !== JSON.stringify(plan)) {
@@ -3007,11 +3037,7 @@ function PlanCanvas({
             </g>
           ))
         : null}
-      {visibleLayers.roof?roofSupportGroups.map(group=>{
-        const moved=gesture?.type==='roofSupport'&&gesture.id===group.id,dx=moved?gesture.end.x-gesture.start.x:0,dy=moved?gesture.end.y-gesture.start.y:0;
-        const endpoint=moved&&gesture.kind==='roofEndpoint'?gesture.index:undefined,a=p(group.a.x+(endpoint===1?0:dx),group.a.y+(endpoint===1?0:dy)),b=p(group.b.x+(endpoint===0?0:dx),group.b.y+(endpoint===0?0:dy));
-        return <g key={group.id} className="planner-object" data-roof-support-group={group.id} onPointerDown={event=>objectDown(event,'roofSupport',group.id)}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><line pointerEvents="none" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={selected?.type==='roofSupport'&&selected.id===group.id?'#a44cdd':'#4866bf'} strokeWidth="7" strokeDasharray="14 5"/>{activeLayer==='roof'&&group.members.length===1&&group.members[0].planEndpointEditable?[a,b].map((q,index)=><circle key={index} role="button" aria-label={`Конец ${index+1} · ${group.name}`} cx={q.x} cy={q.y} r="8" fill="white" stroke="#4866bf" strokeWidth="2" onPointerDown={e=>objectDown(e,'roofSupport',group.id,{kind:'roofEndpoint',index})}/>):null}<text x={(a.x+b.x)/2} y={(a.y+b.y)/2-10} fontSize="14" fill="#263e87" stroke="#fff" strokeWidth="3" paintOrder="stroke" pointerEvents="none">{group.name}</text></g>;
-      }):null}
+      {visibleLayers.roof?<RoofSupportPlanLayer groups={roofSupportGroups} selected={selected} gesture={gesture} config={roofEditor} active={activeLayer==='roof'} p={p} objectDown={objectDown} scale={layout.scale}/>:null}
       {visibleLayers.roof?roofAxes.map(axis=>{
         const moving=gesture?.type==='roofAxis'&&gesture.id===axis.id,endpoint=moving&&gesture.kind==='roofEndpoint'?gesture.index:undefined;
         const preview=moving?editRoofLine(axis,gesture.end.x-gesture.start.x,gesture.end.y-gesture.start.y,endpoint):axis;
@@ -3024,11 +3050,9 @@ function PlanCanvas({
       {tool==='bearingWall'?bearingEdges.map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),chosen=bearingSelection.includes(edge.key),color=edge.profile?partitionProfileColor(edge.profile):edge.bearing?'#138447':'#5083b7';return <g key={edge.key} data-bearing-edge={edge.key} onPointerDown={event=>{event.preventDefault();event.stopPropagation();onPickBearing?.(edge.key);}}><title>{edge.name} · {edge.bearing?'несущая':'обычная'} · {edge.profile?`доска ${partitionProfileLabel(edge.profile)}`:'общая доска проекта'} · нажмите для выбора</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/>{chosen?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f3b31b" strokeWidth="11" pointerEvents="none"/>:null}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={chosen?6:4} strokeDasharray={edge.profile?undefined:'8 4'} pointerEvents="none"/></g>;}):null}
       {gesture?.kind === "draw"
         ? (() => {
-            if(gesture.type==='roofAxis'){
-              const axis=roofAxes[0]?.axis||roof.ridgeAxis||'x',along=axis==='x'?'x':'y',across=axis==='x'?'y':'x',span=axis==='x'?plan.house.h:plan.house.w;
-              const snap=snapRoofLineOffset((gesture.start[across]+gesture.end[across])/2,span,roofAxes.map(line=>line.offset));
-              const a=p(axis==='x'?gesture.start.x:snap.offset,axis==='x'?snap.offset:gesture.start.y),b=p(axis==='x'?gesture.end.x:snap.offset,axis==='x'?snap.offset:gesture.end.y);
-              return <g pointerEvents="none" aria-label="Подсказка линии прогона"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={snap.hint?'#db8d12':'#335dbe'} strokeWidth="5" strokeDasharray="10 5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-15} fontSize="15" stroke="#fff" strokeWidth="4" fill="#173564" paintOrder="stroke">{snap.hint||'Линия параллельна коньку'}</text></g>;
+            if(['roofAxis','roofBeam'].includes(gesture.type)){
+              const a=p(gesture.start.x,gesture.start.y),b=p(gesture.end.x,gesture.end.y);
+              return <g pointerEvents="none"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#335dbe" strokeWidth="5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-15} fontSize="15" stroke="#fff" strokeWidth="4" fill="#173564" paintOrder="stroke">{Math.round(Math.hypot(gesture.end.x-gesture.start.x,gesture.end.y-gesture.start.y)*1000)} мм</text></g>;
             }
             const a = p(gesture.start.x, gesture.start.y);
             const b = p(gesture.end.x, gesture.end.y);
@@ -5544,6 +5568,32 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       }
     });
   }, [libraryPlans, libraryOpen, project]);
+  const addRoofMember=async(a,b,type='purlin')=>{
+    try{
+      const [{calculateProductionCutting},{productionLevels}]=await Promise.all([import('../calculations/production-cutting.js'),import('../calculations/production-levels.js')]);
+      const report=calculateProductionCutting(project,projectCalculation),c=normalizeRoofEditor(project.settings.productionCutting.roofEditor);
+      const member=type==='post'?{id:`manual-post-${crypto.randomUUID()}`,type:'post',name:'Ручная стойка',profile:c.postProfile,x1:a.x*1000,y1:a.y*1000,x2:a.x*1000,y2:a.y*1000,z1:productionLevels(project,report.assembly.floors.length).bases.at(-1)||0,z2:productionLevels(project,report.assembly.floors.length).roofBase,nodeRef:'',startSupport:'',endSupport:'',foundationRef:'',estimateEnabled:true,autoLocked:true}:drawPlanRoofPurlin(project,report.assembly.roofModel,a,b);
+      member.type=type;member.planGroupId=member.id;member.editorSource='manual';member.lengthMm=Math.hypot(member.x2-member.x1,member.y2-member.y1,member.z2-member.z1);member.angleDeg=Math.atan2(member.y2-member.y1,member.x2-member.x1)*180/Math.PI;
+      if(type==='beam')member.name='Ручная балка';
+      const preview=structuredClone(project);preview.settings.productionCutting.roofSupports.push(member);
+      const {applyRoofEditorOperation}=await import('./RoofMemberInspector.jsx');
+      const result=await applyRoofEditorOperation(preview,projectCalculation,[member.id],{kind:'sync'});
+      if(result.items.length>200)throw new Error('Не более 200 элементов опор.');
+      commit(next=>{next.settings.productionCutting.roofSupports=result.items;return next;});
+      setSelected({type:'roofSupport',id:member.id});setTool('select');setTransferStatus(result.warnings.join(' ')||'Элемент добавлен. Тяните ручки или задайте параметры справа.');
+    }catch(e){setTransferStatus(e.message);}
+  };
+  const roofEditQueue=useRef(Promise.resolve()),roofEditProject=useRef(project);
+  roofEditProject.current=project;
+  const editRoofSupports=(ids,operation)=>{
+    roofEditQueue.current=roofEditQueue.current.then(async()=>{
+      try{const {applyRoofEditorOperation}=await import('./RoofMemberInspector.jsx');
+        const result=await applyRoofEditorOperation(roofEditProject.current,projectCalculation,ids,operation);
+        commit(next=>{next.settings.productionCutting.roofSupports=result.items;roofEditProject.current=next;return next;});
+        setTransferStatus(result.warnings.join(' ')||'Опоры изменены. Ctrl+Z — отмена.');
+      }catch(e){setTransferStatus(e.message);}
+    });
+  };
   const selectTool = (id) => {
     if(id==='foundationGrid'){if(activeFloor!==1){setTransferStatus('Основание редактируется на первом этаже.');return;}setFoundationGridOpen(true);setTool('select');return;}
     if(['structuralFrame','framePost','frameWindow','frameDoor'].includes(id)){setFrameTool({framePost:'post',frameWindow:'window',frameDoor:'door'}[id]||'select');setFrameWall('');setTool('select');return;}
@@ -5580,7 +5630,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           next.showPiles = true;
         });
     } else if (id === "bindingLine") setActiveLayer("binding");
-    else if(id==='roofAxis')setActiveLayer('roof');
+    else if(['roofAxis','roofBeam','roofPost'].includes(id))setActiveLayer('roof');
     else if (id !== "select" && id !== "delete" && id !== "guide") {
       setActiveLayer("plan");
       if (plan.showPlan === false)
@@ -5980,7 +6030,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         event.preventDefault();
         if(selected.type==='railing'){commitPlan(next=>removeRailing(next,selected.id));setSelected(null);return;}
         if(selected.type==='roofSupport'){
-          commit(next=>{next.settings.productionCutting.roofSupports=windowSupportHeaders(next,removePlanRoofGroup(next.settings.productionCutting.roofSupports,selected.id)).items;return next;});
+          editRoofSupports(selected.ids||[selected.id],{kind:'delete'});
           setSelected(null);return;
         }
         if(selected.type==='roofAxis'){
@@ -6046,6 +6096,10 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
       ) {
         event.preventDefault();
+        if(selected.type==='roofSupport'){
+          const step=normalizeRoofEditor(project.settings.productionCutting.roofEditor).moveStep*(event.shiftKey?10:1);
+          editRoofSupports(selected.ids||[selected.id],{kind:'move',dx:event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,dy:event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0});return;
+        }
         const step = event.shiftKey ? 0.5 : 0.1;
         const dx =
           event.key === "ArrowLeft"
@@ -6086,7 +6140,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [selected, commitPlan, commit, projectCalculation, commitFloorOpening, floorOpening, undo, redo, isPlanFullscreen]);
+  }, [selected, commitPlan, commit, projectCalculation, commitFloorOpening, floorOpening, undo, redo, isPlanFullscreen, project.settings.productionCutting.roofEditor, project.settings.productionCutting.roofSupports]);
   const toolHint =
     tool === "railing" ? "Проведите ограждение между опорами на террасе, крыльце или ступенях. Поручень цельный; промежуточные стойки добавятся автоматически." : tool === "select"
       ? "Сначала выберите элемент, затем перетаскивайте его или ручки. Пробел — «Выбор», Ctrl+Z — отмена."
@@ -6328,7 +6382,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+        <PlanCanvas onDrawRoofAxis={addRoofMember} onDrawRoofPost={point=>addRoofMember(point,point,'post')} roofSupportGroups={activeFloor===floorCount?roofEditablePlanGroups(project.settings.productionCutting.roofSupports):[]} roofEditor={project.settings.productionCutting.roofEditor} onMoveRoofSupport={editRoofSupports} onDeleteRoofSupport={id=>editRoofSupports([id],{kind:'delete'})} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6375,7 +6429,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           <FoundationSetup draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
         </section>
       ) : null}
-      <MobileSelectionAdjuster
+      {selected?.type==='roofSupport'?<aside className="mobile-roof-editor-panel"><details open><summary>Опора кровли · параметры</summary><Suspense fallback={<p>Загружаю…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense></details></aside>:<MobileSelectionAdjuster
         plan={plan}
         floorOpening={floorOpening}
         commitFloorOpening={commitFloorOpening}
@@ -6386,11 +6440,12 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         foundation={foundation}
         sheetMode={sheetMode}
         setSheetMode={setSheetMode}
-      />
+      />}
     </div>
   );
   return (
     <div ref={planHeaderRootRef} className={`desktop-plan-editor screen plan-screen-v2${mobilePlanEditing ? ' mobile-plan-editing' : ''}`}>
+      {selected?.type==='roofSupport'?<aside className="mobile-roof-editor-panel desktop-roof-mobile"><details open><summary>Опора кровли · параметры</summary><Suspense fallback={<p>Загружаю…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense></details></aside>:null}
       <ScreenHeader
         title="План дома"
         actions={
@@ -6659,34 +6714,17 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
 
           <PlanCanvas platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
-            onDrawRoofAxis={async(a,b)=>{
-              const axis=projectCalculation.roof.ridgeAxis||'x',span=axis==='x'?plan.house.h:plan.house.w,length=axis==='x'?plan.house.w:plan.house.h;
-              const along=axis==='x'?'x':'y',across=axis==='x'?'y':'x',start=Math.max(0,Math.min(length,Math.min(a[along],b[along]))),end=Math.max(0,Math.min(length,Math.max(a[along],b[along])));
-              if(end-start<.3||roofAxes.length>=24){setTransferStatus('Линия должна быть не короче 300 мм; максимум 24 линии.');return;}
-              const offset=snapRoofLineOffset((a[across]+b[across])/2,span,roofAxes.map(line=>line.offset)).offset;
-              if(!roofAxes.length&&projectCalculation.roof.rafterStructure?.system!=='layered'){
-                try{const {calculateProductionCutting}=await import('../calculations/production-cutting.js');const report=calculateProductionCutting(project,projectCalculation),A=axis==='x'?{x:start,y:offset}:{x:offset,y:start},B=axis==='x'?{x:end,y:offset}:{x:offset,y:end},member=drawPlanRoofPurlin(project,report.assembly.roofModel,A,B);commit(next=>{next.settings.productionCutting.roofSupports.push(member);return next;});setTransferStatus(`Прогон ${member.profile} добавлен в каркас и ведомость. Проверьте опирание и рабочие узлы.`);}catch(e){setTransferStatus(e.message);}return;
-              }
-              commit(next=>saveRoofLines(next,projectCalculation,[...roofAxes,{id:`roof-axis-${crypto.randomUUID()}`,offset,start,end}]));setTransferStatus('Линия добавлена. Рисуйте следующую или включите «Выбор» и тяните круг на линии.');
-            }}
+            onDrawRoofAxis={addRoofMember}
+            onDrawRoofPost={point=>addRoofMember(point,point,'post')}
             onDeleteRoofAxis={id=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.filter(line=>line.id!==id)))}
             onMoveRoofAxis={(id,dx,dy,endpoint)=>commit(next=>saveRoofLines(next,projectCalculation,roofAxes.map(line=>{
               if(line.id!==id)return line;const moved=editRoofLine(line,dx,dy,endpoint);return endpoint===undefined?{...moved,offset:snapRoofLineOffset(moved.offset,line.span,roofAxes.filter(other=>other.id!==id).map(other=>other.offset)).offset}:moved;
             })))}
             bearingEdges={bearingChoices} bearingSelection={bearingSelection} onPickBearing={key=>{const keys=bearingByLine?collinearBearingKeys(bearingChoices,key):[key];setBearingSelection(old=>keys.every(k=>old.includes(k))?old.filter(k=>!keys.includes(k)):[...new Set([...old,...keys])]);}}
-            roofSupportGroups={activeFloor===floorCount?roofSupportPlanGroups(project.settings.productionCutting.roofSupports):[]}
-            onDeleteRoofSupport={id=>commit(next=>{next.settings.productionCutting.roofSupports=windowSupportHeaders(next,removePlanRoofGroup(next.settings.productionCutting.roofSupports,id)).items;return next;})}
-            onMoveRoofSupport={async(id,dx,dy,endpoint,point)=>{
-              try{
-                const {calculateProductionCutting}=await import('../calculations/production-cutting.js');
-                const report=calculateProductionCutting(project,projectCalculation);
-                if(endpoint!==undefined){commit(next=>{next.settings.productionCutting.roofSupports=resizePlanRoofPurlin(next.settings.productionCutting.roofSupports,id,endpoint,point,report.assembly.roofModel);return next;});return;}
-                const preview=structuredClone(project);preview.settings.productionCutting.windowSupportHeaders={...preview.settings.productionCutting.windowSupportHeaders,enabled:true};
-                if(windowSupportHeaders(preview,movePlanRoofGroup(preview.settings.productionCutting.roofSupports,id,dx,dy,report.assembly.roofModel)).items.length>200)throw new Error('Превышен лимит 200 деталей опор. Существующая схема сохранена.');
-                commit(next=>{next.settings.productionCutting.windowSupportHeaders={...next.settings.productionCutting.windowSupportHeaders,enabled:true};const moved=movePlanRoofGroup(next.settings.productionCutting.roofSupports,id,dx,dy,report.assembly.roofModel);next.settings.productionCutting.roofSupports=windowSupportHeaders(next,moved).items;return next;});
-                setTransferStatus('Опора перемещена на плане. Усиления над окнами обновлены; опирание и рабочие узлы проверьте в деталировке.');
-              }catch(error){setTransferStatus(`Не удалось переместить опору: ${error.message}`);}
-            }}
+            roofSupportGroups={activeFloor===floorCount?roofEditablePlanGroups(project.settings.productionCutting.roofSupports):[]}
+            roofEditor={project.settings.productionCutting.roofEditor}
+            onDeleteRoofSupport={id=>editRoofSupports([id],{kind:'delete'})}
+            onMoveRoofSupport={editRoofSupports}
             sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
             stairPreset={stairPreset}
             pileSettings={project.settings.piles}
@@ -6811,7 +6849,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <NumberField label="Точная ширина" value={boundsOf(polygonDraft).h} suffix="м" min={0.1} step={0.01} onChange={(value) => resizeDraftContour("h", value)} />
               <button className="button primary" disabled={polygonDraft.length < 3} onClick={finishPolygon}><Save />Замкнуть контур</button>
             </div>
-          ) : ["roofSupport","roofAxis"].includes(selected?.type) ? (<RoofPlanSelectionInspector selection={selected} project={project} commit={commit} roofAxes={roofAxes} calculation={projectCalculation}/>) : selected?.type === "floorOpening" ? (
+          ) : selected?.type==='roofSupport' ? (<Suspense fallback={<p>Загружаю параметры…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense>) : selected?.type==='roofAxis' ? (<RoofPlanSelectionInspector selection={selected} project={project} commit={commit} roofAxes={roofAxes} calculation={projectCalculation}/>) : selected?.type === "floorOpening" ? (
             <FloorOpeningInspector floorOpening={floorOpening} house={plan.house} commitFloorOpening={commitFloorOpening} setSelected={setSelected} />
           ) : activeLayer === "roof" && !selected ? (
             <RoofLayerInspector
