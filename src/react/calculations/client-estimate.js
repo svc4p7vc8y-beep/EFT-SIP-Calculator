@@ -36,18 +36,22 @@ const ROOF_TRIM_NAME =
 const sumAmount = (lines) =>
   lines.reduce((sum, line) => sum + Number(line.qty || 0) * Number(line.price || 0), 0);
 
-// Same product, specification, unit and rate only. Room/floor groups do not
-// prevent consolidation; the original IDs remain available for traceability.
-export function mergeIdenticalEstimateLines(lines) {
+// Consolidation is a presentation rule. Physical source rows and project edits
+// retain their IDs. Different groups, specifications, units and final prices stay separate.
+export function mergeIdenticalEstimateLines(lines,{acrossGroups=false}={}) {
   const merged = new Map();
   for (const line of lines) {
-    const key = JSON.stringify([line.catalogId || '', line.name, line.kind, line.unit, Number(line.price)]);
-    const previous = merged.get(key);
-    if (!previous) merged.set(key, { ...line, includedLineIds: [...(line.includedLineIds || [line.id])] });
+    const canonical=line.estimateMergeName&&line.name===line.estimateDetailName;
+    const name=canonical?line.estimateMergeName:line.name;
+    const key=JSON.stringify([acrossGroups?'':line.section||'',acrossGroups?'':line.estimateGroup||'',line.catalogId||'',name,line.kind,line.unit,Number(line.price),!!line.pricePending]);
+    const previous=merged.get(key);
+    if(!previous)merged.set(key,{...line,name,qty:Number(line.qty)||0,...(canonical?{source:'Каркас панорамных окон · суммарный расход материала в единицах прайса. Позиции и размеры сохранены в исходной ведомости.'}:{}),includedLineIds:[...(line.includedLineIds||[line.id])]});
     else {
-      previous.qty += Number(line.qty) || 0;
-      previous.includedLineIds.push(...(line.includedLineIds || [line.id]));
-      if (previous.estimateGroup !== line.estimateGroup) previous.estimateGroup = '';
+      previous.qty+=Number(line.qty)||0;
+      previous.includedLineIds.push(...(line.includedLineIds||[line.id]));
+      if(previous.materialVolumeM3!==undefined&&line.materialVolumeM3!==undefined)previous.materialVolumeM3+=line.materialVolumeM3;
+      if(previous.materialVolumeBasisQty!==undefined&&line.materialVolumeBasisQty!==undefined)previous.materialVolumeBasisQty+=line.materialVolumeBasisQty;
+      if(previous.estimateGroup!==line.estimateGroup)previous.estimateGroup='';
     }
   }
   return [...merged.values()];
@@ -203,7 +207,7 @@ export function buildClientEstimate(calculation, options = {}) {
     lines.push(...kits.values());
     return { ...section, lines };
   }).filter((section) => section.lines.length)
-    .map(section => maximumCompact ? { ...section, lines: mergeIdenticalEstimateLines(section.lines) } : section);
+    .map(section => ({ ...section, lines: mergeIdenticalEstimateLines(section.lines) }));
 
   if (options.mergeConstructionMaterials) {
     const collected=[];
@@ -211,7 +215,7 @@ export function buildClientEstimate(calculation, options = {}) {
       if(line.kind!=='material'||!(/сип-панел|доск|брус|пиломатериал|стропил|мауэрлат|обреш[её]тк/iu.test(line.name)))return true;
       collected.push({...line,name:String(line.name).split(' · ')[0],estimateGroup:''});return false;
     })})).filter(section=>section.lines.length);
-    if(collected.length)sections.unshift({key:'merged-materials',title:'Сводные панели и пиломатериал',lines:mergeIdenticalEstimateLines(collected)});
+    if(collected.length)sections.unshift({key:'merged-materials',title:'Сводные панели и пиломатериал',lines:mergeIdenticalEstimateLines(collected,{acrossGroups:true})});
   }
   const totals = sections.reduce(
     (sum, section) => {
@@ -225,5 +229,5 @@ export function buildClientEstimate(calculation, options = {}) {
     { materials: 0, labor: 0 },
   );
   totals.total = totals.materials + totals.labor;
-  return { sections, totals, compactLines: maximumCompact ? mergeIdenticalEstimateLines(sections.flatMap(section => section.lines)) : [] };
+  return { sections, totals, compactLines: maximumCompact ? mergeIdenticalEstimateLines(sections.flatMap(section => section.lines.map(line=>({...line,section:section.key})))) : [] };
 }

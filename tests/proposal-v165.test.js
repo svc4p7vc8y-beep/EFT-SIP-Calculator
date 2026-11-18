@@ -59,17 +59,17 @@ test('legacy ventilation includes priced duct and grille installation, detailed 
   }
 });
 
-test('identical compact lines merge across groups without combining dimensions or custom prices', () => {
+test('identical compact lines stay within groups without combining dimensions or custom prices', () => {
   const a={id:'a',catalogId:'X',name:'Окно 1200×1400',kind:'material',unit:'м²',qty:2,price:100,estimateGroup:'Первый этаж'};
   const lines=[a,{...a,id:'b',qty:3,estimateGroup:'Второй этаж'},{...a,id:'c',price:200},{...a,id:'d',name:'Окно 1200×1500'},{...a,id:'e',unit:'шт'},{...a,id:'f',kind:'labor'}];
   const merged=mergeIdenticalEstimateLines(lines);
-  assert.equal(merged.length,5);assert.equal(merged[0].qty,5);assert.deepEqual(merged[0].includedLineIds,['a','b']);
+  assert.equal(merged.length,6);assert.equal(merged[0].qty,2);assert.deepEqual(merged[0].includedLineIds,['a']);
   assert.equal(a.qty,2);
   const c={sections:[{key:'openings',title:'Окна',lines}]};
-  assert.equal(buildClientEstimate(c,{maximumCompact:true}).sections[0].lines.length,5);
+  assert.equal(buildClientEstimate(c,{maximumCompact:true}).sections[0].lines.length,6);
   assert.equal(buildClientEstimate(c,{maximumCompact:true}).totals.total,buildClientEstimate(c).totals.total);
   c.sections.push({key:'other',title:'Другой раздел',lines:[{...a,id:'other:a'}]});
-  assert.equal(buildClientEstimate(c,{maximumCompact:true}).compactLines.find(x=>x.id==='a').qty,7);
+  assert.equal(buildClientEstimate(c,{maximumCompact:true}).compactLines.find(x=>x.id==='a').qty,2);
 });
 
 test('compact roof overlap never counts lumber twice', () => {
@@ -93,13 +93,13 @@ test('proposal coverage and section totals follow client filters, and super mode
   assert.equal(migrateProject(JSON.parse(JSON.stringify(p))).settings.print.superCompact,true);
 });
 
-test('compact Excel also consolidates identical rows across sections and widens nomenclature', async () => {
+test('compact Excel preserves separate sections and widens nomenclature', async () => {
   const p=createDefaultProject();p.settings.print.maximumCompact=true;
   const c=calculateProject(p),a={id:'a',name:'Одинаковое изделие',catalogId:'X',unit:'шт',kind:'material',qty:2,price:100};
   c.sections=[{key:'one',title:'Один',lines:[a]},{key:'two',title:'Два',lines:[{...a,id:'b',qty:3}]}];
   const files=unzipSync(new Uint8Array(await createEstimateWorkbook(p,c).arrayBuffer()));
   const xml=strFromU8(files['xl/worksheets/sheet1.xml']);
-  assert.equal(xml.split('Одинаковое изделие').length-1,1);
+  assert.equal(xml.split('Одинаковое изделие').length-1,2);
   assert.match(xml,/min="3" max="3" width="92"/);
   assert.match(xml,/<v>500<\/v>/);
 });
