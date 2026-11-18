@@ -231,6 +231,6 @@ category==='roof'&&view==='roofproject'?<div className="drawing-special-view"><S
     </div>
     {showLayers&&view!=='model3d'?<div className="drawing-layers">{Object.entries({panels:'Панели',frame:'Каркас и соединители',dimensions:'Размеры',labels:'Марки'}).map(([key,label])=><label key={key}><input type="checkbox" checked={layers[key]} onChange={e=>setLayers({...layers,[key]:e.target.checked})}/>{label}</label>)}<button onClick={()=>setLayers(defaultLayers)}>Все слои</button><label>Текст<select value={fontScale} onChange={e=>setFontScale(Number(e.target.value))}>{[.8,1,1.25,1.5].map(n=><option key={n} value={n}>{Math.round(n*100)}%</option>)}</select></label></div>:null}
 </details></div></div>{settingsOpen?<WorkbenchSettingsDialog pending={pending} onClose={()=>setSettingsOpen(false)}>{settingsContent}</WorkbenchSettingsDialog>:null}
-    {printing?createPortal(<MountingAlbum project={project} report={report} pages={printing.customPages|| (printing.stock?stockPages:printing.detail?detailPages:printing.current?currentPages:pages)} selectedIds={printing.ids} paper={paper}/>,document.body):null}
+    {printing?createPortal(<MountingAlbum project={project} report={report} pages={printing.customPages|| (printing.stock?stockPages:printing.detail?detailPages:printing.current?currentPages:pages)} selectedIds={printing.ids} totalPages={printing.customPages?pages.length:undefined} paper={paper}/>,document.body):null}
   </section>;
 }

@@ -25,3 +25,5 @@ export function pinchDrawingView(start,a,b){
  const zoom=clampDrawingZoom(start.zoom*distance/Math.max(start.distance,1));
  return {zoom,offset:[start.offset[0]+(a[0]+b[0])/2-start.center[0],start.offset[1]+(a[1]+b[1])/2-start.center[1]]};
 }
+
+export function fabricationSelection(report,selection){return [...new Set([...selection,...(report.fabricationMembers||[]).filter(p=>selection.includes(p.assemblyMemberId)).map(p=>p.id)])];}

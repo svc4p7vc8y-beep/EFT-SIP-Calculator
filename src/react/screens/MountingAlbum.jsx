@@ -122,10 +122,10 @@ export function buildMountingPages(report) {
   pages.splice(1,0,...contents);
   return pages.map((page,i)=>({...page,id:String(i+1)}));
 }
-export default function MountingAlbum({project,report,pages:givenPages,selectedIds,paper='A3',preview=false}) {
+export default function MountingAlbum({project,report,pages:givenPages,selectedIds,paper='A3',preview=false,totalPages}) {
   const pages=givenPages||buildMountingPages(report);
   const chosen=selectedIds?pages.filter(page=>selectedIds.includes(page.id)):pages;
   return <div className={`${preview?'drawing-preview':'production-print'} mounting-album paper-${paper}`}>
-    {chosen.map(page=><section className="mounting-sheet" key={page.id}><header>{page.title}</header><div className="mounting-content">{page.content}</div><footer>{page.title} · {project.meta.projectName||project.meta.projectNum||'Проект'} · лист {page.id}/{pages.length} · размеры в мм</footer></section>)}
+    {chosen.map(page=><section className="mounting-sheet" key={page.id}><header>{page.title}</header><div className="mounting-content">{page.content}</div><footer>{page.title} · {project.meta.projectName||project.meta.projectNum||'Проект'} · лист {page.id}/{totalPages??pages.length} · размеры в мм</footer></section>)}
   </div>;
 }
