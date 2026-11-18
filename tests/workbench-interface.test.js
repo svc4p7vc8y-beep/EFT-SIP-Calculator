@@ -7,8 +7,8 @@ import { combinedWall,gableLinks,purchaseRows } from '../src/react/calculations/
 import { scopedWorkbenchItems,scopedWorkbenchStock,scopedPurchases,locateWorkbenchItem,CONSTRUCTION_CATEGORIES,WORKBENCH_MODES } from '../src/react/screens/workbench-model.js';
 const fixture=()=>{const p=createDefaultProject();p.plan={...p.plan,house:{w:5,h:4},rooms:[],walls:[],openings:[],wallGaps:[],platforms:[],wallHeight:2.5};p.settings.roof.gableType='sip';p.settings.productionCutting.kerfMm=3;p.settings.productionCutting.endAllowanceMm=0;return p;};
 const run=p=>calculateProductionCutting(p,calculateProject(p));
-test('construction navigation excludes actions and preserves four distinct work modes',()=>{
- assert.equal(WORKBENCH_MODES.length,4);assert.equal(new Set(WORKBENCH_MODES.map(x=>x[0])).size,4);
+test('construction navigation excludes actions and preserves three distinct work modes',()=>{
+ assert.equal(WORKBENCH_MODES.length,3);assert.equal(new Set(WORKBENCH_MODES.map(x=>x[0])).size,3);
  assert.ok(!CONSTRUCTION_CATEGORIES.some(([id])=>['stock','sheets','nodes','starter','supports'].includes(id)));
  assert.equal(CONSTRUCTION_CATEGORIES.find(x=>x[0]==='piles')[1],'Основание');
 });
