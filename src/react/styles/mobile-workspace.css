@@ -28,3 +28,5 @@
 .mobile-model-screen{display:flex;flex-direction:column}.mobile-model-screen>.plan-3d-view-switch{flex:none}.mobile-model-screen>.production-3d{flex:1;display:flex;flex-direction:column;height:auto;min-height:0}.mobile-model-screen .production-3d-toolbar{flex:none}.mobile-model-screen .production-3d-canvas{flex:1;height:auto;min-height:250px}.mobile-model-screen .production-3d>p{flex:none}
 
 @media(max-width:700px){.plan-svg .vertex-handle,.plan-svg .endpoint-handle,.plan-svg .annotation-target-handle{stroke:transparent!important;stroke-width:24px!important;vector-effect:non-scaling-stroke;pointer-events:all}}
+
+@media(max-width:700px){.plan-screen-v2 .planner-shell .planner-inspector{top:106px!important;left:auto!important;right:0!important;bottom:0!important}.plan-screen-v2 .planner-shell.inspector-collapsed>.planner-inspector{display:none!important}}
