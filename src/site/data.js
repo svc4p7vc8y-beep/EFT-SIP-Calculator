@@ -48,7 +48,7 @@ export const projectCategories = [
 ];
 
 export const houses = projectCategories.flatMap((category) =>
-  category.projects.map((project) => ({ ...project, category: category.title }))
+  category.projects.map((project) => ({ ...project, category: category.title, categoryId: category.id }))
 );
 
 export const accessories = [

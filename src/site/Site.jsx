@@ -16,6 +16,7 @@ import Locations from "./Locations.jsx";
 import { AnimatedLogo, ScrollProgress, useSiteMotion } from "./Motion.jsx";
 import { recordPublicVisit, submitPublicIntake } from "../shared/team-api.js";
 import { formatRussianPhone, isValidRussianPhone } from "../shared/phone.js";
+import { trackLeadSubmission } from "./analytics.js";
 
 const ProjectDialog = lazy(() => import("./ProjectDialog.jsx"));
 const nav = [
@@ -47,6 +48,7 @@ function ProjectCard({ project, onOpen, index = 0 }) {
     ? `Домокомплект от ${projectPriceFormat.format(project.kitPrice)} ₽, со сборкой от ${projectPriceFormat.format(project.assembledPrice)} ₽`
     : hasPrice ? `${projectPriceFormat.format(project.price)} ₽` : 'Узнать цену';
   return (
+    <div className="house-card-shell">
     <button
       className="house-card motion-card"
       style={{ "--reveal-index": index }}
@@ -100,6 +102,10 @@ function ProjectCard({ project, onOpen, index = 0 }) {
         </div>
       )}
     </button>
+    <a className="house-page-link" href={`/projects/${encodeURIComponent(project.id)}.html`}>
+      Страница проекта <ArrowUpRight size={16} aria-hidden="true" />
+    </a>
+    </div>
   );
 }
 
@@ -199,6 +205,7 @@ function Contact({ cart, selection, setSelection }) {
     setSubmission({ status: "sending", message: "Отправляем заявку…" });
     try {
       const result = await submitPublicIntake(request);
+      trackLeadSubmission();
       setSubmission(result.mailAccepted
         ? { status: "sent", message: `Заявка ${result.number} отправлена менеджеру; уведомление направлено на рабочую почту.` }
         : { status: "warning", message: `Заявка ${result.number} сохранена, но уведомление на почту не отправлено. Менеджер увидит её в калькуляторе.` });
@@ -333,6 +340,11 @@ export default function Site() {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [cart, setCart] = useState([]);
   const [selection, setSelection] = useState("");
+  useEffect(() => {
+    const projectId = new URLSearchParams(window.location.search).get('project');
+    const project = houses.find((item) => item.id === projectId);
+    if (project) setSelection(project.name);
+  }, []);
   const [maxChatUrl, setMaxChatUrl] = useState("");
   useEffect(() => {
     const controller = new AbortController();
