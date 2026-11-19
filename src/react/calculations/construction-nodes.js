@@ -1,3 +1,4 @@
+import {roofPanelThickness} from './roof-panel-settings.js';
 import { EFT_NODE_LIBRARY, getEftNodeRule } from '../data/eft-node-library.js';
 import { detectSipTJunctions, resolveSipStructuralScrew, resolveSipSupportScrew } from './sip-joinery.js';
 import { sharedNodeRule } from '../cloud/node-rule-scope.js';
@@ -343,7 +344,7 @@ function roofNodes(project, calculation, formulas) {
         : `${roof.mauerlatFastenerPoints} точек × ${roof.mauerlatScrewRows} ряда`,
     }));
   }
-  if (roof.sipSupportScrewCount > 0) nodes.push(makeNode('SIP_ROOF_SUPPORT', 'roof-sip-supports', { ...connections.slope, panelThickness: project.settings.sip.ceilingThickness }, formulas, roof.sipSupportScrewCount, {
+  if (roof.sipSupportScrewCount > 0) nodes.push(makeNode('SIP_ROOF_SUPPORT', 'roof-sip-supports', { ...connections.slope, panelThickness: roofPanelThickness(project) }, formulas, roof.sipSupportScrewCount, {
     nodeCount: roof.sipCutting?.panels || 1,
     formula: `${roof.sipCutting?.panels || 0} пан. × ${formulaValue(formulas, 'sipRoofSupportPointsPerPanel', 2)} точки`,
   }));

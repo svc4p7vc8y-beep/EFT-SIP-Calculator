@@ -101,6 +101,7 @@ const LocalBackupScreen = lazy(() => import('../screens/LocalBackupScreen.jsx'))
 
 const NAV_ITEMS = [
   { id: "team", label: "Общие проекты", icon: Cloud, group: "team" },
+  { id: "plan-library", label: "Библиотека планов", icon: LibraryBig, group: "team" },
   { id: "mail", label: "Почта", icon: Mail, group: "team" },
   { id: "files", label: "Файлы", icon: FolderOpen, group: "team" },
   { id: "plan", label: "План дома", icon: PlanIcon, group: "project" },
@@ -604,6 +605,10 @@ export function App() {
           <button onClick={() => runPlanCommand('saveLibrary')} aria-label="Сохранить в библиотеку"><Save/><span>Сохранить</span></button>
         </div>
         <div className="header-actions">
+          <details className="header-plan-actions">
+            <summary className="icon-button" aria-label="Действия с планом" title="Действия с планом"><PlanIcon/></summary>
+            <div>{[['newPlan','Новый план',FilePlus2],['savePlan','Сохранить план',Save],['openPlan','Открыть план',FileUp],['sharePlan','Поделиться планом',Share2],['saveLibrary','Сохранить в библиотеку',LibraryBig]].map(([kind,label,Icon])=><button type="button" key={kind} onClick={event=>{event.currentTarget.closest('details').open=false;runPlanCommand(kind);}}><Icon/>{label}</button>)}</div>
+          </details>
           <button
             className="icon-button mobile-menu"
             onClick={() => setMenuOpen(true)}
@@ -754,7 +759,8 @@ export function App() {
                   title={sidebarCollapsed ? label : undefined}
                   aria-label={label}
                   onClick={() => {
-                    setActive(id);
+                    if(id === "plan-library") runPlanCommand("openLibrary");
+                    else setActive(id);
                     if (id === "team") setTeamFocus("projects");
                     setMenuOpen(false);
                   }}

@@ -1,3 +1,4 @@
+import {roofPanelThickness} from './roof-panel-settings.js';
 import {expandMemberPackages} from './member-packages.js';
 import {supplementalGables} from './supplemental-gables.js';
 import {sharedGableProfile} from './shared-roof-supports.js';
@@ -727,7 +728,7 @@ export function calculateProductionCutting(project, calculation) {
   if (services.roof && roofGeometry && plans.at(-1).house?.contourDefined !== false) {
     const shape = polygon(houseContourPoints(plans.at(-1))), bounds = polygonBounds(shape);
     const rectangular = Math.abs(polygonAreaMm(shape) - bounds.width * bounds.height) < 1;
-    const addRoof = (id, name, shape, thickness = sip.ceilingThickness, horizontal = true) => addSurface({ id, name, floor: plans.length, horizontal, staggered: false, thickness: Number(thickness), family: horizontal ? sip.ceilingPanelFamily : sip.wallPanelFamily, geometry: clipping.union(shape), layoutWidth: mm(roof.sipFrameStep || f.panelWidth || 1.25) });
+    const addRoof = (id, name, shape, thickness = roofPanelThickness(project), horizontal = true) => addSurface({ id, name, floor: plans.length, horizontal, staggered: false, thickness: Number(thickness), family: horizontal ? sip.ceilingPanelFamily : sip.wallPanelFamily, geometry: clipping.union(shape), layoutWidth: mm(roof.sipFrameStep || f.panelWidth || 1.25) });
     const addGable=(id,name,geometry,type)=>{const surface=addRoof(id,`${name} · ${type==='sip'?'СИП':'каркас'}`,geometry,sip.wallThickness,false);surface.frameOnly=type==='cold';return surface;};
     if(assembly.usesRoofPlanes||assembly.usesPlatformRoofPlanes){
       for(const face of assembly.roofModel.faces.filter(f=>f.warm&&(assembly.usesRoofPlanes||f.group?.startsWith('terrace:')))){

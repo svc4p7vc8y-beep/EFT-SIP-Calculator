@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createDefaultProject,migrateProject} from '../src/react/state/project-model.js';
+import {calculateProject} from '../src/react/calculations/estimate-engine.js';
+import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
+import {productionScene} from '../src/react/calculations/production-scene.js';
+for(const mode of ['cold','warm','shared'])test(`disabling terrace scope removes ${mode} terrace roof, stock and cost, preserving saved platform`,()=>{
+ const p=createDefaultProject();p.services.terrace=true;
+ p.plan.platforms=[{id:'terrace-switch',kind:'terrace',x:0,y:p.plan.house.h,w:4,h:3,include:true,roof:{mode,shape:'gable'}}];
+ p.plan.platforms=migrateProject(p).plan.platforms;
+ const saved=JSON.stringify(p.plan.platforms),on=calculateProject(p);assert.ok(on.roof.terraceRoofs.length);
+ p.services.terrace=false;const off=calculateProject(p),r=calculateProductionCutting(p,off),s=productionScene(r,p);
+ assert.equal(off.roof.terraceRoofs.length,0);assert.equal(off.roof.footprint.included.length,0);
+ assert.ok(!off.lines.some(l=>l.section==='terrace'||l.id.includes('platform-terrace-switch')));
+ assert.ok(!r.assembly.roofModel.faces.some(f=>f.group?.startsWith('terrace:')));
+ assert.ok(!r.assembly.rafters.some(m=>m.faceId?.includes('terrace-switch')));
+ assert.ok(!s.beams.some(m=>m.id.includes('terrace-switch')));assert.equal(r.assembly.platforms.length,0);
+ const empty=structuredClone(p);empty.plan.platforms=[];assert.deepEqual(off.lines.filter(l=>l.section==='roof'),calculateProject(empty).lines.filter(l=>l.section==='roof'));
+ assert.equal(JSON.stringify(p.plan.platforms),saved);
+ const restored=migrateProject(JSON.parse(JSON.stringify(p)));restored.services.terrace=true;
+ assert.deepEqual(calculateProject(restored).totals,on.totals);
+});

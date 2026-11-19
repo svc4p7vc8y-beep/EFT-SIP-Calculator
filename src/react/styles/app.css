@@ -7734,3 +7734,13 @@ select,
 .plan-screen-v2 .plan-canvas-toolbars>.plan-layer-tabs{display:flex;align-items:center;flex-wrap:nowrap;overflow-x:auto;touch-action:pan-x}
 .plan-screen-v2 .plan-layer-tabs>.canvas-history-controls{position:static!important;display:flex!important;width:auto!important;max-width:none!important;flex:none;box-shadow:none;background:transparent;padding:0;gap:4px;margin-left:auto}
 .plan-screen-v2 .planner-inspector>.plan-right-tabs{position:sticky;top:0;z-index:14;flex-shrink:0}
+
+.header-plan-actions {position:relative;flex:0 0 auto;}
+.header-plan-actions>summary {list-style:none;cursor:pointer;}
+.header-plan-actions>summary::-webkit-details-marker {display:none;}
+.header-plan-actions>div {position:absolute;right:0;top:calc(100% + 8px);z-index:1200;width:230px;max-width:90vw;padding:6px;background:var(--surface,#fff);border:1px solid var(--line,#dce4d9);border-radius:12px;box-shadow:0 8px 28px #20382c25;}
+.header-plan-actions>div>button {display:flex;align-items:center;gap:9px;width:100%;min-height:42px;text-align:left;padding:8px;border:0;background:transparent;color:inherit;}
+.header-plan-actions>div>button:hover {background:#eaf3e3;}
+.header-plan-actions>div>button svg {width:19px;height:19px;flex:none;}
+
+.plan-screen-v2>.plan-status-bar:not(:has(+ .planner-shell.is-fullscreen)){top:var(--app-chrome-height,135px)}

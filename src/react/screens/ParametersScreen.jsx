@@ -1,3 +1,4 @@
+import {roofPanelThickness} from '../calculations/roof-panel-settings.js';
 import OpeningSketch from '../components/OpeningSketch.jsx';
 import {HORIZONTAL_LAYOUT_DIRECTIONS} from '../calculations/surface-orientation.js';
 import { OVERHANG_FIELDS, roofOverhangValue, resetSeparateOverhangs } from '../calculations/roof-overhangs.js';
@@ -271,6 +272,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
         "settings.sip.partitionPanelFamily": "sip:panel-partitions",
         "settings.sip.partitionThickness": "sip:panel-partitions",
       };
+      if(path==='settings.roof.sipPanelThickness')for(const id of ['roof:sip-panel','roof:sip-frame'])scopeEstimateOverrideToCurrentCatalog(next,calculation.lines.find(line=>line.id===id));
       if (sipLineByPath[path]) {
         scopeEstimateOverrideToCurrentCatalog(
           next,
@@ -1128,6 +1130,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                   { value: "combo", label: "Комбинированная" },
                 ],
               },
+              {path:'settings.roof.sipPanelThickness',label:'Толщина SIP-панелей кровли',type:'select',value:String(roofPanelThickness(project)),options:thicknesses},
               roofVisibility.showSipFrame && {
                 path: "settings.roof.sipFrameMode",
                 label: "Каркас SIP-кровли",

@@ -1,3 +1,4 @@
+import {roofPanelThickness} from '../calculations/roof-panel-settings.js';
 import { OVERHANG_FIELDS, roofOverhangValue, resetSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import {flatSlopeAngle, setFlatSlopeAngle, flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
 import { lazy, Suspense, useMemo } from "react";
@@ -677,6 +678,7 @@ function RoofConstructionPanels({
             step={0.05}
             onChange={(value) => setSetting("roof", "lathStep", value)}
           /> : null}
+          <SelectField label="Толщина SIP-панелей кровли" value={String(roofPanelThickness(project))} onChange={value=>setSetting('roof','sipPanelThickness',value)} options={['124','174','224'].map(value=>({value,label:`${value} мм`}))}/>
           {roofVisibility.showSipFrame ? <SelectField
             label="Каркас SIP-кровли"
             value={project.settings.roof.sipFrameMode === "reinforced" ? "reinforced" : "standard"}
@@ -1164,6 +1166,7 @@ export default function Calculators({ type, onNavigate }) {
         partitionPanelFamily: "sip:panel-partitions",
         partitionThickness: "sip:panel-partitions",
       };
+      if(group==='roof'&&key==='sipPanelThickness')for(const id of ['roof:sip-panel','roof:sip-frame'])scopeEstimateOverrideToCurrentCatalog(next,calculation.lines.find(line=>line.id===id));
       if (group === "sip" && sipLineBySetting[key]) {
         scopeEstimateOverrideToCurrentCatalog(
           next,

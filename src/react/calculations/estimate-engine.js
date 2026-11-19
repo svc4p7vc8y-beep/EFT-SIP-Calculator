@@ -1,3 +1,5 @@
+import {sipGableTimber} from './sip-gable-timber.js';
+import {roofPanelThickness} from './roof-panel-settings.js';
 import {platformRoofSupportLayout,platformPostAnchor} from './platform-roof-support-layout.js';
 import {includeWindowProductInEstimate} from '../state/window-estimate.js';
 import {railingEstimateLines} from './platform-railings.js';
@@ -5,7 +7,7 @@ import {createWindowFromDesign,supplierAreaEstimate} from '../state/window-produ
 import {cornerPlanStations} from './corner-rafters.js';
 import clipping from 'polygon-clipping';
 import {wallProfileArea} from './second-light-wall.js';
-import {facadeExclusionArea} from './facade-area.js';
+import {facadeExclusionArea,facadeExclusionShape} from './facade-area.js';
 import {openingShapeArea} from '../../calculations/opening-shape.js';
 import {mainRoofModel,sharedGableProfile} from './shared-roof-supports.js';
 import { hasSeparateOverhangs, roofOverhangValue } from './roof-overhangs.js';
@@ -1291,7 +1293,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
   const tieredLowerColdShare = geometry.lowerArea ? 1 - tieredLowerWarmBase * tieredWarmFactor / geometry.lowerArea : 0;
   let warmSlopeArea = mainWarmSlopeArea;
   let coldSlopeArea = mainColdSlopeArea;
-  const terraceRoofs = (project.plan.platforms || [])
+  const terraceRoofs = (project.services.terrace ? project.plan.platforms || [] : [])
     .filter((platform) => platform.include !== false)
     .map((platform) => ({
       platform,
@@ -1330,7 +1332,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
   };
   const endAxis=roofAxes.ridgeAxis==='y'?'y':'x';
   const endWalls=constructedWalls.filter(w=>Math.abs(w.a[endAxis]-w.b[endAxis])<.001).sort((a,b)=>a.a[endAxis]-b.a[endAxis]);
-  const sharedProfiles=footprint.included.length?constructedWalls.flatMap(w=>{const p=sharedGableProfile({mainRoofShape,footprint,ridgeAxis:roofAxes.ridgeAxis},w.start,w.end,(Number(roof.ridgeHeight)||0)*1000);return p?[p]:[];}):[];
+  const sharedProfiles=footprint.included.length?constructedWalls.flatMap(w=>{const p=sharedGableProfile({mainRoofShape,footprint,ridgeAxis:roofAxes.ridgeAxis},w.start,w.end,(Number(roof.ridgeHeight)||0)*1000);return p?[{...p,wall:w}]:[];}):[];
   const sharedAreas=[0,1].map(side=>sharedProfiles.filter(p=>p.side===side).reduce((n,p)=>n+p.area,0));
   const gableAreas=(sharedProfiles.length?sharedAreas:mainRoofShape==='gable'&&endWalls.length===2?endWalls.map(w=>{
     const span=w.externalLength*1000,rise=(Number(roof.ridgeHeight)||0)*1000,base=exteriorHeight(topPlan)*1000,trim=w.trimStart*1000,width=w.length*1000;
@@ -1410,6 +1412,31 @@ function roofSection(project, metrics, index, inputs, footprint) {
     extraWastePercent: project.settings.sip.wastePercent,
     layoutWidths: { roof: sipFrameStep },
   });
+  const warmGableShapes=[];
+  if(mainRoofShape==='gable'&&mainWarmGableArea>0){
+    for(let side=0;side<mainGableCount;side++){
+      if((mixedGableAreas?.[side]?.type||mainGableType)!=='sip'||project.settings.productionCutting.excludedGables?.includes(`ФР-${side+1}`))continue;
+      if(sharedProfiles.length){
+        for(const profile of sharedProfiles.filter(p=>p.side===side)){
+          const base=exteriorHeight(topPlan)*1000,shape=[[profile.polygon.map(([x,y])=>[x,y+base])]],net=clipping.difference(shape,facadeExclusionShape(topPlan,`Э${metrics.floorPlans.length}-С${profile.wall.index+1}`,shape));
+          warmGableShapes.push(net.map(p=>p.map(r=>r.map(([x,y])=>[x/1000,y/1000]))));
+        }
+        continue;
+      }
+      const w=endWalls[side];if(!w)continue;
+      const width=w.externalLength*1000,rise=(Number(roof.ridgeHeight)||0)*1000,base=exteriorHeight(topPlan)*1000,trim=w.trimStart*1000;
+      const shape=clipping.intersection([[[[-trim,base],[width/2-trim,base+rise],[width-trim,base],[-trim,base]]]],[[[[0,base],[w.length*1000,base],[w.length*1000,base+rise],[0,base+rise],[0,base]]]]);
+      const net=clipping.difference(shape,facadeExclusionShape(topPlan,`Э${metrics.floorPlans.length}-С${w.index+1}`,shape));
+      warmGableShapes.push(net.map(p=>p.map(r=>r.map(([x,y])=>[x/1000,y/1000]))));
+    }
+  }
+  if(tieredGables)for(const zone of tieredGables.zones.filter(z=>z.type==='sip'&&Math.abs(z.area-z.calculatedArea)<.01)){
+    const width=Number(zone.internal?geometry.junctionLength:zone.key.startsWith('upper')?geometry.upperSpan:geometry.lowerSpan),height=Number(zone.internal?geometry.stepHeight:zone.key.startsWith('upper')?geometry.upperRise:geometry.lowerRise);
+    if(width>0&&height>0)warmGableShapes.push([[[[0,0],[width,0],...(zone.internal?[[width,height],[0,height]]:[[width,height]]),[0,0]]]]);
+  }
+  const gableTimber=sipGableTimber(warmGableShapes,inputs.formulas.panelWidth,inputs.formulas.panelLength,inputs.formulas.sipTimberReservePercent,inputs.formulas.sipTimberStockLength);
+  const gableProfile=sipTimberProfile(project.settings.sip.wallThickness),gableConnectorType=project.settings.sip.connectorType||'thermal';
+  const gableConnectorQuery=['board-pack','board-kit'].includes(gableConnectorType)?`${gableConnectorType==='board-kit'?'Комплект для пакета досок':'Пакет клеёных досок'} 95×${gableProfile.endBoardDepth} мм для СИП ${gableProfile.panelThickness} мм`:gableConnectorType==='solid'?`Брус соединительный ест. влажности 100×${gableProfile.core} мм`:`Термобрус 95×${gableProfile.thermalDepth} мм`;
   const mainSipFramePlaneCount = mainRoofShape === "gable" || mainRoofShape === 'tiered' ? 2 : 1;
   const mainSipFrameWarmShare = mainArea ? mainWarmSlopeArea / mainArea : 0;
   const mainSipFrameNetLength = mainSipCutting.panels
@@ -1441,7 +1468,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
     ? Math.ceil(mainSipFrameRequiredLength / mainSipFrameStockLength)
     : 0;
   const mainSipFramePurchaseLength = mainSipFramePieces * mainSipFrameStockLength;
-  const mainSipFrameProfile = sipTimberProfile(project.settings.sip.ceilingThickness);
+  const mainSipFrameProfile = sipTimberProfile(roofPanelThickness(project));
   const mainSipFrameConnectorType = project.settings.sip.connectorType || "thermal";
   const mainSipFrameCatalogQuery = mainSipFrameConnectorType === "board-pack" || mainSipFrameConnectorType === 'board-kit'
     ? `${mainSipFrameConnectorType === 'board-kit' ? 'Комплект для пакета досок' : 'Пакет клеёных досок'} 95×${mainSipFrameProfile.endBoardDepth} мм для СИП ${mainSipFrameProfile.panelThickness} мм`
@@ -1453,7 +1480,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
     Math.round(Number(inputs.formulas.sipRoofSupportPointsPerPanel) || 2),
   );
   const mainSipSupportScrew = resolveSipSupportScrew(
-    project.settings.sip.ceilingThickness,
+    roofPanelThickness(project),
     inputs.formulas,
   );
   const mainSipSupportScrewCount =
@@ -1783,7 +1810,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
         layoutWidths: { roof: sipFrameStep },
       });
       const slopeSupportScrew = resolveSipSupportScrew(
-        project.settings.sip.ceilingThickness,
+        roofPanelThickness(project),
         inputs.formulas,
       );
       const slopeSupportScrewCount =
@@ -1809,6 +1836,8 @@ function roofSection(project, metrics, index, inputs, footprint) {
       );
       const gableSupportScrewCount =
         gableSip.panels * sipRoofSupportPointsPerPanel;
+      const terraceGableCount=Math.max(1,Number(platform.roof?.gableCount)||1),terraceGableHeight=result.roofWidth>0?result.gableArea*2/(result.roofWidth*terraceGableCount):0;
+      const terraceGableTimber=sipGableTimber(result.gableType==='sip'&&terraceGableHeight>0?Array.from({length:terraceGableCount},()=>[[[[0,0],[result.roofWidth,0],[result.roofWidth/2,terraceGableHeight],[0,0]]]]):[],inputs.formulas.panelWidth,inputs.formulas.panelLength,inputs.formulas.sipTimberReservePercent,inputs.formulas.sipTimberStockLength);
       const postQuery =
         result.postSection === "100x100"
           ? "Брус ест.влажн. сосна 100×100 мм"
@@ -2168,13 +2197,13 @@ function roofSection(project, metrics, index, inputs, footprint) {
           index,
           "roof",
           sipPanelName(
-            project.settings.sip.ceilingThickness,
+            roofPanelThickness(project),
             project.settings.sip.ceilingPanelFamily,
           ),
           slopeSip.panels,
           {
             key: `${key}-sip-panel`,
-            name: `${sipPanelName(project.settings.sip.ceilingThickness, project.settings.sip.ceilingPanelFamily)} · кровля ${title}`,
+            name: `${sipPanelName(roofPanelThickness(project), project.settings.sip.ceilingPanelFamily)} · кровля ${title}`,
             source,
           },
         ),
@@ -2291,6 +2320,8 @@ function roofSection(project, metrics, index, inputs, footprint) {
             source,
           },
         ),
+        makeLine(index,'roof',gableConnectorQuery,terraceGableTimber.jointLength,{key:`${key}-gable-sip-connector`,unit:'м.п.',name:`${gableConnectorQuery} · SIP-фронтоны ${title}`,source}),
+        makeLine(index,'roof',`Доска сухая строганая ${gableProfile.endBoardDepth}×45 мм`,terraceGableTimber.edgeLength,{key:`${key}-gable-sip-edge`,unit:'м.п.',name:`Доска сухая строганая ${gableProfile.endBoardDepth}×45 мм · торцы SIP-фронтонов ${title}`,source}),
         makeLine(index, "roof", postQuery, result.postVolume, {
           key: `${key}-posts-${result.postSection}`,
           unit: "м³",
@@ -2466,7 +2497,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
         key: "rafters",
         unit: "м³",
         digits: 3,
-        name: `Стропильная доска ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м${mainRoofShape === "flat" || mainRoofShape === 'tiered' ? "" : layeredRidgeLength ? mainRoofShape === "hip" ? ", включая накосные стропила" : "" : `, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`}`,
+        name: `${mainRafterLegLength>0?"Стропильная доска":"Коньковая доска"} ${rafterSection.replace("x", "×")} мм · ${mainRafterBoardCount} шт × 6 м${mainRoofShape === "flat" || mainRoofShape === 'tiered' ? "" : layeredRidgeLength ? mainRoofShape === "hip" ? ", включая накосные стропила" : "" : `, включая ${mainRoofShape === "hip" ? "коньковый и накосные стропила" : "коньковый прогон"}`}`,
       },
     ),
     makeLine(index, "roof", "Доска ест.влажн. сосна 50*100мм", layeredRidgeVolume, {
@@ -2752,7 +2783,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
       index,
       "roof",
       sipPanelName(
-        project.settings.sip.ceilingThickness,
+        roofPanelThickness(project),
         project.settings.sip.ceilingPanelFamily,
       ),
       mainSipCutting.panels,
@@ -2766,7 +2797,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
       {
         key: "sip-frame",
         unit: "м.п.",
-        name: `${sipFrameMode === "reinforced" ? "Усиленный" : "Обычный"} каркас SIP-кровли · шаг ${Math.round(sipFrameStep * 1000)} мм · ${mainSipFramePieces} шт × ${formatNumberForName(mainSipFrameStockLength)} м`,
+        name: `${mainSipFrameCatalogQuery} · ${sipFrameMode === "reinforced" ? "Усиленный" : "Обычный"} каркас SIP-кровли · шаг ${Math.round(sipFrameStep * 1000)} мм · ${mainSipFramePieces} шт × ${formatNumberForName(mainSipFrameStockLength)} м`,
         source: "sip-roof",
       },
     ),
@@ -2870,6 +2901,8 @@ function roofSection(project, metrics, index, inputs, footprint) {
       mainGableSupportScrewCount,
       { key: "gable-sip-fasteners", unit: "шт", priceMultiplier: mainGableSupportScrew.kgEach, exactQuantity: true, source: "gables" },
     ),
+    makeLine(index,'roof',gableConnectorQuery,gableTimber.jointLength,{key:'gable-sip-connector',unit:'м.п.',name:`${gableConnectorQuery} · соединения SIP-фронтонов`,source:'Геометрические швы фронтона, действующие шаг, запас и длина заготовки SIP-каркаса'}),
+    makeLine(index,'roof',`Доска сухая строганая ${gableProfile.endBoardDepth}×45 мм`,gableTimber.edgeLength,{key:'gable-sip-edge',unit:'м.п.',name:`Доска сухая строганая ${gableProfile.endBoardDepth}×45 мм · торцы SIP-фронтонов`,source:'Периметр панелей и проёмов фронтона; действующий запас и длина заготовки SIP-каркаса'}),
     ...extensionLines,
   ]), mainRoofShape), ...compact([
     makeLine(index, 'roof', 'Снегозадержатель трубчатый Grand Line New 3 м', snowGuards.kits, {
@@ -2926,6 +2959,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
     snowGuards,
     mainRoofShape,
     includeCovering,
+    gableTimber,
     sipFrameMode,
     sipFrameStep,
     mainSipFrameNetLength: round(mainSipFrameNetLength, 2),
@@ -3498,7 +3532,8 @@ export function calculateProject(project, { nodeTypeRules = {}, stockCandidate =
   const inputs = deriveLinkedInputs(project, metrics);
   const roofSettings = project.settings.roof;
   const roofDesign = project.settings.productionCutting?.roofDesign;
-  const footprint = sharedRoofFootprint(metrics.floorPlans.at(-1).plan, {
+  const footprintPlan=metrics.floorPlans.at(-1).plan;
+  const footprint = sharedRoofFootprint(project.services.terrace?footprintPlan:{...footprintPlan,platforms:[]}, {
     enabled: metrics.floorCount === 1 && ['gable', 'hip'].includes(roofSettings.shape) &&
       !roofDesign?.manualFaces?.length && !(roofSettings.shape === 'hip' && roofDesign?.hipGeometry?.mode === 'contour'),
   });

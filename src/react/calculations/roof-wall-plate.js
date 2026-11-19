@@ -1,3 +1,4 @@
+import {roofPanelThickness} from './roof-panel-settings.js';
 import { houseContourPoints } from '../planner/geometry.js';
 import { productionLevels } from './production-levels.js';
 import { platformRoofFrame } from '../planner/platform-roof-frame.js';
@@ -35,8 +36,9 @@ export function roofBaseElevation(project, calculation, floorCount, spanMm, shap
   const defaultBase = productionLevels(project, floorCount).roofBase;
   const profile = mauerlatProfile(settings);
   const ceiling = ceilingTopElevation(project, calculation, floorCount);
-  const depth = settings.type === 'sip'
-    ? Number(project.settings.sip.ceilingThickness) || 174
+  const fullyWarm = settings.type === 'sip' || settings.type === 'combo' && Number(settings.warmPercent) >= 100;
+  const depth = fullyWarm
+    ? roofPanelThickness(project)
     : Number(String(calculation.roof?.rafterStructure?.section || '50x150').split(/[×xх]/)[1]) || 150;
   const pitch = Math.atan2(Number(settings.ridgeHeight || 0) * 1000, spanMm / 2 || 1);
   const aligned = ceiling.topZ + profile.heightMm + depth * Math.cos(pitch) / 2
@@ -51,7 +53,6 @@ export function roofBaseElevation(project, calculation, floorCount, spanMm, shap
   // sloping upper chord starts one board depth above that lower chord.
   const taperedFrameBase = ceiling.topZ + profile.heightMm + depth * 1.5
     + Math.max(0, Number(settings.eaveOverhang) || 0) * 1000 * Math.max(0, Number(settings.flatSlopePercent) || 0) / 100;
-  const fullyWarm = settings.type === 'sip' || settings.type === 'combo' && Number(settings.warmPercent) >= 100;
   const datumDrop=shape==='flat'&&settings.flatSlopeMode==='structural'&&highFlatWall(settings)?spanMm*Math.max(0,Number(settings.flatSlopePercent)||0)/100:0;
   return design.baseZ !== '' && design.baseZ != null && Number.isFinite(Number(design.baseZ))
     ? Number(design.baseZ)

@@ -1,3 +1,4 @@
+import {roofPanelThickness} from './roof-panel-settings.js';
 import { hasSeparateOverhangs, convexEdgeOverhang } from './roof-overhangs.js';
 import {productionLevels} from './production-levels.js';
 import {platformRoofFrame} from '../planner/platform-roof-frame.js';
@@ -56,12 +57,12 @@ export function roofProject(project,calculation,assembly){
  // A combined roof with 100% warm main slopes has the same SIP geometry as
  // the SIP mode. Partial percentages still need explicit face boundaries.
  const warm=settings.type==='sip'||settings.type==='combo'&&Number(settings.warmPercent)>=100,e=Number(g.eaveOverhang||0)*1000,t=Number(g.gableOverhang||0)*1000,h=Number(settings.ridgeHeight||0)*1000;
- const add=(id,name,points,extra={})=>{try{if(!id||faces.some(f=>f.id===id))throw new Error(`${name}: пустая или повторная марка ската ${id}.`);const override=design.faceOverrides?.[id]||{};faces.push(roofFacet(id,name,points,{group:'main',warm,thickness:Number(project.settings.sip.ceilingThickness),...extra,...override}));}catch(error){issue('ROOF_FACE',error.message,id);}};
+ const add=(id,name,points,extra={})=>{try{if(!id||faces.some(f=>f.id===id))throw new Error(`${name}: пустая или повторная марка ската ${id}.`);const override=design.faceOverrides?.[id]||{};faces.push(roofFacet(id,name,points,{group:'main',warm,thickness:Number(roofPanelThickness(project)),...extra,...override}));}catch(error){issue('ROOF_FACE',error.message,id);}};
  const rectangle=isAxisAlignedRectangleContour(contour);
  if(project.services.roof){
  if(footprint?.included.length)issue('ROOF_SHARED_SUPPORT','Общая кровля над террасой: положение стоек и балок открытой части задайте по проекту.', 'main');
  for(const id of footprint?.excluded||[])issue('ROOF_SHARED_FOOTPRINT','Общая кровля требует примыкания площадки по стороне без замкнутого выреза и автоматической двускатной или вальмовой крыши одноэтажного дома.', id);
- if(design.manualFaces?.length){for(const f of design.manualFaces)add(f.id,f.name,f.vertices,{group:f.group||'main',warm:f.warm===true,thickness:Number(f.thickness)||Number(project.settings.sip.ceilingThickness),manual:true,nodeRef:f.nodeRef||''});}
+ if(design.manualFaces?.length){for(const f of design.manualFaces)add(f.id,f.name,f.vertices,{group:f.group||'main',warm:f.warm===true,thickness:Number(f.thickness)||Number(roofPanelThickness(project)),manual:true,nodeRef:f.nodeRef||''});}
  else if(calculation.roof.pitched){
   calculation.roof.pitched.facets.forEach((f,i)=>add(rectangle?`КР-С${i+1}`:`КР-Г${i+1}`,`Крыша по контуру · скат ${i+1}`,f.vertices.map(p=>[p.x*1000,p.y*1000,roofBase+p.z*1000])));
  }

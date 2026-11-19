@@ -627,6 +627,7 @@ export function createDefaultProject() {
       },
       productionCutting: normalizeProductionCutting(),
       roof: {
+        sipPanelThickness: null,
         shape: "gable",
         ridgeAxis: "x",
         flatSlopeMode: "none",
@@ -1109,6 +1110,7 @@ export function migrateProject(raw) {
           includeEaveTrim:true,includeVergeTrim:true,includeRidgeSeal:true,
         } : {}),
         ...(raw.settings?.roof || {}),
+        sipPanelThickness: ['124','174','224'].includes(String(raw.settings?.roof?.sipPanelThickness))?String(raw.settings.roof.sipPanelThickness):String(raw.settings?.sip?.ceilingThickness||base.settings.sip.ceilingThickness),
         snowGuards: { ...base.settings.roof.snowGuards, ...(raw.settings?.roof?.snowGuards || {}) },
         gableSideTypes: { ...base.settings.roof.gableSideTypes, ...(raw.settings?.roof?.gableSideTypes || {}) },
         tiered: normalizeTieredRoof(raw.settings?.roof?.tiered),
