@@ -6,6 +6,7 @@ import { TeamProvider } from "./cloud/TeamContext.jsx";
 import { LocalBackupProvider } from './storage/LocalBackupContext.jsx';
 import "./styles/app.css";
 import "./styles/black-ink.css";
+import "./styles/mobile-workspace.css";
 
 // A tab left open during deployment can request a chunk from the previous build.
 // Reload once to obtain the current HTML and asset names; repeated failures are

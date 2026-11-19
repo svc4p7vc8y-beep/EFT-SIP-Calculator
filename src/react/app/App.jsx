@@ -4,6 +4,7 @@ import AppChromeMetrics from '../components/AppChromeMetrics.jsx';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeAlert,
+  Box,
   BellRing,
   Calculator,
   ChevronLeft,
@@ -40,6 +41,7 @@ import {
 } from "lucide-react";
 import { useProject } from "../state/ProjectContext.jsx";
 import { APP_VERSION } from '../data/app-version.js';
+import {edgeMenuSwipe} from '../planner/mobile-viewport.js';
 import { normalizedProjectFilename, suggestedProjectFilename } from '../export/project-file-name.js';
 import { priceCatalogFingerprint, showLocalPriceChangeNotice } from '../state/price-change-notice.js';
 import { isPriceEditorUnlocked, verifyPricePasscode, setPriceEditorUnlocked } from '../security/price-access.js';
@@ -162,7 +164,7 @@ function Screen({ active, calculation, teamProps, onNavigate, onOpenLibraryPlan,
   if (active === "team") return <TeamWorkspaceScreen {...teamProps} />;
   if (active === "mail") return <MailScreen />;
   if (active === "files") return <FilesScreen onOpenLibraryPlan={onOpenLibraryPlan} />;
-  if (active === "plan") return <PlanScreen onNavigate={onNavigate} planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
+  if (active === "plan" || active === 'visualization') return <PlanScreen viewMode={active==='visualization'?'3d':'plan'} onNavigate={onNavigate} planCommand={planCommand} onPlanCommandHandled={onPlanCommandHandled} />;
   if (active === "placement") return <PlacementScreen onNavigate={onNavigate} />;
   if (active === "parameters") return <ParametersScreen />;
   if (active === "price") return <PriceScreen />;
@@ -209,6 +211,10 @@ export function App() {
     () => localStorage.getItem("eft-react-theme") || "light",
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNavigation,setMobileNavigation]=useState(()=>window.matchMedia('(max-width:820px)').matches);
+  useEffect(()=>{const query=window.matchMedia('(max-width:820px)'),change=()=>setMobileNavigation(query.matches);query.addEventListener('change',change);return()=>query.removeEventListener('change',change);},[]);
+  const edgeSwipeRef=useRef(null);
+  useEffect(()=>{const key=e=>{if(e.key==='Escape')setMenuOpen(false);};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('eft-sidebar-collapsed') !== 'false');
   useEffect(() => { localStorage.setItem('eft-sidebar-collapsed', String(sidebarCollapsed)); }, [sidebarCollapsed]);
   const [planCommand, setPlanCommand] = useState(null);
@@ -566,6 +572,10 @@ export function App() {
   return (
     <div
       className="app"
+      onPointerDownCapture={event=>{if(event.pointerType==='touch'&&window.innerWidth<=820&&event.clientX<=24)edgeSwipeRef.current={x:event.clientX,y:event.clientY,id:event.pointerId};}}
+      onPointerMoveCapture={event=>{const start=edgeSwipeRef.current;if(start?.id===event.pointerId&&edgeMenuSwipe(start,{x:event.clientX,y:event.clientY})){setMenuOpen(true);edgeSwipeRef.current=null;}}}
+      onPointerUpCapture={()=>{edgeSwipeRef.current=null;}}
+      onPointerCancelCapture={()=>{edgeSwipeRef.current=null;}}
       data-theme={theme}
       style={{
         "--eft-watermark": `url("${new URL("./icons/eft-logo.png", document.baseURI).href}")`,
@@ -726,7 +736,7 @@ export function App() {
         {team.user ? <button className="project-tab-admin" onClick={() => { setTeamFocus('projects'); setActive('team'); }}><FolderOpen /><span>{team.user.role === 'admin' ? 'Админка' : 'Общие проекты'}</span></button> : null}
       </div>
       <div className={`app-layout${['plan', 'placement', 'estimate', 'local-backup', 'cutting'].includes(active) ? ' plan-app-layout' : ''}${active === 'placement' ? ' placement-app-layout' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-        <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
+        <aside inert={mobileNavigation&&!menuOpen} className={`sidebar ${menuOpen ? "open" : ""}`}>
           <button className="sidebar-desktop-toggle" onClick={() => setSidebarCollapsed(value => !value)} title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'} aria-expanded={!sidebarCollapsed}>{sidebarCollapsed ? <ChevronRight/> : <ChevronLeft/>}<span>{sidebarCollapsed ? 'Развернуть' : 'Свернуть'}</span></button>
           <div className="sidebar-mobile-head">
             <strong>Просмотр проекта</strong>
@@ -734,9 +744,6 @@ export function App() {
               <X />
             </button>
           </div>
-          <details className="sidebar-mobile-more"><summary>Остальные разделы</summary><nav aria-label="Остальные разделы калькулятора">
-            {NAV_ITEMS.filter(item => !['plan', 'placement', 'estimate'].includes(item.id)).map(({ id, label, icon: Icon }) => <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMenuOpen(false); }}><Icon/><span>{label}</span></button>)}
-          </nav></details>
           <details className="sidebar-mobile-more"><summary>Файлы и создание</summary><div className="sidebar-mobile-project-actions">
             <button onClick={newProject}><FilePlus2/>Новый проект</button>
             <button onClick={saveProject}><Save/>Сохранить файл проекта</button>
@@ -882,8 +889,8 @@ export function App() {
       </div>
       <nav className="mobile-bottom-nav" aria-label="Основные разделы">
         {[
-          ['plan','План',Home],['placement','Инженерия',Layers3],['estimate','Смета',Calculator],['menu','Разделы',Menu],
-        ].map(([id,label,Icon])=><button key={id} className={active===id?'active':''} aria-label={label} aria-current={active===id?'page':undefined} onClick={()=>id==='menu'?setMenuOpen(true):(setActive(id),setMenuOpen(false))}><Icon/><span>{label}</span></button>)}
+          ['menu','Разделы',Menu],['plan','План',Home],['visualization','3D',Box],['estimate','Смета',Calculator],
+        ].map(([id,label,Icon])=><button key={id} className={(id==='menu'?menuOpen:active===id)?'active':''} aria-label={label} aria-expanded={id==='menu'?menuOpen:undefined} aria-current={active===id?'page':undefined} onClick={()=>id==='menu'?setMenuOpen(v=>!v):(setActive(id),setMenuOpen(false))}><Icon/><span>{label}</span></button>)}
       </nav>
       {saveFileOpen ? <div className="modal-backdrop project-save-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saveFileBusy) setSaveFileOpen(false); }}>
         <form className="modal project-save-dialog" role="dialog" aria-modal="true" aria-label="Сохранить проект как" onSubmit={event => { event.preventDefault(); confirmSaveProject(); }}>

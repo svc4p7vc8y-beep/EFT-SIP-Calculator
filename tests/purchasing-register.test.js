@@ -12,12 +12,12 @@ test('purchasing reflects final material quantities and prices without adding st
  const floor=purchasingRegister(c,['sip:floor']);assert.ok(floor.materials.some(r=>r.name.includes('Пакет клеёных')));
  assert.equal(JSON.stringify(c),before);
 });
-test('layer selection and grouping retain group, unit, size and manual project price boundaries',()=>{
+test('layer selection and grouping combine identical products across layers but retain unit, size and project price boundaries',()=>{
  const line={section:'sip',source:'sip-walls',kind:'material',catalogId:'screw',name:'Саморез 6×200',unit:'шт',qty:10,price:5,estimateGroup:'Стены'};
  const c={lines:[line,{...line,qty:3,projectOverride:true},{...line,unit:'кг',qty:1},{...line,name:'Саморез 6×240'},{...line,price:7},{...line,estimateGroup:'Другой комплект'},{...line,source:'sip-floor'},{...line,kind:'labor'},{...line,qty:0}]};
  const all=purchasingRegister(c),walls=purchasingRegister(c,['sip:walls']);
- assert.equal(all.fasteners.length,6);assert.equal(walls.fasteners.length,5);
- assert.equal(walls.fasteners[0].qty,13);assert.equal(walls.fasteners[0].manual,true);
+ assert.equal(all.fasteners.length,4);assert.equal(walls.fasteners.length,4);
+ assert.equal(walls.fasteners[0].qty,23);assert.equal(all.fasteners[0].qty,33);assert.equal(purchasingRegister(c,null,{mergeIdentical:false}).fasteners.length,7);assert.equal(walls.fasteners[0].manual,true);
  assert.equal(purchasingRegister(c,[]).total,0);assert.equal(purchasingRegister(c,[]).layers.length,2);
 });
 test('selected node fasteners keep project sizes, packs and reserves separate from estimate totals',()=>{

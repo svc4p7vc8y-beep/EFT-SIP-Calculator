@@ -10,7 +10,7 @@ export function purchaseLayer(line, titles = {}) {
   return {id:line.section || 'other',name:titles[line.section] || line.section || 'Прочие материалы'};
 }
 export const isPurchaseFastener = name => /креп[её]ж|саморез|шуруп|глухар|гвозд|анкер|болт|шпильк|гайк|шайб|скоб|перфорирован|опора бруса|держатель балки/i.test(name);
-export function purchasingRegister(calculation, selected = null) {
+export function purchasingRegister(calculation, selected = null, {mergeIdentical=true} = {}) {
   const titles = Object.fromEntries((calculation.sections || []).map(s=>[s.key,s.title]));
   const layers = new Map(), groups = new Map(), fasteners = new Map();
   const includes = id => selected == null || selected.includes(id);
@@ -18,10 +18,15 @@ export function purchasingRegister(calculation, selected = null) {
     if (line.kind !== 'material' || !(Number(line.qty)>0)) continue;
     const layer = purchaseLayer(line,titles); layers.set(layer.id,layer);
     if (!includes(layer.id)) continue;
-    // Keep different sizes, units, groups and project prices separate.
-    const key = JSON.stringify([layer.id,line.estimateGroup||'',line.catalogId||'',line.name,line.unit,Number(line.price)||0]);
-    const row = groups.get(key) || {id:key,layer:layer.name,layerId:layer.id,group:line.estimateGroup||'',catalogId:line.catalogId||'',name:line.name,unit:line.unit,qty:0,price:Number(line.price)||0,amount:0,fastener:isPurchaseFastener(line.name),manual:false};
+    // Procurement combines the same product after scope filtering. Different
+    // profiles, units and project prices always remain separate.
+    const name=mergeIdentical?String(line.name).split(' · ')[0]:line.name;
+    const key = JSON.stringify([mergeIdentical?'combined':groups.size,line.catalogId||'',name,line.unit,Number(line.price)||0]);
+    const row = groups.get(key) || {id:key,layer:layer.name,layerId:layer.id,group:line.estimateGroup||'',catalogId:line.catalogId||'',name,unit:line.unit,qty:0,price:Number(line.price)||0,amount:0,fastener:isPurchaseFastener(line.name),manual:false,allocations:[]};
     row.qty += Number(line.qty); row.amount += Number(line.qty)*(Number(line.price)||0);
+    row.allocations.push({layer:layer.name,group:line.estimateGroup||'',qty:Number(line.qty),name:line.name});
+    row.layer=[...new Set(row.allocations.map(a=>a.layer))].join(', ');
+    row.group=[...new Set(row.allocations.map(a=>a.group).filter(Boolean))].join(', ');
     row.manual ||= !!line.projectOverride || !!line.custom;
     groups.set(key,row);
   }

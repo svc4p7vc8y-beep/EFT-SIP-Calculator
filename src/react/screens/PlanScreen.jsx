@@ -1,3 +1,5 @@
+import {addPlanOpening} from '../state/add-plan-opening.js';
+import {PLAN_VIEW,adaptivePlanView,svgPan,beginPlanPinch,movePlanPinch} from '../planner/mobile-viewport.js';
 import {foundationGrid,createFoundationGrid,moveFoundationRow,moveFoundationPile} from '../planner/foundation-editing.js';
 import {addRailing,railingSelection,removeRailing,moveRailing,addStairRailing} from '../planner/railing-editing.js';
 import {projectRailingLayouts} from '../calculations/platform-railings.js';
@@ -200,7 +202,7 @@ import {
   withRoomBounds,
 } from "../planner/geometry.js";
 
-const VIEW = { width: 1100, height: 760 };
+const VIEW = PLAN_VIEW;
 const DRAW_TOOLS = new Set([
   "room",
   "extension",
@@ -245,7 +247,7 @@ const TOOLS = [
   ["delete", "Удалить", Trash2],
 ];
 
-function layoutFor(plan) {
+function layoutFor(plan, view = VIEW) {
   const sides = chooseDimensionSides(plan);
   const roomBounds = (plan.rooms || []).reduce(
     (result, room) => {
@@ -278,12 +280,12 @@ function layoutFor(plan) {
   const maxX = Math.max(plan.house.w, bounds.maxX) + margin;
   const maxY = Math.max(plan.house.h, bounds.maxY) + margin;
   const scale =
-    Math.min(980 / (maxX - minX), 660 / (maxY - minY)) *
+    Math.min((view.width-120) / (maxX - minX), (view.height-100) / (maxY - minY)) *
     Math.max(0.35, Math.min(20, (plan.zoom || 100) / 100));
   return {
     scale,
-    ox: VIEW.width / 2 - ((minX + maxX) / 2) * scale,
-    oy: VIEW.height / 2 - ((minY + maxY) / 2) * scale,
+    ox: view.width / 2 - ((minX + maxX) / 2) * scale,
+    oy: view.height / 2 - ((minY + maxY) / 2) * scale,
     sides,
   };
 }
@@ -703,17 +705,17 @@ function DraftRoomDimensions({ start, end, p }) {
   );
 }
 
-function TemporaryGuide({ guide, p, active, selected, onPointerDown }) {
+function TemporaryGuide({ guide, p, active, selected, onPointerDown, view = VIEW }) {
   const origin = p(guide.axis === 'x' ? guide.origin : 0, guide.axis === 'y' ? guide.origin : 0);
   const target = p(guide.axis === 'x' ? guide.target : 0, guide.axis === 'y' ? guide.target : 0);
   const anchor = p(guide.axis === 'x' ? 0 : guide.anchor, guide.axis === 'y' ? 0 : guide.anchor);
   const vertical = guide.axis === 'x';
   const distance = Math.round(Math.abs(guide.target - guide.origin) * 1000).toLocaleString('ru-RU');
   return <g className={`temporary-guide${selected?' selected':''}`} data-axis={guide.axis} data-distance-mm={Math.round(Math.abs(guide.target - guide.origin) * 1000)}>
-    <line className="temporary-guide-line" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} />
+    <line className="temporary-guide-line" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : view.width} y2={vertical ? view.height : target.y} />
     <line className="temporary-guide-measure" x1={vertical ? origin.x : anchor.x} y1={vertical ? anchor.y : origin.y} x2={vertical ? target.x : anchor.x} y2={vertical ? anchor.y : target.y} />
     <text className="temporary-guide-distance" x={vertical ? (origin.x + target.x) / 2 : anchor.x + 15} y={vertical ? anchor.y - 10 : (origin.y + target.y) / 2}>{distance} мм</text>
-    <line className="temporary-guide-hit" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : VIEW.width} y2={vertical ? VIEW.height : target.y} style={{ pointerEvents: active ? 'stroke' : 'none' }} onPointerDown={active ? onPointerDown : undefined} />
+    <line className="temporary-guide-hit" x1={vertical ? target.x : 0} y1={vertical ? 0 : target.y} x2={vertical ? target.x : view.width} y2={vertical ? view.height : target.y} style={{ pointerEvents: active ? 'stroke' : 'none' }} onPointerDown={active ? onPointerDown : undefined} />
     {active&&selected?<circle cx={vertical?target.x:anchor.x} cy={vertical?anchor.y:target.y} r="10" fill="#fff" stroke="#568b32" strokeWidth="3" pointerEvents="all" onPointerDown={event=>onPointerDown?.(event,true)}><title>Переместить направляющую</title></circle>:null}
   </g>;
 }
@@ -1398,6 +1400,15 @@ function PlanCanvas({
   onDeleteRoofSupport,
 }) {
   const svgRef = useRef(null);
+  const [view,setView]=useState(VIEW);
+  const pendingTapRef=useRef(null);
+  useLayoutEffect(()=>{
+    const svg=svgRef.current;if(!svg)return;
+    const measure=()=>{const r=svg.getBoundingClientRect();const next=adaptivePlanView(r.width,r.height,window.matchMedia('(max-width:700px)').matches);setView(old=>Math.abs(old.width-next.width)<.5&&Math.abs(old.height-next.height)<.5?old:next);};
+    const observer=new ResizeObserver(measure);observer.observe(svg);measure();
+    window.addEventListener('resize',measure);
+    return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
+  },[]);
   const wallClipId=useId().replace(/:/g,'');
   const gestureRef = useRef(null);
   const activePointersRef = useRef(new Map());
@@ -1461,13 +1472,13 @@ function PlanCanvas({
     [plan, floorOpenings, viewportZoom],
   );
   const layout = useMemo(() => {
-    const base = layoutFor(layoutPlan);
+    const base = layoutFor(layoutPlan,view);
     return {
       ...base,
       ox: base.ox + (viewportPan?.x || 0),
       oy: base.oy + (viewportPan?.y || 0),
     };
-  }, [layoutPlan, viewportPan]);
+  }, [layoutPlan, viewportPan, view]);
   const foundation = useMemo(
     () =>
       calculateFoundation(shownPlan, pileSettings),
@@ -1506,10 +1517,10 @@ function PlanCanvas({
     const rect = svg.getBoundingClientRect();
     return {
       x:
-        (((event.clientX - rect.left) / rect.width) * VIEW.width - layout.ox) /
+        (((event.clientX - rect.left) / rect.width) * view.width - layout.ox) /
         layout.scale,
       y:
-        (((event.clientY - rect.top) / rect.height) * VIEW.height - layout.oy) /
+        (((event.clientY - rect.top) / rect.height) * view.height - layout.oy) /
         layout.scale,
     };
   };
@@ -1642,6 +1653,7 @@ function PlanCanvas({
       next[key] = (next[key] || []).filter((item) => item.id !== id);
     });
   const objectDown = (event, type, id, extra = {}) => {
+    if(pinchConsumedRef.current)return;
     if(!canEditPlanObject(activeLayer,type))return;
     if(event.button!==0)return;
     if (type === "floorOpening") {
@@ -1747,7 +1759,7 @@ function PlanCanvas({
         swing: segment.outer ? "out" : "in",
       };
       const opening = projectOpeningToWall(draft, point, plan, { lockDoorType: isGarage, endInset: (Number(plan.wallThickness)||.174)+(Number(minPanelWidthMm)||250)/1000 });
-      commitPlan((next) => next.openings.push(opening));
+      commitPlan((next,project) => addPlanOpening(project,next,opening));
       selectCreated({ type: "opening", id });
     }
   };
@@ -1769,18 +1781,14 @@ function PlanCanvas({
       setIsViewportPanning(true);
       return;
     }
+    if(event.pointerType==='touch')svgRef.current?.setPointerCapture?.(event.pointerId);
     activePointersRef.current.set(event.pointerId, {
       x: event.clientX,
       y: event.clientY,
     });
     if (activePointersRef.current.size === 2) {
-      const [a, b] = [...activePointersRef.current.values()];
-      pinchRef.current = {
-        distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-        zoom: viewportZoom ?? plan.zoom ?? 100,
-        pan: { ...(viewportPan || { x: 0, y: 0 }) },
-        center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-      };
+      pinchRef.current = beginPlanPinch([...activePointersRef.current.values()],viewportZoom ?? plan.zoom ?? 100,viewportPan,svgRef.current?.getScreenCTM?.(),view);
+      pendingTapRef.current=null;panGestureRef.current=null;
       pinchConsumedRef.current = true;
       pendingTouchSelectionRef.current = null;
       setGesture(null);
@@ -1790,13 +1798,13 @@ function PlanCanvas({
   const finishPointer = (event) => {
     activePointersRef.current.delete(event.pointerId);
     if (activePointersRef.current.size < 2) pinchRef.current = null;
-    if (activePointersRef.current.size === 0)
-      window.setTimeout(() => {
-        pinchConsumedRef.current = false;
-      }, 0);
+    if (activePointersRef.current.size === 0) pinchConsumedRef.current = false;
   };
   const canvasDown = (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || pinchConsumedRef.current) return;
+    if(event.pointerType==='touch'&&!event.releasedTap&&['polygon','houseContour','existingContour','attachedContour','window','door','garage','gap','pile','dimension','annotation','roofPost'].includes(tool)){
+      pendingTapRef.current={clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId,button:0};return;
+    }
     const rawPoint = rawPlanPoint(event);
     const point = toPlan(event);
     if (tool === 'guide') {
@@ -1891,23 +1899,8 @@ function PlanCanvas({
         y: event.clientY,
       });
     if (pinchRef.current && activePointersRef.current.size >= 2) {
-      const [a, b] = [...activePointersRef.current.values()];
-      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-      const nextZoom = Math.max(
-        35,
-        Math.min(
-          2000,
-          Math.round(
-            (pinchRef.current.zoom * distance) / pinchRef.current.distance,
-          ),
-        ),
-      );
-      const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      onViewportZoom?.(nextZoom);
-      onViewportPan?.({
-        x: pinchRef.current.pan.x + (center.x - pinchRef.current.center.x),
-        y: pinchRef.current.pan.y + (center.y - pinchRef.current.center.y),
-      });
+      const camera=movePlanPinch(pinchRef.current,[...activePointersRef.current.values()]);
+      onViewportZoom?.(camera.zoom);onViewportPan?.(camera.pan);
       event.preventDefault();
       return;
     }
@@ -1920,10 +1913,7 @@ function PlanCanvas({
       const dy = event.clientY - panGestureRef.current.y;
       if (Math.hypot(dx, dy) > 4) panGestureRef.current.moved = true;
       if (panGestureRef.current.moved)
-        onViewportPan?.({
-          x: panGestureRef.current.start.x + dx,
-          y: panGestureRef.current.start.y + dy,
-        });
+        onViewportPan?.(svgPan(panGestureRef.current.start,dx,dy,svgRef.current?.getScreenCTM?.()));
       event.preventDefault();
       return;
     }
@@ -1936,6 +1926,12 @@ function PlanCanvas({
     setGesture((current) => ({ ...current, altKey:event.altKey, end: current.kind === 'temporaryGuide' ? rawPlanPoint(event) : resolved.point }));
   };
   const pointerUp = (event) => {
+    const tap=pendingTapRef.current;
+    if(tap?.pointerId===event.pointerId){
+      pendingTapRef.current=null;
+      if(!pinchConsumedRef.current&&Math.hypot(event.clientX-tap.clientX,event.clientY-tap.clientY)<8)canvasDown({...tap,pointerType:'touch',releasedTap:true,preventDefault(){},stopPropagation(){}});
+      finishPointer(event);return;
+    }
     if (panGestureRef.current?.pointerId === event.pointerId) {
       panGestureRef.current = null;
       setIsViewportPanning(false);
@@ -2265,7 +2261,7 @@ function PlanCanvas({
     <svg
       ref={svgRef}
       className={`plan-svg${visibleLayers.frame?" structural-plan-active":""} tool-${tool}${middlePanEnabled ? " viewport-pan-enabled" : ""}${isViewportPanning ? " is-viewport-panning" : ""}`}
-      viewBox={`0 0 ${VIEW.width} ${VIEW.height}`}
+      viewBox={`0 0 ${view.width} ${view.height}`}
       role="img"
       aria-label="Редактор плана дома"
       onPointerDownCapture={pointerDownCapture}
@@ -2277,6 +2273,7 @@ function PlanCanvas({
       }}
       onPointerCancel={(event) => {
         panGestureRef.current = null;
+        pendingTapRef.current=null;pendingTouchSelectionRef.current=null;
         setIsViewportPanning(false);
         finishPointer(event);
         setGesture(null);
@@ -2334,14 +2331,14 @@ function PlanCanvas({
       </defs>
       <rect
         className="plan-grid-hit"
-        width={VIEW.width}
-        height={VIEW.height}
+        width={view.width}
+        height={view.height}
         fill="url(#planner-grid)"
       />
       {!houseDefined && !polygonDraft.length ? (
         <g className="blank-plan-prompt">
-          <text x={VIEW.width / 2} y={VIEW.height / 2 - 12}>Чистый план</text>
-          <text className="blank-plan-prompt-subtitle" x={VIEW.width / 2} y={VIEW.height / 2 + 18}>
+          <text x={view.width / 2} y={view.height / 2 - 12}>Чистый план</text>
+          <text className="blank-plan-prompt-subtitle" x={view.width / 2} y={view.height / 2 + 18}>
             Ставьте точки внешнего контура с шагом 100 мм и замкните его
           </text>
         </g>
@@ -3118,9 +3115,9 @@ function PlanCanvas({
           })}
         </g>
       ) : null}
-      {temporaryGuides.map((guide) => <TemporaryGuide key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} selected={selectedGuideId===guide.id} active={tool === 'guide'} onPointerDown={(event, move = false) => { event.stopPropagation();if(event.button!==0)return;setSelectedGuideId(guide.id);begin(event, event.altKey||move ? { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id } : { kind: 'temporaryGuide', type: 'guide', guideBase: guideFromGuide(guide, rawPlanPoint(event)) }); }} />)}
+      {temporaryGuides.map((guide) => <TemporaryGuide view={view} key={guide.id} guide={gesture?.kind === 'temporaryGuide' && gesture.guideId === guide.id ? moveTemporaryGuide(guide, gesture.end) : guide} p={p} selected={selectedGuideId===guide.id} active={tool === 'guide'} onPointerDown={(event, move = false) => { event.stopPropagation();if(event.button!==0)return;setSelectedGuideId(guide.id);begin(event, event.altKey||move ? { kind: 'temporaryGuide', type: 'guide', guideBase: guide, guideId: guide.id } : { kind: 'temporaryGuide', type: 'guide', guideBase: guideFromGuide(guide, rawPlanPoint(event)) }); }} />)}
       {gesture?.kind === 'temporaryGuide' && !gesture.guideId ? <TemporaryGuide guide={moveTemporaryGuide(gesture.guideBase, gesture.end)} p={p} active={false} /> : null}
-      {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={VIEW.width - 183} y="55" width="171" height="31" rx="7" /><text x={VIEW.width - 98} y="76">Очистить направляющие</text></g> : null}
+      {temporaryGuides.length ? <g className="temporary-guide-clear" role="button" aria-label="Очистить временные направляющие" tabIndex="0" onPointerDown={(event) => { event.stopPropagation(); setTemporaryGuides([]); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setTemporaryGuides([]); } }}><rect x={view.width - 183} y="55" width="171" height="31" rx="7" /><text x={view.width - 98} y="76">Очистить направляющие</text></g> : null}
       {["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool) ? (
         <DraftPolygonEdge
           points={polygonDraft}
@@ -3131,8 +3128,8 @@ function PlanCanvas({
       {hoverSnap?.snap && (DRAW_TOOLS.has(tool) || ["polygon", "houseContour", "existingContour", "attachedContour"].includes(tool)) ? (() => {
         const q = p(hoverSnap.point.x, hoverSnap.point.y);
         return <g className="draft-alignment-guides" aria-label="Направляющие выравнивания">
-          {hoverSnap.snap.matchedX ? <line x1={q.x} y1="0" x2={q.x} y2={VIEW.height} /> : null}
-          {hoverSnap.snap.matchedY ? <line x1="0" y1={q.y} x2={VIEW.width} y2={q.y} /> : null}
+          {hoverSnap.snap.matchedX ? <line x1={q.x} y1="0" x2={q.x} y2={view.height} /> : null}
+          {hoverSnap.snap.matchedY ? <line x1="0" y1={q.y} x2={view.width} y2={q.y} /> : null}
         </g>;
       })() : null}
       {hoverSnap?.snap
@@ -3171,7 +3168,7 @@ function PlanCanvas({
       {['piles','binding'].includes(activeLayer)?<FoundationGridLayer plan={shownPlan} p={p}/>:null}
       {visibleLayers.frame&&frameProject?<Suspense fallback={null}><g pointerEvents={activeLayer==='frame'?undefined:'none'}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame} selected={frameSelection} onSelect={onSelectFrame} onMessage={onFrameMessage}/></g></Suspense>:null}
       <g ref={setLabelLayer} className="plan-label-foreground" visibility={shownPlan.showLabels===false?"hidden":undefined}/>
-      {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={VIEW.height - 148} width="650" height="140">
+      {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={view.height - 148} width="650" height="140">
         <div xmlns="http://www.w3.org/1999/xhtml" role="alert" className="plan-collision-warning" onPointerDown={event => event.stopPropagation()}>
           <strong>Пересечение элементов: {openingConflicts.length}</strong>
           {openingConflicts.map((issue, index) => <button key={index} onClick={() => selectExisting(issue.selections[0])}>{issue.message}</button>)}
@@ -5284,17 +5281,21 @@ function RoofPlanSelectionInspector({selection,project,commit,roofAxes,calculati
  return <p>Опорная рама. Геометрия её деталей редактируется в разделе «Производство и раскрой».</p>;
 }
 
-export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled }) {
+export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandled, viewMode = "plan" }) {
+  const [isPhone,setIsPhone]=useState(()=>window.matchMedia('(max-width:700px)').matches);
+  useEffect(()=>{const query=window.matchMedia('(max-width:700px)'),change=()=>setIsPhone(query.matches);query.addEventListener('change',change);return()=>query.removeEventListener('change',change);},[]);
   const team = useTeam();
-  const { project, activeTabId, openTab, attachLibrary, commit, undo, redo, canUndo, canRedo } = useProject();
+  const { project, activeTabId, openTab, attachLibrary, commit, undo:undoProject, redo:redoProject, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
   const [bearingSelection,setBearingSelection]=useState([]),[bearingByLine,setBearingByLine]=useState(true),[bearingProfile,setBearingProfile]=useState("45x145");
-  const [mobilePlanEditing, setMobilePlanEditing] = useState(false);
+  const [mobilePlanEditing, setMobilePlanEditing] = useState(true);
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
   const [activeFloor, setActiveFloor] = useState(1);
   const [activeLayer, setActiveLayer] = useState("plan");
   const [foundationGridOpen,setFoundationGridOpen]=useState(false);
   const [selected, setSelected] = useState(null);
+  const undo=useCallback(()=>{setSelected(null);undoProject();},[undoProject]);
+  const redo=useCallback(()=>{setSelected(null);redoProject();},[redoProject]);
   const [sourceFocus,setSourceFocus]=useState(null);
   useEffect(()=>{
     try {
@@ -5341,7 +5342,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [inspectorTab,setInspectorTab]=useState('house');
   const [directEstimatePrint,setDirectEstimatePrint]=useState(false);
   const finishEstimatePrint=useCallback(()=>setDirectEstimatePrint(false),[]);
-  const [showFullscreenInspector,setShowFullscreenInspector]=useState(true);
+  const [showFullscreenInspector,setShowFullscreenInspector]=useState(()=>window.innerWidth>700);
   const [bindingSetupOpen, setBindingSetupOpen] = useState(false);
   const [foundationDraft, setFoundationDraft] = useState(() => ({
     ...DEFAULT_FOUNDATION_DRAFT,
@@ -5401,11 +5402,11 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const commitPlan = useCallback(
     (mutate) =>
       commit((next) => {
-        if (activeFloor === 1) { const before=structuredClone(next.plan);mutate(next.plan);if(next.plan.layoutMode==='walls'&&before.layoutMode==='walls')for(const room of next.plan.rooms.filter(r=>!before.rooms.some(old=>old.id===r.id)))addRoomWalls(next.plan,room,()=>uid('wall'));preservePlanAttachments(next.plan,before);rebuildWallRooms(next.plan,()=>uid('room')); }
+        if (activeFloor === 1) { const before=structuredClone(next.plan);mutate(next.plan,next);if(next.plan.layoutMode==='walls'&&before.layoutMode==='walls')for(const room of next.plan.rooms.filter(r=>!before.rooms.some(old=>old.id===r.id)))addRoomWalls(next.plan,room,()=>uid('wall'));preservePlanAttachments(next.plan,before);rebuildWallRooms(next.plan,()=>uid('room')); }
         else {
           ensureProjectFloorCount(next, Math.max(2, activeFloor));
           const before=structuredClone(next.upperFloors[activeFloor-2]);
-          mutate(next.upperFloors[activeFloor - 2]);
+          mutate(next.upperFloors[activeFloor - 2],next);
           if(next.upperFloors[activeFloor-2].layoutMode==='walls'&&before.layoutMode==='walls')for(const room of next.upperFloors[activeFloor-2].rooms.filter(r=>!before.rooms.some(old=>old.id===r.id)))addRoomWalls(next.upperFloors[activeFloor-2],room,()=>uid('wall'));
           preservePlanAttachments(next.upperFloors[activeFloor-2],before);
           rebuildWallRooms(next.upperFloors[activeFloor-2],()=>uid('room'));
@@ -6184,6 +6185,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 : ["window", "door", "gap", "pile"].includes(tool)
                   ? "Щёлкните место установки. Тип гаражных ворот выбирается в параметрах двери."
                   : "Зажмите кнопку мыши и протяните объект. Зелёный — горизонталь или вертикаль, красный — отклонение.";
+  if(viewMode==='3d')return <section className="screen mobile-model-screen" aria-label="3D вид дома"><Suspense fallback={<p role="status">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense></section>;
   const mobileEditor = (
     <div
       className={`mobile-plan-fullscreen ${gridVisible ? "" : "grid-hidden"}`}
@@ -6460,7 +6462,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       />}
     </div>
   );
-  return (
+  const editor = (
     <div ref={planHeaderRootRef} className={`desktop-plan-editor screen plan-screen-v2${mobilePlanEditing ? ' mobile-plan-editing' : ''}`}>
       {selected?.type==='roofSupport'?<aside className="mobile-roof-editor-panel desktop-roof-mobile"><details open><summary>Опора кровли · параметры</summary><Suspense fallback={<p>Загружаю…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense></details></aside>:null}
       <input ref={planFileRef} className="visually-hidden" type="file" accept=".eft-plan.json,.eft.json,.json" onChange={openPlanFile}/>
@@ -6573,7 +6575,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         <button type="button" className="plan-status-fullscreen" aria-label={isPlanFullscreen ? 'Свернуть план' : 'План во весь экран'} aria-pressed={isPlanFullscreen} onClick={() => { if (!isPlanFullscreen && window.innerWidth <= 760) setShowFullscreenInspector(false); setIsPlanFullscreen((value) => !value); }}>{isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{isPlanFullscreen ? 'Свернуть' : 'Во весь экран'}</span></button>
 
       </div>
-      <div ref={plannerShellRef} style={{'--plan-inspector-width':`${inspectorWidth}px`,'--plan-model-width':`${modelWidth}px`}} className={`planner-shell${plan3DPlacement==='split'&&showPlan3D?' three-pane':''}${isPlanFullscreen ? " is-fullscreen" : ""}${!showFullscreenInspector ? " inspector-collapsed" : ""}`}>
+      <div ref={plannerShellRef} style={{'--plan-inspector-width':`${inspectorWidth}px`,'--plan-model-width':`${modelWidth}px`}} className={`planner-shell${plan3DPlacement==='split'&&showPlan3D&&!isPhone?' three-pane':''}${isPlanFullscreen ? " is-fullscreen" : ""}${!showFullscreenInspector ? " inspector-collapsed" : ""}`}>
         <aside className="planner-tools">
           {TOOLS.filter(([id]) => id === "select").map(([id, label, Icon]) => (
             <div className="planner-tools-fixed" key={id}>
@@ -6635,7 +6637,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </div>
           ))}
         </aside>
-        {plan3DPlacement==='split'&&showPlan3D?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}>{frameWall===null?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
+        {plan3DPlacement==='split'&&showPlan3D&&!isPhone?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}>{frameWall===null&&!isPhone?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
         <div className="planner-canvas" ref={plannerCanvasRef}>
           <div className="plan-canvas-toolbars">
           <div className="plan-layer-tabs" role="group" aria-label="Слои проекта">
@@ -6671,6 +6673,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               </div>
             ))}
             {[["showDimensions","Размеры",Ruler],["showLabels","Подписи",MessageSquareText]].map(([field,label,Icon])=><div className="plan-layer-tab" key={field}><button type="button" className="layer-select" aria-label={`Переключить ${label}`} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}><Icon/><span>{label}</span></button><button type="button" className="layer-visibility" aria-label={`${plan[field]!==false?'Скрыть':'Показать'} ${label}`} aria-pressed={plan[field]!==false} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}>{plan[field]!==false?<Eye/>:<EyeOff/>}</button></div>)}
+          </div>
           <div className="canvas-history-controls" role="toolbar" aria-label="Масштаб и действия плана">
             <button title="Отменить" onClick={undo} disabled={!canUndo}>
               <Undo2 />
@@ -6688,8 +6691,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
           </div>
-          </div>
-
           </div>
 
           <PlanCanvas terraceEnabled={project.services.terrace} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);setInspectorTab('element');}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
@@ -6766,7 +6767,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               </div>
             </div>
             {showPlan3D ? <div className={`plan-right-3d-view size-${plan3DSize}`}>
-              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>{frameWall===null?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense>
+              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>{frameWall===null&&!isPhone?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense>
             </div> : <p className="plan-right-3d-placeholder">3D-вид скрыт.</p>}
             {showPlan3D ? <div className="plan-right-3d-sizes" role="group" aria-label="Размер 3D-вида">
               {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}
@@ -6908,4 +6909,5 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       {directEstimatePrint ? <Suspense fallback={null}><div className="plan-estimate-print-host"><EstimatePrintScreen directPrint onDirectPrintDone={finishEstimatePrint} /></div></Suspense> : null}
     </div>
   );
+  return isPlanFullscreen?createPortal(<div className="mobile-fullscreen-host">{editor}</div>,document.body):editor;
 }
