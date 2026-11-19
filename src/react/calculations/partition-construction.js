@@ -1,3 +1,4 @@
+import {partitionMaterial} from '../planner/partition-material.js';
 import {partitionTopFit} from './partition-top-fit.js';
 import { partitionRuns, partitionDepth } from '../planner/geometry.js';
 import { bearingForSegment, partitionProfileForSegment, splitAtBearingEdges } from './bearing-walls.js';
@@ -55,7 +56,7 @@ export function partitionJunctionStuds(plan,a,b,segments=partitionSegments(plan)
 // Shared with production: all=true returns the complete detailed frame;
 // all=false returns only the additions to the legacy allowance.
 export function partitionReinforcements(project,plan,floor=1,all=false,fitContext=null) {
-  if(!project.services.partitions||project.settings.sip.partitionType==='sip')return [];
+  if(!project.services.partitions)return [];
   const settings=normalizeProductionCutting(project.settings.productionCutting),segments=partitionSegments(plan),members=[];
   const contour=houseContourPoints(plan),edges=[...contour.map((a,i)=>({a,b:contour[(i+1)%contour.length],outer:true})),...segments.map(([a,b],i)=>({a,b,outer:false,index:i}))];
   const assigned=new Map(segments.map((_,i)=>[i,[]])),blocked=new Set();
@@ -73,6 +74,7 @@ export function partitionReinforcements(project,plan,floor=1,all=false,fitContex
     if(!near.outer)assigned.get(near.index).push({key:`${floor}:${o.id}`,gap:o.type==='gap',x:Math.round(near.u*1000)-Math.round(Number(o.width)*1000)/2,width:Math.round(Number(o.width)*1000),height:Math.round(Number(o.height)*1000),sill:o.type==='gap'?0:settings.openingSills[`${floor}:${o.id}`]??(o.sillHeight!==''&&o.sillHeight!=null?Math.round(Number(o.sillHeight)*1000):o.type==='door'?0:settings.windowSillMm)});
   }
   segments.forEach(([a,b],i)=>{
+    if(partitionMaterial(plan,a,b,project.settings.sip.partitionType)==='sip')return;
     const length=Math.hypot(b.x-a.x,b.y-a.y),bearing=bearingForSegment(plan,a,b),openings=[];
     openings.push(...assigned.get(i));
     const id=`Э${floor}-ПГ${i+1}`,start=[a.x,a.y].map(v=>Math.round(v*1000)),end=[b.x,b.y].map(v=>Math.round(v*1000)),wallKey=`${id}@${start.join(',')}:${end.join(',')}`;

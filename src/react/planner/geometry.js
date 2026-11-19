@@ -1,3 +1,4 @@
+import {partitionMaterial,partitionMaterialSettings,splitPartitionMaterials} from './partition-material.js';
 import { normalizeStairDirection } from "./stair-steps.js";
 import clipping from 'polygon-clipping';
 import { gapFragments } from '../calculations/gap-fragments.js';
@@ -491,11 +492,13 @@ export function partitionRuns(plan, rawAxes = false) {
     for(const span of spans.sort((a,b)=>a[0]-b[0])){const last=merged.at(-1);if(last&&span[0]<=last[1]+.001)last[1]=Math.max(last[1],span[1]);else merged.push([...span]);}
     for(const [start,end] of merged)result.push([{x:ux*start-uy*offset,y:uy*start+ux*offset},{x:ux*end-uy*offset,y:uy*end+ux*offset}]);
   }
-  if(rawAxes || plan.partitionJunctions!=='butt')return result;
+  const materialRuns=splitPartitionMaterials(plan,result);
+  const selectedRuns=runs=>runs.filter(([a,b])=>!plan.partitionMaterialFilter||partitionMaterial(plan,a,b)===plan.partitionMaterialFilter);
+  if(rawAxes || plan.partitionJunctions!=='butt')return selectedRuns(materialRuns);
   const contourSign=Math.sign(contour.reduce((sum,p,i)=>{
     const q=contour[(i+1)%contour.length];return sum+p.x*q.y-q.x*p.y;
   },0))||1;
-  return result.map(([a,b],index)=>{
+  return selectedRuns(materialRuns.map(([a,b],index)=>{
     const L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L;
     const trim=(p,end)=>{
       let inset=0;
@@ -511,7 +514,7 @@ export function partitionRuns(plan, rawAxes = false) {
         if(along<-.001||along>l+.001||depth<-.001||depth>wall+.001||approach<.5)return;
         inset=Math.max(inset,(wall-depth)/approach);
       });
-      result.forEach(([c,d],other)=>{
+      materialRuns.forEach(([c,d],other)=>{
         if(other===index)return;
         const dx=d.x-c.x,dy=d.y-c.y,l=Math.hypot(dx,dy),t=((p.x-c.x)*dx+(p.y-c.y)*dy)/(l*l||1);
         if(!l||Math.abs(ux*dy-uy*dx)/l<.999||t<-.001||t>1.001||Math.abs(dx*(p.y-c.y)-dy*(p.x-c.x))/l>.001)return;
@@ -522,10 +525,14 @@ export function partitionRuns(plan, rawAxes = false) {
       return {x:roundCoord(p.x+ux*inset*end),y:roundCoord(p.y+uy*inset*end)};
     };
     return [trim(a,1),trim(b,-1)];
-  }).filter(([a,b])=>Math.hypot(b.x-a.x,b.y-a.y)>.001);
+  }).filter(([a,b])=>Math.hypot(b.x-a.x,b.y-a.y)>.001));
 }
 
 export function partitionDepth(plan,a,b){
+  const local=partitionMaterialSettings(plan,a,b);
+  if(local.partitionType==='sip')return ([124,174,224].includes(Number(local.sipThickness))?Number(local.sipThickness):Number(plan.partitionSipDefaultThickness)||174)/1000;
+  if(local.partitionType==='frame')return Number(String((local.bearing?local.bearingProfile:local.frameProfile)||local.profile||plan.partitionFrameDefaultProfile||'50x100').split(/[x×х]/)[1])/1000||.1;
+
   const selected=[];
   const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
   const matches=(u,v)=>{const dx=v.x-u.x,dy=v.y-u.y,L=Math.hypot(dx,dy),t=((mid.x-u.x)*dx+(mid.y-u.y)*dy)/(L*L||1);return L>0&&t>=0&&t<=1&&Math.abs(dx*(mid.y-u.y)-dy*(mid.x-u.x))/L<.015&&Math.abs(dx*(b.y-a.y)-dy*(b.x-a.x))/(L*Math.hypot(b.x-a.x,b.y-a.y)||1)<.001;};

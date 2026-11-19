@@ -1,3 +1,4 @@
+import {partitionMaterialQuantities,hasPartitionMaterials} from './partition-material-quantities.js';
 import {sipGableTimber} from './sip-gable-timber.js';
 import {roofPanelThickness} from './roof-panel-settings.js';
 import {platformRoofSupportLayout,platformPostAnchor} from './platform-roof-support-layout.js';
@@ -471,6 +472,8 @@ function calculateBuildingMetrics(project) {
 
 function sipSection(project, metrics, index, inputs, roofResult) {
   const { sip } = project.settings;
+  const sipPartitions=partitionMaterialQuantities(project,metrics,'sip'),framePartitions=partitionMaterialQuantities(project,metrics,'frame');
+  const hasSipPartitions=sipPartitions.some(p=>p.area>0),hasFramePartitions=framePartitions.some(p=>p.area>0);
   const surfaces = {
     floor: project.services.sipFloor ? metrics.floorArea : 0,
     secondFloor:
@@ -484,14 +487,13 @@ function sipSection(project, metrics, index, inputs, roofResult) {
         : 0,
     ceiling: project.services.sipCeiling ? metrics.ceilingArea : 0,
     partitions:
-      project.services.partitions && sip.partitionType === "sip"
-        ? metrics.firstFloorPartitionNetArea
+      project.services.partitions
+        ? sipPartitions[0]?.area||0
         : 0,
     partitionsSecondFloor:
       project.services.partitions &&
-      sip.partitionType === "sip" &&
       metrics.floorCount > 1
-        ? metrics.secondFloorPartitionNetArea
+        ? sipPartitions[1]?.area||0
         : 0,
     gables: Math.max(0, Number(roofResult?.warmGableArea) || 0),
   };
@@ -527,7 +529,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     panelWidth: f.panelWidth,
     panelLength: f.panelLength,
     extraWastePercent: sip.wastePercent,
-    includePartitions: sip.partitionType === "sip",
+    includePartitions: hasSipPartitions,
     includeSecondFloorWalls: surfaces.wallsSecondFloor > 0,
     includeSecondFloorPartitions: surfaces.partitionsSecondFloor > 0,
     includeSecondFloor: surfaces.secondFloor > 0,
@@ -555,12 +557,12 @@ function sipSection(project, metrics, index, inputs, roofResult) {
           f.panelLength,
         ) + ceilingOpeningCutLength,
       partitions: partitionCutLengthFor(
-        firstPlan,
-        metrics.firstFloorPartitionLength,
+        sipPartitions[0]?.plan,
+        sipPartitions[0]?.length,
       ),
       partitionsSecondFloor: partitionCutLengthFor(
-        secondPlan,
-        metrics.secondFloorPartitionLength,
+        sipPartitions[1]?.plan,
+        sipPartitions[1]?.length,
       ),
       gables:
         roofResult?.mainRoofShape === "gable"
@@ -606,9 +608,9 @@ function sipSection(project, metrics, index, inputs, roofResult) {
           partitions: false,
         }
       : project.services,
-    sip,
+    {...sip,partitionType:hasSipPartitions?"sip":"frame"},
     f,
-    metrics,
+    {...metrics,partitionMaterialDefault:metrics.floorPlans.some(({plan})=>hasPartitionMaterials(plan))?sip.partitionType:null,firstFloorPartitionLength:sipPartitions[0]?.length||0,secondFloorPartitionLength:sipPartitions[1]?.length||0,firstFloorPartitionNetArea:sipPartitions[0]?.area||0,secondFloorPartitionNetArea:sipPartitions[1]?.area||0},
     project.settings.productionCutting,
   );
   const consumables = calculateSipConsumables(cutting, joinery, sip, f);
@@ -623,7 +625,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       source: `sip-${key}`,
       estimateGroup: groupNames[key],
     };
-    const panelShares=key.startsWith('partitions')?sipPartitionShares(key==='partitions'?firstPlan:secondPlan,thickness):[{thickness,share:1}];
+    const panelShares=key.startsWith('partitions')?sipPartitionShares(key==='partitions'?sipPartitions[0]?.plan:sipPartitions[1]?.plan,thickness):[{thickness,share:1}];
     for(const selected of panelShares)lines.push(
       makeLine(index, "sip", sipPanelName(selected.thickness, family), panelShares.length===1?row.panels:Math.ceil(row.panels*selected.share), {
         key: panelShares.length===1?`panel-${key}`:`panel-${key}-${selected.thickness}`,
@@ -777,7 +779,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       );
     }
   });
-  if (project.services.partitions && sip.partitionType !== "sip") {
+  if (project.services.partitions && hasFramePartitions) {
     const detailed=project.settings.productionCutting.detailedFrameEstimate!==false&&sip.partitionCalculationMode!=='area';
     const partitionFrameSection = /^\d+[x×х]\d+$/.test(sip.partitionFrameSection||'') ? sip.partitionFrameSection.replace(/[×х]/g,'x') : '50x100';
     const partitionBoardQuery = partitionFrameSection === "50x150"
@@ -788,26 +790,24 @@ function sipSection(project, metrics, index, inputs, roofResult) {
     [
       {
         key: "partitions",
-        area: metrics.firstFloorPartitionNetArea,
+        area: framePartitions[0]?.area||0,
         suffix: "",
       },
       {
         key: "partitionsSecondFloor",
-        area: metrics.secondFloorPartitionNetArea,
+        area: framePartitions[1]?.area||0,
         suffix: "-secondFloor",
       },
     ].forEach(({ key, area, suffix }, floorIndex) => {
       if (!(area > 0)) return;
-      const partitionPlan = metrics.floorPlans?.[floorIndex]?.plan || project.plan;
-      const partitionLength = floorIndex
-        ? metrics.secondFloorPartitionLength
-        : metrics.firstFloorPartitionLength;
+      const partitionPlan = framePartitions[floorIndex]?.plan || project.plan;
+      const partitionLength = framePartitions[floorIndex]?.length||0;
       const assembly = calculateFramePartitionAssembly(
         partitionPlan,
         partitionLength,
         f,
         partitionFrameSection,
-        metrics.partitionFits?.[floorIndex+1],
+        framePartitions[floorIndex]?.fit,
       );
       const linearMode = sip.partitionCalculationMode !== "area";
       const boardVolume = linearMode
@@ -885,7 +885,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
   }
   const timberRows=joinery.rows.flatMap(row=>{
     if(!row.key.startsWith('partitions'))return [row];
-    const shares=sipPartitionShares(row.key==='partitions'?firstPlan:secondPlan,sip.partitionThickness);
+    const shares=sipPartitionShares(row.key==='partitions'?sipPartitions[0]?.plan:sipPartitions[1]?.plan,sip.partitionThickness);
     if(shares.length===1&&Number(shares[0].thickness)===Number(row.panelThickness))return [row];
     return shares.map(selected=>{
       const jointLength=row.jointLength*selected.share,endBoardLength=row.endBoardLength*selected.share;
@@ -3668,7 +3668,7 @@ export function calculateProject(project, { nodeTypeRules = {}, stockCandidate =
     lines,
     totals,
   };
-  const localSipThickness=project.settings.sip.partitionType==='sip'&&[project.plan,...(project.upperFloors||[])].some(plan=>(plan.walls||[]).some(wall=>[124,174,224].includes(Number(wall.sipThickness)))||(plan.rooms||[]).some(room=>Object.values(room.bearingWalls||{}).some(value=>[124,174,224].includes(Number(value.sipThickness)))));
+  const localSipThickness=sip.cutting.some(row=>row.key.startsWith('partitions')&&row.area>0)&&[project.plan,...(project.upperFloors||[])].some(plan=>(plan.walls||[]).some(wall=>[124,174,224].includes(Number(wall.sipThickness)))||(plan.rooms||[]).some(room=>Object.values(room.bearingWalls||{}).some(value=>[124,174,224].includes(Number(value.sipThickness)))));
   if(project.settings.sip.panelStockMode==='mixed'||localSipThickness){
     const production=calculateProductionCutting(project,result);
     const incomplete=production.surfaces.some(s=>s.blocked)||production.panelStock.unplaced.length>0;

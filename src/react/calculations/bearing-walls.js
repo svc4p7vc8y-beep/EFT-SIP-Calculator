@@ -15,7 +15,7 @@ export function roomBearingEdges(room) {
   const points=roomPoints(room);
   const labels=bearingSideLabels(points);
   return points.map((a,i)=>{const b=points[(i+1)%points.length],key=bearingWallKey(a,b),value=room.bearingWalls?.[key];
-    return {a,b,key,index:i,label:labels[i],bearing:value?.enabled??(room.bearing===true),profile:String(value?.profile||room.bearingProfile||'')};
+    return {a,b,key,index:i,label:labels[i],partitionType:value?.partitionType||'',sipThickness:value?.sipThickness,bearing:value?.enabled??(room.bearing===true),profile:String(value?.profile||room.bearingProfile||'')};
   }).filter(e=>Math.hypot(e.b.x-e.a.x,e.b.y-e.a.y)>.001);
 }
 export const bearingEdges=plan=>[...(plan.rooms||[]).filter(r=>r.include!==false).flatMap(roomBearingEdges),...(plan.walls||[]).filter(w=>w.include!==false).map(w=>({a:{x:w.x1,y:w.y1},b:{x:w.x2,y:w.y2},bearing:w.bearing,profile:w.bearingProfile||''}))].filter(e=>e.bearing);

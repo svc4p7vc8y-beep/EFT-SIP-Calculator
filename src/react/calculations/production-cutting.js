@@ -1,3 +1,4 @@
+import {partitionMaterial,partitionMaterialSettings} from '../planner/partition-material.js';
 import {roofPanelThickness} from './roof-panel-settings.js';
 import {expandMemberPackages} from './member-packages.js';
 import {supplementalGables} from './supplemental-gables.js';
@@ -675,9 +676,11 @@ export function calculateProductionCutting(project, calculation) {
       const geometry = subtract(wallShape, holes);
       const bearing=!edge.outer && bearingForSegment(plan,edge.a,edge.b);
       const source=constructionSource(plan,edge,settings.constructionSources,floor);
-      if(!edge.outer&&sip.partitionType==='sip'){const selected=Math.round(partitionDepth(plan,edge.a,edge.b)*1000);source.thickness=[124,174,224].includes(selected)?selected:Number(sip.partitionThickness);}
+      const partitionSip=!edge.outer&&partitionMaterial(plan,edge.a,edge.b,sip.partitionType)==='sip';
+      if(!edge.outer&&partitionMaterialSettings(plan,edge.a,edge.b).partitionType==='frame')source.thickness=Math.round(partitionDepth(plan,edge.a,edge.b)*1000);
+      if(partitionSip){const selected=Math.round(partitionDepth(plan,edge.a,edge.b)*1000);source.thickness=[124,174,224].includes(selected)?selected:Number(sip.partitionThickness);}
       addSurface({ id: edge.id, name: `${edge.outer ? 'Стена' : 'Перегородка'} ${edge.id}`, floor, horizontal: false, planStart: [mm((edge.outer?(edge.start||edge.a):edge.a).x), mm((edge.outer?(edge.start||edge.a):edge.a).y)], planEnd: [mm((edge.outer?(edge.end||edge.b):edge.b).x), mm((edge.outer?(edge.end||edge.b):edge.b).y)], externalLength:edge.outer?mm(edge.externalLength):width,heightStart:topProfile?.[0][1]??heightStart,heightEnd:topProfile?.at(-1)[1]??heightEnd,requestedHeight:baseHeight+addition, thickness: Number(edge.outer ? sip.wallThickness : sip.partitionThickness), family: edge.outer ? sip.wallPanelFamily : sip.partitionPanelFamily, geometry, width, height, blocked, openings: selectedOpenings,
-        baseZMm:productionLevels(project,plans.length).bases[floorIndex]||0,secondLightCourseMm:edge.outer&&edge.topProfile?Math.max(minimum,baseHeight-minimum):null,managedFacade:(plan.facades||[]).some(f=>f.wallId===edge.id),grossShape:clipping.union(wallShape),exterior:!!edge.outer,topProfile,...source,...(!edge.outer?{...partitionBacking(plan,edge.a,edge.b),junctionStuds:partitionJunctionStuds(plan,edge.a,edge.b)}:{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&sip.partitionType!=='sip',partitionFrame:!edge.outer&&sip.partitionType!=='sip',bearing:!!bearing,frameProfile:(partitionProfileForSegment(plan,edge.a,edge.b)||(!edge.outer&&localWallSettings(plan,edge.a,edge.b)?.frameProfile)||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
+        baseZMm:productionLevels(project,plans.length).bases[floorIndex]||0,secondLightCourseMm:edge.outer&&edge.topProfile?Math.max(minimum,baseHeight-minimum):null,managedFacade:(plan.facades||[]).some(f=>f.wallId===edge.id),grossShape:clipping.union(wallShape),exterior:!!edge.outer,topProfile,...source,...(!edge.outer?{...partitionBacking(plan,edge.a,edge.b),junctionStuds:partitionJunctionStuds(plan,edge.a,edge.b)}:{}),topPlateLayers:Math.max(1,Math.round(Number(f.partitionTopPlateLayers) || 1)),frameOnly:!edge.outer&&!partitionSip,partitionFrame:!edge.outer&&!partitionSip,bearing:!!bearing,frameProfile:(partitionProfileForSegment(plan,edge.a,edge.b)||(!edge.outer&&localWallSettings(plan,edge.a,edge.b)?.frameProfile)||sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×') });
     }
     if ((floorIndex === 0 && services.sipFloor) || (floorIndex > 0 && services.sipSecondFloor)) {
       const stairs=floorIndex>0?floorOpenings(plan):[];

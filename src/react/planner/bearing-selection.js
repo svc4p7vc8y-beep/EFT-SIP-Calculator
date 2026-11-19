@@ -2,7 +2,7 @@ import {roomBearingEdges,bearingWallKey} from '../calculations/bearing-walls.js'
 export function selectableBearingEdges(plan) {
  const map=new Map();
  for(const room of plan.rooms||[])if(room.include!==false)for(const edge of roomBearingEdges(room))if(!map.has(edge.key))map.set(edge.key,{...edge,name:room.name||'Комната'});
- for(const wall of plan.walls||[])if(wall.include!==false){const a={x:wall.x1,y:wall.y1},b={x:wall.x2,y:wall.y2},key=bearingWallKey(a,b);map.set(key,{a,b,key,bearing:!!wall.bearing,profile:wall.bearingProfile||'',name:wall.name||'Перегородка'});}
+ for(const wall of plan.walls||[])if(wall.include!==false){const a={x:wall.x1,y:wall.y1},b={x:wall.x2,y:wall.y2},key=bearingWallKey(a,b);map.set(key,{a,b,key,partitionType:wall.partitionType||'',sipThickness:wall.sipThickness,bearing:!!wall.bearing,profile:wall.bearingProfile||'',name:wall.name||'Перегородка'});}
  return [...map.values()];
 }
 export function collinearBearingKeys(edges,key) {
@@ -12,7 +12,7 @@ export function collinearBearingKeys(edges,key) {
 }
 export function assignBearingEdges(plan,keys,enabled,profile) {
  const chosen=new Set(keys);
- for(const room of plan.rooms||[])for(const edge of roomBearingEdges(room))if(chosen.has(edge.key)){room.bearingWalls={...room.bearingWalls,[edge.key]:{enabled,profile}};}
+ for(const room of plan.rooms||[])for(const edge of roomBearingEdges(room))if(chosen.has(edge.key)){room.bearingWalls={...room.bearingWalls,[edge.key]:{...room.bearingWalls?.[edge.key],enabled,profile}};}
  for(const wall of plan.walls||[])if(chosen.has(bearingWallKey({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}))){wall.bearing=enabled;wall.bearingProfile=profile;if(!enabled)wall.frameProfile=profile;}
  return plan;
 }
@@ -32,5 +32,12 @@ export function assignSipThickness(plan, keys, thickness) {
   room.bearingWalls={...room.bearingWalls,[edge.key]:{...room.bearingWalls?.[edge.key],sipThickness:value}};
  }
  for(const wall of plan.walls||[])if(chosen.has(bearingWallKey({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2})))wall.sipThickness=value;
+ return plan;
+}
+
+export function assignPartitionMaterial(plan,keys,type,defaults={}){
+ const chosen=new Set(keys),value=['sip','frame'].includes(type)?type:null;
+ for(const room of plan.rooms||[])for(const edge of roomBearingEdges(room))if(chosen.has(edge.key))room.bearingWalls={...room.bearingWalls,[edge.key]:{...room.bearingWalls?.[edge.key],partitionType:value,...(value==='sip'&&!room.bearingWalls?.[edge.key]?.sipThickness?{sipThickness:Number(defaults.sipThickness)||174}:{}),...(value==='frame'&&!room.bearingWalls?.[edge.key]?.profile?{profile:room.bearingProfile||defaults.frameProfile||'50x100'}:{})}};
+ for(const wall of plan.walls||[])if(chosen.has(bearingWallKey({x:wall.x1,y:wall.y1},{x:wall.x2,y:wall.y2}))){wall.partitionType=value;if(value==='sip'&&!wall.sipThickness)wall.sipThickness=Number(defaults.sipThickness)||174;if(value==='frame'&&!wall.frameProfile)wall.frameProfile=defaults.frameProfile||'50x100';}
  return plan;
 }

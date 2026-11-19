@@ -13,7 +13,7 @@ import {canEditPlanObject,planLayerTools,editRoofLine} from '../planner/layer-to
 import WindowConstruction from '../components/WindowConstruction.jsx';
 import { overhangEdgeOverrides, hasSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import {roofPlanLines,snapRoofLineOffset,saveRoofLines} from '../planner/roof-lines.js';
-import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges,assignPartitionProfiles,assignSipThickness} from '../planner/bearing-selection.js';
+import {selectableBearingEdges,collinearBearingKeys,assignBearingEdges,assignPartitionProfiles,assignSipThickness,assignPartitionMaterial} from '../planner/bearing-selection.js';
 import {PARTITION_BOARD_PROFILES,partitionProfileColor,partitionProfileLabel} from '../data/partition-profiles.js';
 import {resizeRoomFromExterior} from '../planner/resize-room.js';
 import {roofSupportPlanGroups,movePlanRoofGroup,removePlanRoofGroup} from '../planner/roof-support-plan.js';
@@ -3049,8 +3049,8 @@ function PlanCanvas({
 
         return <g key={axis.id} data-roof-axis={axis.id} onPointerDown={event=>objectDown(event,'roofAxis',axis.id)}><title>{axis.name}: потяните линию или круг. Прилипание к середине и зеркальному положению.</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#335dbe" strokeWidth="5" strokeDasharray="12 5" pointerEvents="none"/>{activeLayer==='roof'&&[a,b].map((q,index)=><circle key={index} role="button" aria-label={`Конец ${index+1} · ${axis.name}`} cx={q.x} cy={q.y} r="8" fill="white" stroke="#335dbe" strokeWidth="2" onPointerDown={e=>objectDown(e,'roofAxis',axis.id,{kind:'roofEndpoint',index})}/>)}<circle cx={(a.x+b.x)/2} cy={(a.y+b.y)/2} r="9" fill="#fff" stroke="#335dbe" strokeWidth="3"/><text x={(a.x+b.x)/2+14} y={(a.y+b.y)/2-12} fontSize="15" fill="#183c8e" stroke="#fff" strokeWidth="4" paintOrder="stroke" pointerEvents="none">{axis.name}{moving&&snap.hint?` · ${snap.hint}`:''}</text>{moving&&snap.hint?<line x1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).x} y1={p(axis.axis==='x'?0:axis.span/2,axis.axis==='x'?axis.span/2:0).y} x2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).x} y2={p(axis.axis==='x'?axis.length:axis.span/2,axis.axis==='x'?axis.span/2:axis.length).y} stroke="#db8d12" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/>:null}</g>;
       }):null}
-      {visibleLayers.plan?bearingEdges.filter(edge=>edge.profile).map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),color=partitionProfileColor(edge.profile);return <g key={`profile-${edge.key}`} pointerEvents="none"><title>{edge.name} · доска {partitionProfileLabel(edge.profile)}{edge.bearing?' · несущая':''}</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#fff" strokeWidth="9"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth="6"/>{edge.bearing?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#173b2c" strokeWidth="2" strokeDasharray="7 5"/>:null}</g>;}):null}
-      {tool==='bearingWall'?bearingEdges.map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),chosen=bearingSelection.includes(edge.key),color=edge.profile?partitionProfileColor(edge.profile):edge.bearing?'#138447':'#5083b7';return <g key={edge.key} data-bearing-edge={edge.key} onPointerDown={event=>{event.preventDefault();event.stopPropagation();onPickBearing?.(edge.key);}}><title>{edge.name} · {edge.bearing?'несущая':'обычная'} · {edge.profile?`доска ${partitionProfileLabel(edge.profile)}`:'общая доска проекта'} · нажмите для выбора</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/>{chosen?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f3b31b" strokeWidth="11" pointerEvents="none"/>:null}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={chosen?6:4} strokeDasharray={edge.profile?undefined:'8 4'} pointerEvents="none"/></g>;}):null}
+      {visibleLayers.plan?bearingEdges.filter(edge=>edge.profile||edge.partitionType==='sip').map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),color=edge.partitionType==='sip'?'#1688a1':partitionProfileColor(edge.profile);return <g key={`profile-${edge.key}`} pointerEvents="none"><title>{edge.name} · {edge.partitionType==='sip'?`SIP ${edge.sipThickness||174} мм`:`доска ${partitionProfileLabel(edge.profile)}`}{edge.bearing?' · несущая':''}</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#fff" strokeWidth="9"/><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth="6"/>{edge.bearing?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#173b2c" strokeWidth="2" strokeDasharray="7 5"/>:null}</g>;}):null}
+      {tool==='bearingWall'?bearingEdges.map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),chosen=bearingSelection.includes(edge.key),color=edge.partitionType==='sip'?'#1688a1':edge.profile?partitionProfileColor(edge.profile):edge.bearing?'#138447':'#5083b7';return <g key={edge.key} data-bearing-edge={edge.key} onPointerDown={event=>{event.preventDefault();event.stopPropagation();onPickBearing?.(edge.key);}}><title>{edge.name} · {edge.bearing?'несущая':'обычная'} · {edge.partitionType==='sip'?`SIP ${edge.sipThickness||174} мм`:edge.profile?`доска ${partitionProfileLabel(edge.profile)}`:'общая доска проекта'} · нажмите для выбора</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/>{chosen?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f3b31b" strokeWidth="11" pointerEvents="none"/>:null}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={chosen?6:4} strokeDasharray={edge.profile?undefined:'8 4'} pointerEvents="none"/></g>;}):null}
       {gesture?.kind === "draw"
         ? (() => {
             if(['roofAxis','roofBeam'].includes(gesture.type)){
@@ -3540,7 +3540,7 @@ function DoorOrientationControls({ opening, onChange }) {
   );
 }
 
-function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {}, roofFootprint, onNavigate, activeFloor = 1 }) {
+function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof = {}, roofFootprint, onNavigate, activeFloor = 1, partitionDefaults = {} }) {
   const { project, commit } = useProject();
   const get = (key) =>
     (plan[key] || []).find((item) => item.id === selected?.id);
@@ -4326,15 +4326,20 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
   }
   if (wall || dimension) {
     const item = wall || dimension;
+    const wallSip=wall&&(wall.partitionType||partitionDefaults.partitionType)==='sip';
     return (
       <div className="inspector-form">
         <h3>{wall ? "Перегородка" : "Размерная линия"}</h3>
         {wall ? <>
           <Toggle label="Учитывать перегородку" checked={wall.include!==false} onChange={value=>update('walls',item=>{item.include=value;})}/>
+          <SelectField label="Конструкция перегородки" value={wall.partitionType||''} onChange={value=>update('walls',item=>{item.partitionType=value||null;if(value==='sip'&&!item.sipThickness)item.sipThickness=Number(partitionDefaults.partitionThickness)||174;if(value==='frame'&&!item.frameProfile)item.frameProfile=partitionDefaults.partitionFrameSection||'50x100';})} options={[{value:'',label:'По общим параметрам'},{value:'frame',label:'Каркасная'},{value:'sip',label:'SIP-панели'}]}/>
+          {wallSip?<SelectField label="Толщина SIP перегородки" value={String(wall.sipThickness||partitionDefaults.partitionThickness||174)} onChange={value=>update('walls',item=>{item.sipThickness=Number(value);})} options={[124,174,224].map(n=>({value:String(n),label:`${n} мм`}))}/>:null}
           <Toggle label="Несущая перегородка" checked={!!wall.bearing} onChange={value=>update('walls',item=>{item.bearing=value;})}/>
+          {!wallSip?<>
           <label className="field">Доска каркаса стены<select aria-label="Доска каркаса стены" value={(wall.bearing?wall.bearingProfile:wall.frameProfile)||''} onChange={e=>update('walls',item=>{if(item.bearing)item.bearingProfile=e.target.value;else item.frameProfile=e.target.value;})}><option value="">Общая доска проекта</option>{['50x100','50x150','50x200','45x95','45x145','45x195'].map(profile=><option key={profile} value={profile}>{profile.replace('x','×')} мм{profile.startsWith('45')?' · строганая':''}</option>)}</select></label>
           <DraftText label="Сечение каркаса, мм · толщина × глубина" value={wall.bearing?wall.bearingProfile||'':wall.frameProfile||''} placeholder="Пусто — общие параметры; 50×100 или 45×145" onChange={raw=>{const value=raw.replace(/\s/g,'').replace(/[×х]/g,'x');if(value!==''&&(!/^\d+x\d+$/.test(value)||!value.split('x').every(n=>Number(n)>0)))return;update('walls',item=>{if(item.bearing)item.bearingProfile=value;else item.frameProfile=value;});}}/>
-          <p className="inspector-note">Сечение каркасной перегородки задаёт её толщину на плане. Несущая способность и узлы — по проекту. SIP-перегородки задаются в разделе SIP.</p>
+          </>:null}
+          <p className="inspector-note">Сечение каркасной перегородки задаёт её толщину на плане. Несущая способность и узлы — по проекту. Тип и толщина SIP задаются для выбранной перегородки; общий вариант — в параметрах дома.</p>
           <div className="form-grid">{['x1','y1','x2','y2'].map(key=><NumberField key={key} label={`${key.toUpperCase()} · ось`} value={wall[key]} suffix="м" step={.001} onChange={value=>update('walls',item=>{item[key]=value;const index=key.endsWith('1')?1:2,other=index===1?2:1;const point=limitDiagonalPartition({x:item[`x${other}`],y:item[`y${other}`]},{x:item[`x${index}`],y:item[`y${index}`]});item[`x${index}`]=point.x;item[`y${index}`]=point.y;})}/>)}</div>
           <div className="readout"><span>Изготовляемая длина</span><strong>{formatNumber(partitionRuns(plan).filter(([a,b])=>Math.abs((wall.x2-wall.x1)*((a.y+b.y)/2-wall.y1)-(wall.y2-wall.y1)*((a.x+b.x)/2-wall.x1))<.001&&Math.min(wall.x1,wall.x2)-.001<=(a.x+b.x)/2&&Math.max(wall.x1,wall.x2)+.001>=(a.x+b.x)/2&&Math.min(wall.y1,wall.y2)-.001<=(a.y+b.y)/2&&Math.max(wall.y1,wall.y2)+.001>=(a.y+b.y)/2).reduce((sum,[a,b])=>sum+Math.hypot(b.x-a.x,b.y-a.y),0))} м</strong></div>
           {(plan.openings||[]).filter(o=>o.wallRef===`wall:${wall.id}`).map(o=><button key={o.id} className="button secondary" onClick={()=>setSelected({type:'opening',id:o.id})}>{o.type==='door'?'Дверь':'Окно'} · от начала {formatNumber(Math.hypot(o.x-wall.x1,o.y-wall.y1))} м</button>)}
@@ -5020,7 +5025,7 @@ function MobileSelectionAdjuster({
                       {selected.type === "floorOpening" ? (
                         <FloorOpeningInspector floorOpening={floorOpening} house={plan.house} commitFloorOpening={commitFloorOpening} setSelected={setSelected} />
                       ) : (
-                        <Inspector
+                        <Inspector partitionDefaults={project.settings.sip}
                           plan={plan}
                           mainRoof={project.settings.roof}
                           selected={selected}
@@ -6779,7 +6784,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                   partitionPlanControls={<div className="partition-inspector-controls" role="group" aria-label="Доски и несущие стены">
                     <button type="button" className={tool==='bearingWall'?'button primary':'button secondary'} onClick={()=>selectTool('bearingWall')}>{tool==='bearingWall'?'Инструмент выбран':'Выбирать доски / несущие на плане'}</button>
                     <strong>Выбрано участков: {bearingSelection.length}</strong>
-                    {project.settings.sip.partitionType==='sip'?<label className="field">SIP выбранных стен<select key={bearingSelection.join('|')} aria-label="SIP выбранных стен" defaultValue="" onChange={event=>{const value=event.target.value;commitPlan(next=>assignSipThickness(next,bearingSelection,value));}} disabled={!bearingSelection.length}><option value="">Общая толщина проекта</option>{[124,174,224].map(value=><option key={value} value={value}>{value} мм</option>)}</select></label>:null}
+                    <label className="field">Конструкция выбранных перегородок<select key={bearingSelection.join('|')} aria-label="Конструкция выбранных перегородок" defaultValue="" disabled={!bearingSelection.length} onChange={event=>{const value=event.target.value;commitPlan(next=>{assignPartitionMaterial(next,bearingSelection,value.startsWith('sip')?'sip':value,{sipThickness:project.settings.sip.partitionThickness,frameProfile:project.settings.sip.partitionFrameSection});if(value.startsWith('sip'))assignSipThickness(next,bearingSelection,value.slice(3));});setTransferStatus('Конструкция выбранных перегородок обновлена.');}}><option value="">По общим параметрам</option><option value="frame">Каркасная</option>{[124,174,224].map(n=><option key={n} value={`sip${n}`}>SIP {n} мм</option>)}</select></label>
                     <label><input type="checkbox" checked={bearingByLine} onChange={event=>setBearingByLine(event.target.checked)}/> Выбирать все участки на одной линии</label>
                     <label className="field">Доска выбранных стен<select aria-label="Доска выбранных стен" value={bearingProfile} onChange={event=>setBearingProfile(event.target.value)}>{PARTITION_BOARD_PROFILES.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
                     <div className="partition-inspector-actions">
@@ -6842,7 +6847,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               onClear={clearFoundationLayout}
             />
           ) : (
-            <Inspector
+            <Inspector partitionDefaults={project.settings.sip}
               plan={plan}
               activeFloor={activeFloor}
               onNavigate={onNavigate}

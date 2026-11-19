@@ -23,7 +23,7 @@ export function supplementalGables(project,calculation,assembly,surfaces){
   const profile=atticPartitionProfile(adjusted,wall.planStart,wall.planEnd,(wall.baseZMm||0)+wall.height,Infinity);if(!profile||Math.max(...profile.map(p=>p[1]))<1)continue;
   let geometry=clipping.intersection([[[0,0],...profile,[wall.width,0],[0,0]]],[[[0,0],[wall.width,0],[wall.width,30000],[0,30000]]]);
   geometry=clipping.intersection(geometry,clipping.union(...intervals.map(([a,b])=>[[[a,0],[b,0],[b,30000],[a,30000]]])));if(!geometry.length)continue;
-  const frame=internal?project.settings.sip.partitionType!=='sip':calculation.roof.mainGableType!=='sip';
+  const frame=internal?wall.frameOnly===true:calculation.roof.mainGableType!=='sip';
   result.push({id:`ФР-${internal?'ВН':'ДОП'}-${wall.id}`,name:`${internal?'Внутренний фронтон второго света':'Участок фронтона под общей кровлей'} · ${wall.name} · ${frame?'каркас':'СИП'}`,floor,horizontal:false,staggered:false,thickness:wall.thickness,family:wall.family,geometry,grossShape:geometry,frameOnly:frame,parentWallId:wall.id,supplementalGable:true,internalGable:internal,openings:[]});
  }
  return result;

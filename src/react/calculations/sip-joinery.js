@@ -1,3 +1,4 @@
+import {partitionMaterial} from '../planner/partition-material.js';
 import { exteriorHeight, partitionHeight, hasHorizontalCeiling } from '../../calculations/floor-height.js';
 import { floorOpeningSummary } from '../planner/floor-openings.js';
 import { partitionRuns } from '../planner/geometry.js';
@@ -262,6 +263,7 @@ export const detectSipTJunctions = (plan, tolerance = 0.05) => {
   const wallThickness = Math.max(0.05, Number(plan?.wallThickness) || 0.174);
   const rawSegments = [];
   const addSegment = (start, end) => {
+    if(plan.partitionMaterialFilter&&partitionMaterial(plan,start,end)!==plan.partitionMaterialFilter)return;
     if (pointDistance(start, end) <= tolerance) return;
     const onOuter = outerRuns.some(
       (run) =>
@@ -628,7 +630,7 @@ export function calculateSipJoinery(
         topBindingCount: bindingCount,
         cornerStructuralCount: cornerCount,
         openingStructuralCount: openingFasteners,
-        tNodeCount: detectSipTJunctions(currentPlan).length,
+        tNodeCount: detectSipTJunctions(metrics.partitionMaterialDefault?{...currentPlan,partitionDefaultType:metrics.partitionMaterialDefault,partitionMaterialFilter:'sip'}:currentPlan).length,
       };
     };
   const firstWallAssembly = wallAssemblyFor(floorPlans[0]);

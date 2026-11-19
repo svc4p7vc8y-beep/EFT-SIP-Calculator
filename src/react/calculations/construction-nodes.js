@@ -1,3 +1,4 @@
+import {partitionMaterialPlan} from './partition-material-quantities.js';
 import {roofPanelThickness} from './roof-panel-settings.js';
 import { EFT_NODE_LIBRARY, getEftNodeRule } from '../data/eft-node-library.js';
 import { detectSipTJunctions, resolveSipStructuralScrew, resolveSipSupportScrew } from './sip-joinery.js';
@@ -317,8 +318,7 @@ function wallNodes(project, calculation, formulas) {
     }
   });
   floorPlans.forEach((item, floorIndex) => {
-    if (project.settings.sip.partitionType !== 'sip') return;
-    detectSipTJunctions(item.plan).forEach((point, index) => {
+    detectSipTJunctions(partitionMaterialPlan(item.plan,'sip',project.settings.sip.partitionType)).forEach((point, index) => {
       const qty = formulaValue(formulas, 'sipUniversalScrewsPerTNode', 2);
       nodes.push(makeNode('SIP_WALL_T', `${floorIndex + 1}-t-${index}`, { floor: floorIndex + 1, ...point, panelThickness: project.settings.sip.partitionThickness }, formulas, qty, {
         formula: `1 Т-узел × ${qty} шт`,
