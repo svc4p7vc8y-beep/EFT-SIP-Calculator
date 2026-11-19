@@ -4,6 +4,7 @@ import { normalizeSourceBaseline } from './source-baseline.js';
 import { normalizeAutoRoofSupports } from './auto-roof-supports.js';
 import {normalizeRoofDesign} from './roof-design.js';
 import {normalizeRoofEditor} from '../planner/roof-support-editor.js';
+import {normalizeTimberProcurement} from './timber-procurement.js';
 
 export function normalizeDrawingLabels(value) {
   const record=v=>v&&typeof v==='object'&&!Array.isArray(v)?Object.entries(v).slice(0,2000):[];
@@ -20,6 +21,7 @@ export function normalizeProductionCutting(value = {}) {
   const record = source => source && typeof source === 'object' && !Array.isArray(source) ? Object.fromEntries(Object.entries(source).slice(0, 2000).map(([key, item]) => [key, item !== '' && item != null && Number.isFinite(Number(item)) && Number(item) >= 0 && Number(item) <= 30000 ? Number(item) : ''])) : {};
   const jointTolerance = value.bindingJointToleranceMm;
   return {
+    timberProcurement:normalizeTimberProcurement(value.timberProcurement),
     markRegistry: normalizeMarkRegistry(value.markRegistry),
     constructionSources: normalizeConstructionSources(value.constructionSources),
     sourceBaseline: normalizeSourceBaseline(value.sourceBaseline),

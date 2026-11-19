@@ -6,3 +6,5 @@
 @media(max-width:760px){.purchase-workspace{grid-template-columns:110px minmax(0,1fr);gap:8px}.purchase-sidebar{position:sticky;top:var(--app-chrome-height,130px);max-height:calc(100dvh - var(--app-chrome-height,130px) - 15px);padding:7px}.purchase-sidebar .purchase-layers label{font-size:11px;gap:4px;min-height:40px;overflow-wrap:anywhere}.purchase-sidebar .purchase-layers legend{font-size:12px}.purchase-sidebar p{display:none}.purchase-summary{padding:10px;font-size:12px;gap:8px}.purchase-results h3{font-size:16px}.purchase-merge{font-size:12px;line-height:1.4}}
 
 .purchasing-register label.purchase-merge{display:flex!important;flex-direction:row!important;align-items:center}
+
+.purchase-kind{display:flex;gap:7px;flex-wrap:wrap;padding:10px 0}.purchase-kind button{white-space:normal;min-height:40px}.purchase-actions[hidden]{display:none!important}

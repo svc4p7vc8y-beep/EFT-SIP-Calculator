@@ -1,0 +1,9 @@
+/* Reserve real space for controls: no second toolbar over a canvas action. */
+.plan-screen-v2 .planner-shell .planner-canvas{display:flex!important;flex-direction:column;min-width:0;min-height:0}
+.plan-screen-v2 .planner-shell .planner-canvas>.plan-canvas-toolbars{position:relative!important;inset:auto!important;flex:none;display:flex;flex-direction:column;gap:5px;padding:7px;box-sizing:border-box;width:100%;pointer-events:auto}
+.plan-screen-v2 .planner-shell .plan-canvas-toolbars>.plan-layer-tabs,.plan-screen-v2 .planner-shell .plan-canvas-toolbars>.canvas-history-controls{position:static!important;inset:auto!important;max-width:100%!important;width:100%;box-sizing:border-box;min-width:0;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;touch-action:pan-x;flex:none}
+.plan-screen-v2 .planner-shell .planner-canvas>.plan-svg{flex:1 1 0;height:0!important;min-height:0!important;width:100%;max-height:none;display:block}
+.plan-screen-v2 .planner-shell .planner-canvas>.planner-hint{position:static!important;inset:auto!important;flex:none;box-sizing:border-box;max-width:100%;width:100%;margin:0;padding:7px 10px}
+.plan-screen-v2 .planner-shell .planner-canvas>.plan-contour-actions{position:static!important;inset:auto!important;flex:none;box-sizing:border-box;width:100%;max-width:100%;flex-wrap:wrap;margin:0}
+.plan-screen-v2 .planner-shell.is-fullscreen .planner-canvas{padding-top:64px;box-sizing:border-box}
+@media(max-width:700px){.plan-screen-v2 .planner-shell.is-fullscreen .planner-canvas{padding-top:0}.plan-screen-v2 .planner-shell .planner-canvas>.plan-canvas-toolbars{padding:4px;gap:4px}.plan-screen-v2 .planner-shell .planner-canvas>.planner-hint{display:none}}
