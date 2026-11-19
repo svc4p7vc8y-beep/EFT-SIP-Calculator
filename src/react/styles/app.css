@@ -7729,3 +7729,8 @@ select,
 
 .desktop-roof-mobile { display:none; }
 @media(max-width:760px){.desktop-roof-mobile{display:block;bottom:76px;}.mobile-roof-editor-panel{max-height:55dvh;}.mobile-roof-editor-panel .roof-member-editor{max-height:46dvh;}}
+
+/* v391: one horizontally scrollable row; the inspector tabs stay reachable. */
+.plan-screen-v2 .plan-canvas-toolbars>.plan-layer-tabs{display:flex;align-items:center;flex-wrap:nowrap;overflow-x:auto;touch-action:pan-x}
+.plan-screen-v2 .plan-layer-tabs>.canvas-history-controls{position:static!important;display:flex!important;width:auto!important;max-width:none!important;flex:none;box-shadow:none;background:transparent;padding:0;gap:4px;margin-left:auto}
+.plan-screen-v2 .planner-inspector>.plan-right-tabs{position:sticky;top:0;z-index:14;flex-shrink:0}

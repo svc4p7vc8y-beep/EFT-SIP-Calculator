@@ -21,6 +21,7 @@ import {windowSupportHeaders} from '../calculations/window-support-headers.js';
 
 import {planLayerVisibility} from '../planner/plan-layer-visibility.js';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useId } from "react";
+const FramePlatformInspector=lazy(()=>import('./FramePlatformInspector.jsx'));
 import { DraftText } from './CuttingControls.jsx';
 import { createPortal } from 'react-dom';
 import UpperFloorControls from '../components/UpperFloorControls.jsx';
@@ -214,6 +215,7 @@ const DRAW_TOOLS = new Set([
   "roofAxis", "roofBeam",
 ]);
 const TOOLS = [
+  ["frameTerrace", "Столбы террасы", BrickWall],
   ["select", "Выбор", MousePointer2],
   ["room", "Прямоугольная комната", SquareDashed],
   ["extension", "Пристройка-комната", HousePlus],
@@ -3830,6 +3832,10 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           {platform.kind === "porch" ? "Крыльцо" : "Терраса"} ·{" "}
           {formatNumber(platform.w * platform.h)} м²
         </h3>
+        <label><input type="checkbox" checked={platform.deckEnabled!==false} onChange={e=>change(p=>{p.deckEnabled=e.target.checked;})}/> Настил площадки</label>
+        <label><input type="checkbox" checked={platform.joistsEnabled!==false} onChange={e=>change(p=>{p.joistsEnabled=e.target.checked;})}/> Нижняя рама и лаги</label>
+        <SelectField label="Крепление столбов" value={platform.postAnchorMode||'auto'} onChange={value=>change(p=>{p.postAnchorMode=value;})} options={[{value:'auto',label:'Авто · по наличию сваи'},{value:'base',label:'К основанию · 4000 ₽/шт.'},{value:'pile',label:'К свае · 1500 ₽/шт.'},{value:'none',label:'Не включать крепление в смету'}]}/>
+        <NumberField label="Низ столбов от уровня пола дома" value={platform.postBaseZMm??platform.deckHeightMm??0} suffix="мм" min={-10000} step={10} onChange={value=>change(p=>{p.postBaseZMm=value;})}/>
         <p className="inspector-note">Для ограждения выберите инструмент «Ограждение» слева и проведите участок на плане. Высота 950 мм, три ригеля; промежуточные стойки добавляются автоматически.</p>
         {Number(platform.steps)>0?<div className="button-row">{[0,1].map(side=><button key={side} onClick={()=>{const preview=structuredClone(plan),id=addStairRailing(preview,platform.id,side);if(id){commitPlan(next=>{next.platforms.find(p=>p.id===platform.id).railings=preview.platforms.find(p=>p.id===platform.id).railings;});setSelected({type:'railing',id});}}}>Ограждение лестницы · {side?'справа':'слева'}</button>)}</div>:null}
         <div className="form-grid">
@@ -5596,6 +5602,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   };
   const selectTool = (id) => {
     if(id==='foundationGrid'){if(activeFloor!==1){setTransferStatus('Основание редактируется на первом этаже.');return;}setFoundationGridOpen(true);setTool('select');return;}
+    if(id==='frameTerrace'){setActiveLayer('frame');setInspectorTab('element');setSelected(null);setFrameSelection(null);setTool('select');return;}
     if(['structuralFrame','framePost','frameWindow','frameDoor'].includes(id)){setFrameTool({framePost:'post',frameWindow:'window',frameDoor:'door'}[id]||'select');setFrameWall('');setTool('select');return;}
     if(id==='roofAuto'){commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;});setTool('select');return;}
     if (id === 'extension' && plan.existingBuilding) {
@@ -6382,7 +6389,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas onDrawRoofAxis={addRoofMember} onDrawRoofPost={point=>addRoofMember(point,point,'post')} roofSupportGroups={activeFloor===floorCount?roofEditablePlanGroups(project.settings.productionCutting.roofSupports):[]} roofEditor={project.settings.productionCutting.roofEditor} onMoveRoofSupport={editRoofSupports} onDeleteRoofSupport={id=>editRoofSupports([id],{kind:'delete'})} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+        <PlanCanvas onDrawRoofAxis={addRoofMember} onDrawRoofPost={point=>addRoofMember(point,point,'post')} roofSupportGroups={activeFloor===floorCount?roofEditablePlanGroups(project.settings.productionCutting.roofSupports):[]} roofEditor={project.settings.productionCutting.roofEditor} onMoveRoofSupport={editRoofSupports} onDeleteRoofSupport={id=>editRoofSupports([id],{kind:'delete'})} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);setInspectorTab('element');}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6692,7 +6699,6 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               </div>
             ))}
             {[["showDimensions","Размеры",Ruler],["showLabels","Подписи",MessageSquareText]].map(([field,label,Icon])=><div className="plan-layer-tab" key={field}><button type="button" className="layer-select" aria-label={`Переключить ${label}`} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}><Icon/><span>{label}</span></button><button type="button" className="layer-visibility" aria-label={`${plan[field]!==false?'Скрыть':'Показать'} ${label}`} aria-pressed={plan[field]!==false} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}>{plan[field]!==false?<Eye/>:<EyeOff/>}</button></div>)}
-          </div>
           <div className="canvas-history-controls" role="toolbar" aria-label="Масштаб и действия плана">
             <button title="Отменить" onClick={undo} disabled={!canUndo}>
               <Undo2 />
@@ -6712,7 +6718,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           </div>
 
-          <PlanCanvas platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+          </div>
+
+          <PlanCanvas platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);setInspectorTab('element');}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={addRoofMember}
             onDrawRoofPost={point=>addRoofMember(point,point,'post')}
@@ -6772,6 +6780,11 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         </div>
         <div className="plan-pane-resizer inspector-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину панели параметров" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'inspector')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setInspectorWidth(value=>Math.max(280,value+(event.key==='ArrowLeft'?20:-20)));}}}/>
         <aside className="planner-inspector" ref={inspectorRef}>
+          <div className="plan-right-tabs" style={{gridTemplateColumns:"30px minmax(0,1fr) minmax(0,1fr)"}} role="group" aria-label="Настройки справа">
+            <button type="button" style={{flex:'0 0 30px',padding:0}} aria-label="Свернуть все разделы параметров" title="Свернуть все разделы" onClick={()=>{inspectorRef.current?.querySelectorAll('details[open]').forEach(section=>{section.open=false;});if(inspectorRef.current)inspectorRef.current.scrollTop=0;}}><ChevronsUp size={16}/></button>
+            <button type="button" aria-pressed={inspectorTab === 'house'} onClick={() => setInspectorTab('house')}>Параметры дома</button>
+            <button type="button" aria-pressed={inspectorTab === 'element'} onClick={() => setInspectorTab('element')}>Конструкция / элемент</button>
+          </div>
           {plan3DPlacement==='dock'?<div className="plan-right-3d" aria-label="3D и параметры дома">
             <div className="plan-right-3d-heading">
               <div><strong>Дом в 3D</strong><small>Текущий проект · изменения отображаются здесь</small></div>
@@ -6787,11 +6800,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}
             </div> : null}
           </div>:null}
-          <div className="plan-right-tabs" style={{gridTemplateColumns:"30px minmax(0,1fr) minmax(0,1fr)"}} role="group" aria-label="Настройки справа">
-            <button type="button" style={{flex:'0 0 30px',padding:0}} aria-label="Свернуть все разделы параметров" title="Свернуть все разделы" onClick={()=>{inspectorRef.current?.querySelectorAll('details[open]').forEach(section=>{section.open=false;});if(inspectorRef.current)inspectorRef.current.scrollTop=0;}}><ChevronsUp size={16}/></button>
-            <button type="button" aria-pressed={inspectorTab === 'house'} onClick={() => setInspectorTab('house')}>Параметры дома</button>
-            <button type="button" aria-pressed={inspectorTab === 'element'} onClick={() => setInspectorTab('element')}>Конструкция / элемент</button>
-          </div>
+
           <div className="planner-inspector-detail" hidden={inspectorTab !== 'house'}>
             <div className="plan-right-house">
               <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю параметры дома…</p>}>
@@ -6849,7 +6858,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <NumberField label="Точная ширина" value={boundsOf(polygonDraft).h} suffix="м" min={0.1} step={0.01} onChange={(value) => resizeDraftContour("h", value)} />
               <button className="button primary" disabled={polygonDraft.length < 3} onClick={finishPolygon}><Save />Замкнуть контур</button>
             </div>
-          ) : selected?.type==='roofSupport' ? (<Suspense fallback={<p>Загружаю параметры…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense>) : selected?.type==='roofAxis' ? (<RoofPlanSelectionInspector selection={selected} project={project} commit={commit} roofAxes={roofAxes} calculation={projectCalculation}/>) : selected?.type === "floorOpening" ? (
+          ) : activeLayer==='frame'&&!selected ? (<Suspense fallback={<p>Загружаю каркас…</p>}><FramePlatformInspector selection={frameSelection} onSelect={setFrameSelection} calculation={projectCalculation}/></Suspense>) : selected?.type==='roofSupport' ? (<Suspense fallback={<p>Загружаю параметры…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense>) : selected?.type==='roofAxis' ? (<RoofPlanSelectionInspector selection={selected} project={project} commit={commit} roofAxes={roofAxes} calculation={projectCalculation}/>) : selected?.type === "floorOpening" ? (
             <FloorOpeningInspector floorOpening={floorOpening} house={plan.house} commitFloorOpening={commitFloorOpening} setSelected={setSelected} />
           ) : activeLayer === "roof" && !selected ? (
             <RoofLayerInspector

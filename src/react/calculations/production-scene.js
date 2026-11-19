@@ -117,7 +117,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const flatFace=assembly.roofShape==='flat'?assembly.roofModel?.faces.find(face=>face.group==='main'):null;
   const height=(p,name)=>{if(flatFace)return flatRoofPlaneZ(flatFace,p)-roofBase;const s=d?.sections.find(s=>s.name===name)||d?.sections.find(s=>{const x=p[d.across]-d.origin[d.across];return x>=Math.min(s.a[0],s.b[0])-.1&&x<=Math.max(s.a[0],s.b[0])+.1;});if(!s)return null;const x=p[d.across]-d.origin[d.across];return s.a[1]+(s.b[1]-s.a[1])*(x-s.a[0])/(s.b[0]-s.a[0]);};
   const detail=(m,layer)=>{
-    if(m.worldA){const normal=m.normal||[0,0,1],profile=String(m.profile).split(/[×xх]/).map(Number),rafter=assembly.rafters.find(r=>r.faceId===m.faceId),rd=Number(String(rafter?.profile).split(/[×xх]/)[1])||0,cd=Number(String(assembly.counterLaths.find(r=>r.faceId===m.faceId)?.profile).split(/[×xх]/)[1])||0,offset=layer==='laths'?rd/2+cd+profile[0]/2:layer==='counterLaths'?rd/2+profile[1]/2:0;return [{...m,layer,flat:m.flat||layer==='laths',normal,a:m.worldA.map((x,i)=>x+normal[i]*offset),b:m.worldB.map((x,i)=>x+normal[i]*offset)}];}
+    if(m.worldA){const normal=m.normal||[0,0,1],profile=String(m.profile).split(/[×xх]/).map(Number),rafter=assembly.rafters.find(r=>r.faceId===m.faceId),face=assembly.roofModel?.faces.find(f=>f.id===m.faceId),rd=face?.warm?Number(face.thickness)||174:Number(String(rafter?.profile).split(/[×xх]/)[1])||0,cd=Number(String(assembly.counterLaths.find(r=>r.faceId===m.faceId)?.profile).split(/[×xх]/)[1])||0,offset=layer==='laths'?rd/2+cd+profile[0]/2:layer==='counterLaths'?rd/2+profile[1]/2:0;return [{...m,layer,flat:m.flat||layer==='laths',normal,a:m.worldA.map((x,i)=>x+normal[i]*offset),b:m.worldB.map((x,i)=>x+normal[i]*offset)}];}
     // Existing ridge rows have no chord heights: do not draw two coincident boards as a truss.
     if(layer==='roofTimbers'&&m.material?.startsWith('Коньковая')){missing.push(m.id);return [];}
     const za=height(m.a,m.name),zb=height(m.b,m.name);if(za==null||zb==null){missing.push(m.id);return [];}
@@ -148,7 +148,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
   const deckIsOsb=flatRoof.flatDeckMaterial==='osb',deckLayers=Math.min(3,Math.max(1,Math.round(Number(flatRoof.flatDeckLayers??2))));
   const deckThickness=(deckIsOsb?(flatRoof.flatOsbThicknessMm===9?9:12):12)*deckLayers;
   const firstDepth=(items,index)=>Number(String(items?.[0]?.profile||'').split(/[×xх]/)[index])||0;
-  const flatLathTop=face=>assembly.laths?.length?firstDepth(assembly.rafters,1)/2+firstDepth(assembly.counterLaths,1)+firstDepth(assembly.laths,0):Number(face.thickness||0)/2+25;
+  const flatLathTop=face=>assembly.laths?.length?(face.warm?Number(face.thickness||174)/2:firstDepth(assembly.rafters,1)/2)+firstDepth(assembly.counterLaths,1)+firstDepth(assembly.laths,0):Number(face.thickness||0)/2+25;
   const flatLathBeams=assembly.roofShape==='flat'&&flatRoof.flatCoverSystem==='bitumen'&&flatRoof.includeCovering!==false&&!assembly.laths?.length?flatFaces.flatMap(face=>{
     const polygon=displayContour?flatRoofLocalContour(face,displayContour):face.polygon||[],step=Math.max(100,Number(flatRoof.lathStep||.35)*1000),minV=Math.min(...polygon.map(point=>point[1])),maxV=Math.max(...polygon.map(point=>point[1]));
     const point=(u,v)=>face.origin.map((value,index)=>value+face.u[index]*u+face.v[index]*v+face.normal[index]*(Number(face.thickness||0)/2+12.5));
@@ -232,7 +232,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
     const steps=p.steps.map(s=>({...s,layer:'platforms',shape:[s.ring],placement:{...placement,origin:[0,0,s.z-s.thickness/2]},timber:true,referenceOnly:true}));
     // Legacy roofs have no production placement for cold platform facets.
     const roofs=p.faces.filter(f=>!panels.some(s=>s.faceId===f.id)).map(f=>({id:`platform:${p.id}:roof:${f.id}`,layer:'platformRoof',shape:[f.polygon],placement:{origin:f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
-    return [deck,...steps,...roofs];
+    return [...(p.deckEnabled===false?[]:[deck]),...steps,...roofs];
   });
   const platformFaceIds=new Set((assembly.platforms||[]).flatMap(p=>p.faces.map(f=>f.id)));
   const visible=item=>includePlatforms||!(platformFaceIds.has(item.faceId)||String(item.placement?.layer)==='roof'&&platformFaceIds.has(item.surfaceId));

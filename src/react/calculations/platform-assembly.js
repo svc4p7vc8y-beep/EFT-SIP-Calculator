@@ -2,6 +2,7 @@ import {railingLayout,projectPlatformPosts} from './platform-railings.js';
 import { normalizeTerracePlatform } from '../../calculations/terrace-model.js';
 import { roofAt, roofHeight } from './roof-project.js';
 import { platformDeckFrame, PLATFORM_DECK_THICKNESS_MM } from './platform-deck-frame.js';
+import {platformRoofSupportLayout} from './platform-roof-support-layout.js';
 
 const rect=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]];
 
@@ -19,24 +20,11 @@ export function platformAssembly(project, calculation, roofModel) {
       return {id:`platform:${p.id}:step:${i+1}`,ring,z:deckZ-(i+1)*riser,thickness:45};
     });
     const faces=(roofModel?.faces||[]).filter(f=>f.group===`terrace:${p.id}`),posts=[],ties=[];
-    if(p.roof.mode==='shared'&&result?.sharedPosts?.length)posts.push(...result.sharedPosts);
-    if(result?.postCount&&(faces.length||posts.length)){
-      const n=Math.min(500,result.postCount),attached=result.side;
-      for(let i=0;i<(p.roof.mode==='shared'?0:n);i++){
-        const t=n===1?.5:i/(n-1),pos=attached==='left'?[x,y+h*t]:attached==='right'?[x+w,y+h*t]:attached==='top'?[x+w*t,y]:[x+w*t,y+h];
-        const face=roofAt({faces},...pos)[0]?.face;if(!face)continue;
-        const z=roofHeight(face,...pos);if(z<=deckZ)continue;
-        posts.push({id:`platform:${p.id}:post:${i+1}`,a:[...pos,deckZ],b:[...pos,z],profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true});
-      }
-      // The terrace wall plate follows the lowest eave bearing of these posts.
-      // A gable roof has taller ridge posts, but the tie must stay level.
-      const plateTopZ=Math.min(...posts.map(post=>post.b[2]));
-      const plateZ=plateTopZ-Number(result.postSection.split('x')[1])/2;
-      for(let i=1;i<posts.length;i++)ties.push({id:`platform:${p.id}:tie:${i}`,a:[...posts[i-1].b.slice(0,2),plateZ],b:[...posts[i].b.slice(0,2),plateZ],profile:result.postSection.replace('x','×'),layer:'platforms',referenceOnly:true,name:'Стяжка по уровню мауэрлата террасы',plateTopZ});
-    }
+    const supports=result&&(result.supportLayout||platformRoofSupportLayout(project,p,result,roofModel));
+    if(supports){posts.push(...supports.posts);ties.push(...supports.ties);}
     const deckThicknessMm=project.settings.terrace?.deckBoard==='28x145'?28:PLATFORM_DECK_THICKNESS_MM;
     const deckFrame=platformDeckFrame(p,deckThicknessMm);
-    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,contour:rect(x,y,w,h),deckZ,thickness:deckThicknessMm,steps,faces,posts,ties,
+    return {id:p.id,name:p.name||(p.kind==='porch'?'Крыльцо':'Терраса')+` ${index+1}`,kind:p.kind,deckEnabled:p.deckEnabled!==false,joistsEnabled:p.joistsEnabled!==false,contour:rect(x,y,w,h),deckZ,thickness:deckThicknessMm,steps,faces,posts,ties,
       railing:railingLayout(p,[...posts,...projectPlatformPosts(project,p,result||{}).filter(q=>!posts.some(s=>s.id===q.id))],result?.postSection),
       frameMembers:deckFrame.members,stringers:deckFrame.stringers,joistSpacingMm:deckFrame.joistSpacingMm,frameIssues:deckFrame.issues,
       foundationMode:p.foundation.mode,bindingMode:p.binding.mode,referenceOnly:true};

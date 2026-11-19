@@ -73,8 +73,9 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   const simple=['gable','flat','tiered'].includes(roof.mainRoofShape);
   const rectangular=!roof.footprint?.included.length&&isAxisAlignedRectangleContour(contour);
   const frame=roof.rafterStructure||{};
+  const mainColdArea=roof.mainColdSlopeArea??roof.coldSlopeArea;
   const count=Number(frame.pairCount)||0;
-  if(project.services.roof && roof.coldSlopeArea>0 && simple && rectangular && frame.system!=='truss' && count<=500){
+  if(project.services.roof && mainColdArea>0 && simple && rectangular && frame.system!=='truss' && count<=500){
     const runs=roof.mainRoofShape==='flat'?[{a:-eave,b:span+eave,length:g.slopeLength,name:'Односкатная'}]:roof.mainRoofShape==='tiered'?
       [{a:-eave,b:mm(g.upperSpan)+mm(g.jointOverhang||0),length:g.upperSlopeLength,name:'Верхний уровень',level:'upper'}, {a:mm(g.upperSpan),b:span+eave,length:g.lowerSlopeLength,name:'Нижний уровень',level:'lower'}]:
       [{a:-eave,b:span/2,length:g.slopeLength,name:'Первый скат'},{a:span+eave,b:span/2,length:g.slopeLength,name:'Второй скат'}];
@@ -91,7 +92,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       rafters.push(item);
       members.push({id,material:'Стропило',profile:item.profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия кровли',surface:'Кровля',panels:[],processing:'Углы и опорные врубки по рабочему узлу'});
     }
-  } else if(project.services.roof && roof.coldSlopeArea>0)issues.push('Стропила сложной кровли или фермы: внесите детали по рабочему проекту.');
+  } else if(project.services.roof && mainColdArea>0)issues.push('Стропила сложной кровли или фермы: внесите детали по рабочему проекту.');
   const roofTimbers=[];
   const addRoofMember=(id,material,profile,length,a,b)=>{members.push({id,material,profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия кровли',surface:'Кровля',panels:[],processing:'Соединение длинных элементов и опорные узлы по проекту'});if(a&&b)roofTimbers.push({id,material,profile,length,a,b});};
   if(project.services.roof && roof.mauerlatLength>0){
@@ -280,6 +281,14 @@ export function calculateAssemblyPlan(project,calculation,settings) {
       assembly.issues.push(...platform.issues);
     }
   }
+  if(!settings.roofDesign?.enabled&&!automaticColdHip&&!automaticColdContour){
+    const faces=assembly.roofModel.faces.filter(face=>face.warm);
+    if(faces.length){
+      const warm=roofFabrication({...assembly.roofModel,faces,edges:[]},project,calculation,settings,{includeWallPlate:false});
+      assembly.laths.push(...warm.laths);assembly.counterLaths.push(...warm.counterLaths);assembly.members.push(...warm.members);
+      assembly.issues.push(...warm.issues);
+    }
+  }
   if (rectangular && project.settings.roof.type === 'cold'
     && !settings.roofDesign?.manualFaces?.length
     && hangingRiegelEnabled(project.settings.roof, roof)) {
@@ -326,6 +335,13 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   assembly.pileSources=(calculation.foundation?.points||[]).map(p=>p.source);
   assembly.platforms=platformAssembly(project,calculation,assembly.roofModel);
   for(const platform of assembly.platforms){
+    for(const item of [...platform.posts,...platform.ties]){
+      const length=Math.ceil(Math.hypot(...item.a.map((v,i)=>item.b[i]-v)));
+      assembly.members.push({...item,worldA:item.a,worldB:item.b,length,cutLength:length+2*Number(settings.endAllowanceMm||0),
+        material:item.profile==='100×100'?'Брус ест.влажн. сосна 100×100 мм':'Брус мауэрлата ест.влажн. сосна 150×100 мм',
+        surface:platform.name,surfaceId:`platform:${platform.id}`,panels:[],role:'frame',
+        source:item.name||'Опорный столб кровли террасы',processing:'Опирание и крепёж по рабочему узлу'});
+    }
     for(const item of [...platform.frameMembers,...platform.stringers,...(platform.railing?.members||[])])assembly.members.push({
       ...item,material:item.material||'Доска ест. влажн. сосна 50х150мм',profile:item.materialProfile||item.profile,surface:platform.name,
       surfaceId:`platform:${platform.id}`,panels:[],role:item.kind==='joist'?'joist':'frame',

@@ -846,6 +846,8 @@ export function calculateProductionCutting(project, calculation) {
     }
   }
   for(const extra of supplementalGables(project,calculation,assembly,surfaces))addSurface(extra);
+  const gableOptions=surfaces.filter(s=>s.id.startsWith('ФР-')).map(s=>({id:s.id,name:s.name,parentWallId:s.parentWallId,excluded:settings.excludedGables.includes(s.id)}));
+  for(let i=surfaces.length-1;i>=0;i--)if(settings.excludedGables.includes(surfaces[i].id))surfaces.splice(i,1);
   for(const plan of plans)for(const facade of plan.facades||[]){
     const envelope=facadeEnvelope({surfaces},facade.wallId);
     const errors=envelope?facadeLayout(facade,envelope).errors:['Стена фасада удалена или не построена.'];
@@ -1152,7 +1154,7 @@ export function calculateProductionCutting(project, calculation) {
   if (revisionSettings.bindingJointToleranceMm === '') delete revisionSettings.bindingJointToleranceMm;
   if (revisionSettings.ceilingMaxSpanMm === '') delete revisionSettings.ceilingMaxSpanMm;
   const revision = cuttingRevision({ fabricationModel:227, building:project.documentation?.building||{}, plans, sip, services, formulas: f, roof: roofSettings, settings: revisionSettings, nodes: project.nodes, construction: project.construction, estimate: calculation.lines, reviewer: approval.reviewer || '', nodeRef: approval.nodeRef || '' });
-  const report = { settings, revision, panelWidth, panelLength, surfaces, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
+  const report = { settings, revision, panelWidth, panelLength, surfaces, gableOptions, parts, panelGroups: groupPanels(parts), members, memberGroups:groupMembers(members), starterBoards:starterBoardPlan(surfaces,members), openings, walls, issues, notices, panelStock, timberStock, assembly, netArea: parts.reduce((sum, part) => sum + part.area, 0) / 1e6, upperCourseCount: parts.filter(part => part.upperCourse).length };
   const firstFloorGeometry = buildFirstFloorWallGeometry({ plan: plans[0], sip, roof: roofSettings, services, productionSettings: settings, topFloor: plans.length === 1 });
   report.geometryDiagnostics = { model: firstFloorGeometry, comparison: compareWallGeometry(firstFloorGeometry, surfaces) };
   report.constructionRuleChecks = { bindingStraightSupport: evaluateBindingStraightSupport({

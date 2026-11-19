@@ -1,24 +1,27 @@
+import {structuralReport} from '../calculations/structural-report.js';
+import {editPlatformPost} from '../calculations/platform-roof-support-layout.js';
 import {sectionWidths} from '../state/window-products.js';
 import {useMemo,useRef,useState,useEffect} from 'react';
-import {calculateProject} from '../calculations/estimate-engine.js';
-import {calculateProductionCutting} from '../calculations/production-cutting.js';
 import {productionScene} from '../calculations/production-scene.js';
 import {useProject} from '../state/ProjectContext.jsx';
 import {moveFrameSelection,structuralStuds} from '../calculations/structural-frame.js';
 
 export default function StructuralPlanLayer({project,floor,p,onOpen,selected,onSelect,onMessage}){
   const {commit}=useProject(),drag=useRef(null),[preview,setPreview]=useState(null),skip=useRef(false);
-  const report=useMemo(()=>calculateProductionCutting(project,calculateProject(project)),[project]);
+  const report=useMemo(()=>structuralReport(project),[project]);
   const scene=useMemo(()=>productionScene(report,project),[report,project]);
+  const platformPosts=floor===1?report.assembly.platforms.flatMap(p=>p.posts):[];
+  const editPost=(post,patch)=>commit(next=>editPlatformPost(next,post.platformId,post.id,patch));
   const walls=report.surfaces.filter(s=>s.floor===floor&&s.planStart);
   const move=(choice,delta)=>{try{const next=moveFrameSelection(structuredClone(project),choice,delta,report);commit(()=>next);onMessage?.('Стойка перемещена. Проверьте рабочие узлы и примыкания.');}catch(e){onMessage?.(e.message);}};
   const choice=(kind,id,wall,member)=>({kind,id,wall,member});
   const current=selected?.kind==='member'?report.members.find(m=>m.id===selected.id):null;
   const selectedWall=walls.find(w=>w.id===selected?.wallId);
   useEffect(()=>{const key=e=>{if(!selectedWall||!selected||e.defaultPrevented||e.target?.closest?.('input,textarea,select,[role=dialog]')||!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();e.stopImmediatePropagation();move(choice(selected.kind,selected.id,selectedWall,current),(e.key==='ArrowRight'?1:-1)*(e.shiftKey?100:10));};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);});
+  useEffect(()=>{const key=e=>{if(selected?.kind!=='platformPost'||e.defaultPrevented||e.target?.closest?.('input,textarea,select,[role=dialog]'))return;const post=platformPosts.find(p=>p.id===selected.id);if(!post||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Delete','Backspace'].includes(e.key))return;e.preventDefault();e.stopImmediatePropagation();if(['Delete','Backspace'].includes(e.key)){editPost(post,{exclude:true});onSelect(null);return;}const step=e.shiftKey?100:10;editPost(post,{xMm:post.a[0]+(e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0),yMm:post.a[1]+(e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0)});};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);});
   const start=(e,kind,id,w,m)=>{e.stopPropagation();if(selected?.id!==id){onSelect?.({kind,id,wallId:w.id});return;}e.preventDefault();const matrix=e.currentTarget.ownerSVGElement.getScreenCTM();if(!matrix)return;const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix.inverse());drag.current={choice:choice(kind,id,w,m),matrix:matrix.inverse(),x:q.x,y:q.y};e.currentTarget.setPointerCapture(e.pointerId);};
-  const moving=e=>{const v=drag.current;if(!v)return;e.stopPropagation();const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(v.matrix),w=v.choice.wall,a=p(w.planStart[0]/1000,w.planStart[1]/1000),b=p(w.planEnd[0]/1000,w.planEnd[1]/1000),delta=Math.round(((q.x-v.x)*(b.x-a.x)+(q.y-v.y)*(b.y-a.y))/Math.max(.001,(b.x-a.x)**2+(b.y-a.y)**2)*w.width/5)*5;v.delta=delta;setPreview({id:v.choice.id,dx:(b.x-a.x)*delta/w.width,dy:(b.y-a.y)*delta/w.width});};
-  const end=e=>{const v=drag.current;if(!v)return;e.stopPropagation();drag.current=null;setPreview(null);if(v.delta){move(v.choice,v.delta);skip.current=true;}};
+  const moving=e=>{const v=drag.current;if(!v)return;e.stopPropagation();const q=new DOMPoint(e.clientX,e.clientY).matrixTransform(v.matrix);if(v.post){const sx=p(1,0).x-p(0,0).x,sy=p(0,1).y-p(0,0).y;v.dxMm=Math.round((q.x-v.x)/sx*1000/5)*5;v.dyMm=Math.round((q.y-v.y)/sy*1000/5)*5;setPreview({id:v.post.id,dx:q.x-v.x,dy:q.y-v.y});return;}const w=v.choice.wall,a=p(w.planStart[0]/1000,w.planStart[1]/1000),b=p(w.planEnd[0]/1000,w.planEnd[1]/1000),delta=Math.round(((q.x-v.x)*(b.x-a.x)+(q.y-v.y)*(b.y-a.y))/Math.max(.001,(b.x-a.x)**2+(b.y-a.y)**2)*w.width/5)*5;v.delta=delta;setPreview({id:v.choice.id,dx:(b.x-a.x)*delta/w.width,dy:(b.y-a.y)*delta/w.width});};
+  const end=e=>{const v=drag.current;if(!v)return;e.stopPropagation();drag.current=null;setPreview(null);if(v.post){if(v.dxMm||v.dyMm)editPost(v.post,{xMm:v.post.a[0]+(v.dxMm||0),yMm:v.post.a[1]+(v.dyMm||0)});return;}if(v.delta){move(v.choice,v.delta);skip.current=true;}};
   const props=(kind,id,w,m)=>({role:'button',tabIndex:0,'aria-label':`Стойка ${id}`,onPointerDown:e=>start(e,kind,id,w,m),onPointerMove:moving,onPointerUp:end,onPointerCancel:()=>{drag.current=null;setPreview(null);},onClick:e=>{e.stopPropagation();if(skip.current){skip.current=false;return;}onSelect?.({kind,id,wallId:w.id});},transform:preview?.id===id?`translate(${preview.dx} ${preview.dy})`:undefined});
   const xy=point=>{const q=p(point[0]/1000,point[1]/1000);return `${q.x},${q.y}`;};
   const toWorld=(place,x,y)=>place.origin.map((v,i)=>v+place.u[i]*x+place.normal[i]*y);
@@ -31,6 +34,8 @@ export default function StructuralPlanLayer({project,floor,p,onOpen,selected,onS
         <title>{w.name} · открыть развёртку каркаса</title>
       </g>;
     })}
+    {floor===1?report.assembly.platforms.flatMap(platform=>platform.ties.map(beam=>{const a=p(beam.a[0]/1000,beam.a[1]/1000),b=p(beam.b[0]/1000,beam.b[1]/1000);return <line key={beam.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} pointerEvents="none" stroke="#b78941" strokeWidth="5"><title>Балка опирания стропил · {beam.profile}</title></line>;})):null}
+    {platformPosts.map(post=>{const q=p(post.a[0]/1000,post.a[1]/1000);return <rect key={post.id} role="button" tabIndex={0} aria-label={`Столб террасы ${post.id}`} x={q.x-6} y={q.y-6} width="12" height="12" stroke="#fff" fill={selected?.id===post.id?'#1472b2':'#4c873b'} transform={preview?.id===post.id?`translate(${preview.dx} ${preview.dy})`:undefined} onPointerDown={e=>{e.stopPropagation();e.preventDefault();if(selected?.id!==post.id){onSelect({kind:'platformPost',platformId:post.platformId,id:post.id});return;}const m=e.currentTarget.ownerSVGElement.getScreenCTM().inverse(),v=new DOMPoint(e.clientX,e.clientY).matrixTransform(m);drag.current={post,matrix:m,x:v.x,y:v.y};e.currentTarget.setPointerCapture(e.pointerId);}} onPointerMove={moving} onPointerUp={end} onPointerCancel={()=>{drag.current=null;setPreview(null);}} onClick={e=>{e.stopPropagation();onSelect({kind:'platformPost',platformId:post.platformId,id:post.id});}}><title>Столб террасы · {post.profile} · выберите и переместите</title></rect>;})}
     {project.settings.productionCutting.roofSupports.filter(s=>s.type==='post'&&(s.frameFloor===floor||!s.frameFloor&&floor===report.assembly.floors.length)).map(s=>{const q=p(s.x1/1000,s.y1/1000),plan=floor===1?project.plan:project.upperFloors[floor-2],wall=walls.find(w=>w.id===(s.frameWallId||plan.facades?.find(f=>f.id===s.facadeId)?.wallId));if(!wall)return <rect key={s.id} x={q.x-5} y={q.y-5} width="10" height="10" fill="#4c873b"><title>{s.name} · опора крыши</title></rect>;return <rect key={s.id} {...props('post',s.id,wall)} x={q.x-6} y={q.y-6} width="12" height="12" fill={selected?.id===s.id?'#1472b2':'#4c873b'} stroke="white"><title>{s.name} · {s.profile} мм · выберите и переместите</title></rect>;})}
   </g>;
 }

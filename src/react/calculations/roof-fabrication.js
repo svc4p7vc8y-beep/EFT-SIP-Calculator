@@ -87,6 +87,19 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
    else if(!truss)issues.push(`${f.name}: проектное сечение контробрешётки не задано.`);
   }
  }
+ // SIP is the bearing surface: laths lie above the panel, without an invented rafter grid below it.
+ for(const f of model.faces.filter(f=>f.warm&&(calculation.roof.includeCovering||f.group?.startsWith('terrace:')))){
+  const xs=f.polygon.map(p=>p[0]),ys=f.polygon.map(p=>p[1]),lo=Math.min(...xs),hi=Math.max(...xs),v0=Math.min(...ys),v1=Math.max(...ys);
+  const max=Number(settings.stockLengthMm)-2*Number(settings.endAllowanceMm||0);if(!(max>0))continue;
+  for(const row of roofLathRows(v1-v0,Number(calculation.roof.lathStep||.35)*1000))for(const [a,b]of roofLineIntervals(f.polygon.map(([x,y])=>[y,x]),v0+row)){
+   for(let from=a;from<b-.01;){const to=Math.min(b,from+max),A=roofWorld(f,[from,v0+row]),B=roofWorld(f,[to,v0+row]);
+    append({id:`${f.id}-СИП-ОБ${laths.length+1}`,name:f.name,faceId:f.id,normal:f.normal,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(to-from),profile:'25×100',flat:true},'Обрешётка',laths);from=to;
+   }
+  }
+  if(/^\d+×\d+$/.test(settings.counterLathProfile))for(const x of clearGapPositions(lo+25,hi-25,50,Math.max(100,Number(project.settings.formulas?.sipGridStepMm)||625)-50))for(const [a,b]of roofLineIntervals(f.polygon,x)){
+   const A=roofWorld(f,[x,a]),B=roofWorld(f,[x,b]);append({id:`${f.id}-СИП-КО${counterLaths.length+1}`,name:f.name,faceId:f.id,normal:f.normal,a:A.slice(0,2),b:B.slice(0,2),worldA:A,worldB:B,length:Math.ceil(b-a),profile:settings.counterLathProfile},'Контробрешётка',counterLaths);
+  }
+ }
  const autoHipProfile=calculation.roof.mainRoofShape==='hip'&&(!settings.roofDesign.enabled||settings.roofDesign.hipGeometry?.mode==='contour')?section:'';
  const contourProposal=calculation.roof.pitched&&!settings.roofDesign.manualFaces?.length;
  for(const edge of model.edges.filter(e=>['ridge','hip','valley'].includes(e.kind))){const savedProfile=settings.roofDesign.edgeProfiles?.[edge.id],profile=savedProfile||autoHipProfile||(contourProposal?section:''),cold=edge.faces.some(id=>model.faces.find(f=>f.id===id)?.warm===false);

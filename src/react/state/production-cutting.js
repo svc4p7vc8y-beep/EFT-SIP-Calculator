@@ -67,6 +67,7 @@ export function normalizeProductionCutting(value = {}) {
     ceilingDirection: ['x','y'].includes(value.ceilingDirection)?value.ceilingDirection:'auto',
     interfloorDirection: ['x','y'].includes(value.interfloorDirection)?value.interfloorDirection:'auto',
     layouts: value.layouts && typeof value.layouts === 'object' && !Array.isArray(value.layouts) ? value.layouts : {},
+    excludedGables:Array.isArray(value.excludedGables)?[...new Set(value.excludedGables.filter(id=>typeof id==='string'&&id.startsWith('ФР-')))].slice(0,200):[],
     gableLinks: value.gableLinks && typeof value.gableLinks==='object' && !Array.isArray(value.gableLinks) ? value.gableLinks : {},
     roofSheets: value.roofSheets && typeof value.roofSheets==='object' && !Array.isArray(value.roofSheets) ? value.roofSheets : {},
     roofDesign:normalizeRoofDesign(value.roofDesign),

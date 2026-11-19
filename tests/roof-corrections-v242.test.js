@@ -8,16 +8,16 @@ import { productionEstimateLines } from '../src/react/calculations/production-es
 
 const report = project => calculateProductionCutting(project, calculateProject(project));
 
-test('terrace tie stays horizontal at the terrace eave bearing, including a taller ridge post', () => {
+test('terrace eave beams bear on both side rows below the rafters', () => {
   const project = createDefaultProject();
   project.plan.platforms = [{ id: 'terrace', x: 1, y: project.plan.house.h, w: 4, h: 2, kind: 'terrace', roof: { mode: 'cold', shape: 'gable', postSection: '100x100' } }];
   const platform = report(project).assembly.platforms[0];
-  const eaveZ = Math.min(...platform.posts.map(post => post.b[2]));
-  const tieCenterZ = eaveZ - 50;
-  assert.ok(platform.posts.some(post => post.b[2] > eaveZ + 100));
+  assert.equal(new Set(platform.posts.map(p=>p.runId)).size,2);
   assert.ok(platform.ties.length > 0);
-  assert.ok(platform.ties.every(tie => tie.a[2] === tieCenterZ && tie.b[2] === tieCenterZ && tie.plateTopZ === eaveZ));
-  assert.ok(platform.ties.every(tie => platform.posts.some(post => post.b[0] === tie.a[0] && post.b[1] === tie.a[1] && post.b[2] >= tie.a[2])));
+  for(const tie of platform.ties){
+    assert.equal(tie.a[2],tie.b[2]);
+    assert.ok(platform.posts.some(post=>[tie.a,tie.b].some(end=>Math.hypot(post.b[0]-end[0],post.b[1]-end[1])<1&&Math.abs(post.b[2]+50-end[2])<1)));
+  }
 });
 
 test('terrace purlins run across the roof fall and do not occupy rafter lines', () => {

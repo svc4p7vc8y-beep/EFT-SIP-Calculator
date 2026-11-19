@@ -1,0 +1,22 @@
+import {useMemo,useState} from 'react';
+import {useProject} from '../state/ProjectContext.jsx';
+import {structuralReport} from '../calculations/structural-report.js';
+import {editPlatformPost,platformPostAnchor} from '../calculations/platform-roof-support-layout.js';
+const number=(label,value,change)=><label className="field">{label}<input type="number" step="10" value={Math.round(value||0)} onChange={e=>{const n=Number(e.target.value);if(Number.isFinite(n))change(n);}}/></label>;
+export default function FramePlatformInspector({selection,onSelect,calculation}){
+ const {project,commit}=useProject(),report=useMemo(()=>structuralReport(project),[project]),[platformId,setPlatformId]=useState('');
+ const platforms=project.plan.platforms.filter(p=>p.include!==false),platform=platforms.find(p=>p.id===(selection?.platformId||platformId))||platforms[0];
+ const posts=report.assembly.platforms.flatMap(p=>p.posts),post=selection?.kind==='platformPost'?posts.find(p=>p.id===selection.id):null;
+ const edit=patch=>commit(next=>editPlatformPost(next,platform.id,post.id,patch));
+ const anchors=[{id:'auto',name:'Авто · по наличию сваи'},{id:'base',name:'К основанию · 4000 ₽/шт.'},{id:'pile',name:'К свае · 1500 ₽/шт.'},{id:'none',name:'Без крепления в смете'}];
+ return <div className="inspector-form"><h3>{post?'Столб террасы':'Силовой каркас · террасы и фронтоны'}</h3>
+ {platform?<><label className="field">Площадка<select value={platform.id} onChange={e=>{setPlatformId(e.target.value);onSelect(null);}}>{platforms.map(p=><option value={p.id} key={p.id}>{p.name||p.kind||'Терраса'}</option>)}</select></label>
+ <button className="button" onClick={()=>{const id=`platform:${platform.id}:manual:${crypto.randomUUID()}`,existing=report.assembly.platforms.find(p=>p.id===platform.id)?.posts||[],reference=existing[0],xMm=reference?Math.max(platform.x*1000,Math.min((platform.x+platform.w)*1000,reference.a[0]+(['top','bottom'].includes(reference.runId)?(reference.a[0]>(platform.x+platform.w/2)*1000?-300:300):0))):(platform.x+platform.w/2)*1000,yMm=reference?Math.max(platform.y*1000,Math.min((platform.y+platform.h)*1000,reference.a[1]+(['left','right'].includes(reference.runId)?(reference.a[1]>(platform.y+platform.h/2)*1000?-300:300):0))):(platform.y+platform.h/2)*1000;commit(next=>{const p=next.plan.platforms.find(p=>p.id===platform.id);p.roofPosts=[...(p.roofPosts||[]),{id,xMm,yMm,runId:reference?.runId||null}];return next;});onSelect({kind:'platformPost',platformId:platform.id,id});}}>＋ Столб террасы</button>
+ <p className="inspector-note">Выберите столб на плане и перетащите. Стрелки — 10 мм, Shift — 100 мм; Del исключает столб. Автоматические балки перестраиваются по столбам своего ряда.</p>
+ {post?<>{number('X, мм',post.a[0],xMm=>edit({xMm}))}{number('Y, мм',post.a[1],yMm=>edit({yMm}))}{number('Низ столба, мм',post.a[2],baseZMm=>edit({baseZMm}))}{number('Верх столба, мм',post.b[2],topZMm=>edit({topZMm}))}
+ <label className="field">Крепление<select value={post.anchorMode||'auto'} onChange={e=>edit({anchorMode:e.target.value})}>{anchors.map(a=><option value={a.id} key={a.id}>{a.name}</option>)}</select></label><small>В смете: {platformPostAnchor(post,calculation.foundation)==='pile'?'к свае':platformPostAnchor(post,calculation.foundation)==='base'?'к основанию':'крепление отключено'}. Цены пользователя 19.11.2026; узел по проекту.</small>
+ <button className="button" onClick={()=>edit({topZMm:undefined})}>Верх автоматически под кровлю</button><button className="button danger-button" onClick={()=>{edit({exclude:true});onSelect(null);}}>Убрать столб</button></>:null}
+ <button className="button" onClick={()=>{commit(next=>{const p=next.plan.platforms.find(p=>p.id===platform.id);p.roofSupportOverrides={};p.roofPosts=[];return next;});onSelect(null);}}>Восстановить автоматическую схему площадки</button></>:<p>Добавьте террасу или крыльцо на плане.</p>}
+ <details><summary>Фронтоны · состав конструкции</summary><p className="inspector-note">Снятая галочка исключает выбранный фронтон из 3D и раскроя. Восстановление — этой же галочкой или Ctrl+Z.</p>{report.gableOptions?.map(g=><label key={g.id}><input type="checkbox" checked={!g.excluded} onChange={e=>commit(next=>{const ids=next.settings.productionCutting.excludedGables||[];next.settings.productionCutting.excludedGables=e.target.checked?ids.filter(id=>id!==g.id):[...new Set([...ids,g.id])];return next;})}/>{g.name}</label>)}</details>
+ </div>;
+}

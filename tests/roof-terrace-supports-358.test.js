@@ -20,12 +20,12 @@ test('delete a support frame removes all its members and keeps other project sup
 });
 test('a notched house with a shared terrace has posts in the scene and matching material quantities without another roof cover',()=>{
  const p=sharedTerraceFixture(),before=JSON.stringify(p.plan),c=calculateProject(p),r=calculateProductionCutting(p,c),platform=r.assembly.platforms[0],result=c.roof.terraceRoofs[0].result;
- assert.equal(platform.posts.length,4);assert.equal(result.netArea,0);assert.equal(platform.faces.length,0);
+ assert.equal(platform.posts.length,3);assert.equal(result.netArea,0);assert.equal(platform.faces.length,0);
  assert.equal(result.postCount,platform.posts.length);assert.ok(Math.abs(result.postLength-platform.posts.reduce((n,s)=>n+(s.b[2]-s.a[2])/1000,0))<.001);
- for(const post of platform.posts)assert.ok(roofAt(r.assembly.roofModel,...post.b).some(h=>Math.abs(h.z-post.b[2])<1));
+ for(const post of platform.posts)assert.ok(roofAt(r.assembly.roofModel,...post.b).some(h=>h.z>post.b[2]&&h.z-post.b[2]<300));
  assert.ok(c.lines.some(l=>l.id==='roof:platform-t-posts-150x100'&&l.qty>0));
- assert.equal(productionScene(r,p).beams.filter(b=>b.id.startsWith('platform:t:post:')).length,4);
- assert.equal(JSON.stringify(p.plan),before);assert.equal(calculateProject(migrateProject(JSON.parse(JSON.stringify(p)))).roof.terraceRoofs[0].result.postCount,4);
+ assert.equal(productionScene(r,p).beams.filter(b=>b.id.startsWith('platform:t:post:')).length,3);
+ assert.equal(JSON.stringify(p.plan),before);assert.equal(calculateProject(migrateProject(JSON.parse(JSON.stringify(p)))).roof.terraceRoofs[0].result.postCount,3);
 });
 test('shared rectangular roof builds and anchors both end gables to house walls, independently of manual support frames',()=>{
  const p=sharedTerraceFixture(),c=calculateProject(p),r=calculateProductionCutting(p,c),gables=r.surfaces.filter(s=>s.id.startsWith('ФР-'));

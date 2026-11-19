@@ -65,8 +65,8 @@ export function platformDeckFrame(raw, deckThicknessMm = PLATFORM_DECK_THICKNESS
       profile: PLATFORM_FRAME_PROFILE, length: Math.ceil(Math.hypot(...a.map((v, i) => b[i] - v))),
       layer: 'platforms', structuralStatus: 'unverified', name: 'Тетива ступеней' };
   }) : [];
-  return { members, stringers, joistSpacingMm: spacing,
-    frameLengthMm: members.reduce((sum, member) => sum + member.length, 0),
+  return { members:platform.joistsEnabled===false?[]:members, stringers, joistSpacingMm: spacing,
+    frameLengthMm: platform.joistsEnabled===false?0:members.reduce((sum, member) => sum + member.length, 0),
     stringerLengthMm: stringers.reduce((sum, member) => sum + member.length, 0),
     issues: ['Каркас настила и тетивы: шаг задан геометрически; пролёты, стыки досок, опирание и крепёж не проверены расчётом.'] };
 }

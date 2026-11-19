@@ -9,7 +9,7 @@ export function canEditPlanObject(active,type){return planObjectLayer(type)===ac
 export function planLayerTools(layer){
  const shared=['select','guide','delete'];
  if(layer==='roof')return [...shared,'roofPan','roofAxis','roofBeam','roofPost','roofAuto'];
- if(layer==='frame')return ['select','structuralFrame','framePost','frameWindow','frameDoor'];
+ if(layer==='frame')return ['select','structuralFrame','framePost','frameWindow','frameDoor','frameTerrace'];
  if(layer==='piles')return [...shared,'pile','pileRow','foundationGrid'];
  if(layer==='binding')return [...shared,'bindingLine','foundationGrid'];
  return ['select','room','extension','polygon','houseContour','existingContour','attachedContour','wall','bearingWall','gap','window','door','stairOpening','dimension','guide','annotation','terrace','porch','railing','delete'];

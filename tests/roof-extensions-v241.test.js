@@ -52,7 +52,7 @@ test('terrace outer tie uses post section and adds one material line', () => {
   const platform = assembly.platforms[0];
   assert.equal(platform.ties.length, platform.posts.length - 1);
   assert.ok(platform.posts.every(item => Math.abs(item.a[1] - (project.plan.house.h + 2) * 1000) < 1));
-  assert.ok(productionScene(report(project), project).beams.some(item => item.id === 'platform:t:tie:1'));
+  assert.ok(productionScene(report(project), project).beams.some(item => item.id.startsWith('platform:t:tie:')));
 });
 
 test('unrelated terrace gable has no unsupported package ridge', () => {
