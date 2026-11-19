@@ -1,0 +1,25 @@
+import {useMemo,useState} from 'react';
+import {Printer,Download,Send} from 'lucide-react';
+import {purchasingRegister} from '../calculations/purchasing-register.js';
+import {purchaseCsv,purchaseDocument} from '../export/purchasing-register.js';
+import '../styles/purchasing-register.css';
+const money=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n||0);
+const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:3}).format(n||0);
+function save(file){const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
+export default function PurchasingRegister({project,calculation,pending}) {
+  const [selected,setSelected]=useState(null),[message,setMessage]=useState('');
+  const register=useMemo(()=>purchasingRegister(calculation,selected),[calculation,selected]);
+  const title=project.meta.projectName||project.meta.projectNum||'Домокомплект';
+  const scope=selected==null?'Все слои':register.layers.filter(l=>selected.includes(l.id)).map(l=>l.name).join(', ')||'Слои не выбраны';
+  const empty=!register.materials.length&&!register.fasteners.length&&!register.nodeFasteners.length;
+  const file=()=>new File([purchaseDocument(register,title,scope)],`${title.replace(/[<>:"/\\|?*]/g,'-')}-закупка.html`,{type:'text/html;charset=utf-8'});
+  const send=async()=>{setMessage('');const document=file();try{if(navigator.canShare?.({files:[document]})){await navigator.share({files:[document],title:`${title} · Закупка`});}else{save(document);setMessage('Ведомость скачана. Прикрепите файл к письму или сообщению.');}}catch(e){if(e.name!=='AbortError')setMessage('Не удалось открыть отправку. Скачайте ведомость и прикрепите к сообщению.');}};
+  const print=()=>{setMessage('');const win=window.open('','_blank');if(!win){setMessage('Разрешите открытие окна печати и повторите.');return;}win.document.open();win.document.write(purchaseDocument(register,title,scope));win.document.close();const button=win.document.createElement('button');button.textContent='Печать / Сохранить PDF';button.onclick=()=>{win.focus();win.print();};win.document.body.prepend(button);win.document.fonts?.ready.then(()=>{win.focus();win.print();});};
+  const table=(rows,node=false)=><div className="purchase-table"><table><thead><tr><th>Материал / типоразмер</th><th>Слой</th><th>Ед.</th><th>Количество</th>{node?<th>Упаковка</th>:<><th>Цена, ₽</th><th>Сумма, ₽</th></>}</tr></thead><tbody>{rows.map(r=><tr key={r.id}><td>{r.name}{node?` · ${r.size}`:null}{r.group?<small>{r.group}</small>:null}{r.manual?<small>Правка проекта</small>:null}</td><td>{r.layer}</td><td>{r.unit}</td><td><strong>{fmt(r.qty)}</strong></td>{node?<td>{r.packSize?`${fmt(r.packs)} уп. × ${fmt(r.packSize)} шт`:'—'}</td>:<><td>{money(r.price)}</td><td>{money(r.amount)}</td></>}</tr>)}</tbody></table></div>;
+  return <section className="purchasing-register" aria-label="Ведомость закупки"><div className="purchase-heading"><div><h2>Закупка материалов</h2><p>Количество по текущей смете, с её запасом и ручными изменениями. Работы исключены. Цены до общей скидки.</p></div><div className="purchase-actions"><button disabled={pending||empty} onClick={print}><Printer size={17}/>Печать / PDF</button><button disabled={pending||empty} onClick={()=>save(new File([purchaseCsv(register,title)],`${title.replace(/[<>:"/\\|?*]/g,'-')}-закупка.csv`,{type:'text/csv;charset=utf-8'}))}><Download size={17}/>CSV</button><button disabled={pending||empty} onClick={()=>save(file())}><Download size={17}/>Ведомость</button><button disabled={pending||empty} onClick={send}><Send size={17}/>Отправить</button></div></div>
+    <fieldset className="purchase-layers"><legend>Слои ведомости</legend><label><input type="checkbox" checked={selected==null} onChange={e=>setSelected(e.target.checked?null:[])}/>Все слои</label>{register.layers.map(l=><label key={l.id}><input type="checkbox" checked={selected==null||selected.includes(l.id)} onChange={e=>setSelected(old=>{const ids=old??register.layers.map(l=>l.id);return e.target.checked?[...new Set([...ids,l.id])]:ids.filter(id=>id!==l.id);})}/>{l.name}</label>)}</fieldset>
+    {pending?<p role="status">Пересчёт проекта…</p>:null}{message?<p role="status">{message}</p>:null}
+    <div className="purchase-summary"><strong>{register.materials.length+register.fasteners.length} позиций сметы</strong><span>Материалы: <strong>{money(register.total)} ₽</strong></span></div>
+    {empty?<p>Нет материалов в выбранных слоях.</p>:null}{register.materials.length?<><h3>Материалы</h3>{table(register.materials)}</>:null}{register.fasteners.length?<><h3>Крепёж по смете</h3>{table(register.fasteners)}</>:null}{register.nodeFasteners.length?<><h3>Выбранный крепёж узлов</h3><p>Отдельная сверка с запасом и упаковками узлов. Может входить в сметные позиции выше — количества автоматически не складываются. Неподтверждённые узлы проверьте перед заказом.</p>{table(register.nodeFasteners,true)}</>:null}
+  </section>;
+}

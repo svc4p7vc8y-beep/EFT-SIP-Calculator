@@ -2,7 +2,7 @@ import { drawingCategory, purchaseRows } from '../calculations/drawing-workbench
 
 // Presentation only. Never change quantities or cut geometry when filtering.
 export const CONSTRUCTION_CATEGORIES = [['overview','Дом'],['piles','Основание'],['binding','Обвязка'],['floor','Пол'],['walls','Стены'],['partitions','Перегородки'],['ceiling','Перекрытие'],['gables','Фронтоны'],['roof','Кровля']];
-export const WORKBENCH_MODES = [['construction','Конструкции'],['production','Карты раскроя'],['documentation','Документы']];
+export const WORKBENCH_MODES = [['construction','Конструкции'],['production','Карты раскроя'],['purchase','Закупка'],['documentation','Документы']];
 export function locateWorkbenchItem(report,id) {
   const assemblyId=report.fabricationMembers?.find(m=>m.id===id)?.assemblyMemberId;
   const member=report.members.find(m=>m.id===id||m.key===id||assemblyId&&m.id===assemblyId);
