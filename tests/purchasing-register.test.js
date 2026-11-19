@@ -25,6 +25,11 @@ test('selected node fasteners keep project sizes, packs and reserves separate fr
  const r=purchasingRegister(c);assert.equal(r.total,200);assert.equal(r.nodeFasteners.length,1);assert.equal(r.nodeFasteners[0].qty,150);assert.equal(r.nodeFasteners[0].packs,3);
  const only=purchasingRegister(c,['nodes:Кровля']);assert.equal(only.total,0);assert.equal(only.nodeFasteners[0].size,'8×240');
 });
+test('equal-price windows with different dimensions or custom material specifications never merge',()=>{
+ const common={section:'openings',kind:'material',catalogId:'supplier',unit:'шт',qty:1,price:10000};
+ const c={lines:[{...common,name:'Витражный фасад · 1000×2000 мм'},{...common,name:'Витражный фасад · 2000×1000 мм'},{...common,section:'sip',custom:true,name:'Доска · сорт A'},{...common,section:'sip',custom:true,name:'Доска · сорт B'}]};
+ assert.equal(purchasingRegister(c).materials.length,4);
+});
 test('supplier documents include chosen scope and all lists, escape HTML and spreadsheet formulas',()=>{
  const r=purchasingRegister({lines:[{section:'roof',kind:'material',name:'=1+1 <доска>',qty:2,unit:'м.п.',price:12}],nodeFasteners:{rows:[{section:'Кровля',fastenerType:'Саморез',size:'6×200',purchaseQty:50}]}});
  const html=purchaseDocument(r,'<Проект>','Кровля','19.11.2026'),csv=purchaseCsv(r,'Проект');
