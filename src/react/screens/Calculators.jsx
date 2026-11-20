@@ -1,3 +1,4 @@
+import {LATH_OVERHANG_FIELDS} from '../calculations/roof-lath-overhang.js';
 import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {roofPanelThickness} from '../calculations/roof-panel-settings.js';
 import { OVERHANG_FIELDS, roofOverhangValue, resetSeparateOverhangs } from '../calculations/roof-overhangs.js';
@@ -535,12 +536,16 @@ function RoofConstructionPanels({
               />
             ) : null}
             {OVERHANG_FIELDS.map(([key,label,fallback])=><NumberField key={key} label={label} value={roofOverhangValue(project.settings.roof,key,fallback)} suffix="м" min={0} max={2} step={.05} onChange={value=>setSetting('roof',key,value)}/>)}
+            {LATH_OVERHANG_FIELDS.map(([key,label])=><NumberField key={key} label={label} value={Number(project.settings.roof[key])||0} suffix="м" min={0} max={2} step={.05} onChange={value=>{if(Number(project.settings.roof[key]||0)!==Number(value))setSetting('roof',key,value);}}/>)}
+            <p style={{gridColumn:'1 / -1'}}>Дополнительный вынос от конструктивного края: удлиняет обрешётку и покрытие. Стропила, SIP-панели и основной свес сохраняются. Опорная стропила остаётся на границе здания.</p>
+            {(calculation.roof.lathExtensionIssues||[]).map(text=><p role="alert" key={text}>{text}</p>)}
             <div className="readout">
-              <span>Габарит кровли со свесами</span>
+              <span>Конструктивный габарит · без выноса обрешётки</span>
               <strong>
                 {formatNumber(calculation.roof.geometry?.roofLength)} ×{" "}
                 {formatNumber(calculation.roof.geometry?.roofSpan)} м
               </strong>
+              {calculation.roof.lathExtensionArea>0?<small>Дополнительно: {formatNumber(calculation.roof.lathExtensionArea,3)} м² покрытия; {formatNumber(calculation.roof.lathExtensionLength,2)} пог. м обрешётки</small>:null}
             </div>
             {project.settings.roof.type === "combo" && !isTieredRoof ? (
               <NumberField

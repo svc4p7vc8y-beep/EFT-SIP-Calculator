@@ -139,7 +139,7 @@ export function productionScene(report,project,{includePlatforms=report.settings
     .filter(item=>!item.excluded&&item.bearingStatus==='geometry-only'&&item.bearingPoint)
     .map(item=>({id:item.id,mauerlatId:item.bearingMauerlatId,point:item.bearingPoint}));
   const platforms=includePlatforms?(assembly.platforms||[]):[];
-  const coldRoofSurfaces=(assembly.roofModel?.faces||[]).filter(f=>f.group==='main'&&!panels.some(p=>p.faceId===f.id)).map(f=>({id:f.id,faceId:f.id,layer:'roofSurface',shape:[f.polygon],placement:{origin:f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
+  const coldRoofSurfaces=((assembly.roofCoverModel||assembly.roofModel)?.faces||[]).filter(f=>f.group==='main'&&(f.lathOverhang||!panels.some(p=>p.faceId===f.id))).map(f=>({id:f.id,faceId:f.id,layer:'roofSurface',shape:[f.polygon],placement:{origin:f.lathOverhang?f.origin.map((v,i)=>v+f.normal[i]*((f.warm?Number(f.thickness)/2:Number(String(assembly.rafters.find(r=>r.faceId===f.id)?.profile||project.settings.roof.rafterSection||'50x150').split(/[×xх]/)[1])/2)+Number(String(assembly.counterLaths.find(r=>r.faceId===f.id)?.profile||'0×0').split(/[×xх]/)[1])+30)):f.origin,u:f.u,v:f.v,normal:f.normal},thickness:10,referenceOnly:true}));
   const flatRoof=project.settings.roof||{},flatFaces=assembly.roofModel?.faces.filter(face=>face.group==='main')||[];
   const contour=assembly.floors.at(-1)?.contour||[];
   const parapetRuns=assembly.roofShape==='flat'?flatRoofParapetRuns(contour,flatRoof):[];

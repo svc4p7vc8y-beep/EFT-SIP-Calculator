@@ -37,6 +37,10 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
   if(f.structureHorizontal&&(settings.roofDesign.enabled||f.manual)){issues.push(`${f.name}: для проектных скатов разуклонки верхнюю доску и нижний пояс задайте вручную.`);continue;}
   const xs=f.polygon.map(p=>p[0]),lo=Math.min(...xs),hi=Math.max(...xs);if(hi-lo<width)continue;
   let positions=truss?[]:clearGapPositions(lo+width/2,hi-width/2,width,gap);
+  if(!truss&&f.group==='main'&&!f.manual){
+   const required=cornerRafterPoints(project).filter(([x,y])=>roofAt({faces:[f]},x,y).length).map(([x,y])=>roofLocal(f,[x,y,roofHeight(f,x,y)])[0]);
+   positions=withCornerStations(positions,required,width);
+  }
   if(!truss&&f.group==='main'&&calculation.roof.mainRoofShape==='gable'&&!calculation.roof.pitched&&!settings.roofDesign?.manualFaces?.length){
    const axis=calculation.roof.ridgeAxis==='y'?1:0,contour=houseContourPoints(project.upperFloors?.at(-1)||project.plan);
    const min=Math.min(...contour.map(p=>(axis?p.y:p.x)*1000)),max=Math.max(...contour.map(p=>(axis?p.y:p.x)*1000));
@@ -45,10 +49,6 @@ export function roofFabrication(model,project,calculation,settings,{includeWallP
     const point=[...f.origin];point[axis]=min+station;point[2]=roofHeight(f,point[0],point[1]);
     return roofLocal(f,point)[0];
    }).sort((a,b)=>a-b);
-  }
-  if(!truss&&f.group==='main'&&!f.manual){
-   const required=cornerRafterPoints(project).filter(([x,y])=>roofAt({faces:[f]},x,y).length).map(([x,y])=>roofLocal(f,[x,y,roofHeight(f,x,y)])[0]);
-   positions=withCornerStations(positions,required,width);
   }
   const faceRafters=[];
   if(positions.length>500||members.length>10000){issues.push(`${f.name}: превышен лимит деталей кровли, проверьте шаг.`);continue;}

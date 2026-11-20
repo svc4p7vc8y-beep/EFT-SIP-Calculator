@@ -230,7 +230,7 @@ export function generateAutoPileRows(plan, spacing = 2.5, options = {}) {
       count: Math.max(2, Math.ceil(length / safeSpacing) + 1), group, auto: true
     };
   };
-  const contour = options.reference==='wallAxes'?foundationAxisContour(plan,options.wallThicknessMm):houseContourPoints(plan);
+  const contour = ['wallAxes','floorEdges'].includes(options.reference)?foundationAxisContour(plan,options.reference==='floorEdges'?options.bindingWidthMm:options.wallThicknessMm):houseContourPoints(plan);
   const rectangleIds = ['auto-top', 'auto-right', 'auto-bottom', 'auto-left'];
   const rectangleNames = ['Авто · верх', 'Авто · справа', 'Авто · низ', 'Авто · слева'];
   const customContour = Array.isArray(plan?.house?.points) && plan.house.points.length >= 3;
@@ -253,7 +253,7 @@ export function generateAutoPileRows(plan, spacing = 2.5, options = {}) {
     const a = { x: wall.x1, y: wall.y1 }; const b = { x: wall.x2, y: wall.y2 };
     if (Math.hypot(b.x - a.x, b.y - a.y) >= 0.5) candidates.push({ id: `auto-wall-${index + 1}`, name: `Авто · отдельная стена ${index + 1}`, a, b });
   });
-  return splitAtFoundationNodes(options.reference==='wallAxes'?candidates.flatMap(c=>clipAxisCandidate(c,contour)):candidates).map((candidate) => createRow(candidate.id, candidate.name, candidate.a, candidate.b));
+  return splitAtFoundationNodes(['wallAxes','floorEdges'].includes(options.reference)?candidates.flatMap(c=>clipAxisCandidate(c,contour)):candidates).map((candidate) => createRow(candidate.id, candidate.name, candidate.a, candidate.b));
 }
 
 export function calculateFoundation(plan, settings = {}) {

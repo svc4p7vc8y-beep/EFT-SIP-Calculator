@@ -1,3 +1,4 @@
+import {bindingPlanRows} from './binding-rows.js';
 import {houseContourPoints,pointInPolygon} from '../planner/geometry.js';
 
 // The house outline is the outside face. This opt-in datum moves automatic
@@ -28,4 +29,20 @@ export function bindingWallAlignment(assembly,wallThicknessMm=174){
   rows.push({wall:`Стена ${i+1}`,wallThicknessMm,...(matches[0]||{offsetMm:null,overlapMm:0,widthMm:0})});
  }
  return rows;
+}
+
+export function bindingPackageWidthMm(settings={}){
+ if(settings.bindingType==='timber')return 150;
+ const width=Math.max(10,Number(settings.bindingBoardWidthMm)||50),height=Math.max(10,Number(settings.bindingBoardHeightMm)||150);
+ const layers=Math.max(1,Math.round(Number(settings.bindingLayers)||Math.round((Number(settings.boardVolumePerMeter)||.0225)/(width*height/1e6))||3));
+ return width*layers;
+}
+// Signed distance from the outside floor edge to the outside timber face.
+// Positive = unsupported floor overhang, negative = timber beyond the floor.
+export function bindingFloorAlignment(assembly){
+ const ring=assembly.floors[0]?.contour||[],sign=Math.sign(ring.reduce((n,a,i)=>{const b=ring[(i+1)%ring.length];return n+a[0]*b[1]-b[0]*a[1];},0))||1;
+ return ring.map((a,i)=>{const b=ring[(i+1)%ring.length],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,n=[-dy/L*sign,dx/L*sign],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  const candidates=assembly.binding.filter(m=>m.group!=='platform').flatMap(m=>{const u=m.b[0]-m.a[0],v=m.b[1]-m.a[1],len=Math.hypot(u,v);if(len<1||Math.abs(dx*v-dy*u)>L*len*.001)return [];const t=((mid[0]-m.a[0])*u+(mid[1]-m.a[1])*v)/(len*len);if(t<-.001||t>1.001)return [];const offsets=bindingPlanRows(m).map(row=>(row.a[0]-mid[0])*n[0]+(row.a[1]-mid[1])*n[1]-(Number(row.profile.split(/[×xх]/)[0])||50)/2);return [{id:m.id,offsetMm:Math.min(...offsets),axisDistance:Math.abs((m.a[0]-mid[0])*n[0]+(m.a[1]-mid[1])*n[1])}];});
+  const best=candidates.sort((a,b)=>a.axisDistance-b.axisDistance)[0];return {wall:`Грань ${i+1}`,offsetMm:best?.offsetMm??null,bindingId:best?.id||'',matches:!!best&&Math.abs(best.offsetMm)<=1};
+ });
 }

@@ -1,3 +1,4 @@
+import {bindingPackageWidthMm} from '../calculations/foundation-reference.js';
 import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {addPlanOpening} from '../state/add-plan-opening.js';
 import {PLAN_VIEW,adaptivePlanView,svgPan,beginPlanPinch,movePlanPinch} from '../planner/mobile-viewport.js';
@@ -5231,7 +5232,7 @@ const DEFAULT_FOUNDATION_DRAFT = {
   autoSyncBinding: true,
 };
 
-function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, compact = false, wallThicknessMm=174 }) {
+function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, compact = false, wallThicknessMm=174,bindingWidthMm=150 }) {
   const modes = [
     ["nodes", "По узлам и стенам", "Опоры в углах, пересечениях и под перегородками"],
     ["uniform", "Равномерная сетка", "Одинаковый шаг рядов по всей площади дома"],
@@ -5252,7 +5253,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
           </button>
         ))}
       </div>
-      <label className="field">Привязка автоматического основания<select aria-label="Привязка автоматического основания" value={draft.layoutReference||'outer'} onChange={e=>update('layoutReference',e.target.value)}><option value="outer">По наружному контуру · сохранённая схема</option><option value="wallAxes">По осям несущих стен</option></select></label><p className="foundation-setup-note">Наружный габарит дома сохраняется. В режиме осей автоматические сваи и обвязка смещаются внутрь на половину толщины стены ({Number(wallThicknessMm)/2} мм). Ручные опоры остаются; их опирание нужно сверить. Применение — кнопкой «Перестроить».</p>
+      <label className="field">Привязка автоматического основания<select aria-label="Привязка автоматического основания" value={draft.layoutReference||'outer'} onChange={e=>update('layoutReference',e.target.value)}><option value="outer">По наружному контуру · сохранённая схема</option><option value="wallAxes">По осям несущих стен</option><option value="floorEdges">Наружная грань обвязки = край SIP-пола</option></select></label><p className="foundation-setup-note">Наружный габарит дома сохраняется. Для совпадения с SIP-полом выберите «Наружная грань обвязки = край SIP-пола»: оси смещаются внутрь на половину ширины пакета ({bindingWidthMm/2} мм). Режим осей стен использует половину толщины стены ({Number(wallThicknessMm)/2} мм) и может давать другой край. Ручные опоры остаются; их опирание нужно сверить. Применение — кнопкой «Перестроить».</p>
       <div className="foundation-setting-grid">
         <NumberField label="Макс. шаг свай" value={draft.spacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("spacing", Math.max(0.5, value))} />
         {draft.autoLayoutMode === "uniform" ? <NumberField label="Шаг между рядами" value={draft.autoRowSpacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("autoRowSpacing", Math.max(0.5, value))} /> : null}
@@ -5485,7 +5486,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       mode: foundationDraft.autoLayoutMode,
       rowSpacing: foundationDraft.autoRowSpacing,
       includeInteriorWalls: foundationDraft.autoIncludeInteriorWalls,
-      reference:foundationDraft.layoutReference,wallThicknessMm:project.settings.sip.wallThickness,
+      reference:foundationDraft.layoutReference,wallThicknessMm:project.settings.sip.wallThickness,bindingWidthMm:bindingPackageWidthMm({...project.settings.piles,...foundationDraft}),
     });}catch(error){return {error:error.message,totalPiles:0,rowCount:0,bindingLength:0,boardCount:0};}
     const pileRows = [...manualRows, ...autoRows];
     const previewPlan = {
@@ -5976,7 +5977,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         mode: draft.autoLayoutMode,
         rowSpacing: draft.autoRowSpacing,
         includeInteriorWalls: draft.autoIncludeInteriorWalls,
-        reference:draft.layoutReference,wallThicknessMm:next.settings.sip.wallThickness,
+        reference:draft.layoutReference,wallThicknessMm:next.settings.sip.wallThickness,bindingWidthMm:bindingPackageWidthMm({...next.settings.piles,...draft}),
       });
       const previous=new Map((next.plan.pileRows||[]).filter(row=>row.auto).map(row=>[row.id,row]));
       for(const row of autoRows){const old=previous.get(row.id);if(old&&old.count===row.count&&['x1','y1','x2','y2'].every(key=>Math.abs(old[key]-row[key])<.001))row.pileOffsets=old.pileOffsets;}
@@ -6464,7 +6465,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <X />
             </button>
           </header>
-          <FoundationSetup wallThicknessMm={project.settings.sip.wallThickness} draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
+          <FoundationSetup bindingWidthMm={bindingPackageWidthMm(project.settings.piles)} wallThicknessMm={project.settings.sip.wallThickness} draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
         </section>
       ) : null}
       {selected?.type==='roofSupport'?<aside className="mobile-roof-editor-panel"><details open><summary>Опора кровли · параметры</summary><Suspense fallback={<p>Загружаю…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense></details></aside>:<MobileSelectionAdjuster
@@ -6516,7 +6517,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             <div><strong>Сваи и обвязка</strong><small>Единая настройка основания</small></div>
             <button type="button" aria-label="Закрыть настройку основания" onClick={() => setBindingSetupOpen(false)}><X /></button>
           </header>
-          <FoundationSetup wallThicknessMm={project.settings.sip.wallThickness} draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
+          <FoundationSetup bindingWidthMm={bindingPackageWidthMm(project.settings.piles)} wallThicknessMm={project.settings.sip.wallThickness} draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
         </section>
       ) : null}
       <div className="mobile-plan-commandbar">
@@ -6858,7 +6859,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               commitRoof={commitRoof}
             />
           ) : ["piles", "binding"].includes(activeLayer) && !selected ? (
-            <FoundationSetup wallThicknessMm={project.settings.sip.wallThickness}
+            <FoundationSetup bindingWidthMm={bindingPackageWidthMm(project.settings.piles)} wallThicknessMm={project.settings.sip.wallThickness}
               draft={foundationDraft}
               setDraft={setFoundationDraft}
               preview={foundationPreview}

@@ -7,7 +7,7 @@ export function pointBounds(points) {
 }
 export function structuralDimensions(assembly, binding=false) {
   const floor=binding?assembly.floors[0]:assembly.floors.at(-1);
-  const house=pointBounds(floor.contour), roof=pointBounds(assembly.roofOutline||floor.contour);
+  const house=pointBounds(floor.contour), roof=pointBounds(assembly.roofCoverPoints||assembly.roofOutline||floor.contour);
   const items=binding?assembly.binding:assembly.rafters;
   return { house,roof,
     x:dimensionValues([...floor.contour.map(p=>p[0]),...(binding?assembly.piles.map(p=>p[0]):assembly.axis==='x'?items.map(r=>r.a[0]):[])]),

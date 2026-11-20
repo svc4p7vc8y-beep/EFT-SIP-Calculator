@@ -1,6 +1,7 @@
+import {applyLathOverhang} from './roof-lath-overhang.js';
 import {fitRectangularBindingRows,bindingPlanRows} from './binding-rows.js';
 import {foundationAxisContour} from './foundation-reference.js';
-import {bindingWallAlignment} from './foundation-reference.js';
+import {bindingWallAlignment,bindingFloorAlignment,bindingPackageWidthMm} from './foundation-reference.js';
 import {applyBearingTrusses} from './bearing-truss.js';
 import {platformRafterBearings} from './platform-rafter-bearings.js';
 import { hasSeparateOverhangs } from './roof-overhangs.js';
@@ -76,7 +77,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
 
   }}
   let axisContour=[];
-  if(project.settings.piles.layoutReference==='wallAxes')try{axisContour=foundationAxisContour(project.plan,project.settings.sip.wallThickness).map(p=>[mm(p.x),mm(p.y)]);}catch(error){issues.push(error.message);}
+  if(['wallAxes','floorEdges'].includes(project.settings.piles.layoutReference))try{axisContour=foundationAxisContour(project.plan,project.settings.piles.layoutReference==='floorEdges'?bindingPackageWidthMm(project.settings.piles):project.settings.sip.wallThickness).map(p=>[mm(p.x),mm(p.y)]);}catch(error){issues.push(error.message);}
   for(const [i,line]of binding.entries()){
     if(axisContour.length&&line.group!=='platform')line.fabricationRows=fitRectangularBindingRows(binding,i,axisContour);
     for(const [j,row]of bindingPlanRows(line).entries()){const length=line.fabricationRows?Math.ceil(Math.hypot(row.b[0]-row.a[0],row.b[1]-row.a[1])):line.length;members.push({id:`${line.id}-${j+1}`,a:row.a,b:row.b,material:line.layers===1?'Брус обвязки':'Доска пакета обвязки',profile:line.profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),surface:'Обвязка',source:line.fabricationRows?'Обвязка: геометрия торцевого стыка пакетов':'Линии обвязки плана',panels:[],processing:'Стыки на опорах и соединения по рабочему проекту'});}
@@ -378,8 +379,10 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     assembly.roofTimbers.push(item);
     assembly.members.push({...item,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия второго света или кровли террасы',surface:'Кровля',panels:[],processing:'Пакет из трёх досок; опоры, клей и несущая способность по проекту'});
   }
+  applyLathOverhang(assembly,project,settings);
   platformRafterBearings(assembly);
   applyBearingTrusses(assembly,settings);
+  assembly.bindingFloorAlignment=bindingFloorAlignment(assembly);
   assembly.bindingAlignment=bindingWallAlignment(assembly,Number(project.settings.sip.wallThickness)||174);
   assembly.showPlatforms=settings.showPlatforms!==false;
   return assembly;

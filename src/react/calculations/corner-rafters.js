@@ -1,9 +1,9 @@
-import {houseContourPoints} from '../planner/geometry.js';
 import {isAxisAlignedRectangleContour} from './roof-contour.js';
+import {houseContourPoints} from '../planner/geometry.js';
 
 export function cornerRafterPoints(project) {
  const plan=project.upperFloors?.at(-1)||project.plan,points=houseContourPoints(plan);
- if(isAxisAlignedRectangleContour(points.map(p=>[p.x*1000,p.y*1000]))&&!plan.platforms?.some(p=>p.include!==false&&p.roof?.mode==='shared'))return [];
+ if(project.settings.roof.shape==='hip'&&isAxisAlignedRectangleContour(points.map(p=>[p.x*1000,p.y*1000]))&&!plan.platforms?.some(p=>p.include!==false&&p.roof?.mode==='shared'))return [];
  return points.map(p=>[p.x*1000,p.y*1000]);
 }
 export function withCornerStations(stations,required,width=50) {

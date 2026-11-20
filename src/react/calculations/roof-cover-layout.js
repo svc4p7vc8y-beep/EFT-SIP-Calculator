@@ -7,7 +7,7 @@ export function roofCoverLayout(assembly, settings={}) {
  if(!(useful>0&&gross>=useful&&gross<=10000&&useful>=100&&overlap>=0&&overlap<=2000)||settings.stockLength!==''&&settings.stockLength!=null&&!(stock>overlap&&stock<=30000))return {slopes:[],issues:['Покрытие: проверьте полную/рабочую ширину, длину листа и нахлёст.'],configured:true};
  const axis=assembly.axis==='x'?0:1,points=assembly.roofOutline||[],width=Math.max(...points.map(p=>p[axis]))-Math.min(...points.map(p=>p[axis]));
  const slopes=[];
- if(assembly.roofDrawing?.model){for(const f of assembly.roofModel.faces){
+ if(assembly.roofDrawing?.model||assembly.roofCoverModel){for(const f of (assembly.roofCoverModel||assembly.roofModel).faces){
    const xs=f.polygon.map(p=>p[0]),ys=f.polygon.map(p=>p[1]),x0=Math.min(...xs),y0=Math.min(...ys),width=Math.max(...xs)-x0,length=Math.max(...ys)-y0,polygon=f.polygon.map(([x,y])=>[x-x0,y-y0]),ring=[...polygon,polygon[0]],sheetLength=stock>0?stock:length,columns=Math.ceil(width/useful),rows=sheetLength>=length?1:Math.ceil((length-overlap)/(sheetLength-overlap)),sheets=[];
    if(columns*rows>5000)return {slopes:[],issues:['Покрытие: более 5000 листов, проверьте размеры.'],configured:true};
    for(let r=0;r<rows;r++)for(let c=0;c<columns;c++){const x=c*useful,y=r*(sheetLength-overlap),shape=clipping.intersection([ring],[[[x,y],[x+useful,y],[x+useful,y+sheetLength],[x,y+sheetLength],[x,y]]]);if(!shape.length)continue;

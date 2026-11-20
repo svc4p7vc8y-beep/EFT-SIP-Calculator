@@ -1,3 +1,4 @@
+import {lathOverhangMm,roofCoverExtension} from './roof-lath-overhang.js';
 import {partitionMaterialQuantities,hasPartitionMaterials} from './partition-material-quantities.js';
 import {sipGableTimber} from './sip-gable-timber.js';
 import {roofPanelThickness} from './roof-panel-settings.js';
@@ -241,7 +242,7 @@ function resolveRafterStructure(project, geometry, frameLength) {
     ? clearGapPositions(boardWidth * 500, (frameLength * 1000 + 2 * endOverhangMm) - boardWidth * 500, boardWidth * 1000, step * 1000).map(value => value - endOverhangMm)
     : null;
   const basePositions = detailedPositions || (endOverhangMm && interiorCount ? [-endOverhangMm, ...interiorPositions, frameLength * 1000 + endOverhangMm] : interiorPositions);
-  const cornerPositions=roof.type==='cold'&&geometry.shape==='gable'?cornerPlanStations(project,basePositions,frameLength*1000,roof.ridgeAxis):basePositions;
+  const cornerPositions=roof.type!=='sip'&&['gable','flat','tiered'].includes(geometry.shape)?cornerPlanStations(project,basePositions,frameLength*1000,roof.ridgeAxis):basePositions;
   const allPositions = geometry.shape === 'gable'
     ? withSipGableRafters(project, cornerPositions, frameLength * 1000, boardWidth * 1000)
     : cornerPositions;
@@ -1525,10 +1526,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
   });
   const riegelHeightRatio = hangingRiegelRatio(roof);
   const detailedRafters = project.settings.productionCutting?.roofDesign?.enabled === true;
-  const detailedRiegelCount = detailedRafters ? clearGapPositions(
-    25, Math.max(25, (roofAxes.ridgeBaseLength + 2 * gableOverhang) * 1000 - 25), 50,
-    Number(project.settings.productionCutting?.rafterClearGapMm) || rafterStructure.step * 1000,
-  ).map(position => position - gableOverhang * 1000).filter(position => position >= -1 && position <= roofAxes.ridgeBaseLength * 1000 + 1).length : rafterStructure.pairCount - rafterStructure.endPairCount;
+  const detailedRiegelCount = detailedRafters ? rafterStructure.positions.filter(position=>position>=-1&&position<=roofAxes.ridgeBaseLength*1000+1).length : rafterStructure.pairCount - rafterStructure.endPairCount;
   const riegelCount = rectangularRoof && !project.settings.productionCutting?.roofDesign?.manualFaces?.length
     && roof.type === 'cold' && hangingRiegelEnabled(roof, {
     mainRoofShape, rafterStructure, coldSlopeArea: mainColdSlopeArea,
@@ -1665,12 +1663,16 @@ function roofSection(project, metrics, index, inputs, footprint) {
     : 0;
   const mainRafterPurchaseLength = mainRafterBoardCount * 6;
   const mainRafterVolume = mainRafterPurchaseLength * 0.05 * rafterDepth;
+  const lathExtension=lathOverhangMm(roof).some(Boolean)?roofCoverExtension(mainRoofModel(project,{geometry,footprint,pitched,mainRoofShape,ridgeAxis:roofAxes.ridgeAxis,flatSlopeMode,rafterStructure,mauerlatLength,terraceRoofs},metrics),roof,roofAxes.ridgeAxis,Number(roof.lathStep||.35)*1000):{extraAreaM2:0,extraLathM:0,issues:[]};
+  const mainCoverArea=mainArea+lathExtension.extraAreaM2;
+  const coverAxisExtensionM=lathExtension.extraAreaM2>0?lathOverhangMm(roof).reduce((s,n)=>s+n,0)/1000:0;
+  const ridgeCoverLength=ridgeBeamLength>0?ridgeBeamLength+coverAxisExtensionM:0;
   const mainEaveLength =
     mainRoofShape === "flat"
       ? 0
       : mainRoofShape === "hip"
         ? 2 * (geometry.roofLength + geometry.roofSpan)
-        : geometry.roofLength * 2;
+        : (geometry.roofLength+coverAxisExtensionM) * 2;
   const mainVergeLength =
     mainRoofShape === "gable" ? geometry.slopeLength * 4
       : mainRoofShape === 'tiered' ? (geometry.upperSlopeLength + geometry.lowerSlopeLength) * 2 : 0;
@@ -1681,10 +1683,10 @@ function roofSection(project, metrics, index, inputs, footprint) {
     ? mainVergeLength * inputs.formulas.roofTrimReserve
     : 0;
   const mainCoverPurchaseArea = includeCovering
-    ? mainArea * (1 + roof.wastePercent / 100)
+    ? mainCoverArea * (1 + roof.wastePercent / 100)
     : 0;
   const mainGablePurchaseArea = (tieredGables ? tieredGables.exteriorArea : mainGableArea) * (1 + roof.wastePercent / 100);
-  const mainConstructionArea = includeCovering ? mainArea + (tieredGables ? tieredGables.exteriorArea : mainGableArea) : 0;
+  const mainConstructionArea = includeCovering ? mainCoverArea + (tieredGables ? tieredGables.exteriorArea : mainGableArea) : 0;
   const tieredJoinPieces = mainRoofShape === 'tiered' && includeCovering
     ? Math.ceil(geometry.junctionLength * inputs.formulas.roofTrimReserve / 1.25) : 0;
   const mainGableBoardRequiredLength =
@@ -1699,7 +1701,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
     ? mainRoofShape === 'gable' && gableOverhang > 0
       ? houseLength + 2 * gableOverhang
       : (rafterStructure.positions.at(-1) - rafterStructure.positions[0]) / 1000 : null;
-  const mainLathRequiredLength = includeCovering && mainArea
+  const baseLathRequiredLength = includeCovering && mainArea
     ? mainRoofShape === 'tiered' && Number(geometry.upperSlopeLength) > 0 && Number(geometry.lowerSlopeLength) > 0
       ? ['upper', 'lower'].reduce((sum, level) => sum + (lathRafterRun ?? Number(geometry[`${level}Area`]) / Number(geometry[`${level}SlopeLength`]))
         * roofLathRows(Number(geometry[`${level}SlopeLength`]) * 1000, lathStep * 1000).length, 0)
@@ -1708,6 +1710,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
         * roofLathRows(Number(geometry.slopeLength) * 1000, lathStep * 1000).length
       : mainArea / lathStep + mainEaveLength
     : 0;
+  const mainLathRequiredLength=baseLathRequiredLength+(includeCovering?lathExtension.extraLathM:0);
   const mainLathBoardCount = mainLathRequiredLength
     ? Math.ceil(mainLathRequiredLength / 6)
     : 0;
@@ -2485,7 +2488,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
           ? "Монтаж стропильных ферм"
           : "Монтаж стропильной системы",
     }),
-    makeLine(index, "roof", "Монтаж обрешётки и контробрешётки", includeCovering ? mainArea : 0, {
+    makeLine(index, "roof", "Монтаж обрешётки и контробрешётки", includeCovering ? mainCoverArea : 0, {
       key: "lath-work",
       kind: "labor",
     }),
@@ -2633,10 +2636,10 @@ function roofSection(project, metrics, index, inputs, footprint) {
       index,
       "roof",
       "Планка конька",
-      ridgeBeamLength * inputs.formulas.ridgeReserve,
+      ridgeCoverLength * inputs.formulas.ridgeReserve,
       { key: "ridge", unit: "м.п." },
     ) : null,
-    includeCovering ? makeLine(index, "roof", "Монтаж конька", ridgeBeamLength, {
+    includeCovering ? makeLine(index, "roof", "Монтаж конька", ridgeCoverLength, {
       key: "ridge-work",
       kind: "labor",
       name: "Монтаж планки конька",
@@ -2646,7 +2649,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
           index,
           "roof",
           "Уплотнитель универсальный под конёк",
-          ridgeBeamLength * inputs.formulas.ridgeReserve,
+          ridgeCoverLength * inputs.formulas.ridgeReserve,
           {
             key: "ridge-seal",
             unit: "м.п.",
@@ -3050,6 +3053,7 @@ function roofSection(project, metrics, index, inputs, footprint) {
     mainVergeTrimPurchaseLength: round(mainVergeTrimPurchaseLength, 3),
     lathStep,
     mainLathRequiredLength: round(mainLathRequiredLength, 3),
+    lathExtensionArea: lathExtension.extraAreaM2, lathExtensionLength: lathExtension.extraLathM, lathExtensionIssues:lathExtension.issues,
     mainLathBoardCount,
     gutterLength: round(gutterLength, 3),
     gutterPieces,

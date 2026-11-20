@@ -1,3 +1,4 @@
+import {LATH_OVERHANG_FIELDS} from '../calculations/roof-lath-overhang.js';
 import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {roofPanelThickness} from '../calculations/roof-panel-settings.js';
 import OpeningSketch from '../components/OpeningSketch.jsx';
@@ -1170,6 +1171,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
                 step: 0.05,
               },
               ...OVERHANG_FIELDS.map(([key,label,fallback])=>({path:'settings.roof.'+key,label,value:roofOverhangValue(project.settings.roof,key,fallback),suffix:'м',min:0,max:2,step:.05})),
+              ...LATH_OVERHANG_FIELDS.map(([key,label])=>({path:'settings.roof.'+key,label,value:Number(project.settings.roof[key])||0,suffix:'м',min:0,max:2,step:.05})),
               {
                 path: "settings.roof.wastePercent",
                 label: "Запас",
