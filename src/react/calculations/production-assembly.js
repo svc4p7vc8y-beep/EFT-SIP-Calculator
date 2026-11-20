@@ -207,7 +207,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   }
   supports.forEach(item=>{item.loadPath=trace(item.id);if(!item.referenceOnly&&!item.loadPath.complete)issues.push(`${item.mark}: путь нагрузки до фундамента не заполнен, содержит цикл или несовпадающее опирание.`);});
   const roofOutline=rectangular?[at(-gable,-eave),at(axisLength+gable,-eave),at(axisLength+gable,span+eave),at(-gable,span+eave)]:contour;
-  const assembly={floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,roofTimbers,laths,counterLaths,supports,members,issues,binding,foundationType:project.settings.piles?.pileType||'screw',blockDimensions:project.settings.piles?.blockDimensions,piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
+  const assembly={floors,bounds,axis,roofOutline,ridge:roof.mainRoofShape==='gable'?[at(0,span/2),at(axisLength,span/2)]:[],rafters,roofTimbers,laths,counterLaths,supports,members,issues,binding,foundationType:project.settings.piles?.pileType||'screw',blockDimensions:project.settings.piles?.blockDimensions,housePileAxes:(calculation.foundation?.points||[]).filter(p=>p.source!=='platform').map(p=>[mm(p.x),mm(p.y)]),piles:(calculation.foundation?.points||[]).map(p=>[mm(p.x),mm(p.y)])};
   assembly.roofDrawing=roofDrawingData(assembly,roof,project.settings.roof,settings.rafterGeometry);
   if(settings.rafterEndCuts)for(const line of roofAxonometricLines(assembly)){
     const cut=rafterEndOutline(line.a,line.b,Number(line.profile.split(/[×xх]/)[1])),member=members.find(m=>m.id===line.id);

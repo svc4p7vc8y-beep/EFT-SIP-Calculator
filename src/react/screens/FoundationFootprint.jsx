@@ -1,0 +1,15 @@
+import {useMemo,useState} from 'react';
+import '../styles/purchasing-register.css';
+import {useProject} from '../state/ProjectContext.jsx';
+import {fitFoundationToFloor,foundationFootprint} from '../state/foundation-fit.js';
+import {resizeProjectHouse} from '../planner/geometry.js';
+const mm=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n*1000);
+const size=b=>b?`${mm(b.width)} × ${mm(b.height)} мм`:'не заданы';
+export default function FoundationFootprint({project,report,pending}) {
+  const {commit}=useProject(),[message,setMessage]=useState('');
+  const resize=(key,value)=>{const n=Number(value)/1000;if(!(n>0)||n>200)return;commit(next=>{resizeProjectHouse(next,key==='w'?n:next.plan.house.w,key==='h'?n:next.plan.house.h);return fitFoundationToFloor(next);});};
+  const preview=useMemo(()=>{try{const next=fitFoundationToFloor(structuredClone(project));return {current:foundationFootprint(project),next:foundationFootprint(next)};}catch(error){return {error:error.message};}},[project]);
+  if(project.settings.piles.pileType==='slab')return null;
+  const alignment=report.assembly?.bindingFloorAlignment||[],mismatch=alignment.some(a=>!a.matches);
+  return <details className="foundation-footprint" open={mismatch||undefined}><summary>Наружный контур обвязки · пол и стены{mismatch?' · требуется привязка':''}</summary>{preview.error?<p role="alert">{preview.error}</p>:<><div className="foundation-footprint-sizes"><span>Наружный габарит обвязки по плану: <b>{size(preview.current.outside)}</b></span><span>Текущие оси свай: <b>{size(preview.current.axes)}</b></span><span>Оси после привязки: <b>{size(preview.next.axes)}</b></span></div><p>Главный контур — внешняя грань обвязки. SIP-пол и наружные стены привязаны к ней. Текущий наружный габарит плана принимается за габарит обвязки; автоматические оси смещаются внутрь на {preview.current.widthMm/2} мм (пакет {preview.current.widthMm} мм). Ручные сваи, ряды, исключения и линии сохраняются; их положение проверьте отдельно. Ручные правки сметы сохраняются.</p><button disabled={pending} onClick={()=>{commit(fitFoundationToFloor);setMessage('Внешняя граница обвязки принята за общий контур. Пол, стены, 3D и раскрой используют этот габарит. Действие можно отменить.');}}>Принять обвязку за главный контур</button>{project.settings.piles.externalBindingDatum?<div className="foundation-footprint-sizes">{[['w','Длина обвязки снаружи, мм'],['h','Ширина обвязки снаружи, мм']].map(([key,label])=><label key={`${key}:${project.plan.house[key]}`}>{label}<input type="number" aria-label={label} min="100" max="200000" step="1" defaultValue={Math.round(project.plan.house[key]*1000)} onBlur={e=>{if(Number(e.target.value)!==Math.round(project.plan.house[key]*1000))resize(key,e.target.value);}} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}} disabled={pending}/></label>)}<p>Изменение наружного габарита обновляет связанные слои плана. Оси автоматического основания остаются внутри контура.</p></div>:null}</>}{message&&project.settings.piles.externalBindingDatum?<p role="status">{message}</p>:null}</details>;
+}

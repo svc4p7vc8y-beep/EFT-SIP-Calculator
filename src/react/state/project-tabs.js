@@ -1,4 +1,5 @@
 import {windowSupportHeaders} from '../calculations/window-support-headers.js';
+import {syncFoundationDatum} from './foundation-fit.js';
 import { migrateProject } from './project-model.js';
 import { recordProductionRegistry } from './production-identities.js';
 
@@ -45,7 +46,7 @@ function reduceHistory(history, action) {
   };
   if (action.type === 'replace') return makeHistory(action.project);
   if (action.type === 'commit') {
-    const next=action.update(structuredClone(history.present));
+    const next=syncFoundationDatum(history.present,action.update(structuredClone(history.present)));
     if(next.settings.productionCutting?.windowSupportHeaders?.enabled){
       const result=windowSupportHeaders(next);
       if(result.items.length<=200)next.settings.productionCutting.roofSupports=result.items;

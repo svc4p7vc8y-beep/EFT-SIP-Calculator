@@ -1,6 +1,7 @@
 import {timberMaterialSummary} from './timber-member-summary.js';
 import {purchaseLayer,isPurchaseFastener} from './purchasing-register.js';
 import {normalizeTimberProcurement} from '../state/timber-procurement.js';
+import {materialProfile,purchaseUnit,purchaseStock} from './purchase-quantities.js';
 const num=s=>Number(String(s).replace(',','.'));
 const unit=s=>String(s||'').replace(/[.\s]/g,'').replace('³','3');
 const profile=text=>{const m=String(text).match(/(\d+(?:[.,]\d+)?)\s*[×xх*]\s*(\d+(?:[.,]\d+)?)/i);return m?[num(m[1]),num(m[2])]:null;};
@@ -22,7 +23,15 @@ export function timberComposition(name,section,recipes={}) {
 }
 function stockRows(report) {
   const members=new Map([...(report?.members||[]),...(report?.fabricationMembers||[])].map(m=>[m.id,m]));
-  return (report?.timberStock?.bars||[]).map(bar=>({id:bar.id,name:bar.material,sectionProfile:bar.profile,qty:(bar.stockLength||bar.stockLengthMm||report.settings?.stockLengthMm)/1000,unit:'м.п.',layer:[...new Set((bar.parts||[]).map(p=>members.get(p.id)?.surface).filter(Boolean))].join(', ')||'По картам раскроя'}));
+  return (report?.timberStock?.bars||[]).map(bar=>({id:bar.id,name:bar.material,sectionProfile:bar.profile,stockLengthM:(bar.stockLength||bar.stockLengthMm||report.settings?.stockLengthMm)/1000,qty:(bar.stockLength||bar.stockLengthMm||report.settings?.stockLengthMm)/1000,unit:'м.п.',layer:[...new Set((bar.parts||[]).map(p=>members.get(p.id)?.surface).filter(Boolean))].join(', ')||'По картам раскроя'}));
+}
+function boardQuote(project,input,item,thickness,width,finish){
+  const direct=!item.packed&&Number.isFinite(Number(input.price))&&input.price>0?input:null;
+  const candidates=direct?[direct]:(project.priceMat||[]).filter(c=>{
+    const p=materialProfile(c.name);return p?.length===2&&Math.min(...p)===thickness&&Math.max(...p)===width&&!compound(c.name)&&!/СИП-панел|SIP-панел|имитация|уголок/i.test(c.name)&&(/террасн/i.test(c.name)===/террасн/i.test(input.name))&&(finish!=='строганая'||/строган/i.test(c.name))&&c.price>0;
+  });
+  const quotes=candidates.flatMap(c=>{const u=purchaseUnit(c.unit),area=thickness*width/1e6;const rate=u==='м3'?Number(c.price):['м','мп','погм'].includes(u)?Number(c.price)/area:null;return rate==null?[]:[{rate,name:c.name,id:c.catalogId||c.id||''}];});
+  return quotes.length&&quotes.every(q=>Math.abs(q.rate-quotes[0].rate)<.01)?quotes[0]:null;
 }
 export function timberProcurement(project,calculation,report,{source='estimate',layers=null}={}) {
   const settings=normalizeTimberProcurement(project.settings?.productionCutting?.timberProcurement),catalog=new Map((project.priceMat||[]).map(c=>[c.id,c])),titles=Object.fromEntries((calculation?.sections||[]).map(s=>[s.key,s.title]));
@@ -40,17 +49,24 @@ export function timberProcurement(project,calculation,report,{source='estimate',
     const area=item.profile[0]*item.profile[1]/1e6,u=unit(input.unit);
     let length=['м','мп','погм','погонныйметр'].includes(u)?Number(input.qty):u==='м3'?Number(input.qty)/area:null;
     if(input.materialVolumeM3>0){const ratio=input.materialVolumeBasisQty>0?input.qty/input.materialVolumeBasisQty:1;length=input.materialVolumeM3*ratio/area;}
+    const purchasedBlanks=purchaseStock(name);
+    // Displayed m³ in the estimate may already be rounded. When the estimate
+    // explicitly specifies whole purchased blanks, do not buy an extra blank
+    // because 0.135 m³ is displayed as 0.14. Manual quantity edits take priority.
+    if(source==='estimate'&&u==='м3'&&purchasedBlanks&&!input.projectOverride&&!input.custom)length=purchasedBlanks.pieces*purchasedBlanks.lengthM;
     if(length==null&&['шт','штука'].includes(u)){
       const match=name.match(/шт\s*[×xх*]\s*(\d+(?:[.,]\d+)?)\s*м(?:\s|$|[·,])/i);if(match)length=Number(input.qty)*num(match[1]);
     }
     if(!(length>0)||!item.valid){unresolved.push({name,reason:!item.valid?'Укажите состав досок для изделия':'Нельзя определить длину из единицы сметы',compositionKey:item.key});if(!item.valid)compositions.set(item.key,item);continue;}
     const r=item.recipe,thickness=Math.min(r.thicknessMm,r.widthMm),width=Math.max(r.thicknessMm,r.widthMm),finish=/строган/i.test(text)||item.packed?'строганая':'по проекту';
     const kind=!item.packed&&(/брус|мауэрлат/i.test(text)&&Math.min(...item.profile)>=90||Math.min(...item.profile)>=100)?'Брус':'Доска';
-    const key=`${kind}:${thickness}x${width}:${finish}`,row=groups.get(key)||{id:key,name:`${kind} ${thickness}×${width} мм`,finish,thicknessMm:thickness,widthMm:width,lengthM:0,volumeM3:0,sources:[]};
+    const stockLengthM=input.stockLengthM||purchasedBlanks?.lengthM||settings.stockLengthM;
+    const quote=boardQuote(project,input,item,thickness,width,finish);
+    const key=`${kind}:${thickness}x${width}:${finish}:${stockLengthM}:${quote?.rate??'unknown'}`,row=groups.get(key)||{id:key,name:`${kind} ${thickness}×${width} мм`,finish,thicknessMm:thickness,widthMm:width,stockLengthM,priceM3:quote?.rate??null,priceSource:quote?.name||'',lengthM:0,volumeM3:0,sources:[]};
     const lengthM=length*r.count,volumeM3=lengthM*thickness*width/1e6;
     row.lengthM+=lengthM;row.volumeM3+=volumeM3;row.sources.push({id:input.id,name,layer:input.layer,lengthM:round(lengthM),assemblyLengthM:round(length),boards:r.count,basis:item.basis});groups.set(key,row);
   }
-  const rows=[...groups.values()].map(r=>({...r,lengthM:round(r.lengthM),volumeM3:round(r.volumeM3)})).sort((a,b)=>a.thicknessMm-b.thicknessMm||a.widthMm-b.widthMm||a.finish.localeCompare(b.finish));
+  const rows=[...groups.values()].map(r=>{const pieces=source==='cutting'?r.sources.reduce((n,s)=>n+s.boards,0):Math.ceil(round(r.lengthM/r.stockLengthM)-1e-7),orderLengthM=round(pieces*r.stockLengthM),orderVolumeM3=round(orderLengthM*r.thicknessMm*r.widthMm/1e6);return {...r,lengthM:round(r.lengthM),volumeM3:round(r.volumeM3),pieces,orderLengthM,orderVolumeM3,amount:r.priceM3==null?null:orderVolumeM3*r.priceM3};}).sort((a,b)=>a.thicknessMm-b.thicknessMm||a.widthMm-b.widthMm||a.finish.localeCompare(b.finish));
   const warnings=source==='cutting'&&report?.timberStock?.unplaced?.length?[`В раскрое не размещено деталей: ${report.timberStock.unplaced.length}. Ведомость содержит только размещённые хлысты.`]:[];
   const missing=new Map();for(const row of unresolved){const key=`${row.name}:${row.reason}`;const previous=missing.get(key);missing.set(key,{...row,occurrences:(previous?.occurrences||0)+1});}
   const unplacedMembers=source==='cutting'?(report.fabricationMembers||report.members||[]).filter(m=>report.timberStock?.unplaced?.includes(m.id)).map(m=>({id:m.id,mark:m.displayMark||m.id,name:m.material,profile:m.profile,lengthMm:m.cutLength,volumeM3:(Number(m.cutLength)||0)*String(m.profile).split(/[×xх]/).map(Number).reduce((n,v)=>n*v,1)/1e9})):[];

@@ -8,3 +8,5 @@
 .purchasing-register label.purchase-merge{display:flex!important;flex-direction:row!important;align-items:center}
 
 .purchase-kind{display:flex;gap:7px;flex-wrap:wrap;padding:10px 0}.purchase-kind button{white-space:normal;min-height:40px}.purchase-actions[hidden]{display:none!important}
+
+.foundation-footprint{border:1px solid #c9d7bf;border-radius:8px;padding:10px 14px;margin:10px 0;min-width:0;background:#f7faf4}.foundation-footprint summary{cursor:pointer;font-weight:600;padding:6px 0}.foundation-footprint p{font-size:12px;line-height:1.5;max-width:950px}.foundation-footprint-sizes{display:flex;gap:12px 28px;flex-wrap:wrap;margin:12px 0;font-size:13px}.foundation-footprint-sizes span{display:flex;flex-direction:column;gap:4px}

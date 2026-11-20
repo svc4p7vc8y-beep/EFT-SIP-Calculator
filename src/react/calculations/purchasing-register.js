@@ -1,3 +1,4 @@
+import {purchaseQuantities} from './purchase-quantities.js';
 // A view of the final estimate: no new reserves, prices or material norms.
 export function purchaseLayer(line, titles = {}) {
   const source = String(line.source || '');
@@ -23,6 +24,8 @@ export function purchasingRegister(calculation, selected = null, {mergeIdentical
     const name=mergeIdentical&&line.section!=='openings'&&!line.custom?String(line.name).split(' · ')[0]:line.name;
     const key = JSON.stringify([mergeIdentical?'combined':groups.size,line.catalogId||'',name,line.unit,Number(line.price)||0]);
     const row = groups.get(key) || {id:key,layer:layer.name,layerId:layer.id,group:line.estimateGroup||'',catalogId:line.catalogId||'',name,unit:line.unit,qty:0,price:Number(line.price)||0,amount:0,fastener:isPurchaseFastener(line.name),manual:false,allocations:[]};
+    const quantities=purchaseQuantities(line);
+    for(const field of ['pieces','lengthM','volumeM3'])row[field]=row.allocations.length&&row[field]==null||quantities[field]==null?null:(row[field]||0)+quantities[field];
     row.qty += Number(line.qty); row.amount += Number(line.qty)*(Number(line.price)||0);
     row.allocations.push({layer:layer.name,group:line.estimateGroup||'',qty:Number(line.qty),name:line.name});
     row.layer=[...new Set(row.allocations.map(a=>a.layer))].join(', ');

@@ -5224,6 +5224,7 @@ function PlanLibraryModal({ entries, syncState, onRefresh, onClose, onOpen, onEd
 }
 
 const DEFAULT_FOUNDATION_DRAFT = {
+  layoutReference: "floorEdges",
   autoLayoutMode: "uniform",
   spacing: 2.5,
   autoRowSpacing: 2.5,
@@ -5253,7 +5254,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
           </button>
         ))}
       </div>
-      <label className="field">Привязка автоматического основания<select aria-label="Привязка автоматического основания" value={draft.layoutReference||'outer'} onChange={e=>update('layoutReference',e.target.value)}><option value="outer">По наружному контуру · сохранённая схема</option><option value="wallAxes">По осям несущих стен</option><option value="floorEdges">Наружная грань обвязки = край SIP-пола</option></select></label><p className="foundation-setup-note">Наружный габарит дома сохраняется. Для совпадения с SIP-полом выберите «Наружная грань обвязки = край SIP-пола»: оси смещаются внутрь на половину ширины пакета ({bindingWidthMm/2} мм). Режим осей стен использует половину толщины стены ({Number(wallThicknessMm)/2} мм) и может давать другой край. Ручные опоры остаются; их опирание нужно сверить. Применение — кнопкой «Перестроить».</p>
+      <label className="field">Привязка автоматического основания<select aria-label="Привязка автоматического основания" value={draft.layoutReference||'outer'} onChange={e=>update('layoutReference',e.target.value)}><option value="outer">По наружному контуру · сохранённая схема</option><option value="wallAxes">По осям несущих стен</option><option value="floorEdges">По наружной грани обвязки · пол и стены связаны</option></select></label><p className="foundation-setup-note">Наружный габарит дома сохраняется. Главный контур — наружная грань обвязки. Для привязки пола и стен выберите «По наружной грани обвязки»: оси смещаются внутрь на половину ширины пакета ({bindingWidthMm/2} мм). Режим осей стен использует половину толщины стены ({Number(wallThicknessMm)/2} мм) и может давать другой край. Ручные опоры остаются; их опирание нужно сверить. Применение — кнопкой «Перестроить».</p>
       <div className="foundation-setting-grid">
         <NumberField label="Макс. шаг свай" value={draft.spacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("spacing", Math.max(0.5, value))} />
         {draft.autoLayoutMode === "uniform" ? <NumberField label="Шаг между рядами" value={draft.autoRowSpacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("autoRowSpacing", Math.max(0.5, value))} /> : null}
@@ -5971,7 +5972,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       return;
     }
     commit((next) => {
-      next.settings.piles = { ...next.settings.piles, ...draft };
+      next.settings.piles = { ...next.settings.piles, ...draft, externalBindingDatum:draft.layoutReference==='floorEdges' };
       const manualRows = (next.plan.pileRows || []).filter((row) => !row.auto);
       const autoRows = generateAutoPileRows(next.plan, draft.spacing, {
         mode: draft.autoLayoutMode,
