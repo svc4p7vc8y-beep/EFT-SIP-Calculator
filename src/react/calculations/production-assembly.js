@@ -1,3 +1,5 @@
+import {applyBearingTrusses} from './bearing-truss.js';
+import {platformRafterBearings} from './platform-rafter-bearings.js';
 import { hasSeparateOverhangs } from './roof-overhangs.js';
 import { planSupportMaterials } from './plan-support-materials.js';
 import { houseContourPoints, roomPoints } from '../planner/geometry.js';
@@ -139,7 +141,9 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     else issues.push('Контробрешётка: укажите проектное сечение в исходных данных раскроя. Материалы не добавлены автоматически.');
   }
   const supports=[],ids=new Set();
-  for(const [i,item] of planSupportMaterials(project, settings.roofSupports).entries()){
+  const supportItems=planSupportMaterials(project,settings.roofSupports);
+  for(const truss of settings.roofSupports.filter(m=>m.bearingTruss))if(!supportItems.some(m=>m.bearingTrussId===truss.id))issues.push(`${truss.name||'Ферма-прогон'}: проверьте положительное сечение, высоту между поясами и длину заготовки; детали фермы не сформированы.`);
+  for(const [i,item] of supportItems.entries()){
     if(!roofSupportMatchesSystem(item,frame.system))continue;
     const mark=`ОП-${i+1}`;
     if(ids.has(item.id)){issues.push(`${mark}: повторяется идентификатор опоры.`);continue;}ids.add(item.id);
@@ -155,7 +159,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     if(item.type!=='foundation'&&!item.referenceOnly){
       if(!item.nodeRef.trim())issues.push(`${mark}: укажите рабочий узел.`);
       const count=(item.facadeId||item.frameWallId)&&item.packagePricing!=='package'?Math.max(1,Math.min(8,Number(item.packageCount)||1)):1;
-      for(let board=0;board<count;board++)members.push({id:count>1?`${mark}-Д${board+1}`:mark,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',count>1?`${item.id}:board:${board+1}`:item.id)),material:item.houseFrameMaterial?`${item.houseFrameMaterial.familyLabel} · материал основного каркаса`:ASSEMBLY_TYPES[item.type],profile:((item.facadeId||item.frameWallId)&&item.packagePricing!=='package'?item.packageProfile||item.profile:item.profile).replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:item.houseFrameMaterial?'Фасад · материал основного каркаса, проектное сечение':item.facadeId?(item.packagePricing==='package'?'Фасад · готовый пакет':`Фасад · доска ${board+1} из ${count}`):'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
+      for(let board=0;board<count;board++)members.push({supportId:item.id,id:count>1?`${mark}-Д${board+1}`:mark,...(item.hasStableSourceId===false?{}:sourceIdentity('roof-support',count>1?`${item.id}:board:${board+1}`:item.id)),material:item.houseFrameMaterial?`${item.houseFrameMaterial.familyLabel} · материал основного каркаса`:ASSEMBLY_TYPES[item.type],profile:((item.facadeId||item.frameWallId)&&item.packagePricing!=='package'?item.packageProfile||item.profile:item.profile).replace(/[xх]/g,'×'),length,cutLength:length+2*Number(settings.endAllowanceMm||0),source:item.houseFrameMaterial?'Фасад · материал основного каркаса, проектное сечение':item.facadeId?(item.packagePricing==='package'?'Фасад · готовый пакет':`Фасад · доска ${board+1} из ${count}`):'Проектная опора',surface:support.name,panels:[],nodeRef:item.nodeRef,processing:'По рабочему узлу'});
     }
   }
   const byId=new Map(supports.map(s=>[s.id,s]));
@@ -338,7 +342,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     for(const item of [...platform.posts,...platform.ties]){
       const length=Math.ceil(Math.hypot(...item.a.map((v,i)=>item.b[i]-v)));
       assembly.members.push({...item,worldA:item.a,worldB:item.b,length,cutLength:length+2*Number(settings.endAllowanceMm||0),
-        material:item.profile==='100×100'?'Брус ест.влажн. сосна 100×100 мм':'Брус мауэрлата ест.влажн. сосна 150×100 мм',
+        material:item.material||(item.profile==='100×100'?'Брус ест.влажн. сосна 100×100 мм':'Брус мауэрлата ест.влажн. сосна 150×100 мм'),
         surface:platform.name,surfaceId:`platform:${platform.id}`,panels:[],role:'frame',
         source:item.name||'Опорный столб кровли террасы',processing:'Опирание и крепёж по рабочему узлу'});
     }
@@ -365,6 +369,8 @@ export function calculateAssemblyPlan(project,calculation,settings) {
     assembly.roofTimbers.push(item);
     assembly.members.push({...item,cutLength:length+2*Number(settings.endAllowanceMm||0),source:'Геометрия второго света или кровли террасы',surface:'Кровля',panels:[],processing:'Пакет из трёх досок; опоры, клей и несущая способность по проекту'});
   }
+  platformRafterBearings(assembly);
+  applyBearingTrusses(assembly,settings);
   assembly.showPlatforms=settings.showPlatforms!==false;
   return assembly;
 }

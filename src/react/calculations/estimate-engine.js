@@ -1571,7 +1571,9 @@ function roofSection(project, metrics, index, inputs, footprint) {
       result.postLength=round(layout.posts.reduce((n,p)=>n+(p.b[2]-p.a[2])/1000,0),3);
       const [w,d]=result.postSection.split('x').map(Number);
       result.postVolume=round(result.postLength*w*d/1e6,3);
-      result.tieLength=round(layout.ties.reduce((n,p)=>n+Math.hypot(...p.a.map((v,i)=>p.b[i]-v))/1000,0),3);
+      result.wallPlateLength=round(layout.ties.filter(p=>p.wallLedger).reduce((n,p)=>n+Math.hypot(...p.a.map((v,i)=>p.b[i]-v))/1000,0),3);
+      result.wallPlateVolume=result.wallPlateLength*plateProfile.heightMm*plateProfile.widthMm/1e6;
+      result.tieLength=round(layout.ties.filter(p=>!p.wallLedger).reduce((n,p)=>n+Math.hypot(...p.a.map((v,i)=>p.b[i]-v))/1000,0),3);
       result.tieVolume=round(result.tieLength*w*d/1e6,3);
     }
     terracePostCount=terraceRoofs.reduce((n,e)=>n+e.result.postCount,0);
@@ -1778,8 +1780,8 @@ function roofSection(project, metrics, index, inputs, footprint) {
           Math.round(Number(inputs.formulas.roofTrussPlatesPerFrame) || 0),
         )
       : 0;
-  const extensionLines = compact(
-    terraceRoofs.flatMap(({ platform, result }) => {
+  const extensionLines = compact([
+    ...terraceRoofs.flatMap(({ platform, result }) => {
       if(platform.roof?.mode==='shared'&&result.postCount){
         const key=`platform-${String(platform.id).replace(/[^a-zа-я0-9-]/gi,'-')}`,source=`${key}-roof`,title=platform.kind==='porch'?'крыльца':'террасы';
         const query=result.postSection==='100x100'?'Брус ест.влажн. сосна 100×100 мм':'Брус мауэрлата ест.влажн. сосна 150×100 мм';
@@ -2338,7 +2340,8 @@ function roofSection(project, metrics, index, inputs, footprint) {
         }),
       ];
     }),
-  );
+    ...terraceRoofs.filter(e=>e.result.wallPlateLength>0).map(({platform,result})=>makeLine(index,'roof',plateProfile.catalogName,result.wallPlateVolume,{key:`platform-${platform.id}-wall-plate`,unit:'м³',digits:6,name:`Мауэрлат террасы у стены ${plateProfile.profile} мм · ${result.wallPlateLength} м`,source:'Фактическая опора стропил террасы у стены. Сечение мауэрлата из проекта; чистый объём без дополнительного запаса. Стыки на непрерывной стеновой опоре; крепёж по рабочему узлу.'})),
+  ]);
   const gutterLength = includeCovering && roof.includeGutter === true ? mainEaveLength : 0;
   const flatBitumen = mainRoofShape === 'flat' && roof.flatCoverSystem === 'bitumen' && includeCovering;
   const mainOsbArea =

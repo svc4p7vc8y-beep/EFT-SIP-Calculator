@@ -50,7 +50,8 @@ test('terrace outer tie uses post section and adds one material line', () => {
   const tie = calculation.lines.find(line => line.id === 'roof:platform-t-outer-tie-100x100');
   assert.ok(tie?.qty > 0);
   const platform = assembly.platforms[0];
-  assert.equal(platform.ties.length, platform.posts.length - 1);
+  assert.equal(platform.ties.filter(item=>!item.wallLedger).length, platform.posts.length - 1);
+  assert.ok(platform.ties.some(item=>item.wallLedger));
   assert.ok(platform.posts.every(item => Math.abs(item.a[1] - (project.plan.house.h + 2) * 1000) < 1));
   assert.ok(productionScene(report(project), project).beams.some(item => item.id.startsWith('platform:t:tie:')));
 });

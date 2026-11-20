@@ -229,7 +229,7 @@ const TOOLS = [
   ["bearingWall", "Доски / несущие", BrickWall],
   ["structuralFrame", "Каркас / развёртка", PanelsTopLeft],
   ["framePost", "Стойка", BrickWall], ["frameWindow", "Окно", PanelsTopLeft], ["frameDoor", "Дверь", DoorOpen],
-  ["roofPan", "Переместить вид", MousePointer2], ["roofAxis", "Прогон", Ruler], ["roofBeam", "Балка", Ruler], ["roofPost", "Стойка кровли", BrickWall], ["roofAuto", "Авторасстановка", RotateCw],
+  ["roofPan", "Переместить вид", MousePointer2], ["roofAxis", "Прогон", Ruler], ["roofTruss", "Ферма-прогон", BrickWall], ["roofBeam", "Балка", Ruler], ["roofPost", "Стойка кровли", BrickWall], ["roofAuto", "Авторасстановка", RotateCw],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
@@ -5611,6 +5611,16 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     if(id==='foundationGrid'){if(activeFloor!==1){setTransferStatus('Основание редактируется на первом этаже.');return;}setFoundationGridOpen(true);setTool('select');return;}
     if(id==='frameTerrace'){setActiveLayer('frame');setInspectorTab('element');setSelected(null);setFrameSelection(null);setTool('select');return;}
     if(['structuralFrame','framePost','frameWindow','frameDoor'].includes(id)){setFrameTool({framePost:'post',frameWindow:'window',frameDoor:'door'}[id]||'select');setFrameWall('');setTool('select');return;}
+    if(id==='roofTruss'){
+      setTransferStatus('Строю ферму-прогон…');setTool('select');
+      Promise.all([import('../calculations/production-cutting.js'),import('../calculations/bearing-truss.js')]).then(([{calculateProductionCutting},{createBearingTruss}])=>{
+        const report=calculateProductionCutting(project,projectCalculation),item=createBearingTruss(project,report.assembly);
+        const existing=project.settings.productionCutting.roofSupports.find(m=>m.bearingTruss&&['x1','y1','x2','y2'].every(k=>Math.abs(Number(m[k])-item[k])<1));
+        if(!existing&&project.settings.productionCutting.roofSupports.length>=200)throw new Error('Достигнут лимит опор.');
+        if(!existing)commit(next=>{next.settings.productionCutting.roofSupports.push(item);return next;});
+        setSelected({type:'roofSupport',id:existing?.id||item.id});setInspectorTab('element');setTransferStatus('Ферма-прогон: задайте высоту и выносы справа. Пояса и решётка включены в раскрой; узлы требуют рабочего проекта.');
+      }).catch(e=>setTransferStatus(e.message));return;
+    }
     if(id==='roofAuto'){commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;});setTool('select');return;}
     if (id === 'extension' && plan.existingBuilding) {
       setTransferStatus('Для нового дома у существующего угла используйте открытый контур. «Пристройка-комната» добавит площадь повторно.');

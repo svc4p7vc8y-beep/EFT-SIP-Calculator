@@ -83,6 +83,7 @@ export function normalizeProductionCutting(value = {}) {
     roofSupports: Array.isArray(value.roofSupports) ? value.roofSupports.filter(item=>item && typeof item==='object').slice(0,200).map((item,index)=>({
       ...item,...(item.hasStableSourceId===false||!item.id?{hasStableSourceId:false}:{}),id:String(item.id||`support-${index+1}`),name:String(item.name||'').slice(0,200),
       type:['purlin','post','beam','rafter','brace','tie','sleeper','sprengel','foundation'].includes(item.type)?item.type:'purlin',
+      ...(item.bearingTruss?{bearingTruss:true,trussDepthMm:Math.max(101,Math.min(3000,Number(item.trussDepthMm)||330)),trussWebStepMm:Math.max(100,Math.min(2000,Number(item.trussWebStepMm)||600)),...Object.fromEntries(['trussOverhangStartMm','trussOverhangEndMm','trussRafterOverhangMm'].map(k=>[k,Math.max(0,Math.min(3000,Number(item[k])||0))]))}:{}),
       profile:String(item.profile||'').slice(0,100),nodeRef:String(item.nodeRef||'').slice(0,200),
       ...(item.referenceOnly===undefined?{}:{referenceOnly:item.referenceOnly===true}),
       ...(item.estimateEnabled===undefined?{}:{estimateEnabled:item.estimateEnabled===true}),

@@ -1,3 +1,4 @@
+import {expandBearingTrusses,trussAxis} from './bearing-truss.js';
 import {inheritFacadeMaterial} from './facade-frame-material.js';
 import { AUTO_ROOF_LAYOUT } from '../state/auto-roof-supports.js';
 import { mauerlatProfile } from './roof-wall-plate.js';
@@ -44,10 +45,10 @@ export function planSupportMaterials(project, supports = project.settings?.produ
     });
     for (const post of posts) replacements.set(post.id, { ...post, z1: base + depth, startSupport: id });
   }
-  return [...supports.map(item => {
+  return expandBearingTrusses([...supports.map(item => {
     if (item.type === 'beam' && item.frameGroup && item.flat && item.name.includes('нижний пояс')) {
       return { ...item, type: 'sleeper', name: item.name.replace('нижний пояс', 'лежень (нижний пояс)') };
     }
     return inheritFacadeMaterial(project,replacements.get(item.id) || item);
-  }), ...sleepers];
+  }), ...sleepers].map(item=>item.bearingTruss?{...trussAxis(item),trussEndAllowanceMm:Number(project.settings.productionCutting?.endAllowanceMm)||0}:item),project.settings.productionCutting?.stockLengthMm);
 }

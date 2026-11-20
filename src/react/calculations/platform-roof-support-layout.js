@@ -1,3 +1,4 @@
+import {mauerlatProfile} from './roof-wall-plate.js';
 import {roofAt} from './roof-project.js';
 import {houseContourPoints} from '../planner/geometry.js';
 import {normalizeTerracePlatform} from '../../calculations/terrace-model.js';
@@ -25,7 +26,14 @@ export function platformRoofSupportLayout(project,platform,result,model,spacing=
  };
  const edges=[['top',[x,y],[x+w,y]],['right',[x+w,y],[x+w,y+h]],['bottom',[x+w,y+h],[x,y+h]],['left',[x,y+h],[x,y]]];
  for(const [side,a,b]of edges){
-  const mid=a.map((v,i)=>(v+b[i])/2);if(onHouse(mid))continue;
+  const mid=a.map((v,i)=>(v+b[i])/2);if(onHouse(mid)){
+   const hit=roofAt({faces},...mid)[0],L=distance(a,b),plate=mauerlatProfile(project.settings.roof);if(!hit||platform.roof.mode==='shared'||hit.face.warm)continue;
+   const n=hit.face.normal,slope=Math.hypot(n[0],n[1]);if(slope>.001&&Math.abs(n[0]*(b[0]-a[0])+n[1]*(b[1]-a[1]))/(L*slope)>.02)continue;
+   const stock=Math.max(1000,(Number(project.settings.productionCutting?.stockLengthMm)||6000)-2*(Number(project.settings.productionCutting?.endAllowanceMm)||0)),count=Math.ceil(L/stock);
+   for(let i=0;i<count;i++){const from=a.map((v,k)=>v+(b[k]-v)*i/count),to=a.map((v,k)=>v+(b[k]-v)*(i+1)/count),za=at(from),zb=at(to);if(za==null||zb==null)continue;
+    ties.push({id:`platform:${platform.id}:ledger:${side}:${i}`,a:[...from,za-plate.heightMm/2],b:[...to,zb-plate.heightMm/2],profile:plate.profile,heightMm:plate.heightMm,flat:true,material:plate.catalogName,wallLedger:true,layer:'platforms',referenceOnly:true,name:'Мауэрлат террасы у стены',platformId:platform.id});
+   }continue;
+  }
   const hit=roofAt({faces},...mid)[0],L=distance(a,b);if(!hit||L<10)continue;
   const n=hit.face.normal,slope=Math.hypot(n[0],n[1]);
   if(slope>.001&&Math.abs(n[0]*(b[0]-a[0])+n[1]*(b[1]-a[1]))/(L*slope)>.02)continue;

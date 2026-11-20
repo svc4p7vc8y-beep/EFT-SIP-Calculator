@@ -1,0 +1,166 @@
+{
+  "house": {
+    "w": 10,
+    "h": 3.75,
+    "contourDefined": true,
+    "points": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 10,
+        "y": 0
+      },
+      {
+        "x": 10,
+        "y": 3.75
+      },
+      {
+        "x": 0,
+        "y": 3.75
+      }
+    ]
+  },
+  "platforms": [
+    {
+      "id": "terrace-mwelnove-4rw4",
+      "kind": "terrace",
+      "x": 0,
+      "y": 3.75,
+      "x2": 10,
+      "y2": 5.7,
+      "w": 10,
+      "h": 2,
+      "include": true,
+      "steps": 0,
+      "stairSide": "right",
+      "stairDirection": "outward",
+      "stairWidth": 1.2,
+      "tread": 0.3,
+      "riser": 0.18,
+      "joistSpacingMm": 500,
+      "foundation": {
+        "mode": "shared"
+      },
+      "binding": {
+        "mode": "shared"
+      },
+      "roof": {
+        "mode": "cold",
+        "shape": "shed",
+        "inheritMainRoof": true,
+        "areaMode": "auto",
+        "manualArea": 0,
+        "frontOverhang": 0.2,
+        "sideOverhang": 0,
+        "highHeight": 2.75,
+        "lowHeight": 2.2,
+        "ridgeHeight": 0.8,
+        "gableType": "auto",
+        "gableCount": 1,
+        "postSection": "auto",
+        "wastePercent": 10
+      },
+      "railings": [],
+      "railingSettings": {
+        "heightMm": 950,
+        "bottomGapMm": 100,
+        "maxSpanMm": 1500
+      },
+      "deckEnabled": true,
+      "joistsEnabled": true
+    }
+  ],
+  "roof": {
+    "sipPanelThickness": "124",
+    "shape": "flat",
+    "ridgeAxis": "x",
+    "flatSlopeMode": "tapered",
+    "flatSlopeDirection": "front",
+    "flatSlopePercent": 10,
+    "flatFrameDepthMm": 330,
+    "flatParapetMode": "none",
+    "flatParapetHeightMm": 900,
+    "flatOpenSide": "back",
+    "flatOpenOverhangMm": 500,
+    "flatDrainCount": 2,
+    "flatCoverSystem": "sheet",
+    "flatDeckMaterial": "csp",
+    "flatDeckLayers": 2,
+    "flatOsbThicknessMm": 12,
+    "flatOsbLayers": 2,
+    "flatOsbFastenersKgPerM2": 0.1,
+    "flatWaterproofUpstandMm": 900,
+    "flatWaterproofOutsideMm": 100,
+    "type": "cold",
+    "sipFrameMode": "standard",
+    "includeCovering": true,
+    "covering": "profile",
+    "ridgeHeight": 1.8,
+    "ridgeLength": 9.66,
+    "wastePercent": 10,
+    "warmPercent": 0,
+    "eaveOverhang": 0,
+    "gableOverhang": 0,
+    "structureMode": "manual",
+    "rafterSystem": "hanging",
+    "rafterStep": 0.6,
+    "rafterSection": "50x100",
+    "hangingRiegelEnabled": true,
+    "hangingRiegelHeightPercent": 50,
+    "layeredFrameEnabled": true,
+    "layeredFrameMode": "auto",
+    "layeredFrameCount": 2,
+    "layeredFramePositions": [],
+    "layeredFramePostSpacingMode": "auto",
+    "layeredFramePostSpacingMm": 1000,
+    "lathStep": 0.35,
+    "mauerlatLayout": "perimeter",
+    "mauerlatProfile": "50x150",
+    "mauerlatFastener": "sip-screws",
+    "rafterSupportConnection": "nails",
+    "showRoofCover": true,
+    "showMauerlat": true,
+    "showRafters": true,
+    "showLath": true,
+    "showCounterLath": false,
+    "includeEaveTrim": false,
+    "includeVergeTrim": false,
+    "includeRidgeSeal": false,
+    "includeGutter": false,
+    "snowGuards": {
+      "mode": "none",
+      "firstLength": null,
+      "secondLength": null,
+      "materialPrice": null,
+      "laborPrice": null
+    },
+    "gableType": "auto",
+    "gableCount": 2,
+    "gableSideTypes": {
+      "first": "auto",
+      "second": "auto"
+    },
+    "tiered": {
+      "upperShare": 50,
+      "upperRise": 1.8,
+      "lowerRise": 0.9,
+      "stepHeight": 0.7,
+      "jointOverhang": 0.2,
+      "upperSide": "first",
+      "upperSlopeDirection": "towardJunction",
+      "lowerSlopeDirection": "awayJunction",
+      "warmLevel": "upper",
+      "gableTypes": {
+        "upperFirst": "auto",
+        "upperSecond": "auto",
+        "lowerFirst": "auto",
+        "lowerSecond": "none",
+        "inner": "auto"
+      },
+      "gableAreas": {}
+    },
+    "flatWallHeightReference": "high"
+  }
+}

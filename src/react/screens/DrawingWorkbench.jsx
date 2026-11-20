@@ -1,3 +1,4 @@
+import {PlatformFrameDrawing} from './PlatformFrameDrawing.jsx';
 import {HORIZONTAL_LAYOUT_DIRECTIONS} from '../calculations/surface-orientation.js';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
@@ -27,7 +28,7 @@ import WorkbenchStock from './WorkbenchStock.jsx';
 import {openProductionPrint} from '../export/production-print.js';
 import {panelCutMapPages} from '../calculations/panel-cut-maps.js';
 import {PanelCutMapPage} from './PanelCutMaps.jsx';
-import { CONSTRUCTION_CATEGORIES as categories, WORKBENCH_MODES, scopedWorkbenchItems, scopedWorkbenchStock, scopedPurchases, timberMaterialSummary, locateWorkbenchItem } from './workbench-model.js';
+import { CONSTRUCTION_CATEGORIES as categories, WORKBENCH_MODES, workbenchSurfaces, scopedWorkbenchItems, scopedWorkbenchStock, scopedPurchases, timberMaterialSummary, locateWorkbenchItem } from './workbench-model.js';
 import WorkbenchTree from './WorkbenchTree.jsx';
 import WorkbenchDocuments from './WorkbenchDocuments.jsx';
 import '../styles/cutting-workspace.css';
@@ -68,7 +69,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
   useEffect(()=>{const escape=e=>{if(e.key==='Escape'){setTool('select');setEditedLabel(null);}};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape);},[]);
   const pages=useMemo(()=>report?buildMountingPages(report):[],[report]);
   const links=useMemo(()=>report?gableLinks(report,settings.gableLinks):[],[report,settings.gableLinks]);
-  const candidates=report?.surfaces.filter(s=>(drawingCategory(s)===category)&&(s.floor==null||s.floor===floor))||[];
+  const candidates=(report?workbenchSurfaces(report):[]).filter(s=>(drawingCategory(s)===category)&&(s.floor==null||s.floor===floor))||[];
   const surface=candidates.find(s=>s.id===surfaceId)||candidates[0];
   const viewOptions=[
     ['drawing',['walls','partitions','gables'].includes(category)?'Развёртка':'План / раскладка',PanelsTopLeft],
@@ -146,6 +147,7 @@ export default function DrawingWorkbench({project,calculation,report,pending,err
     if(view==='plan'&&surface?.planStart)return <WallPanelPlan report={report} floor={surface.floor} selectedId={surface.id} onSelect={openWall} layers={layers} fontScale={fontScale}/>;
     if(category==='piles')return <StructuralPlan assembly={{...report.assembly,binding:[]}} kind="binding" layers={{...layers,platforms:settings.showPlatforms!==false}} fontScale={fontScale}/>;
     if(view==='starter')return <StarterBoardDiagram walls={report.starterBoards}/>;
+    if(category==='platforms')return <PlatformFrameDrawing platform={report.assembly.platforms.find(p=>`platform:${p.id}`===surface?.id)} onSelect={select}/>;
     if(category==='supports')return <AssemblyCanvas assembly={report.assembly}/>;
     if(category==='binding')return view==='section'?<BindingSection assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} kind="binding" layers={{...layers,platforms:settings.showPlatforms!==false}} fontScale={fontScale}/>;
     if(category==='roof'&&(view!=='drawing'||!surface))return view==='cover'?<RoofCoverTool report={report} settings={settings} update={update} NumberInput={NumberInput}/>:view==='section'?<RoofSection assembly={report.assembly}/>:view==='overlay'?<AssemblyCanvas assembly={report.assembly}/>:<StructuralPlan assembly={report.assembly} selected={selection} onSelect={select} layers={layers}/>;

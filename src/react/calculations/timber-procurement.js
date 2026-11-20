@@ -15,7 +15,7 @@ export function timberComposition(name,section,recipes={}) {
   const assembled=p.includes(95)?95:p.includes(90)?90:null,depth=assembled?p.find(n=>n!==assembled)||assembled:null;
   const nominal=p.map(n=>packed&&n===90?95:n);
   const key=packed?explicit?`${family}:${explicit.slice(1).map(num).join('x')}`:`${family}:${nominal.sort((a,b)=>a-b).join('x')}`:`board:${[...p].sort((a,b)=>a-b).join('x')}`;
-  const base=explicit?{count:num(explicit[1]),thicknessMm:num(explicit[2]),widthMm:num(explicit[3])}:packed&&depth?{count:2,thicknessMm:45,widthMm:depth}:!packed&&!/брус|мауэрлат/i.test(text)&&Math.min(...p)<100?{count:1,thicknessMm:Math.min(...p),widthMm:Math.max(...p)}:null;
+  const base=explicit?{count:num(explicit[1]),thicknessMm:num(explicit[2]),widthMm:num(explicit[3])}:packed&&depth?{count:2,thicknessMm:45,widthMm:depth}:!packed?{count:1,thicknessMm:Math.min(...p),widthMm:Math.max(...p)}:null;
   const saved=recipes[key],recipe=saved||base;
   return {key,packed,profile:p,recipe,valid:!!recipe&&recipe.count>0&&recipe.thicknessMm>0&&recipe.widthMm>0,name:packed?explicit?text.split(' · ')[0]:`${/термобрус/i.test(text)?'Термобрус':/комплект/i.test(text)?'Комплект пакета':'Клеёный пакет'} ${[...p].sort((a,b)=>a-b).join('×')} мм`:text.split(' · ')[0],basis:saved?'Состав проекта':explicit?'Состав указан в наименовании изделия':packed&&depth?'Состав EFT: 2 доски 45 мм; ширина по глубине изделия':'Сечение доски по проекту'};
 }
@@ -44,12 +44,14 @@ export function timberProcurement(project,calculation,report,{source='estimate',
     }
     if(!(length>0)||!item.valid){unresolved.push({name,reason:!item.valid?'Укажите состав досок для изделия':'Нельзя определить длину из единицы сметы',compositionKey:item.key});if(!item.valid)compositions.set(item.key,item);continue;}
     const r=item.recipe,thickness=Math.min(r.thicknessMm,r.widthMm),width=Math.max(r.thicknessMm,r.widthMm),finish=/строган/i.test(text)||item.packed?'строганая':'по проекту';
-    const key=`${thickness}x${width}:${finish}`,row=groups.get(key)||{id:key,name:`Доска ${thickness}×${width} мм`,finish,thicknessMm:thickness,widthMm:width,lengthM:0,volumeM3:0,sources:[]};
+    const kind=!item.packed&&(/брус|мауэрлат/i.test(text)&&Math.min(...item.profile)>=90||Math.min(...item.profile)>=100)?'Брус':'Доска';
+    const key=`${kind}:${thickness}x${width}:${finish}`,row=groups.get(key)||{id:key,name:`${kind} ${thickness}×${width} мм`,finish,thicknessMm:thickness,widthMm:width,lengthM:0,volumeM3:0,sources:[]};
     const lengthM=length*r.count,volumeM3=lengthM*thickness*width/1e6;
     row.lengthM+=lengthM;row.volumeM3+=volumeM3;row.sources.push({id:input.id,name,layer:input.layer,lengthM:round(lengthM),assemblyLengthM:round(length),boards:r.count,basis:item.basis});groups.set(key,row);
   }
   const rows=[...groups.values()].map(r=>({...r,lengthM:round(r.lengthM),volumeM3:round(r.volumeM3)})).sort((a,b)=>a.thicknessMm-b.thicknessMm||a.widthMm-b.widthMm||a.finish.localeCompare(b.finish));
   const warnings=source==='cutting'&&report?.timberStock?.unplaced?.length?[`В раскрое не размещено деталей: ${report.timberStock.unplaced.length}. Ведомость содержит только размещённые хлысты.`]:[];
   const missing=new Map();for(const row of unresolved){const key=`${row.name}:${row.reason}`;const previous=missing.get(key);missing.set(key,{...row,occurrences:(previous?.occurrences||0)+1});}
-  return {source,rows,compositions:[...compositions.values()],unresolved:[...missing.values()],warnings,totalLengthM:round(rows.reduce((n,r)=>n+r.lengthM,0)),totalVolumeM3:round(rows.reduce((n,r)=>n+r.volumeM3,0)),settings};
+  const unplacedMembers=source==='cutting'?(report.fabricationMembers||report.members||[]).filter(m=>report.timberStock?.unplaced?.includes(m.id)).map(m=>({id:m.id,mark:m.displayMark||m.id,name:m.material,profile:m.profile,lengthMm:m.cutLength,volumeM3:(Number(m.cutLength)||0)*String(m.profile).split(/[×xх]/).map(Number).reduce((n,v)=>n*v,1)/1e9})):[];
+  return {source,rows,unplacedMembers,compositions:[...compositions.values()],unresolved:[...missing.values()],warnings,totalLengthM:round(rows.reduce((n,r)=>n+r.lengthM,0)),totalVolumeM3:round(rows.reduce((n,r)=>n+r.volumeM3,0)),settings};
 }
