@@ -104,11 +104,14 @@ export function terraceAttachmentSide(platform = {}, house = {}) {
   const height = positive(platform.h);
   const houseWidth = positive(house.w);
   const houseHeight = positive(house.h);
+  const ring=Array.isArray(house.points)&&house.points.length>=3?house.points:null;
+  const left=ring?Math.min(...ring.map(p=>p.x)):0,right=ring?Math.max(...ring.map(p=>p.x)):houseWidth;
+  const top=ring?Math.min(...ring.map(p=>p.y)):0,bottom=ring?Math.max(...ring.map(p=>p.y)):houseHeight;
   const candidates = [
-    ['top', Math.abs(y + height)],
-    ['right', Math.abs(x - houseWidth)],
-    ['bottom', Math.abs(y - houseHeight)],
-    ['left', Math.abs(x + width)]
+    ['top', Math.abs(y + height-top)],
+    ['right', Math.abs(x - right)],
+    ['bottom', Math.abs(y - bottom)],
+    ['left', Math.abs(x + width-left)]
   ];
   return candidates.sort((left, right) => left[1] - right[1])[0][0];
 }

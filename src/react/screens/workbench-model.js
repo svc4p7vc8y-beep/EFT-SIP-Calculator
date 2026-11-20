@@ -14,6 +14,10 @@ export function locateWorkbenchItem(report,id) {
 }
 export function scopedWorkbenchItems(report,{scope='surface',surface,drawing,category,floor=1}) {
   if(scope==='project')return {parts:report.parts,members:report.members.filter(m=>!m.excluded)};
+  if(['floors','ceilings','allWalls'].includes(scope)){
+    const targets={floors:['floor'],ceilings:['ceiling'],allWalls:['walls','partitions','gables']}[scope],ids=new Set(workbenchSurfaces(report).filter(s=>targets.includes(drawingCategory(s))).map(s=>s.id));
+    return {parts:report.parts.filter(p=>ids.has(p.surfaceId)),members:report.members.filter(m=>!m.excluded&&ids.has(m.surfaceId))};
+  }
   if(scope==='category'){
     const ids=new Set(workbenchSurfaces(report).filter(s=>drawingCategory(s)===category).map(s=>s.id));
     const role=category==='roof'?'Кровля':category==='binding'?'Обвязка':null;
@@ -33,7 +37,7 @@ export function scopedWorkbenchStock(report,items,{scope,category}) {
   // Spliced assembly members have several physical fabrication pieces.
   for(const piece of report.fabricationMembers||[])if(ids.has(piece.assemblyMemberId))ids.add(piece.id);
   const sheets=report.panelStock.sheets.filter(s=>s.parts.some(p=>ids.has(p.id))),sheetIds=new Set(sheets.map(s=>s.id));
-  return {...report,scopeMembers:items.members,panelStock:{...report.panelStock,sheets,remnants:report.panelStock.remnants.filter(r=>sheetIds.has(r.sheet))},timberStock:{...report.timberStock,bars:report.timberStock.bars.filter(s=>s.parts.some(p=>ids.has(p.id))),unplaced:report.timberStock.unplaced.filter(id=>ids.has(id))},roofCover:category==='roof'&&scope!=='floor'?report.roofCover:{slopes:[]}};
+  return {...report,scopeMembers:items.members,panelStock:{...report.panelStock,sheets,remnants:report.panelStock.remnants.filter(r=>sheetIds.has(r.sheet))},timberStock:{...report.timberStock,bars:report.timberStock.bars.filter(s=>s.parts.some(p=>ids.has(p.id))),unplaced:report.timberStock.unplaced.filter(id=>ids.has(id))},roofCover:category==='roof'&&['surface','category'].includes(scope)?report.roofCover:{slopes:[]}};
 }
 export function scopedPurchases(report,items,context){return purchaseRows(scopedWorkbenchStock(report,items,context));}
 

@@ -1,3 +1,4 @@
+import {boardFootprint} from './partition-geometry.js';
 // Drawing coordinates only; does not change cutting or purchased amounts.
 export const dimensionValues = values => [...new Set(values.filter(v => v !== '' && v != null && Number.isFinite(Number(v))).map(v => Math.round(Number(v))))].sort((a,b)=>a-b);
 export function pointBounds(points) {
@@ -17,7 +18,13 @@ export function structuralDimensions(assembly, binding=false) {
 export function surfaceDimensions(surface, parts=[], members=[]) {
   const box=pointBounds(surface.geometry.flat(2));
   const openings=(surface.openings||[]).filter(o=>o.sill!==''&&o.sill!=null&&Number.isFinite(Number(o.sill)));
-  return { box,
+  const heights=dimensionValues([box.y,box.y+box.height,...surface.geometry.flat(2).map(p=>p[1]),...parts.flatMap(p=>[p.y,p.y+p.height]),...openings.flatMap(o=>[Number(o.sill),Number(o.sill)+o.height]),...members.filter(m=>m.a&&m.b&&!m.excluded&&Math.abs(m.a[1]-m.b[1])<.1).map(m=>m.a[1])]).filter(y=>y>=box.y-.5&&y<=box.y+box.height+.5);
+  const edgeLevels=x=>dimensionValues([box.y,box.y+box.height,...surface.geometry.flatMap(poly=>poly[0].flatMap((a,i,ring)=>{const b=ring[(i+1)%ring.length];if(Math.abs(a[0]-b[0])<.1)return Math.abs(a[0]-x)<.5?[a[1],b[1]]:[];const t=(x-a[0])/(b[0]-a[0]);return t>=-.00001&&t<=1.00001?[a[1]+t*(b[1]-a[1])]:[];})),...parts.flatMap(p=>{
+    if(!p.shape)return x>=p.x-.5&&x<=p.x+p.width+.5?[p.y,p.y+p.height]:[];
+    return p.shape.flatMap(ring=>ring.flatMap((a,i)=>{const b=ring[(i+1)%ring.length];if(Math.abs(a[0]-b[0])<.1)return Math.abs(a[0]-x)<.5?[a[1],b[1]]:[];const t=(x-a[0])/(b[0]-a[0]);return t>=-.00001&&t<=1.00001?[a[1]+t*(b[1]-a[1])]:[];}));
+  })]);
+  const frameY=dimensionValues([box.y,box.y+box.height,...surface.geometry.flatMap(poly=>poly[0].map(p=>p[1])),...openings.flatMap(o=>[Number(o.sill),Number(o.sill)+o.height]),...members.filter(m=>m.a&&m.b&&!m.excluded&&Math.abs(m.a[1]-m.b[1])<.1).flatMap(m=>(boardFootprint(m)||[]).map(p=>p[1]))]).filter(y=>y>=box.y-.5&&y<=box.y+box.height+.5);
+  return { box,y:heights,frameY,leftY:edgeLevels(box.x),rightY:edgeLevels(box.x+box.width),
     x:dimensionValues([box.x,box.x+box.width,...parts.flatMap(p=>[p.x,p.x+p.width]),
       ...members.filter(m=>m.a&&!m.excluded&&Math.abs((m.axisA||m.a)[0]-(m.axisB||m.b)[0])<.1).map(m=>(m.axisA||m.a)[0])]),
     openingX:dimensionValues([box.x,box.x+box.width,...openings.flatMap(o=>[o.x,o.x+o.width])]),

@@ -1,4 +1,5 @@
 import WindowConstruction from './WindowConstruction.jsx';
+import {surfaceDimensions} from '../calculations/drawing-dimensions.js';
 import DrawingDimensions from './DrawingDimensions.jsx';
 import { partitionBoardShape, partitionDrawingData } from '../calculations/partition-drawing.js';
 import { visibleBoardGeometry } from '../calculations/partition-geometry.js';
@@ -6,7 +7,7 @@ import { visibleBoardGeometry } from '../calculations/partition-geometry.js';
 // Shared by the interactive editor and printable mounting sheets.
 export function PartitionDrawingContents({surface,members,pad,font,layers={frame:true,labels:true,dimensions:true},selected=[],handlers=()=>({}),renderLabel,labelOverrides={}}) {
   const {boards,positions,depth,axes,openingX}=partitionDrawingData(surface,members),H=surface.height,W=surface.width;
-  const yy=y=>H-y,top=H+pad*1.15;
+  const yy=y=>H-y,top=H+pad*1.15,heights=surfaceDimensions(surface,[],members).frameY;
   const outlinePath=geometry=>geometry.map(p=>p.map(r=>r.map(([x,y],i)=>`${i?'L':'M'}${x},${yy(y)}`).join(' ')+'Z').join(' ')).join(' ');
   const annotations=boards.map((m,i)=>{
     const vertical=Math.abs(m.a[0]-m.b[0])<.01,cx=(m.a[0]+m.b[0])/2,cy=yy((m.a[1]+m.b[1])/2);
@@ -35,7 +36,7 @@ export function PartitionDrawingContents({surface,members,pad,font,layers={frame
       <line x1={cx} y1={cy} x2={x+(labelOverrides['member:'+m.id]?.offset?.[0]||0)} y2={y-(labelOverrides['member:'+m.id]?.offset?.[1]||0)} stroke="#555" strokeWidth=".4" vectorEffect="non-scaling-stroke"/>
       {renderLabel?renderLabel('member:'+m.id,String(positions.get(m.id)),x,H-y,font*.85):<text x={x} y={y} dominantBaseline="middle" textAnchor="middle" fontSize={font*.85} fill="#000" stroke="#fff" strokeWidth={font*.25} paintOrder="stroke">{positions.get(m.id)}</text>}
     </g>):null}
-    {layers.dimensions?<><DrawingDimensions values={axes} y={H+pad*.45} font={font*.8} label="Оси стоек"/><g transform="rotate(90)"><DrawingDimensions values={[0,H]} y={pad*.55} font={font}/></g>
+    {layers.dimensions?<><DrawingDimensions values={axes} y={H+pad*.45} font={font*.8} label="Оси стоек"/><g transform="rotate(90)"><DrawingDimensions values={heights.map(yy)} y={pad*.3} font={font*.65} textRotation={-90} spreadLabels label="Высоты элементов"/><DrawingDimensions values={[0,H]} y={pad*.8} font={font} textRotation={-90}/></g>
       {(surface.openings||[]).filter(o=>!o.gap).map(o=><g key={o.key}><DrawingDimensions values={[o.x,o.x+o.width]} y={yy(Number(o.sill))+font*1.6} font={font*.8}/><g transform="rotate(90)"><DrawingDimensions values={[0,yy(Number(o.sill)+o.height),yy(Number(o.sill)),H]} y={-o.x-o.width/2} font={font*.8}/></g></g>)}
     </>:null}
     {renderLabel?renderLabel('partition-top-title',`Вид сверху · ${surface.frameProfile} мм`,W/2,H-top+font,font):<text x={W/2} y={top-font} textAnchor="middle" fontSize={font}>Вид сверху · {surface.frameProfile} мм</text>}

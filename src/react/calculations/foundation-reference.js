@@ -4,12 +4,15 @@ import {houseContourPoints,pointInPolygon} from '../planner/geometry.js';
 // The house outline is the outside face. This opt-in datum moves automatic
 // foundation axes, not the house, rooms, openings or saved manual supports.
 export function foundationAxisContour(plan,thicknessMm){
- const ring=houseContourPoints(plan),t=(Number(thicknessMm)||Number(plan.wallThickness)*1000||174)/2000;
+ return offsetFoundationContour(houseContourPoints(plan),(Number(thicknessMm)||Number(plan.wallThickness)*1000||174)/2);
+}
+export function offsetFoundationContour(ring,insetMm){
+ const t=Number(insetMm)/1000;
  if(ring.length<3)return ring;
  const area=ring.reduce((n,p,i)=>{const b=ring[(i+1)%ring.length];return n+p.x*b.y-b.x*p.y;},0),sign=Math.sign(area)||1;
  const edges=ring.map((a,i)=>{const b=ring[(i+1)%ring.length],dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy);if(L<.001||Math.abs(dx)>.001&&Math.abs(dy)>.001)throw new Error('Для наклонных стен опорные оси задайте по рабочему узлу. Автоматическое совмещение доступно для прямоугольных и Г-образных контуров.');const n={x:-dy/L*t*sign,y:dx/L*t*sign};return {a:{x:a.x+n.x,y:a.y+n.y},b:{x:b.x+n.x,y:b.y+n.y},dx,dy};});
  const result=edges.map((e,i)=>{const prev=edges[(i+edges.length-1)%edges.length],den=prev.dx*e.dy-prev.dy*e.dx;if(Math.abs(den)<1e-8)return e.a;const qx=e.a.x-prev.a.x,qy=e.a.y-prev.a.y,u=(qx*e.dy-qy*e.dx)/den;return {x:prev.a.x+prev.dx*u,y:prev.a.y+prev.dy*u};});
- if(result.some(p=>!pointInPolygon(p,ring)))throw new Error('Толщина стены не помещается в контуре. Проверьте узкие участки дома.');
+ if(t>0&&result.some(p=>!pointInPolygon(p,ring)))throw new Error('Толщина стены не помещается в контуре. Проверьте узкие участки дома.');
  return result;
 }
 

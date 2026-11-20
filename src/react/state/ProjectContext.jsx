@@ -20,6 +20,7 @@ import { useTeam } from "../cloud/TeamContext.jsx";
 import { applySharedPriceCatalog, restoreLocalPrices } from '../cloud/price-catalog.js';
 import { validateImportedProject } from './project-import.js';
 import { createProjectWorkspace, projectWorkspaceReducer, PROJECT_TABS_KEY, restoreProjectWorkspace, serializeProjectWorkspace } from './project-tabs.js';
+import {applyPileAxisEnvelope,canUsePileAxisEnvelope} from './pile-axis-envelope.js';
 
 const ProjectContext = createContext(null);
 export function ProjectProvider({ children }) {
@@ -35,6 +36,7 @@ export function ProjectProvider({ children }) {
   const [hydrated, setHydrated] = useState(false);
   const ownerRef = useRef(null);
   const guestEdited=useRef(false);
+  const checkedPileDatums=useRef(new Set());
   const activeTab = workspace.tabs.find((tab) => tab.id === workspace.activeId) || workspace.tabs[0];
   const history = activeTab.history;
   const [saveState, setSaveState] = useState({
@@ -94,6 +96,13 @@ export function ProjectProvider({ children }) {
     [workspace.activeId,team.offline,team.workspaceOwner],
   );
   const recordMarks = useCallback((registry,requests) => dispatch({ type: 'production-registry', tabId: workspace.activeId, expectedPresent: history.present, registry,requests }), [workspace.activeId, history.present]);
+  useEffect(()=>{
+    const id=`${ownerRef.current}:${activeTab.id}`;
+    if(!hydrated||!team.ready||history.future.length||project.settings.piles.pileAxisDatum||checkedPileDatums.current.has(id)||!canUsePileAxisEnvelope(project))return;
+    checkedPileDatums.current.add(id);
+    try{applyPileAxisEnvelope(structuredClone(project));commit(applyPileAxisEnvelope);}
+    catch(error){commit(next=>{next.settings.piles.datumIssue=error.message;return next;});}
+  },[hydrated,team.ready,activeTab.id,history.future.length,project,commit]);
   const replace = useCallback(
     (project) => {if(team.offline&&team.workspaceOwner==='local')guestEdited.current=true;dispatch({ type: "replace", tabId: workspace.activeId, project });},
     [workspace.activeId,team.offline,team.workspaceOwner],
