@@ -1,3 +1,6 @@
+import {fitRectangularBindingRows,bindingPlanRows} from './binding-rows.js';
+import {foundationAxisContour} from './foundation-reference.js';
+import {bindingWallAlignment} from './foundation-reference.js';
 import {applyBearingTrusses} from './bearing-truss.js';
 import {platformRafterBearings} from './platform-rafter-bearings.js';
 import { hasSeparateOverhangs } from './roof-overhangs.js';
@@ -69,9 +72,15 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   if(project.services.foundation){for(const [index,line] of [...(calculation.foundation?.bindingLines||project.plan.bindingLines||[]),...(calculation.foundation?.platformBindingLines||[])].filter(l=>l.include!==false).entries()){
     const a=[mm(line.x1),mm(line.y1)],b=[mm(line.x2),mm(line.y2)],length=Math.round(Math.hypot(b[0]-a[0],b[1]-a[1]));
     if(!length)continue;const profile=calculation.foundation?.bindingProfile||'50×150',layers=calculation.foundation?.bindingLayers||3;
-    binding.push({id:`ОБ-${index+1}`,a,b,length,profile,layers,group:line.group||'house',platformId:line.platformId});
-    for(let layer=1;layer<=layers;layer++)members.push({id:`ОБ-${index+1}-${layer}`,material:layers===1?'Брус обвязки':'Доска пакета обвязки',profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),surface:'Обвязка',source:'Линии обвязки плана',panels:[],processing:'Стыки на опорах и соединения по проекту'});
+    binding.push({id:`ОБ-${index+1}`,a,b,length,profile,layers,group:line.group||'house',platformId:line.platformId,auto:line.auto});
+
   }}
+  let axisContour=[];
+  if(project.settings.piles.layoutReference==='wallAxes')try{axisContour=foundationAxisContour(project.plan,project.settings.sip.wallThickness).map(p=>[mm(p.x),mm(p.y)]);}catch(error){issues.push(error.message);}
+  for(const [i,line]of binding.entries()){
+    if(axisContour.length&&line.group!=='platform')line.fabricationRows=fitRectangularBindingRows(binding,i,axisContour);
+    for(const [j,row]of bindingPlanRows(line).entries()){const length=line.fabricationRows?Math.ceil(Math.hypot(row.b[0]-row.a[0],row.b[1]-row.a[1])):line.length;members.push({id:`${line.id}-${j+1}`,a:row.a,b:row.b,material:line.layers===1?'Брус обвязки':'Доска пакета обвязки',profile:line.profile,length,cutLength:length+2*Number(settings.endAllowanceMm||0),surface:'Обвязка',source:line.fabricationRows?'Обвязка: геометрия торцевого стыка пакетов':'Линии обвязки плана',panels:[],processing:'Стыки на опорах и соединения по рабочему проекту'});}
+  }
   const simple=['gable','flat','tiered'].includes(roof.mainRoofShape);
   const rectangular=!roof.footprint?.included.length&&isAxisAlignedRectangleContour(contour);
   const frame=roof.rafterStructure||{};
@@ -371,6 +380,7 @@ export function calculateAssemblyPlan(project,calculation,settings) {
   }
   platformRafterBearings(assembly);
   applyBearingTrusses(assembly,settings);
+  assembly.bindingAlignment=bindingWallAlignment(assembly,Number(project.settings.sip.wallThickness)||174);
   assembly.showPlatforms=settings.showPlatforms!==false;
   return assembly;
 }

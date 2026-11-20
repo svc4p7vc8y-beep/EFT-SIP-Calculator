@@ -9,7 +9,7 @@ import '../styles/drawing-workbench.css';
 const ProductionHouse3D=lazy(()=>import('./ProductionHouse3D.jsx'));
 const DrawingCanvas=lazy(()=>import('./DrawingCanvas.jsx').then(module=>({default:module.DrawingCanvas})));
 
-export default function PlanFullscreen3D({project,calculation,view='3d',onViewChange=()=>{},viewerPreferences,onViewerPreferencesChange,cameraRef}) {
+export default function PlanFullscreen3D({project,calculation,view='3d',onViewChange=()=>{},viewerPreferences,onViewerPreferencesChange,cameraRef,onSelectElement}) {
   const team=useTeam(),captureRef=useRef(null);
   const [screenshotBusy,setScreenshotBusy]=useState(false),[screenshotNotice,setScreenshotNotice]=useState('');
   const [result,setResult]=useState({project:null,report:null,error:''});
@@ -25,6 +25,7 @@ export default function PlanFullscreen3D({project,calculation,view='3d',onViewCh
     },180);
     return()=>{window.clearTimeout(timer);worker?.terminate();};
   },[project,calculation]);
+  useEffect(()=>{if(selectedMemberId&&result.report)onSelectElement?.({id:selectedMemberId,report:result.report,refresh:true});},[result.report]);
   if(!result.report && !result.error)return <p role="status" className="plan-3d-loading">Обновляю 3D по плану…</p>;
   if(result.error)return <p role="alert" className="plan-3d-loading">{result.error}</p>;
   const displayedProject=result.project||project;
@@ -66,7 +67,7 @@ export default function PlanFullscreen3D({project,calculation,view='3d',onViewCh
     {result.project!==project?<p role="status" className="plan-3d-loading">Обновляю 3D по плану…</p>:null}
     {screenshotNotice?<div className="plan-3d-shot-notice" role="status"><span>{screenshotNotice}</span><button type="button" aria-label="Закрыть уведомление о снимке" onClick={()=>setScreenshotNotice('')}>×</button></div>:null}
     {view==='3d'?<>
-      <ProductionHouse3D report={result.report} project={displayedProject} captureRef={captureRef} onScreenshot={makeScreenshot} screenshotBusy={screenshotBusy||result.project!==project} initialZoom={0.9} showRoofStructureByDefault showBearingPoints selected={selectedMemberId?[selectedMemberId]:[]} onSelect={setSelectedMemberId} viewerPreferences={viewerPreferences} onViewerPreferencesChange={onViewerPreferencesChange} savedViewRef={cameraRef}/>
+      <ProductionHouse3D report={result.report} project={displayedProject} captureRef={captureRef} onScreenshot={makeScreenshot} screenshotBusy={screenshotBusy||result.project!==project} initialZoom={0.9} showRoofStructureByDefault showBearingPoints selected={selectedMemberId?[selectedMemberId]:[]} onSelect={id=>{setSelectedMemberId(id);onSelectElement?.({id,report:result.report});}} viewerPreferences={viewerPreferences} onViewerPreferencesChange={onViewerPreferencesChange} savedViewRef={cameraRef}/>
 
       <FacadeBeamControls report={result.report} picked={selected} pickedId={selectedMemberId}/>{selected?<p className="plan-3d-bearing-detail">{selected.mark||selected.id} · {selected.name||selected.material} · {Math.round(selected.length)} мм{selected.referenceOnly?' · эскиз':selected.bearingPoint?` · мауэрлат ${selected.bearingMauerlatId} · врезка ${Math.round(selected.bearingNotchMm||0)} мм (предел 50 мм) · XYZ ${selected.bearingPoint.map(Math.round).join(' / ')} мм`:selected.bearingStatus==='unresolved'?' · опирание на мауэрлат не подтверждено':''}</p>:null}
     </>:<div className="plan-3d-drawing">

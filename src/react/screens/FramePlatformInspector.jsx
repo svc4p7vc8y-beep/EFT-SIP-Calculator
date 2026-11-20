@@ -1,3 +1,4 @@
+import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {useMemo,useState} from 'react';
 import {useProject} from '../state/ProjectContext.jsx';
 import {structuralReport} from '../calculations/structural-report.js';
@@ -11,6 +12,7 @@ export default function FramePlatformInspector({selection,onSelect,calculation})
  const anchors=[{id:'auto',name:'Авто · по наличию сваи'},{id:'base',name:'К основанию · 4000 ₽/шт.'},{id:'pile',name:'К свае · 1500 ₽/шт.'},{id:'none',name:'Без крепления в смете'}];
  return <div className="inspector-form"><h3>{post?'Столб террасы':'Силовой каркас · террасы и фронтоны'}</h3>
  {platform?<><label className="field">Площадка<select value={platform.id} onChange={e=>{setPlatformId(e.target.value);onSelect(null);}}>{platforms.map(p=><option value={p.id} key={p.id}>{p.name||p.kind||'Терраса'}</option>)}</select></label>
+ <PlatformBuildControls platformId={platform.id}/>
  <button className="button" onClick={()=>{const id=`platform:${platform.id}:manual:${crypto.randomUUID()}`,existing=report.assembly.platforms.find(p=>p.id===platform.id)?.posts||[],reference=existing[0],xMm=reference?Math.max(platform.x*1000,Math.min((platform.x+platform.w)*1000,reference.a[0]+(['top','bottom'].includes(reference.runId)?(reference.a[0]>(platform.x+platform.w/2)*1000?-300:300):0))):(platform.x+platform.w/2)*1000,yMm=reference?Math.max(platform.y*1000,Math.min((platform.y+platform.h)*1000,reference.a[1]+(['left','right'].includes(reference.runId)?(reference.a[1]>(platform.y+platform.h/2)*1000?-300:300):0))):(platform.y+platform.h/2)*1000;commit(next=>{const p=next.plan.platforms.find(p=>p.id===platform.id);p.roofPosts=[...(p.roofPosts||[]),{id,xMm,yMm,runId:reference?.runId||null}];return next;});onSelect({kind:'platformPost',platformId:platform.id,id});}}>＋ Столб террасы</button>
  <p className="inspector-note">Выберите столб на плане и перетащите. Стрелки — 10 мм, Shift — 100 мм; Del исключает столб. Автоматические балки перестраиваются по столбам своего ряда.</p>
  {post?<>{number('X, мм',post.a[0],xMm=>edit({xMm}))}{number('Y, мм',post.a[1],yMm=>edit({yMm}))}{number('Низ столба, мм',post.a[2],baseZMm=>edit({baseZMm}))}{number('Верх столба, мм',post.b[2],topZMm=>edit({topZMm}))}

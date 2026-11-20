@@ -1,3 +1,4 @@
+import {timberMaterialSummary} from './timber-member-summary.js';
 import {purchaseLayer,isPurchaseFastener} from './purchasing-register.js';
 import {normalizeTimberProcurement} from '../state/timber-procurement.js';
 const num=s=>Number(String(s).replace(',','.'));
@@ -53,5 +54,5 @@ export function timberProcurement(project,calculation,report,{source='estimate',
   const warnings=source==='cutting'&&report?.timberStock?.unplaced?.length?[`В раскрое не размещено деталей: ${report.timberStock.unplaced.length}. Ведомость содержит только размещённые хлысты.`]:[];
   const missing=new Map();for(const row of unresolved){const key=`${row.name}:${row.reason}`;const previous=missing.get(key);missing.set(key,{...row,occurrences:(previous?.occurrences||0)+1});}
   const unplacedMembers=source==='cutting'?(report.fabricationMembers||report.members||[]).filter(m=>report.timberStock?.unplaced?.includes(m.id)).map(m=>({id:m.id,mark:m.displayMark||m.id,name:m.material,profile:m.profile,lengthMm:m.cutLength,volumeM3:(Number(m.cutLength)||0)*String(m.profile).split(/[×xх]/).map(Number).reduce((n,v)=>n*v,1)/1e9})):[];
-  return {source,rows,unplacedMembers,compositions:[...compositions.values()],unresolved:[...missing.values()],warnings,totalLengthM:round(rows.reduce((n,r)=>n+r.lengthM,0)),totalVolumeM3:round(rows.reduce((n,r)=>n+r.volumeM3,0)),settings};
+  return {source,rows,detailRows:source==='cutting'?timberMaterialSummary(report.scopeMembers||report.members||[]):[],unplacedMembers,compositions:[...compositions.values()],unresolved:[...missing.values()],warnings,totalLengthM:round(rows.reduce((n,r)=>n+r.lengthM,0)),totalVolumeM3:round(rows.reduce((n,r)=>n+r.volumeM3,0)),settings};
 }

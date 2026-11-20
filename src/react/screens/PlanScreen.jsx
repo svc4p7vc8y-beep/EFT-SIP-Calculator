@@ -1,3 +1,4 @@
+import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {addPlanOpening} from '../state/add-plan-opening.js';
 import {PLAN_VIEW,adaptivePlanView,svgPan,beginPlanPinch,movePlanPinch} from '../planner/mobile-viewport.js';
 import {foundationGrid,createFoundationGrid,moveFoundationRow,moveFoundationPile} from '../planner/foundation-editing.js';
@@ -111,6 +112,7 @@ import {
   bindingLinesFromPileRows,
   calculateFoundation,
   generateAutoPileRows,
+  bindingLinesWithManual,
   pileOffsetAlongRow,
   pileRowPoints,
 } from "../calculations/foundation-model.js";
@@ -146,6 +148,7 @@ const PlanFullscreen3D=lazy(()=>import('./PlanFullscreen3D.jsx'));
 const EstimatePrintScreen=lazy(()=>import('./EstimateScreen.jsx'));
 const ParametersPanel=lazy(()=>import('./ParametersScreen.jsx'));
 const RoofMemberInspector=lazy(()=>import('./RoofMemberInspector.jsx'));
+const Plan3DElementInspector=lazy(()=>import('./Plan3DElementInspector.jsx'));
 const PlanRoofSupports=lazy(()=>import('./PlanRoofSupports.jsx'));
 const InlineWindowConfigurator=lazy(()=>import('./WindowConfigurator.jsx'));
 import { formatMoney, formatNumber, uid } from "../utils/format.js";
@@ -3830,8 +3833,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
           {platform.kind === "porch" ? "Крыльцо" : "Терраса"} ·{" "}
           {formatNumber(platform.w * platform.h)} м²
         </h3>
-        <label><input type="checkbox" checked={platform.deckEnabled!==false} onChange={e=>change(p=>{p.deckEnabled=e.target.checked;})}/> Настил площадки</label>
-        <label><input type="checkbox" checked={platform.joistsEnabled!==false} onChange={e=>change(p=>{p.joistsEnabled=e.target.checked;})}/> Нижняя рама и лаги</label>
+        <PlatformBuildControls platformId={platform.id}/>
         <SelectField label="Крепление столбов" value={platform.postAnchorMode||'auto'} onChange={value=>change(p=>{p.postAnchorMode=value;})} options={[{value:'auto',label:'Авто · по наличию сваи'},{value:'base',label:'К основанию · 4000 ₽/шт.'},{value:'pile',label:'К свае · 1500 ₽/шт.'},{value:'none',label:'Не включать крепление в смету'}]}/>
         <NumberField label="Низ столбов от уровня пола дома" value={platform.postBaseZMm??platform.deckHeightMm??0} suffix="мм" min={-10000} step={10} onChange={value=>change(p=>{p.postBaseZMm=value;})}/>
         <p className="inspector-note">Для ограждения выберите инструмент «Ограждение» слева и проведите участок на плане. Высота 950 мм, три ригеля; промежуточные стойки добавляются автоматически.</p>
@@ -5229,7 +5231,7 @@ const DEFAULT_FOUNDATION_DRAFT = {
   autoSyncBinding: true,
 };
 
-function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, compact = false }) {
+function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, compact = false, wallThicknessMm=174 }) {
   const modes = [
     ["nodes", "По узлам и стенам", "Опоры в углах, пересечениях и под перегородками"],
     ["uniform", "Равномерная сетка", "Одинаковый шаг рядов по всей площади дома"],
@@ -5250,6 +5252,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
           </button>
         ))}
       </div>
+      <label className="field">Привязка автоматического основания<select aria-label="Привязка автоматического основания" value={draft.layoutReference||'outer'} onChange={e=>update('layoutReference',e.target.value)}><option value="outer">По наружному контуру · сохранённая схема</option><option value="wallAxes">По осям несущих стен</option></select></label><p className="foundation-setup-note">Наружный габарит дома сохраняется. В режиме осей автоматические сваи и обвязка смещаются внутрь на половину толщины стены ({Number(wallThicknessMm)/2} мм). Ручные опоры остаются; их опирание нужно сверить. Применение — кнопкой «Перестроить».</p>
       <div className="foundation-setting-grid">
         <NumberField label="Макс. шаг свай" value={draft.spacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("spacing", Math.max(0.5, value))} />
         {draft.autoLayoutMode === "uniform" ? <NumberField label="Шаг между рядами" value={draft.autoRowSpacing} suffix="м" min={0.5} max={6} step={0.1} onChange={(value) => update("autoRowSpacing", Math.max(0.5, value))} /> : null}
@@ -5257,7 +5260,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
       {draft.autoLayoutMode === "nodes" ? <Toggle label="Опоры под внутренними стенами" checked={draft.autoIncludeInteriorWalls} onChange={(value) => update("autoIncludeInteriorWalls", value)} /> : null}
       <Toggle label="Учитывать террасы и крыльца" checked={draft.includePlatforms} onChange={(value) => update("includePlatforms", value)} />
       <Toggle label="Обвязка следует за свайными рядами" checked={draft.autoSyncBinding} onChange={(value) => update("autoSyncBinding", value)} />
-      <div className="foundation-preview" aria-live="polite">
+      {preview.error?<p role="alert">{preview.error}</p>:null}<div className="foundation-preview" aria-live="polite">
         <span><small>Предпросмотр</small><strong>{preview.totalPiles} свай</strong></span>
         <span><small>Рядов</small><strong>{preview.rowCount}</strong></span>
         <span><small>Обвязка</small><strong>{formatNumber(preview.bindingLength)} м</strong></span>
@@ -5265,7 +5268,7 @@ function FoundationSetup({ draft, setDraft, preview, onApply, onReset, onClear, 
       </div>
       <p className="foundation-setup-note">Ручные ряды сохраняются. Автоматические ряды перестраиваются; общие угловые и пересекающиеся сваи считаются один раз.</p>
       <div className="foundation-setup-actions">
-        <button className="button primary" type="button" onClick={onApply}><Sparkles />Перестроить</button>
+        <button className="button primary" type="button" disabled={!!preview.error} onClick={onApply}><Sparkles />Перестроить</button>
         <button className="button secondary" type="button" onClick={onReset}><RotateCw />Сбросить</button>
         <button className="button danger" type="button" onClick={onClear}><Trash2 />Очистить всё</button>
       </div>
@@ -5319,6 +5322,9 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   );
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
+  const [sceneSelection,setSceneSelection]=useState(null);
+  useEffect(()=>{setSceneSelection(null);},[activeTabId,activeLayer]);
+  const handle3DSelection=selection=>{if(selection.refresh){setSceneSelection(previous=>previous?.id===selection.id?selection:previous);return;}setSceneSelection(selection);setInspectorTab('element');setShowFullscreenInspector(true);};
   const [plan3DSize,setPlan3DSize]=useState('small');
   const [plan3DMode,setPlan3DMode]=useState('3d');
   const [plan3DPreferences,setPlan3DPreferences]=useState(null);
@@ -5475,22 +5481,23 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const estimateScope = useMemo(() => buildCommercialScope(project, projectCalculation, project.settings.print || {}), [project, projectCalculation]);
   const foundationPreview = useMemo(() => {
     const manualRows = (project.plan.pileRows || []).filter((row) => !row.auto);
-    const autoRows = generateAutoPileRows(project.plan, foundationDraft.spacing, {
+    let autoRows;try{autoRows = generateAutoPileRows(project.plan, foundationDraft.spacing, {
       mode: foundationDraft.autoLayoutMode,
       rowSpacing: foundationDraft.autoRowSpacing,
       includeInteriorWalls: foundationDraft.autoIncludeInteriorWalls,
-    });
+      reference:foundationDraft.layoutReference,wallThicknessMm:project.settings.sip.wallThickness,
+    });}catch(error){return {error:error.message,totalPiles:0,rowCount:0,bindingLength:0,boardCount:0};}
     const pileRows = [...manualRows, ...autoRows];
     const previewPlan = {
       ...project.plan,
       pileRows,
       bindingLines: foundationDraft.autoSyncBinding
-        ? bindingLinesFromPileRows(pileRows)
+        ? bindingLinesWithManual(project.plan,pileRows)
         : project.plan.bindingLines,
     };
     const result = calculateFoundation(previewPlan, { ...project.settings.piles, ...foundationDraft });
     return { ...result, rowCount: pileRows.length };
-  }, [project.plan, project.settings.piles, foundationDraft]);
+  }, [project.plan, project.settings.piles, project.settings.sip.wallThickness, foundationDraft]);
   useEffect(() => {
     if (activeFloor > floorCount) setActiveFloor(floorCount);
   }, [activeFloor, floorCount]);
@@ -5608,6 +5615,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     });
   };
   const selectTool = (id) => {
+    setSceneSelection(null);
     if(id==='foundationGrid'){if(activeFloor!==1){setTransferStatus('Основание редактируется на первом этаже.');return;}setFoundationGridOpen(true);setTool('select');return;}
     if(id==='frameTerrace'){setActiveLayer('frame');setInspectorTab('element');setSelected(null);setFrameSelection(null);setTool('select');return;}
     if(['structuralFrame','framePost','frameWindow','frameDoor'].includes(id)){setFrameTool({framePost:'post',frameWindow:'window',frameDoor:'door'}[id]||'select');setFrameWall('');setTool('select');return;}
@@ -5618,7 +5626,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         const existing=project.settings.productionCutting.roofSupports.find(m=>m.bearingTruss&&['x1','y1','x2','y2'].every(k=>Math.abs(Number(m[k])-item[k])<1));
         if(!existing&&project.settings.productionCutting.roofSupports.length>=200)throw new Error('Достигнут лимит опор.');
         if(!existing)commit(next=>{next.settings.productionCutting.roofSupports.push(item);return next;});
-        setSelected({type:'roofSupport',id:existing?.id||item.id});setInspectorTab('element');setTransferStatus('Ферма-прогон: задайте высоту и выносы справа. Пояса и решётка включены в раскрой; узлы требуют рабочего проекта.');
+        setSelected({type:'roofSupport',id:existing?.id||item.id});setInspectorTab('element');setTransferStatus('Ферма-прогон: задайте высоту и выносы справа. Пояса и вертикальные стойки включены в раскрой; узлы требуют рабочего проекта.');
       }).catch(e=>setTransferStatus(e.message));return;
     }
     if(id==='roofAuto'){commit(next=>{next.settings.productionCutting.roofPlanLines={enabled:false,lines:[]};return next;});setTool('select');return;}
@@ -5704,13 +5712,13 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
 
   };
   const handleCreated = useCallback((selection) => {
-    setSelected(selection);
+    setSceneSelection(null);setSelected(selection);
     setSheetMode("compact");
     setTool("select");
     setPolygonDraft([]);
   }, []);
   const handleSelected = useCallback((selection) => {
-    setSelected(selection);
+    setSceneSelection(null);setSelected(selection);
     setSheetMode("peek");
   }, []);
   const finishPolygon = () => {
@@ -5968,11 +5976,12 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         mode: draft.autoLayoutMode,
         rowSpacing: draft.autoRowSpacing,
         includeInteriorWalls: draft.autoIncludeInteriorWalls,
+        reference:draft.layoutReference,wallThicknessMm:next.settings.sip.wallThickness,
       });
       const previous=new Map((next.plan.pileRows||[]).filter(row=>row.auto).map(row=>[row.id,row]));
       for(const row of autoRows){const old=previous.get(row.id);if(old&&old.count===row.count&&['x1','y1','x2','y2'].every(key=>Math.abs(old[key]-row[key])<.001))row.pileOffsets=old.pileOffsets;}
       next.plan.pileRows = [...manualRows, ...autoRows];
-      if (draft.autoSyncBinding) next.plan.bindingLines = bindingLinesFromPileRows(next.plan.pileRows);
+      if (draft.autoSyncBinding)next.plan.bindingLines=bindingLinesWithManual(next.plan,next.plan.pileRows);
       next.plan.showPiles = true;
       next.plan.showBinding = true;
       releasePlanLinkedQuantityOverrides(next);
@@ -6195,7 +6204,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 : ["window", "door", "gap", "pile"].includes(tool)
                   ? "Щёлкните место установки. Тип гаражных ворот выбирается в параметрах двери."
                   : "Зажмите кнопку мыши и протяните объект. Зелёный — горизонталь или вертикаль, красный — отклонение.";
-  if(viewMode==='3d')return <section className="screen mobile-model-screen" aria-label="3D вид дома"><Suspense fallback={<p role="status">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/></Suspense></section>;
+  if(viewMode==='3d')return <section className="screen mobile-model-screen" aria-label="3D вид дома"><Suspense fallback={<p role="status">Загружаю 3D…</p>}><PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef} onSelectElement={handle3DSelection}/></Suspense>{sceneSelection?<aside className="mobile-3d-selection"><Suspense fallback={null}><Plan3DElementInspector selection={sceneSelection} onClose={()=>setSceneSelection(null)}/></Suspense></aside>:null}</section>;
   const mobileEditor = (
     <div
       className={`mobile-plan-fullscreen ${gridVisible ? "" : "grid-hidden"}`}
@@ -6411,7 +6420,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       <div className="mobile-plan-stage">
         {sourceFocus?<p role="status">Из чертежа: {sourceFocus.name}. Участок выделен зелёным пунктиром. <button onClick={()=>setSourceFocus(null)}>Убрать выделение</button></p>:null}
         {tool==='stairOpening'?<div className="form-grid"><label className="field">Форма новой лестницы<select aria-label="Форма новой лестницы" value={stairPreset.stairType} onChange={e=>setStairPreset(old=>({...old,stairType:e.target.value}))}>{STAIR_TYPES.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label><label className="field">Вырез нового проёма<select aria-label="Вырез нового проёма" value={stairPreset.contourMode} onChange={e=>setStairPreset(old=>({...old,contourMode:e.target.value}))}><option value="rectangle">Прямоугольный</option><option value="stair">По форме лестницы</option></select></label></div>:null}
-        <PlanCanvas terraceEnabled={project.services.terrace} onDrawRoofAxis={addRoofMember} onDrawRoofPost={point=>addRoofMember(point,point,'post')} roofSupportGroups={activeFloor===floorCount?roofEditablePlanGroups(project.settings.productionCutting.roofSupports):[]} roofEditor={project.settings.productionCutting.roofEditor} onMoveRoofSupport={editRoofSupports} onDeleteRoofSupport={id=>editRoofSupports([id],{kind:'delete'})} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);setInspectorTab('element');}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+        <PlanCanvas terraceEnabled={project.services.terrace} onDrawRoofAxis={addRoofMember} onDrawRoofPost={point=>addRoofMember(point,point,'post')} roofSupportGroups={activeFloor===floorCount?roofEditablePlanGroups(project.settings.productionCutting.roofSupports):[]} roofEditor={project.settings.productionCutting.roofEditor} onMoveRoofSupport={editRoofSupports} onDeleteRoofSupport={id=>editRoofSupports([id],{kind:'delete'})} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setSceneSelection(null);setFrameSelection(choice);setActiveLayer('frame');setSelected(null);setInspectorTab('element');}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
           sourceFocus={sourceFocus?.floor===activeFloor?sourceFocus:null}
           stairPreset={stairPreset}
           floorKey={activeFloor}
@@ -6455,7 +6464,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               <X />
             </button>
           </header>
-          <FoundationSetup draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
+          <FoundationSetup wallThicknessMm={project.settings.sip.wallThickness} draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
         </section>
       ) : null}
       {selected?.type==='roofSupport'?<aside className="mobile-roof-editor-panel"><details open><summary>Опора кровли · параметры</summary><Suspense fallback={<p>Загружаю…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense></details></aside>:<MobileSelectionAdjuster
@@ -6507,7 +6516,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             <div><strong>Сваи и обвязка</strong><small>Единая настройка основания</small></div>
             <button type="button" aria-label="Закрыть настройку основания" onClick={() => setBindingSetupOpen(false)}><X /></button>
           </header>
-          <FoundationSetup draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
+          <FoundationSetup wallThicknessMm={project.settings.sip.wallThickness} draft={foundationDraft} setDraft={setFoundationDraft} preview={foundationPreview} onApply={() => applyFoundationLayout()} onReset={resetFoundationLayout} onClear={clearFoundationLayout} compact />
         </section>
       ) : null}
       <div className="mobile-plan-commandbar">
@@ -6647,7 +6656,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </div>
           ))}
         </aside>
-        {plan3DPlacement==='split'&&showPlan3D&&!isPhone?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}>{frameWall===null&&!isPhone?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
+        {plan3DPlacement==='split'&&showPlan3D&&!isPhone?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}>{frameWall===null&&!isPhone?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef} onSelectElement={handle3DSelection}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
         <div className="planner-canvas" ref={plannerCanvasRef}>
           <div className="plan-canvas-toolbars">
           <div className="plan-layer-tabs" role="group" aria-label="Слои проекта">
@@ -6703,7 +6712,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           </div>
           </div>
 
-          <PlanCanvas terraceEnabled={project.services.terrace} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setFrameSelection(choice);setActiveLayer('frame');setSelected(null);setInspectorTab('element');}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
+          <PlanCanvas terraceEnabled={project.services.terrace} platformRoofResults={projectCalculation.roof} onMaterializeBinding={binding=>{commit(next=>{next.plan.bindingLines=[...projectCalculation.foundation.bindingLines,...(projectCalculation.foundation.platformBindingLines||[])].map(l=>({...l,auto:false}));next.settings.piles.autoSyncBinding=false;return next;});setSelected({type:'bindingLine',id:binding.id});}} windowProducts={project.windowProducts} frameProject={frameWall===null?project:null} frameSelection={activeLayer==='frame'?frameSelection:null} onSelectFrame={choice=>{setSceneSelection(null);setFrameSelection(choice);setActiveLayer('frame');setSelected(null);setInspectorTab('element');}} onFrameMessage={setTransferStatus} onOpenFrame={id=>setFrameWall(id)} minPanelWidthMm={project.settings.productionCutting.minPanelWidthMm}
             roofAxes={activeFloor===floorCount?roofAxes:[]}
             onDrawRoofAxis={addRoofMember}
             onDrawRoofPost={point=>addRoofMember(point,point,'post')}
@@ -6777,7 +6786,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               </div>
             </div>
             {showPlan3D ? <div className={`plan-right-3d-view size-${plan3DSize}`}>
-              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>{frameWall===null&&!isPhone?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense>
+              <Suspense fallback={<p role="status" className="plan-3d-loading">Загружаю 3D…</p>}>{frameWall===null&&!isPhone?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef} onSelectElement={handle3DSelection}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense>
             </div> : <p className="plan-right-3d-placeholder">3D-вид скрыт.</p>}
             {showPlan3D ? <div className="plan-right-3d-sizes" role="group" aria-label="Размер 3D-вида">
               {[['small','Малый'],['medium','Средний'],['large','Большой']].map(([size,label]) => <button key={size} type="button" aria-pressed={plan3DSize === size} onClick={() => setPlan3DSize(size)}>{label}</button>)}
@@ -6827,7 +6836,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             </div>
           </div>
           <div className="planner-inspector-detail" hidden={inspectorTab !== 'element'}>
-          {tool === 'attachedContour' && polygonDraft.length >= 2 ? (
+          {sceneSelection?<Suspense fallback={<p>Загружаю параметры…</p>}><Plan3DElementInspector selection={sceneSelection} onClose={()=>setSceneSelection(null)}/></Suspense>:tool === 'attachedContour' && polygonDraft.length >= 2 ? (
             <div className="inspector-form contour-draft-inspector">
               <h3>Открытый контур пристройки</h3>
               <p className="inspector-note">{plan.existingBuilding?'Начните на стене существующего здания, обойдите наружные углы нового дома и закончите на этой же или соседней стене. Общая стена останется справочной и не войдёт в смету.':'Оба конца поставьте на одну наружную стену. Общий участок стены замкнёт пристройку; исходные помещения и проёмы сохраняются.'}</p>
@@ -6849,7 +6858,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
               commitRoof={commitRoof}
             />
           ) : ["piles", "binding"].includes(activeLayer) && !selected ? (
-            <FoundationSetup
+            <FoundationSetup wallThicknessMm={project.settings.sip.wallThickness}
               draft={foundationDraft}
               setDraft={setFoundationDraft}
               preview={foundationPreview}

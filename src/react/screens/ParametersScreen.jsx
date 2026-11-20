@@ -1,3 +1,4 @@
+import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {roofPanelThickness} from '../calculations/roof-panel-settings.js';
 import OpeningSketch from '../components/OpeningSketch.jsx';
 import {HORIZONTAL_LAYOUT_DIRECTIONS} from '../calculations/surface-orientation.js';
@@ -1637,7 +1638,7 @@ function PlatformEditor({ platform, index, project, update }) {
     wallPanelThickness: Number(project.settings.sip.wallThickness),
   });
   return (
-    <article>
+    <article><PlatformBuildControls platformId={platform.id}/>
       <header>
         <div>
           <span>Площадка {index + 1}</span>

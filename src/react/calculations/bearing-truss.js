@@ -19,7 +19,6 @@ export function expandBearingTrusses(items,stockLength=6000){
    add(`top:${index}`,'purlin','верхний пояс',at(start),at(end),'upperChord');add(`bottom:${index}`,'tie','нижний пояс',at(start,depth),at(end,depth),'lowerChord');start=end;index++;
   }
   for(let i=0;i<=count;i++)add(`post:${i}`,'post','стойка',at(stations[i],depth-d/2),at(stations[i],d/2),'web');
-  for(let i=0;i<count;i++){const s=stations[i],e=stations[i+1];add(`web:${i}`,'brace','раскос',at(s,i%2?d/2:depth-d/2),at(e,i%2?depth-d/2:d/2),'web');}
   return rows;
  });
 }

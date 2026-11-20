@@ -30,3 +30,24 @@
 @media(max-width:700px){.plan-svg .vertex-handle,.plan-svg .endpoint-handle,.plan-svg .annotation-target-handle{stroke:transparent!important;stroke-width:24px!important;vector-effect:non-scaling-stroke;pointer-events:all}}
 
 @media(max-width:700px){.plan-screen-v2 .planner-shell .planner-inspector{top:106px!important;left:auto!important;right:0!important;bottom:0!important}.plan-screen-v2 .planner-shell.inspector-collapsed>.planner-inspector{display:none!important}}
+
+.mobile-price-label{display:none}
+.platform-build-controls{display:grid;gap:9px;padding:12px;border:1px solid var(--line);border-radius:10px;margin:10px 0}.platform-build-controls label{display:flex;gap:9px;align-items:center}.platform-build-controls input{width:18px;height:18px;flex:none}.platform-build-controls small{line-height:1.4;color:var(--muted)}
+@media(max-width:820px){
+ .app .mobile-bottom-nav{top:auto;bottom:0;left:0;right:0;width:100%;height:auto;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:4px 4px max(4px,env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);overflow:hidden;touch-action:pan-x}
+ .app .mobile-bottom-nav button{min-height:54px;width:100%;gap:2px}
+ .app .app-layout,.app .app-layout.plan-app-layout{padding-left:0!important;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+ .app .sidebar,.app .sidebar.sidebar-collapsed{left:0;bottom:calc(64px + env(safe-area-inset-bottom));width:min(320px,100vw);transform:translateX(-100%)}.app .sidebar.open{transform:translateX(0)}.app .sidebar-backdrop{left:0;bottom:64px}
+ .app .app-layout.sidebar-collapsed .sidebar{width:min(320px,100vw)}
+}
+@media(max-width:700px){
+ .app .app-header{display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:5px 7px;min-height:54px}.app .app-header>.brand{display:none!important}
+ .app .header-totals{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;max-width:none;min-width:0;gap:3px;justify-self:stretch;margin:0}
+ .app .header-totals>div{display:flex!important;min-width:0;padding:6px 5px;flex-direction:column;gap:2px;border-radius:7px;overflow:hidden}
+ .app .header-totals>.grand{display:none!important}.app .header-totals span{display:block!important;font-size:9px;line-height:1.2;white-space:nowrap}
+ .app .header-totals strong,.app .header-totals .adjusted strong{font-size:clamp(10px,3.1vw,13px)!important;line-height:1.3;white-space:nowrap}
+ .app .header-totals .desktop-price-label{display:none!important}.app .header-totals .mobile-price-label{display:block!important}
+ .app .mobile-model-screen{height:calc(100dvh - var(--app-chrome-height,130px) - 72px)}
+}
+
+.plan-3d-element{min-width:0}.plan-3d-element header{display:flex;gap:8px;justify-content:space-between;align-items:start}.plan-3d-element dl{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(0,1fr);gap:7px;margin:10px 0}.plan-3d-element dd{margin:0;overflow-wrap:anywhere}.plan-3d-element dt{color:var(--muted)}.mobile-3d-selection{position:absolute;bottom:0;left:0;right:0;max-height:45%;overflow:auto;padding:12px;background:var(--panel);border-top:1px solid var(--line);z-index:10}

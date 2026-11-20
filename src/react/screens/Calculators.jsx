@@ -1,3 +1,4 @@
+import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {roofPanelThickness} from '../calculations/roof-panel-settings.js';
 import { OVERHANG_FIELDS, roofOverhangValue, resetSeparateOverhangs } from '../calculations/roof-overhangs.js';
 import {flatSlopeAngle, setFlatSlopeAngle, flatWallDrop,setFlatWallDrop} from '../calculations/flat-wall-height.js';
@@ -1875,7 +1876,7 @@ export default function Calculators({ type, onNavigate }) {
                         : platform.binding.mode === "separate"
                           ? "отдельная обвязка"
                           : "без обвязки"}
-                    </span>
+                    </span><PlatformBuildControls platformId={platform.id}/>
                   </div>
                   <strong>
                     {platform.roof.mode === "shared"

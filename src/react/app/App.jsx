@@ -605,7 +605,7 @@ export function App() {
             <strong>{formatMoney(calculation.totals.total)}</strong>
           </div>
           <div className={`adjusted${estimatePriceModified ? ' is-modified' : ''}`}>
-            <span>Изменённая цена</span>
+            <span className="desktop-price-label">Изменённая цена</span><span className="mobile-price-label">Итого</span>
             <strong>{formatMoney(adjustedPrice.total)}</strong>
           </div>
         </div>
