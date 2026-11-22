@@ -62,7 +62,7 @@ function ProjectCard({ project, onOpen, index = 0 }) {
       onFocus={() => import("./ProjectDialog.jsx")}
       onClick={() => onOpen(project)}
     >
-      <div className={showPlan ? "house-image plan-preview" : "house-image"}>
+      <div style={{ viewTransitionName: `photo-${project.id}` }} className={showPlan ? "house-image plan-preview" : "house-image"}>
         <img
           loading="lazy"
           src={asset(showPlan ? project.planImage : project.image)}

@@ -82,3 +82,4 @@
   .house-card-shell .house-included,.house-card-shell .house-feature,.house-card-shell .house-card-action {background:transparent;color:#d5e0cf}
   .house-card-shell .house-included strong {color:#c6dcb4}
 }
+@media (prefers-reduced-motion:no-preference) { @view-transition { navigation:auto } }
