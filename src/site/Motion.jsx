@@ -72,7 +72,7 @@ export function AnimatedLogo({ compact = false }) {
       <g className="sketch-guides"><path d="M-10 0H335M-10 70H335M-10 124H335M0-12V139M148-12V139M185-12V139M320-12V139M140 62L185 28L325 110" /><circle cx="185" cy="28" r="5" /></g>
       <g className="sketch-contours">{contours.map((contour, index) => <path key={contour.d} d={contour.d} style={{ '--path-index': index, '--path-length': contour.length }} />)}</g>
     </svg>
-    <img className="logo-final" src={logoSrc} alt="ЭФТ" />
+    <img className="logo-final" src={asset('eft-logo-dark.png')} alt="ЭФТ" />
   </span>;
 }
 

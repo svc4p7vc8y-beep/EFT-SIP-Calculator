@@ -525,6 +525,7 @@ export default function Site() {
       />
       <main id="main">
         <HeroIntro />
+        <Escrow />
         {projectCategories.map((category) => (
           <ProjectCollection
             key={category.id}
@@ -534,7 +535,6 @@ export default function Site() {
             onToggle={toggleCategory}
           />
         ))}
-        <Escrow />
         <section className="approach-strip" id="about">
           <span className="section-number">Подход ЭФТ</span>
           <p>
@@ -612,7 +612,7 @@ export default function Site() {
       <footer className="site-footer">
         <div>
           <a className="wordmark" href="#" aria-label="ЭФТ — наверх">
-            <img src={asset("eft-logo.webp")} alt="ЭФТ" />
+            <img src={asset("eft-logo-dark.png")} alt="ЭФТ" />
           </a>
           <p>
             Ваш проект начинается

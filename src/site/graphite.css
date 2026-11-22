@@ -13,7 +13,8 @@
   border-bottom: 1px solid #ffffff36;
 }
 .welcome-header :is(.header-wordmark,.logo-motion,.logo-final) {mix-blend-mode:normal}
-.welcome-header .logo-final {filter:brightness(0) invert(1)}
+.welcome-header .logo-final {filter:none !important}
+.welcome-header .logo-sketch path {stroke:#d6e5c9}
 .welcome-header :is(.brand-caption,.header-contact,.header-phone,.site-nav a) {color:var(--linen)}
 .welcome-header .site-nav a {border:0}
 .welcome-header .site-nav a:hover,.welcome-header .site-nav a.active {background:#384339;color:white}
@@ -83,3 +84,29 @@
   .house-card-shell .house-included strong {color:#c6dcb4}
 }
 @media (prefers-reduced-motion:no-preference) { @view-transition { navigation:auto } }
+
+:root, body, #main, .panels-section, .site-footer {background:#202622;color:var(--linen)}
+#main, .site-footer {--muted:#bdc9bd;--line:#4c584e}
+#escrow.section {width:100%;max-width:none;padding:0;margin:0}
+#escrow .escrow-card {width:100%;max-width:none;margin:0;border-radius:0;padding:clamp(28px,4vw,64px) var(--gutter)}
+.project-collection .house-card-shell, .technology-section .technology-details,
+.locations-section .location-card, .panels-section :is(.material-stage,.panel-selector,.cart),
+.contact-section, .project-dialog, .project-dialog .dialog-top {background:#2a342e;color:var(--linen);border-color:#47564a}
+.house-card-shell .house-card, .contact-content, .material-info {color:var(--linen)}
+.house-card-shell :is(h3,.house-price,.house-price-lines strong,.house-caption span,.house-page-link,.house-card-action),
+.location-card .text-link, .technology-details .layer-title, .site-footer a {color:#e2eed9}
+.house-card-shell :is(.house-summary,.house-meta,.house-included,.house-card-bottom small,.house-price-caption,.house-price-lines span,.house-feature),
+.contact-content>p,.location-copy p,.technology-details p,.contact-content .sample-note,.locations-intro p {color:#c6d0c6}
+.house-card-shell :is(.house-feature,.house-included,.house-card-action) {background:transparent}
+.house-card-shell .house-included strong,.location-copy p svg,.location-card>summary svg {color:#c5dcb2}
+.house-card-shell .house-price-inquiry,.house-card-shell .house-tag {background:#354337;color:#dce9d4}
+.house-card-shell .house-price-lines>div {border-color:#505e52}
+.panels-section :is(.section-heading p,.material-description,.material-info-top,.panel-selector-row>span,.material-code,.material-price small,.material-price span,.material-navigation>span,.material-disclaimer,.material-filmstrip button small,.material-tabs button,.material-filmstrip button>span) {color:#c1ccbd}
+.panels-section :is(.material-price strong,.material-family,.material-filmstrip button strong,.material-tabs button[aria-pressed=true],.text-link) {color:#c4dcac}
+.panels-section .material-tabs button[aria-pressed=true] {border-color:#bad1a4}
+.panels-section :is(.panel-choice-group button,.material-filmstrip button,.material-arrow,.stepper button),
+.contact-content .field :is(input,textarea,select) {background:#344038;border-color:#637367;color:#f2f1e9}
+.panels-section .panel-choice-group button[aria-pressed=true],.panels-section .material-filmstrip button[aria-pressed=true] {background:#465c47;border-color:#b6cd98}
+.project-dialog .dialog-included {background:#36433a;color:#d4dfce}
+.project-dialog .dialog-included strong,.project-dialog .btn.outline,.project-dialog .project-price strong {color:#c7dfb6}
+.site-footer :is(p,.footer-note,.footer-bottom), .contact-content .field, #main .section-number {color:#c2d1bd}
