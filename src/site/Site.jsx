@@ -42,6 +42,7 @@ function projectCountLabel(count) {
 }
 
 function ProjectCard({ project, onOpen, index = 0 }) {
+  const [showPlan, setShowPlan] = useState(false);
   const hasQuote = Number.isFinite(project.kitPrice) && Number.isFinite(project.assembledPrice);
   const hasPrice = typeof project.price === 'number' && Number.isFinite(project.price) && project.price > 0;
   const priceLabel = hasQuote
@@ -49,6 +50,10 @@ function ProjectCard({ project, onOpen, index = 0 }) {
     : hasPrice ? `${projectPriceFormat.format(project.price)} ₽` : 'Узнать цену';
   return (
     <div className="house-card-shell">
+    {project.planImage && <div className="card-views" role="group" aria-label={`Вид проекта ${project.name}`}>
+      {['Фасад', 'Планировка'].map((label, i) => <button key={label} aria-pressed={showPlan === Boolean(i)}
+        onClick={() => setShowPlan(Boolean(i))}>{label}</button>)}
+    </div>}
     <button
       className="house-card motion-card"
       style={{ "--reveal-index": index }}
@@ -57,11 +62,11 @@ function ProjectCard({ project, onOpen, index = 0 }) {
       onFocus={() => import("./ProjectDialog.jsx")}
       onClick={() => onOpen(project)}
     >
-      <div className="house-image">
+      <div className={showPlan ? "house-image plan-preview" : "house-image"}>
         <img
           loading="lazy"
-          src={asset(project.image)}
-          alt={`Проект ${project.name} — пример фасада`}
+          src={asset(showPlan ? project.planImage : project.image)}
+          alt={`${showPlan ? "Планировка" : "Фасад"} проекта ${project.name}`}
         />
         <span className="view-label">
           Фасад и планировка
@@ -109,6 +114,28 @@ function ProjectCard({ project, onOpen, index = 0 }) {
   );
 }
 
+function PriceComparison({ projects }) {
+  const [ids, setIds] = useState(() => projects.slice(0, 2).map(project => project.id));
+  const rows = [
+    ['Размеры и площадь', p => p.areaLabel || p.meta.join(' · ')],
+    ['Особенности', p => p.tag],
+    ['Домокомплект', p => p.kitPrice],
+    ['Со сборкой', p => p.assembledPrice],
+  ];
+  return <details className="price-comparison">
+    <summary>Сравнить дома</summary>
+    <table><thead><tr>{ids.map((id, index) => <th key={index}>
+      <select aria-label={`Дом ${index + 1} для сравнения`} value={id}
+        onChange={event => setIds(ids.map((value, i) => i === index ? event.target.value : value))}>
+        {projects.map(p => <option key={p.id} value={p.id} disabled={ids[1 - index] === p.id}>{p.name}</option>)}
+      </select></th>)}</tr></thead>
+      <tbody>{rows.map(([label, read]) => <tr key={label}>{ids.map(id => {
+        const value = read(projects.find(p => p.id === id));
+        return <td key={id}><small>{label}</small>{typeof value === 'number' ? `от ${projectPriceFormat.format(value)} ₽` : value || 'По запросу'}</td>;
+      })}</tr>)}</tbody></table>
+  </details>;
+}
+
 function ProjectCollection({ category, expanded, onOpen, onToggle }) {
   const visibleCount = category.id === 'projects' ? 3 : 2;
   const firstProjects = category.projects.slice(0, visibleCount);
@@ -136,6 +163,7 @@ function ProjectCollection({ category, expanded, onOpen, onToggle }) {
         </div>
         <p>{category.description}</p>
       </div>
+      {category.id === 'projects' && <PriceComparison projects={category.projects} />}
       <div className="catalog-toolbar">
         <span className="collection-count">
           {projectCountLabel(category.projects.length)}
@@ -497,7 +525,6 @@ export default function Site() {
       />
       <main id="main">
         <HeroIntro />
-        <Escrow />
         {projectCategories.map((category) => (
           <ProjectCollection
             key={category.id}
@@ -507,6 +534,7 @@ export default function Site() {
             onToggle={toggleCategory}
           />
         ))}
+        <Escrow />
         <section className="approach-strip" id="about">
           <span className="section-number">Подход ЭФТ</span>
           <p>

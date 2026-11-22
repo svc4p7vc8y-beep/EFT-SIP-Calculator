@@ -1,0 +1,84 @@
+:root {
+  --graphite: #202622;
+  --linen: #f3efe6;
+  --sage: #b6cd98;
+}
+.site-header.welcome-header {
+  background: linear-gradient(#131a16ec,#18201bcc);
+  color: var(--linen);
+  position: relative;
+  height: 92px;
+  min-height: 92px;
+  margin-bottom: -92px;
+  border-bottom: 1px solid #ffffff36;
+}
+.welcome-header :is(.header-wordmark,.logo-motion,.logo-final) {mix-blend-mode:normal}
+.welcome-header .logo-final {filter:brightness(0) invert(1)}
+.welcome-header :is(.brand-caption,.header-contact,.header-phone,.site-nav a) {color:var(--linen)}
+.welcome-header .site-nav a {border:0}
+.welcome-header .site-nav a:hover,.welcome-header .site-nav a.active {background:#384339;color:white}
+.welcome-header .header-cta,.welcome-actions .welcome-primary,.project-collection .collection-open {
+  border-radius:32px;
+  background:var(--sage);
+  color:#1a2518;
+}
+.welcome-hero {height:clamp(610px,82svh,850px);min-height:610px;padding-top:150px}
+.welcome-copy h1,.project-collection h2,.house-caption h3 {
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:400;
+  letter-spacing:-.045em;
+}
+.welcome-copy h1 {font-size:clamp(46px,5.4vw,88px);line-height:1.02}
+.welcome-copy .winter-badge {border-radius:30px}
+.project-collection.projects-section {background:var(--graphite);color:var(--linen)}
+.project-collection :is(.catalog-note,.collection-count,.section-heading>p,.muted) {color:#c5cebF}
+.project-collection .section-heading h2 {color:var(--linen)}
+.project-collection .section-number {color:var(--sage)}
+.house-card-shell {
+  position:relative;
+  padding:0 18px 18px;
+  background:var(--linen);
+  color:#202622;
+  border-radius:12px;
+  overflow:hidden;
+}
+.house-card-shell .house-image {width:calc(100% + 36px);margin-inline:-18px;border-radius:0}
+.house-image.plan-preview img {object-fit:contain;background:#faf9f4}
+.house-card-shell .view-label {display:none}
+.card-views {
+  position:absolute;top:12px;left:12px;z-index:2;
+  display:flex;border-radius:25px;background:#f4f1e9;box-shadow:0 2px 8px #18211b33;
+}
+.card-views button,.price-comparison summary {
+  padding:9px 14px;border-radius:24px;border:0;background:transparent;color:#253025;cursor:pointer;
+}
+.card-views button[aria-pressed=true] {background:#415b3e;color:white}
+.house-card-shell .house-price-lines {background:transparent;padding-inline:0}
+.house-price-lines>div {padding-bottom:7px;border-bottom:1px solid #c9ccbf}
+.price-comparison {margin:0 0 20px}
+.price-comparison summary {width:fit-content;border:1px solid #9ca99b;color:var(--linen)}
+.price-comparison table {width:min(100%,760px);table-layout:fixed;margin-top:14px;border-collapse:collapse}
+.price-comparison :is(td,th) {width:50%;padding:12px;text-align:left;border-bottom:1px solid #576357}
+.price-comparison small {display:block;color:#bec9ba}
+.price-comparison select {width:100%;padding:10px;background:#303b32;color:white;border:1px solid #889586;border-radius:6px}
+@media(max-width:1024px) {
+  .welcome-header .site-nav {background:var(--graphite);top:92px}
+  .welcome-header .menu-toggle {color:#243423;background:var(--linen)}
+}
+@media(max-width:600px) {
+  .welcome-hero {min-height:650px;height:auto;padding-top:136px}
+  .welcome-copy h1 {font-size:clamp(38px,9vw,51px)}
+  .welcome-hero .intro-shade {background:linear-gradient(100deg,#111c17d9,#111c1740 72%,transparent)}
+  .project-collection .house-card-shell {background:#2c352f;color:var(--linen)}
+  .house-card-shell :is(h3,.house-summary,.house-meta,.house-caption span,.house-page-link,.house-price-lines span,.house-price-lines strong,.house-card-bottom small,.house-price,.house-price-caption) {color:var(--linen)}
+  .house-card-shell :is(.house-included,.house-feature,.house-card-action) {color:#253b29;background:#e3eadb}
+}
+
+.approach-strip,.technology-section,.locations-section {background:#263129;color:var(--linen)}
+.approach-strip>div,.approach-strip .text-link,.technology-section .section-heading p {color:#cbd7c5}
+.technology-section .technology-details,.locations-section .location-card {color:#253025;background:#f3efe6}
+.welcome-header .menu-toggle svg {color:#263129}
+@media(max-width:600px) {
+  .house-card-shell .house-included,.house-card-shell .house-feature,.house-card-shell .house-card-action {background:transparent;color:#d5e0cf}
+  .house-card-shell .house-included strong {color:#c6dcb4}
+}

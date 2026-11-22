@@ -35,7 +35,7 @@ export default function HeroIntro() {
       window.clearTimeout(fallback);
       ready.current = loaded.every(Boolean);
       setMediaFailed(!ready.current);
-      setPhase(ready.current && !motion.matches ? 'playing' : 'done');
+      setPhase('done');
     });
     return () => {
       active = false;
