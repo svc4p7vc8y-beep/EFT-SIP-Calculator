@@ -4893,7 +4893,7 @@ function MobileSelectionAdjuster({
       <span>
         Дом{" "}
         <b>
-          {formatNumber(plan.house.w)} × {formatNumber(plan.house.h)} м
+          {formatNumber(plan.house.w, 2)} × {formatNumber(plan.house.h, 2)} м
         </b>
       </span>
       <span>
@@ -5193,7 +5193,7 @@ function PlanLibraryModal({ entries, syncState, onRefresh, onClose, onOpen, onEd
                 <div className="plan-library-card-body">
                   <div className="plan-library-card-title"><div><strong>{entry.name}</strong><small>{entry.preset ? "Готовый шаблон" : entry.savedAt ? new Date(entry.savedAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }) : "Старый эскиз"}</small></div><div className={`plan-library-total${entry.priceMode === "current" ? " current" : ""}`}><span>{entry.priceMode === "current" ? "По текущему прайсу" : "Итого"}</span><strong>{entry.priceSnapshot?.total ? formatMoney(entry.priceSnapshot.total) : "После пересчёта"}</strong></div></div>
                   <div className="plan-library-parameters">
-                    <span><small>Габариты</small><b>{formatNumber(savedPlan.house.w)} × {formatNumber(savedPlan.house.h)} м</b></span>
+                    <span><small>Габариты</small><b>{formatNumber(savedPlan.house.w, 2)} × {formatNumber(savedPlan.house.h, 2)} м</b></span>
                     <span><small>Площадь</small><b>{formatNumber(area)} м²</b></span>
                     <span><small>Этажи</small><b>{floors}</b></span>
                     <span><small>Стены</small><b>{Math.round((savedPlan.wallThickness || 0.174) * 1000)} мм</b></span>
@@ -6830,7 +6830,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                       {plan.layoutMode!=='walls'?<button type="button" className="button" onClick={()=>{if(!window.confirm('Преобразовать границы комнат в отдельные стены? Размеры дома сохранятся; комнаты будут определяться между стенами. Привязки раскроя нужно перепроверить. Исходная планировка сохранится в резерве, действие можно отменить.'))return;try{commitPlan(next=>convertToWallLayout(next,()=>uid('wall')));setSelected(null);setTool('wall');}catch(error){window.alert(error.message);}}}>Перейти к построению стенами</button>:<p className="inspector-note">Инструмент «Перегородка»: рисуйте стены, замкнутые комнаты определяются автоматически. Нажмите стену для настройки. Изменения можно отменять.</p>}
                     </div>
                     {(Math.round(plan.wallThickness*1000)!==Number(project.settings.sip.wallThickness)||Math.round(plan.partitionThickness*1000)!==(project.settings.sip.partitionType==='sip'?Number(project.settings.sip.partitionThickness):Number(project.settings.sip.partitionFrameSection?.split(/[x×х]/)[1])||100))?<p className="assembly-warning" style={{gridColumn:'1 / -1'}}>Сохранённые толщины плана отличаются от конструкции. Сверьте проект и повторно выберите нужные толщины; старые значения не заменены автоматически.</p>:null}
-                    {activeFloor===2?<><NumberField label="Длина 2 этажа" value={plan.house.w} suffix="м" min={3} onChange={value=>resizeHouse(value,plan.house.h)}/><NumberField label="Ширина 2 этажа" value={plan.house.h} suffix="м" min={3} onChange={value=>resizeHouse(plan.house.w,value)}/><SelectField label="Пол 2 этажа" value={project.settings.sip.secondFloorPanelWidth||"1.25"} options={[{value:"1.25",label:"Стандарт · 1250 мм"},{value:"0.625",label:"Усиленный · 625 мм"}]} onChange={value=>commit(next=>{next.settings.sip.secondFloorPanelWidth=value;return next;})}/></>:null}
+                    {activeFloor===2?<><NumberField label="Длина 2 этажа" value={plan.house.w} suffix="м" min={3} step={0.01} onChange={value=>resizeHouse(value,plan.house.h)}/><NumberField label="Ширина 2 этажа" value={plan.house.h} suffix="м" min={3} step={0.01} onChange={value=>resizeHouse(plan.house.w,value)}/><SelectField label="Пол 2 этажа" value={project.settings.sip.secondFloorPanelWidth||"1.25"} options={[{value:"1.25",label:"Стандарт · 1250 мм"},{value:"0.625",label:"Усиленный · 625 мм"}]} onChange={value=>commit(next=>{next.settings.sip.secondFloorPanelWidth=value;return next;})}/></>:null}
                     {floorCount>1?<><NumberField label="Проём лестницы — X" value={floorOpening?.x||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,x:value})}/><NumberField label="Проём лестницы — Y" value={floorOpening?.y||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,y:value})}/><NumberField label="Проём лестницы — ширина" value={floorOpening?.width||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,width:value})}/><NumberField label="Проём лестницы — длина" value={floorOpening?.length||0} suffix="м" min={0} step={0.1} onChange={value=>commitFloorOpening({...floorOpening,length:value})}/></>:null}
                   </div>}
                 />

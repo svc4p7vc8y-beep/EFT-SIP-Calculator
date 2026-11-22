@@ -492,7 +492,7 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
       {!embedded ? <div className="stats-row">
         <Stat
           label="Габариты"
-          value={`${formatNumber(project.plan.house.w)} × ${formatNumber(project.plan.house.h)} м`}
+          value={`${formatNumber(project.plan.house.w, 2)} × ${formatNumber(project.plan.house.h, 2)} м`}
         />
         <Stat
           label="Площадь всех этажей"
@@ -586,8 +586,8 @@ export default function ParametersScreen({ embedded = false, suppliedCalculation
             description="Габариты, стены и режим потолка. Форма рисуется на плане."
           >
             {fields([
-              { path: "plan.house.w", label: "Длина", suffix: "м", min: 3 },
-              { path: "plan.house.h", label: "Ширина", suffix: "м", min: 3 },
+              { path: "plan.house.w", label: "Длина", suffix: "м", min: 3, step: 0.01 },
+              { path: "plan.house.h", label: "Ширина", suffix: "м", min: 3, step: 0.01 },
               {
                 path: "plan.wallHeight",
                 label: "Высота стен",

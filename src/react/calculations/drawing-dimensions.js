@@ -10,9 +10,11 @@ export function structuralDimensions(assembly, binding=false) {
   const floor=binding?assembly.floors[0]:assembly.floors.at(-1);
   const house=pointBounds(floor.contour), roof=pointBounds(assembly.roofCoverPoints||assembly.roofOutline||floor.contour);
   const items=binding?assembly.binding:assembly.rafters;
-  return { house,roof,
-    x:dimensionValues([...floor.contour.map(p=>p[0]),...(binding?assembly.piles.map(p=>p[0]):assembly.axis==='x'?items.map(r=>r.a[0]):[])]),
-    y:dimensionValues([...floor.contour.map(p=>p[1]),...(binding?assembly.piles.map(p=>p[1]):assembly.axis==='y'?items.map(r=>r.a[1]):[])]),
+  const pileAxes=assembly.housePileAxes?.length?assembly.housePileAxes:assembly.piles||[];
+  const reference=binding&&pileAxes.length?pointBounds(pileAxes):house;
+  return { house,roof,reference,
+    x:dimensionValues(binding&&pileAxes.length?(assembly.piles?.length?assembly.piles:pileAxes).map(p=>p[0]):[...floor.contour.map(p=>p[0]),...(!binding&&assembly.axis==='x'?items.map(r=>r.a[0]):[])]),
+    y:dimensionValues(binding&&pileAxes.length?(assembly.piles?.length?assembly.piles:pileAxes).map(p=>p[1]):[...floor.contour.map(p=>p[1]),...(!binding&&assembly.axis==='y'?items.map(r=>r.a[1]):[])]),
   };
 }
 export function surfaceDimensions(surface, parts=[], members=[]) {
@@ -38,7 +40,15 @@ export function bearingPlanWidth(profile) {
 }
 
 // Check diagonals join actual contour/support points, not invented bounding corners.
-export function checkDiagonals(assembly) {
+export function checkDiagonals(assembly, pileCentres=false) {
+  if(pileCentres){
+    const supports=assembly.housePileAxes?.length?assembly.housePileAxes:assembly.piles||[],pairs=[];
+    for(let i=0;i<supports.length;i++)for(let j=i+1;j<supports.length;j++){
+      const a=supports[i],b=supports[j];
+      if(Math.abs(a[0]-b[0])>1&&Math.abs(a[1]-b[1])>1)pairs.push({a,b,length:Math.hypot(b[0]-a[0],b[1]-a[1]),kind:'Центры свай'});
+    }
+    return pairs.sort((a,b)=>b.length-a.length).slice(0,2);
+  }
   const points=assembly.floors[0]?.contour||[],pairs=[];
   const pairKey=(a,b)=>[a,b].map(p=>p.map(v=>Math.round(v)).join(',')).sort().join('|');
   const add=(a,b,kind)=>{if(Math.abs(a[0]-b[0])<1||Math.abs(a[1]-b[1])<1)return;
