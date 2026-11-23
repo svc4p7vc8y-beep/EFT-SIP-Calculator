@@ -1,4 +1,5 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
+import {readRecoveryProjects} from '../state/workspace-storage.js';
 import {FolderOpen,RefreshCw,HardDriveDownload} from 'lucide-react';
 import {useLocalBackup} from '../storage/LocalBackupContext.jsx';
 import {readFolderBackup} from '../storage/folder-backup.js';
@@ -15,6 +16,9 @@ const kinds={project:'Рабочий проект',server:'Серверный п
 export default function LocalBackupScreen(){
   const backup=useLocalBackup(),{openTab,hydrated,commit}=useProject();
   const [error,setError]=useState(''),[opening,setOpening]=useState(false);
+  const [recovery,setRecovery]=useState([]);
+  useEffect(()=>{let active=true;readRecoveryProjects({includeManual:true}).then(items=>{if(active)setRecovery(items);});return ()=>{active=false;};},[]);
+  const openRecovery=record=>{try{validateImportedProject(record);openTab(migrateProject(record));setError('Резервная копия открыта в новой вкладке. Перейдите в «План дома».');}catch(failure){setError(failure.message);}};
   const open=async record=>{
     setOpening(true);setError('');
     try{const data=await readFolderBackup(backup.handle,record);validateImportedProject(data);const restored=migrateProject(data);openTab(data.priceMat?.length&&data.priceLab?.length?restoreLocalPrices(restored,restored,record.name):restored);setError('Проект открыт в новой вкладке. Перейдите в «План дома».');}
@@ -28,6 +32,11 @@ export default function LocalBackupScreen(){
   };
   const records=orderedBackupRecords(backup.records,backup.currentKey);
   return <div className="screen local-backup-screen"><ScreenHeader title="Резервные копии" description="Проекты и прайс в папке на вашем компьютере"/>
+    <section className="panel local-backup-panel"><h2>Автоматические копии на этом устройстве</h2>
+      <p>Открытые проекты сохраняются при изменениях, независимо от сервера. Эти копии также доступны в «Истории проектов». Для отдельных файлов на диске подключите папку ниже. При очистке данных браузера локальные копии удаляются.</p>
+      <div className="local-backup-list">{recovery.map(record=><div className="local-backup-row" key={record.backupId||record.savedAt}><div><strong>Проект № {record.meta?.projectNum||'без номера'}</strong><small>{record.automaticRecovery?'Автоматическая копия':'Ручная копия'} · {new Date(record.savedAt).toLocaleString('ru-RU')}</small></div><button className="button secondary" onClick={()=>openRecovery(record)} disabled={!hydrated}>Открыть проект</button></div>)}</div>
+      {!recovery.length?<p>Копии появятся автоматически во время работы с проектом.</p>:null}
+    </section>
     <section className={`panel local-backup-panel current-project-backup ${backup.currentSaved?'is-saved':''}`} aria-label="Резерв текущего проекта">
       <h2>Текущий проект: {backup.currentName}</h2>
       <p role="status">{backup.currentSaved?`Текущая версия сохранена в папку на устройстве. Файл проверен ${new Date(backup.currentCheckedAt).toLocaleTimeString('ru-RU')}.`:!backup.handle?'Для файловой резервной копии выберите папку ниже. Рабочая вкладка сохраняется отдельно в браузере.':backup.permission!=='granted'?'Разрешите запись в папку для сохранения этого проекта.':'Текущая версия ещё не подтверждена в папке. Выполняется автоматическое сохранение; можно сохранить сейчас.'}</p>

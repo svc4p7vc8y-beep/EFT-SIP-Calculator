@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -66,7 +67,7 @@ export function ProjectProvider({ children }) {
     return ()=>{active=false;};
   },[team.ready,team.workspaceOwner,team.user?.id]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const owner=String(team.workspaceOwner||team.user?.id||'local');
     if(!hydrated||ownerRef.current!==owner)return;
     let active=true;

@@ -1,4 +1,5 @@
 import {saveProjectFile} from '../storage/save-project-file.js';
+import {readRecoveryProjects} from '../state/workspace-storage.js';
 import ProjectTabScroller from '../components/ProjectTabScroller.jsx';
 import AppChromeMetrics from '../components/AppChromeMetrics.jsx';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -52,7 +53,6 @@ import {
   createProjectWithCurrentPrices,
   createDefaultPriceLists,
   migrateProject,
-  REACT_BACKUPS_KEY,
   REACT_PROJECT_VERSION,
   summarizePriceCatalogChanges,
 } from "../state/project-model.js";
@@ -557,14 +557,13 @@ export function App() {
     }
   };
 
-  const backups = useMemo(() => {
-    if (!backupOpen) return [];
-    try {
-      return JSON.parse(localStorage.getItem(REACT_BACKUPS_KEY) || "[]");
-    } catch {
-      return [];
-    }
-  }, [backupOpen]);
+  const [backups,setBackups]=useState([]);
+  useEffect(()=>{
+    if(!backupOpen)return;
+    let active=true;
+    readRecoveryProjects({includeManual:true}).then(records=>{if(active)setBackups(records);});
+    return ()=>{active=false;};
+  },[backupOpen]);
 
   if (!team.ready || (team.required && !team.user && !team.offline)) return <TeamLogin />;
 
@@ -1049,7 +1048,7 @@ export function App() {
                         Проект № {backup.meta?.projectNum || "без номера"}
                       </strong>
                       <small>
-                        {backup.meta?.customer || "Заказчик не указан"}
+                        {backup.automaticRecovery?'Автоматическая копия на устройстве · ':'Ручная копия · '}{backup.meta?.customer || "Заказчик не указан"}
                       </small>
                     </span>
                     <time>
@@ -1060,8 +1059,7 @@ export function App() {
               </div>
             ) : (
               <div className="empty-state">
-                Резервных копий пока нет. Нажмите дискету после важного
-                изменения.
+                Резервных копий пока нет. При работе проекты сохраняются автоматически на этом устройстве.
               </div>
             )}
             <footer>
