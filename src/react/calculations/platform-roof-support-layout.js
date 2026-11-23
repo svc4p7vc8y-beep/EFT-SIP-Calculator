@@ -23,12 +23,12 @@ export function platformRoofSupportLayout(project,platform,result,model,spacing=
  const roofDepth=Number(String(project.settings.roof.rafterSection||'50x150').split(/[×xх]/)[1])||150;
  const base=Number(platform.postBaseZMm??platform.deckHeightMm)||0,posts=[],ties=[],overrides=platform.roofSupportOverrides||{};
  const at=p=>{const bearingFaces=onHouse(p)&&platform.roof.shape==='continuation'?[...faces,...(model?.faces||[]).filter(face=>face.group==='main')]:faces;const inside=roofAt({faces:bearingFaces},...p),hits=[...inside,...bearingFaces.filter(face=>!inside.some(hit=>hit.face===face)&&onFacetEdge(p,face)).map(face=>({face,z:roofHeight(face,...p)}))];const hit=hits.sort((a,b)=>a.z-b.z)[0];return hit?hit.z-(hit.face.warm?Number(hit.face.thickness)||174:roofDepth)/(2*hit.face.normal[2]):null;};
- const add=(id,pos,runId,manual={},autoTop=null)=>{
+ const add=(id,pos,runId,manual={})=>{
   const v={...manual,...overrides[id]};if(v.exclude)return null;
   const point=[Number(v.xMm??pos[0]),Number(v.yMm??pos[1])],roof=at(point);
-  const bottom=Number(v.baseZMm??base),top=Number(v.topZMm??autoTop??(roof==null?NaN:roof-(runId?depth:0)));
+  const bottom=Number(v.baseZMm??base),top=Number(v.topZMm??(roof==null?NaN:roof-(runId?depth:0)));
   if(![...point,bottom,top].every(Number.isFinite)||top<=bottom)return null;
-  const old=posts.find(p=>distance(p.a,point)<5);if(old){if(autoTop===null&&v.topZMm==null&&overrides[old.id]?.topZMm==null&&!(platform.roofPosts||[]).some(p=>p.id===old.id&&p.topZMm!=null))old.b[2]=Math.max(old.b[2],top);return old;}
+  const old=posts.find(p=>distance(p.a,point)<5);if(old){if(v.topZMm==null&&overrides[old.id]?.topZMm==null&&!(platform.roofPosts||[]).some(p=>p.id===old.id&&p.topZMm!=null))old.b[2]=Math.max(old.b[2],top);return old;}
   const post={id,a:[...point,bottom],b:[...point,top],profile:section,layer:'platforms',referenceOnly:true,platformId:platform.id,runId,anchorMode:v.anchorMode||platform.postAnchorMode||'auto'};posts.push(post);return post;
  };
  const edges=[['top',[x,y],[x+w,y]],['right',[x+w,y],[x+w,y+h]],['bottom',[x+w,y+h],[x,y+h]],['left',[x,y+h],[x,y]]];
@@ -45,7 +45,7 @@ export function platformRoofSupportLayout(project,platform,result,model,spacing=
   const n=hit.face.normal,slope=Math.hypot(n[0],n[1]);
   const endHeights=[at(a),at(b)],middleHeight=at(mid);
   // The outer gable-end edge crosses both slopes: its tie stays horizontal
-  // at eave level, with posts below it, rather than being discarded as sloped.
+  // at eave level. Posts continue through this tie to the roof bearing level.
   const gableTie=platform.roof.shape==='continuation'&&side===result.side&&project.settings.roof.shape==='gable'&&endHeights.every(z=>z!==null)&&middleHeight!==null&&middleHeight>Math.max(...endHeights)+1;
   const tieTop=gableTie?Math.min(...endHeights):null;
   if(!gableTie&&slope>.001&&Math.abs(n[0]*(b[0]-a[0])+n[1]*(b[1]-a[1]))/(L*slope)>.02)continue;
@@ -53,9 +53,9 @@ export function platformRoofSupportLayout(project,platform,result,model,spacing=
   const count=Math.min(200,Math.max(1,Math.ceil(L/(Math.max(.5,Number(spacing)||3)*1000)))),run=[];
   for(let i=0;i<=count;i++){
    const pos=a.map((v,k)=>v+(b[k]-v)*i/count);if(onHouse(pos))continue;
-   const p=add(`platform:${platform.id}:post:${side}:${i}`,pos,side,{},gableTie?tieTop-depth:null);if(p)run.push(p);
+   const p=add(`platform:${platform.id}:post:${side}:${i}`,pos,side);if(p)run.push(p);
   }
-  for(const manual of platform.roofPosts||[])if(manual.runId===side){const p=add(manual.id,[manual.xMm,manual.yMm],side,manual,gableTie?tieTop-depth:null);if(p&&!run.includes(p))run.push(p);}
+  for(const manual of platform.roofPosts||[])if(manual.runId===side){const p=add(manual.id,[manual.xMm,manual.yMm],side,manual);if(p&&!run.includes(p))run.push(p);}
   // House walls can support the end of the beam without an extra foundation post.
   const wallNode=p=>{const z=at(p);return onHouse(p)&&z!==null?[{b:[...p,z-depth]}]:[];};
   const nodes=[...wallNode(a),...run.sort((p,q)=>distance(a,p.a)-distance(a,q.a)),...wallNode(b)];
