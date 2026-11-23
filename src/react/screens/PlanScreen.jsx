@@ -4082,7 +4082,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
             label="Ширина"
             value={opening.width * 1000}
             suffix="мм"
-            step={10}
+            step={opening.type === 'window' ? 50 : 10}
             onChange={(value) =>
               update("openings", (item) => {
                 item.width = value / 1000;
@@ -4093,7 +4093,7 @@ function Inspector({ plan, selected, commitPlan, issues, setSelected, mainRoof =
             label="Высота"
             value={opening.height * 1000}
             suffix="мм"
-            step={10}
+            step={opening.type === 'window' ? 50 : 10}
             onChange={(value) =>
               update("openings", (item) => {
                 item.height = value / 1000;

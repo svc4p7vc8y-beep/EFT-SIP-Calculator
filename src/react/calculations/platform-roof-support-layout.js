@@ -1,9 +1,16 @@
 import {mauerlatProfile} from './roof-wall-plate.js';
-import {roofAt} from './roof-project.js';
+import {roofAt,roofHeight} from './roof-project.js';
 import {houseContourPoints} from '../planner/geometry.js';
 import {normalizeTerracePlatform} from '../../calculations/terrace-model.js';
 
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+// Polygon containment can exclude its boundary. A bearing on the house/roof
+// seam still belongs to the adjacent facet, within geometry tolerance only.
+const onFacetEdge=(point,face)=>face.vertices.some((a,i)=>{
+ const b=face.vertices[(i+1)%face.vertices.length],dx=b[0]-a[0],dy=b[1]-a[1],length2=dx*dx+dy*dy;
+ const t=Math.max(0,Math.min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/(length2||1)));
+ return distance(point,[a[0]+dx*t,a[1]+dy*t])<.1;
+});
 // Geometric bearing layout only; capacity and connection design remain project data.
 export function platformRoofSupportLayout(project,platform,result,model,spacing=3){
  platform=normalizeTerracePlatform(platform);
@@ -15,7 +22,7 @@ export function platformRoofSupportLayout(project,platform,result,model,spacing=
  const section=String(result.postSection||'150x100').replace('x','×'),depth=Number(section.split('×')[1])||100;
  const roofDepth=Number(String(project.settings.roof.rafterSection||'50x150').split(/[×xх]/)[1])||150;
  const base=Number(platform.postBaseZMm??platform.deckHeightMm)||0,posts=[],ties=[],overrides=platform.roofSupportOverrides||{};
- const at=p=>{const hit=roofAt({faces},...p).sort((a,b)=>a.z-b.z)[0];return hit?hit.z-(hit.face.warm?Number(hit.face.thickness)||174:roofDepth)/(2*hit.face.normal[2]):null;};
+ const at=p=>{const bearingFaces=onHouse(p)&&platform.roof.shape==='continuation'?[...faces,...(model?.faces||[]).filter(face=>face.group==='main')]:faces;const inside=roofAt({faces:bearingFaces},...p),hits=[...inside,...bearingFaces.filter(face=>!inside.some(hit=>hit.face===face)&&onFacetEdge(p,face)).map(face=>({face,z:roofHeight(face,...p)}))];const hit=hits.sort((a,b)=>a.z-b.z)[0];return hit?hit.z-(hit.face.warm?Number(hit.face.thickness)||174:roofDepth)/(2*hit.face.normal[2]):null;};
  const add=(id,pos,runId,manual={})=>{
   const v={...manual,...overrides[id]};if(v.exclude)return null;
   const point=[Number(v.xMm??pos[0]),Number(v.yMm??pos[1])],roof=at(point);
@@ -45,7 +52,8 @@ export function platformRoofSupportLayout(project,platform,result,model,spacing=
   }
   for(const manual of platform.roofPosts||[])if(manual.runId===side){const p=add(manual.id,[manual.xMm,manual.yMm],side,manual);if(p&&!run.includes(p))run.push(p);}
   // House walls can support the end of the beam without an extra foundation post.
-  const nodes=[...(onHouse(a)?[{b:[...a,(at(a)??0)-depth]}]:[]),...run.sort((p,q)=>distance(a,p.a)-distance(a,q.a)),...(onHouse(b)?[{b:[...b,(at(b)??0)-depth]}]:[])];
+  const wallNode=p=>{const z=at(p);return onHouse(p)&&z!==null?[{b:[...p,z-depth]}]:[];};
+  const nodes=[...wallNode(a),...run.sort((p,q)=>distance(a,p.a)-distance(a,q.a)),...wallNode(b)];
   for(let i=1;i<nodes.length;i++)if(distance(nodes[i-1].b,nodes[i].b)>5)ties.push({id:`platform:${platform.id}:tie:${side}:${i}`,a:nodes[i-1].b.map((v,k)=>k===2?v+depth/2:v),b:nodes[i].b.map((v,k)=>k===2?v+depth/2:v),profile:section,layer:'platforms',referenceOnly:true,name:'Балка опирания стропил террасы',platformId:platform.id});
  }
  for(const manual of platform.roofPosts||[])if(!manual.runId)add(manual.id,[manual.xMm,manual.yMm],null,manual);
