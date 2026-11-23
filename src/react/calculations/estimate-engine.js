@@ -780,7 +780,7 @@ function sipSection(project, metrics, index, inputs, roofResult) {
       );
     }
   });
-  if (project.services.partitions && hasFramePartitions) {
+  if (project.services.partitions) {
     const detailed=project.settings.productionCutting.detailedFrameEstimate!==false&&sip.partitionCalculationMode!=='area';
     const partitionFrameSection = /^\d+[x×х]\d+$/.test(sip.partitionFrameSection||'') ? sip.partitionFrameSection.replace(/[×х]/g,'x') : '50x100';
     const partitionBoardQuery = partitionFrameSection === "50x150"

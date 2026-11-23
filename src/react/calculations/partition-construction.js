@@ -1,3 +1,4 @@
+import {sipTimberProfile} from './sip-joinery.js';
 import {partitionMaterial} from '../planner/partition-material.js';
 import {partitionTopFit} from './partition-top-fit.js';
 import { partitionRuns, partitionDepth } from '../planner/geometry.js';
@@ -74,11 +75,12 @@ export function partitionReinforcements(project,plan,floor=1,all=false,fitContex
     if(!near.outer)assigned.get(near.index).push({key:`${floor}:${o.id}`,gap:o.type==='gap',x:Math.round(near.u*1000)-Math.round(Number(o.width)*1000)/2,width:Math.round(Number(o.width)*1000),height:Math.round(Number(o.height)*1000),sill:o.type==='gap'?0:settings.openingSills[`${floor}:${o.id}`]??(o.sillHeight!==''&&o.sillHeight!=null?Math.round(Number(o.sillHeight)*1000):o.type==='door'?0:settings.windowSillMm)});
   }
   segments.forEach(([a,b],i)=>{
-    if(partitionMaterial(plan,a,b,project.settings.sip.partitionType)==='sip')return;
+    const isSip=partitionMaterial(plan,a,b,project.settings.sip.partitionType)==='sip';
     const length=Math.hypot(b.x-a.x,b.y-a.y),bearing=bearingForSegment(plan,a,b),openings=[];
     openings.push(...assigned.get(i));
     const id=`Э${floor}-ПГ${i+1}`,start=[a.x,a.y].map(v=>Math.round(v*1000)),end=[b.x,b.y].map(v=>Math.round(v*1000)),wallKey=`${id}@${start.join(',')}:${end.join(',')}`;
     const s={id,start,end,roofTrussSupports:floor===(Number(project.meta.floors)||1)?settings.roofSupports.filter(m=>m.bearingTruss&&!m.referenceOnly):[],name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(partitionProfileForSegment(plan,a,b)||localWallSettings(plan,a,b)?.frameProfile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
+    if(isSip)s.frameProfile=`45×${sipTimberProfile(partitionDepth(plan,a,b)*1000||project.settings.sip.partitionThickness).thermalDepth}`;
     const addition=Number(settings.wallAdditions[wallKey])||0;
     s.topProfile=partitionTopFit(project,plan,floor,fitContext,start,end,s.height,addition);
     if(s.topProfile)s.height=Math.max(...s.topProfile.map(point=>point[1]));
@@ -90,7 +92,7 @@ export function partitionReinforcements(project,plan,floor=1,all=false,fitContex
     if(holes.some((h,j)=>holes.slice(j+1).some(other=>clipping.intersection(h,other).length)))return;
     const geometry=holes.length?clipping.difference(rectangle(0,0,s.width,s.height),...holes):[rectangle(0,0,s.width,s.height)];
     const layoutKey=`${id}:${cuttingRevision([geometry,start,end])}`;
-    for(const m of partitionFrameMembers(s,settings).filter(m=>all||m.reinforcement)){
+    for(const m of partitionFrameMembers(s,settings).filter(m=>isSip?!!m.bearingTrussId:all||m.reinforcement)){
       const key=`detail:${m.id}:${cuttingRevision([layoutKey,m.a,m.b,m.profile,m.length,m.source])}`,override=settings.memberOverrides[key]||{};
       if(override.exclude)continue;
       if(override.profile&&/^\d+(?:[×хx]\d+)$/.test(override.profile))m.profile=override.profile.replace(/[xх]/g,'×');

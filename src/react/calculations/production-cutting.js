@@ -972,6 +972,12 @@ export function calculateProductionCutting(project, calculation) {
       }
       members.push(...frame);continue;
     }
+    if(!surface.exterior&&!surface.horizontal&&surface.roofTrussSupports?.length){
+      const supportSurface={...surface,frameProfile:`45×${sipTimberProfile(surface.thickness).thermalDepth}`};
+      const supports=partitionFrameMembers(supportSurface,settings).filter(m=>m.bearingTrussId);
+      for(const id of supportSurface.trussSupportConflicts||[])issue('TRUSS_PARTITION_OPENING',`${surface.id}: двойная стойка под фермой ${id} попадает в проём. Требуется рабочий узел опирания.`,surface.id);
+      members.push(...supports);
+    }
     const segments = splitConnectorsAtBearing(connectionSegments(parts.filter(part => part.surfaceId === surface.id), settings.continuousMembers || !!surface.supportFloor),surface.bearingCuts);
     const profile = sipTimberProfile(surface.thickness);
     const jambs = !surface.blocked && !surface.horizontal && surface.openings?.length ? surface.openings.filter(opening => !opening.facadeId && !opening.gap && ['window','door'].includes(opening.type))
