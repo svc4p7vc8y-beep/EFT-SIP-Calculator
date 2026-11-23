@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   eftApi,
+  cloudCalculatorEnabled,
   EftApiError,
   resolveEftApiUrl,
 } from "../src/shared/team-api.js";
@@ -82,3 +83,13 @@ test("API client exposes a safe server error to the interface", async () => {
     globalThis.location = originalLocation;
   }
 });
+
+ test('shared projects enabled on production domain in manual and CI builds; reserve stays offline',()=>{
+ const prod={hostname:'calc.eftsip.ru',search:''};
+ assert.equal(cloudCalculatorEnabled(prod,{}),true);
+ assert.equal(cloudCalculatorEnabled(prod,{VITE_TEAM_ENABLED:'true'}),true);
+ assert.equal(cloudCalculatorEnabled(prod,{VITE_TEAM_ENABLED:'false'}),false);
+ assert.equal(cloudCalculatorEnabled({...prod,search:'?cloud=1'},{VITE_EFT_STANDALONE:'true'}),false);
+ assert.equal(cloudCalculatorEnabled({hostname:'127.0.0.1',search:''}),false);
+ assert.equal(cloudCalculatorEnabled({hostname:'127.0.0.1',search:'?cloud=1'}),true);
+ });

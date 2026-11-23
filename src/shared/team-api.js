@@ -1,6 +1,14 @@
 const PRODUCTION_API = "https://eftsip.ru/api/api.php";
 export const standaloneCalculator = import.meta.env?.VITE_EFT_STANDALONE === 'true';
 
+// The production domain must connect to shared projects even when built manually.
+// Explicit offline/reserve builds still never contact the server.
+export function cloudCalculatorEnabled(locationLike, env = {}) {
+  if (env.VITE_EFT_STANDALONE === 'true') return false;
+  return (locationLike?.hostname === 'calc.eftsip.ru' && env.VITE_TEAM_ENABLED !== 'false') ||
+    new URLSearchParams(locationLike?.search || '').get('cloud') === '1';
+}
+
 export class EftApiError extends Error {
   constructor(message, code = "request_failed", status = 0, details = {}) {
     super(message);

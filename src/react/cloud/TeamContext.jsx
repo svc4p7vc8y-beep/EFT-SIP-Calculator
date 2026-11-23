@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { eftApi, standaloneCalculator } from "../../shared/team-api.js";
+import { eftApi, cloudCalculatorEnabled } from "../../shared/team-api.js";
 import {
   listKnowledgeArticles,
   replaceKnowledgeArticles,
@@ -21,9 +21,7 @@ import { describeProjectSaveConflict } from "./save-conflict.js";
 import { useSharedPriceCatalog } from './useSharedPriceCatalog.js';
 
 const TeamContext = createContext(null);
-const isProductionCalculator = () =>
-  !standaloneCalculator && ((location.hostname === "calc.eftsip.ru" && import.meta.env.VITE_TEAM_ENABLED === 'true') ||
-  new URLSearchParams(location.search).get("cloud") === "1");
+const isProductionCalculator = () => cloudCalculatorEnabled(location, import.meta.env);
 
 export function TeamProvider({ children }) {
   const [session, setSession] = useState({
