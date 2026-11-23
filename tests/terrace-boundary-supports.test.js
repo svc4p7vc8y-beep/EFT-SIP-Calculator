@@ -12,14 +12,29 @@ test('gable-end terrace beams meet the house at roof elevation instead of fallin
  assert.equal(JSON.stringify(p),original,'saved geometry and prices stay intact');
  for(const {platform,result} of c.roof.terraceRoofs){
   const {posts,ties}=result.supportLayout;
-  assert.equal(ties.length,2);
-  assert.ok(posts.length>=2);
+  const sideBeams=ties.filter(tie=>tie.name!=='Стяжка между столбами террасы');
+  const outerTies=ties.filter(tie=>tie.name==='Стяжка между столбами террасы');
+  assert.equal(sideBeams.length,2);
+  assert.equal(outerTies.length,3);
+  assert.equal(posts.length,4);
   for(const tie of ties){
    assert.ok(tie.a[2]>1000&&tie.b[2]>1000);
    assert.ok(Math.abs(tie.a[2]-tie.b[2])<.01,'beam follows the eave level');
-   assert.ok(Math.abs(Math.hypot(tie.a[0]-tie.b[0],tie.a[1]-tie.b[1])-platform.w*1000)<.01);
+   if(sideBeams.includes(tie))assert.ok(Math.abs(Math.hypot(tie.a[0]-tie.b[0],tie.a[1]-tie.b[1])-platform.w*1000)<.01);
    assert.equal(report.members.filter(member=>member.id===tie.id).length,1,'same beam is included in cutting once');
   }
-  assert.equal(result.tieLength,platform.w*2);
+  assert.ok(Math.abs(result.tieLength-(platform.w*2+platform.h))<.001);
+  const outerX=(platform.id==='left'?platform.x:platform.x+platform.w)*1000;
+  assert.ok(posts.every(post=>post.a[0]===outerX));
+  assert.ok(outerTies.every(tie=>tie.a[0]===outerX&&tie.b[0]===outerX));
+  assert.ok(outerTies.every(tie=>Math.hypot(tie.a[0]-tie.b[0],tie.a[1]-tie.b[1])<=3000));
+  for(const post of posts){
+   assert.equal(report.members.filter(member=>member.id===post.id).length,1);
+   assert.ok(outerTies.some(tie=>[tie.a,tie.b].some(end=>Math.hypot(end[0]-post.b[0],end[1]-post.b[1])<.1&&Math.abs(end[2]-50-post.b[2])<100)));
+  }
  }
+ const right=c.roof.terraceRoofs.find(entry=>entry.platform.id==='right');
+ const corner=right.result.supportLayout.posts.find(post=>Math.abs(post.a[1]-8326)<.1);
+ p.plan.platforms[1].roofSupportOverrides={[corner.id]:{topZMm:1500}};
+ assert.equal(calculateProject(p).roof.terraceRoofs.find(entry=>entry.platform.id==='right').result.supportLayout.posts.find(post=>post.id===corner.id).b[2],1500,'manual corner height wins over an intersecting automatic beam');
 });
