@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {partitionFrameMembers} from '../src/react/calculations/partition-cutting.js';
+const settings={frameStepMm:600,endAllowanceMm:0};
+const wall=()=>({id:'wall',name:'wall',width:4000,height:2500,frameProfile:'50×150',planStart:[0,0],planEnd:[4000,0],openings:[],roofTrussSupports:[{id:'truss',x1:2000,y1:-2000,x2:2000,y2:2000}]});
+test('truss crossing replaces overlapping ordinary stud with two adjacent full height boards',()=>{const s=wall(),m=partitionFrameMembers(s,settings),pair=m.filter(m=>m.bearingTrussId==='truss');assert.equal(pair.length,2);assert.deepEqual(pair.map(m=>m.a[0]),[1975,2025]);assert.ok(pair.every(m=>m.reinforcement&&m.a[1]===50&&m.b[1]===2450));assert.ok(!m.some(m=>m.a[0]===2000&&m.b[0]===2000));});
+test('parallel, remote trusses do not add studs; doorway is not filled with boards',()=>{for(const patch of [{x1:0,y1:100,x2:4000,y2:100},{x1:5000,y1:-10,x2:5000,y2:10}]){const s=wall();Object.assign(s.roofTrussSupports[0],patch);assert.equal(partitionFrameMembers(s,settings).filter(m=>m.bearingTrussId).length,0);}const s=wall();s.openings=[{x:1800,width:900,height:2000,sill:0}];assert.equal(partitionFrameMembers(s,settings).filter(m=>m.bearingTrussId).length,0);});
+import {createDefaultProject} from '../src/react/state/project-model.js';
+import {calculateProject} from '../src/react/calculations/estimate-engine.js';
+import {calculateProductionCutting} from '../src/react/calculations/production-cutting.js';
+import {partitionReinforcements} from '../src/react/calculations/partition-construction.js';
+test('estimate and production share the same double studs at the truss intersection',()=>{const p=createDefaultProject();p.plan.walls=[{id:'test',x1:1,y1:2,x2:7,y2:2}];p.plan.layoutMode='walls';p.plan.rooms=[];p.plan.openings=[];p.settings.productionCutting.roofSupports=[{id:'truss',type:'beam',bearingTruss:true,x1:4000,y1:0,x2:4000,y2:5000,z1:3000,z2:3000,profile:'50×150',trussDepthMm:500}];const estimate=partitionReinforcements(p,p.plan,1,true).filter(m=>m.bearingTrussId==='truss'),r=calculateProductionCutting(p,calculateProject(p)),cut=r.members.filter(m=>m.bearingTrussId==='truss'&&m.surfaceId);assert.equal(estimate.length,2);assert.equal(cut.length,2);assert.deepEqual(cut.map(m=>[m.a,m.b,m.profile]),estimate.map(m=>[m.a,m.b,m.profile]));});

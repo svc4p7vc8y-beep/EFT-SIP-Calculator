@@ -78,7 +78,7 @@ export function partitionReinforcements(project,plan,floor=1,all=false,fitContex
     const length=Math.hypot(b.x-a.x,b.y-a.y),bearing=bearingForSegment(plan,a,b),openings=[];
     openings.push(...assigned.get(i));
     const id=`Э${floor}-ПГ${i+1}`,start=[a.x,a.y].map(v=>Math.round(v*1000)),end=[b.x,b.y].map(v=>Math.round(v*1000)),wallKey=`${id}@${start.join(',')}:${end.join(',')}`;
-    const s={id,name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(partitionProfileForSegment(plan,a,b)||localWallSettings(plan,a,b)?.frameProfile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
+    const s={id,start,end,roofTrussSupports:floor===(Number(project.meta.floors)||1)?settings.roofSupports.filter(m=>m.bearingTruss&&!m.referenceOnly):[],name:`Перегородка ${id}`,width:Math.round(length*1000),height:Math.round(partitionHeight(plan)*1000)+(Number(settings.wallAdditions[wallKey])||0),bearing:!!bearing,frameProfile:(partitionProfileForSegment(plan,a,b)||localWallSettings(plan,a,b)?.frameProfile||project.settings.sip.partitionFrameSection||'50x100').replace(/[xх]/g,'×'),topPlateLayers:Math.max(1,Math.round(Number(project.settings.formulas.partitionTopPlateLayers)||1)),openings,...partitionBacking(plan,a,b,segments)};
     const addition=Number(settings.wallAdditions[wallKey])||0;
     s.topProfile=partitionTopFit(project,plan,floor,fitContext,start,end,s.height,addition);
     if(s.topProfile)s.height=Math.max(...s.topProfile.map(point=>point[1]));

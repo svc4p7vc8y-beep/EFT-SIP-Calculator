@@ -1,3 +1,4 @@
+import {planIntersection} from './roof-fabrication.js';
 // Geometric framing proposal. Header capacity, bracing and connections require project nodes.
 import clipping from 'polygon-clipping';
 import { singleBevelBrace, partitionNotches,boardFootprint } from './partition-geometry.js';
@@ -46,11 +47,21 @@ export function partitionFrameMembers(surface,settings) {
     if(near==null){positions.add(x);junctions.add(x);}
     else if(near!==t/2&&near!==W-t/2&&!jambs.some(j=>Math.abs(j-near)<.01)){positions.delete(near);positions.add(x);junctions.add(x);}
   }
+  const trussStuds=new Map();
+  surface.trussSupportConflicts=[];
+  for(const support of (surface.planStart||surface.start)?surface.roofTrussSupports||[]:[]){
+    const hit=planIntersection(surface.planStart||surface.start,surface.planEnd||surface.end,[support.x1,support.y1],[support.x2,support.y2]);
+    if(!hit)continue;
+    const centre=Math.max(t,Math.min(W-t,hit.t*W)),pair=[centre-t/2,centre+t/2];
+    if(pair.some(x=>holes.some(o=>x+t/2>o.x+.01&&x-t/2<o.x+o.width-.01))){surface.trussSupportConflicts.push(support.id);continue;}
+    for(const x of [...positions])if(pair.some(v=>Math.abs(v-x)<t-.01)&&x!==t/2&&x!==W-t/2)positions.delete(x);
+    for(const x of pair){positions.add(x);trussStuds.set(x,support.id);}
+  }
   for(const x of [...positions].sort((a,b)=>a-b)){
     if(x<t/2-.01||x>W-t/2+.01)continue;
     if(jambs.some(j=>Math.abs(j-x)<t-.01)&&!jambs.some(j=>Math.abs(j-x)<.01))continue;
     const opening=holes.find(o=>x+t/2>o.x+.01&&x-t/2<o.x+o.width-.01);
-    if(!opening&&studTop(x)>t)add([x,t],[x,studTop(x)],'Стойка перегородки',junctions.has(x)?{reinforcement:true,junction:true,processing:'Стойка принимающей перегородки в Т-примыкании; крепёж по узлу'}:{});
+    if(!opening&&studTop(x)>t)add([x,t],[x,studTop(x)],'Стойка перегородки',trussStuds.has(x)?{reinforcement:true,bearingTrussId:trussStuds.get(x),processing:'Двойная стойка под фермой-прогоном; крепление по рабочему узлу'}:junctions.has(x)?{reinforcement:true,junction:true,processing:'Стойка принимающей перегородки в Т-примыкании; крепёж по узлу'}:{});
     else if(opening){if(Number(opening.sill)>2*t)add([x,t],[x,Number(opening.sill)-t],'Стойка под окном');const above=Number(opening.sill)+opening.height+t;if(above<studTop(x))add([x,above],[x,studTop(x)],'Стойка над проёмом');}
   }
   const depth=Number(profile.split(/[×xх]/)[1]);
