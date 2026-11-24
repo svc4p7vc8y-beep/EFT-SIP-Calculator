@@ -8,7 +8,7 @@ import { scopedWorkbenchItems,scopedWorkbenchStock,scopedPurchases,locateWorkben
 const fixture=()=>{const p=createDefaultProject();p.plan={...p.plan,house:{w:5,h:4},rooms:[],walls:[],openings:[],wallGaps:[],platforms:[],wallHeight:2.5};p.settings.roof.gableType='sip';p.settings.productionCutting.kerfMm=3;p.settings.productionCutting.endAllowanceMm=0;return p;};
 const run=p=>calculateProductionCutting(p,calculateProject(p));
 test('construction navigation excludes actions and preserves distinct construction, production, purchasing and document modes',()=>{
- assert.deepEqual(WORKBENCH_MODES.map(x=>x[0]),['construction','production','purchase','documentation']);assert.equal(new Set(WORKBENCH_MODES.map(x=>x[0])).size,4);
+ assert.deepEqual(WORKBENCH_MODES.map(x=>x[0]),['construction','facades','production','purchase','documentation']);assert.equal(new Set(WORKBENCH_MODES.map(x=>x[0])).size,5);
  assert.ok(!CONSTRUCTION_CATEGORIES.some(([id])=>['stock','sheets','nodes','starter','supports'].includes(id)));
  assert.equal(CONSTRUCTION_CATEGORIES.find(x=>x[0]==='piles')[1],'Основание');
 });

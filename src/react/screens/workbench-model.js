@@ -4,7 +4,7 @@ import { drawingCategory, purchaseRows } from '../calculations/drawing-workbench
 export const CONSTRUCTION_CATEGORIES = [['overview','Дом'],['piles','Основание'],['binding','Обвязка'],['floor','Пол'],['walls','Стены'],['partitions','Перегородки'],['ceiling','Перекрытие'],['gables','Фронтоны'],['roof','Кровля'],['platforms','Террасы и крыльца']];
 export function workbenchSurfaces(report){return [...report.surfaces,...(report.assembly.platforms||[]).map(p=>({id:`platform:${p.id}`,name:p.name,floor:1,workbenchCategory:'platforms',geometry:[[p.contour]],platformId:p.id}))];}
 const inCategory=(m,category)=>category==='platforms'?String(m.surfaceId||'').startsWith('platform:'):category==='supports'?!!m.supportId||m.source==='Проектная опора':false;
-export const WORKBENCH_MODES = [['construction','Конструкции'],['production','Карты раскроя'],['purchase','Закупка'],['documentation','Документы']];
+export const WORKBENCH_MODES = [['construction','Конструкции'],['facades','Фасады'],['production','Карты раскроя'],['purchase','Закупка'],['documentation','Документы']];
 export function locateWorkbenchItem(report,id) {
   const assemblyId=report.fabricationMembers?.find(m=>m.id===id)?.assemblyMemberId;
   const member=report.members.find(m=>m.id===id||m.key===id||assemblyId&&m.id===assemblyId);
