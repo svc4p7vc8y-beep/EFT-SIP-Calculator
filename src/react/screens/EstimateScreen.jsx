@@ -6,7 +6,7 @@ import { useProject } from '../state/ProjectContext.jsx';
 import { calculateProject } from '../calculations/estimate-engine.js';
 import { adjustedEstimateCalculation } from '../calculations/price-adjustments.js';
 import { buildCommercialScope } from '../calculations/commercial-scope.js';
-import { buildClientEstimate, isEstimateCutting, unpricedClientLines } from '../calculations/client-estimate.js';
+import { buildClientEstimate, isEstimateCutting, unpricedClientLines,mergeIdenticalEstimateLines } from '../calculations/client-estimate.js';
 import { estimateLayerStages } from '../calculations/estimate-layer-scope.js';
 import { downloadEstimateWorkbook } from '../export/xlsx.js';
 import { estimatePdfTitle } from '../export/estimate-pdf-title.js';
@@ -31,9 +31,12 @@ const EstimateFilePicker = lazy(() => import('../components/EstimateFilePicker.j
 const Estimate3DViewDialog = lazy(() => import('../components/Estimate3DViewDialog.jsx'));
 
 function EstimateSectionEditor({ section, project, commit }) {
+  const [detail,setDetail]=useState(false);
+  const merged=mergeIdenticalEstimateLines(section.lines);
   const hiddenCount = (project.estimateOverrides || []).filter((item) => item.section === section.key && item.excluded).length;
   const update = (mutate) => commit((next) => { mutate(next); return next; });
-  return <EditableEstimateTable
+  if(!detail&&merged.length<section.lines.length)return <><PreviewTable lines={merged}/><button className="button secondary no-print" onClick={()=>setDetail(true)}>Редактировать отдельные элементы · {section.lines.length}</button></>;
+  return <>{detail&&merged.length<section.lines.length?<button className="button secondary no-print" onClick={()=>setDetail(false)}>Свернуть одинаковые пиломатериалы</button>:null}<EditableEstimateTable
     lines={section.lines}
     grouped={section.key === 'sip' || section.key === 'engineering'}
     hiddenCount={hiddenCount}
@@ -44,7 +47,7 @@ function EstimateSectionEditor({ section, project, commit }) {
     onResetLine={(line) => update((next) => resetEstimateLine(next, line.id))}
     onAddLine={() => update((next) => addEstimateLine(next, section.key))}
     onResetSection={section.custom ? null : () => update((next) => resetEstimateSection(next, section.key))}
-  />;
+  /></>;
 }
 
 export default function EstimateScreen({ directPrint = false, onDirectPrintDone }) {
@@ -355,7 +358,7 @@ export default function EstimateScreen({ directPrint = false, onDirectPrintDone 
       </> : null}
       <footer className="estimate-footer"><p>Расчёт сформирован в калькуляторе ЭФТ. Итоговая стоимость уточняется после проверки проекта специалистом.</p><strong>Итого: {formatMoney(clientEstimate.totals.total)}</strong></footer>
     </section>
-        <details className="estimate-source-ledger no-print" open><summary>Исходная ведомость для редактирования</summary><div className="estimate-custom-groups-toolbar"><button type="button" className="button secondary compact-button" onClick={() => commit((next) => { addEstimateGroup(next); return next; })}><Plus />Добавить группу сметы</button><span>Новая группа и её строки сохраняются в проекте и попадают в итог, Excel и PDF.</span></div>{visibleManagerSections.map((section) => <section className="estimate-section" key={section.key}>{section.custom ? <div className="estimate-custom-group-title"><input aria-label={`Название группы: ${section.title}`} value={(project.customEstimateGroups || []).find((group) => group.id === section.key)?.name || ''} onChange={(event) => commit((next) => { renameEstimateGroup(next, section.key, event.target.value); return next; })} placeholder="Название группы" /><button type="button" className="icon-button danger" aria-label={`Удалить пустую группу: ${section.title}`} title={section.lines.length ? 'Сначала удалите позиции группы' : 'Удалить пустую группу'} disabled={section.lines.length > 0} onClick={() => commit((next) => { removeEmptyEstimateGroup(next, section.key); return next; })}><Trash2 /></button></div> : <h2>{section.title}</h2>}<EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}</details>
+        <details className="estimate-source-ledger no-print" open={!printOptions.superCompact&&!printOptions.maximumCompact}><summary>Исходная ведомость для редактирования</summary><div className="estimate-custom-groups-toolbar"><button type="button" className="button secondary compact-button" onClick={() => commit((next) => { addEstimateGroup(next); return next; })}><Plus />Добавить группу сметы</button><span>Новая группа и её строки сохраняются в проекте и попадают в итог, Excel и PDF.</span></div>{visibleManagerSections.map((section) => <section className="estimate-section" key={section.key}>{section.custom ? <div className="estimate-custom-group-title"><input aria-label={`Название группы: ${section.title}`} value={(project.customEstimateGroups || []).find((group) => group.id === section.key)?.name || ''} onChange={(event) => commit((next) => { renameEstimateGroup(next, section.key, event.target.value); return next; })} placeholder="Название группы" /><button type="button" className="icon-button danger" aria-label={`Удалить пустую группу: ${section.title}`} title={section.lines.length ? 'Сначала удалите позиции группы' : 'Удалить пустую группу'} disabled={section.lines.length > 0} onClick={() => commit((next) => { removeEmptyEstimateGroup(next, section.key); return next; })}><Trash2 /></button></div> : <h2>{section.title}</h2>}<EstimateSectionEditor section={section} project={project} commit={commit} /></section>)}</details>
 </main></div>
     {localFiles.length ? <Suspense fallback={<p>Загружаю миниатюры…</p>}><LocalEstimateFilePicker files={localFiles} onClose={()=>setLocalFiles([])} onAdd={addLocalFiles}/></Suspense> : null}
     {filePickerOpen ? <Suspense fallback={<p role="status">Загружаю файлы…</p>}><EstimateFilePicker onClose={() => setFilePickerOpen(false)} onSelect={addInternalFile} selectedFiles={estimateFiles} /></Suspense> : null}

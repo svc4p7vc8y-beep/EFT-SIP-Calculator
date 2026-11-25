@@ -123,6 +123,7 @@ function makeLine(index, section, query, qty, options = {}) {
     id: `${section}:${options.key || query}`,
     section,
     catalogId: item?.id,
+    catalogName: item?.name,
     name: options.name || item?.name || query,
     unit: options.unit || item?.unit || "шт",
     qty: round(amount, options.digits ?? 2),

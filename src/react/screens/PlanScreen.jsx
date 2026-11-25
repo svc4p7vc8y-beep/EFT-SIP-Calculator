@@ -218,7 +218,7 @@ const DRAW_TOOLS = new Set([
   "terrace",
   "porch",
   "stairOpening",
-  "roofAxis", "roofBeam",
+  "roofAxis", "roofBeam", "roofTruss",
 ]);
 const TOOLS = [
   ["frameTerrace", "Столбы террасы", BrickWall],
@@ -233,7 +233,7 @@ const TOOLS = [
   ["bearingWall", "Доски / несущие", BrickWall],
   ["structuralFrame", "Каркас / развёртка", PanelsTopLeft],
   ["framePost", "Стойка", BrickWall], ["frameWindow", "Окно", PanelsTopLeft], ["frameDoor", "Дверь", DoorOpen],
-  ["roofPan", "Переместить вид", MousePointer2], ["roofAxis", "Прогон", Ruler], ["roofTruss", "Ферма-прогон", BrickWall], ["roofBeam", "Балка", Ruler], ["roofPost", "Стойка кровли", BrickWall], ["roofAuto", "Авторасстановка", RotateCw],
+  ["roofPan", "Переместить вид", MousePointer2], ["roofAxis", "Прогон", Ruler], ["roofTruss", "Ферма-прогон", BrickWall], ["roofTrussAuto", "Ферма автоматически", RotateCw], ["roofBeam", "Балка", Ruler], ["roofPost", "Стойка кровли", BrickWall], ["roofAuto", "Авторасстановка", RotateCw],
   ["gap", "Разрыв стены", Scissors],
   ["window", "Окно", PanelsTopLeft],
   ["door", "Дверь / ворота", DoorOpen],
@@ -1531,7 +1531,7 @@ function PlanCanvas({
   const resolvePlanPoint = (event) => {
     const raw = rawPlanPoint(event);
     const current = gestureRef.current;
-    if(activeLayer==='roof'&&(current?.type==='roofSupport'||['roofAxis','roofBeam','roofPost'].includes(tool))){
+    if(activeLayer==='roof'&&(current?.type==='roofSupport'||['roofAxis','roofBeam','roofTruss','roofPost'].includes(tool))){
       const config=normalizeRoofEditor(roofEditor),excluded=[...(current?.ids||[current?.id])];
       if(current?.kind==='roofRotate')return {point:raw,snap:null};
       const source=roofSupportGroups.flatMap(g=>g.members);if(config.autoPosts)excluded.push(...source.filter(m=>m.editorAutoPost&&excluded.includes(m.parentPurlinId)).map(m=>m.id));
@@ -1985,7 +1985,7 @@ function PlanCanvas({
         finalGesture.end.x - finalGesture.start.x,
         finalGesture.end.y - finalGesture.start.y,
       );
-      if(['roofAxis','roofBeam'].includes(current.type)){if(distance>=.3)onDrawRoofAxis?.(finalGesture.start,finalGesture.end,current.type==='roofBeam'?'beam':'purlin');
+      if(['roofAxis','roofBeam','roofTruss'].includes(current.type)){if(distance>=.3)onDrawRoofAxis?.(finalGesture.start,finalGesture.end,current.type==='roofTruss'?'bearingTruss':current.type==='roofBeam'?'beam':'purlin');
       }else if (["room", "extension", "terrace", "porch", "stairOpening"].includes(current.type)) {
         const points = rectanglePoints(finalGesture.start, finalGesture.end);
         const bounds = boundsOf(points);
@@ -3054,7 +3054,7 @@ function PlanCanvas({
       {tool==='bearingWall'?bearingEdges.map(edge=>{const a=p(edge.a.x,edge.a.y),b=p(edge.b.x,edge.b.y),chosen=bearingSelection.includes(edge.key),color=edge.partitionType==='sip'?'#1688a1':edge.profile?partitionProfileColor(edge.profile):edge.bearing?'#138447':'#5083b7';return <g key={edge.key} data-bearing-edge={edge.key} onPointerDown={event=>{event.preventDefault();event.stopPropagation();onPickBearing?.(edge.key);}}><title>{edge.name} · {edge.bearing?'несущая':'обычная'} · {edge.partitionType==='sip'?`SIP ${edge.sipThickness||174} мм`:edge.profile?`доска ${partitionProfileLabel(edge.profile)}`:'общая доска проекта'} · нажмите для выбора</title><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" pointerEvents="stroke"/>{chosen?<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f3b31b" strokeWidth="11" pointerEvents="none"/>:null}<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={chosen?6:4} strokeDasharray={edge.profile?undefined:'8 4'} pointerEvents="none"/></g>;}):null}
       {gesture?.kind === "draw"
         ? (() => {
-            if(['roofAxis','roofBeam'].includes(gesture.type)){
+            if(['roofAxis','roofBeam','roofTruss'].includes(gesture.type)){
               const a=p(gesture.start.x,gesture.start.y),b=p(gesture.end.x,gesture.end.y);
               return <g pointerEvents="none"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#335dbe" strokeWidth="5"/><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-15} fontSize="15" stroke="#fff" strokeWidth="4" fill="#173564" paintOrder="stroke">{Math.round(Math.hypot(gesture.end.x-gesture.start.x,gesture.end.y-gesture.start.y)*1000)} мм</text></g>;
             }
@@ -5595,7 +5595,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
       const [{calculateProductionCutting},{productionLevels}]=await Promise.all([import('../calculations/production-cutting.js'),import('../calculations/production-levels.js')]);
       const report=calculateProductionCutting(project,projectCalculation),c=normalizeRoofEditor(project.settings.productionCutting.roofEditor);
       const member=type==='post'?{id:`manual-post-${crypto.randomUUID()}`,type:'post',name:'Ручная стойка',profile:c.postProfile,x1:a.x*1000,y1:a.y*1000,x2:a.x*1000,y2:a.y*1000,z1:productionLevels(project,report.assembly.floors.length).bases.at(-1)||0,z2:productionLevels(project,report.assembly.floors.length).roofBase,nodeRef:'',startSupport:'',endSupport:'',foundationRef:'',estimateEnabled:true,autoLocked:true}:drawPlanRoofPurlin(project,report.assembly.roofModel,a,b);
-      member.type=type;member.planGroupId=member.id;member.editorSource='manual';member.lengthMm=Math.hypot(member.x2-member.x1,member.y2-member.y1,member.z2-member.z1);member.angleDeg=Math.atan2(member.y2-member.y1,member.x2-member.x1)*180/Math.PI;
+      if(type==='bearingTruss'){const {configureDrawnBearingTruss}=await import('../calculations/bearing-truss.js');Object.assign(member,configureDrawnBearingTruss(member,project,report.assembly.roofModel));}
+      member.type=type==='bearingTruss'?'purlin':type;member.planGroupId=member.id;member.editorSource='manual';member.lengthMm=Math.hypot(member.x2-member.x1,member.y2-member.y1,member.z2-member.z1);member.angleDeg=Math.atan2(member.y2-member.y1,member.x2-member.x1)*180/Math.PI;
       if(type==='beam')member.name='Ручная балка';
       const preview=structuredClone(project);preview.settings.productionCutting.roofSupports.push(member);
       const {applyRoofEditorOperation}=await import('./RoofMemberInspector.jsx');
@@ -5621,7 +5622,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     if(id==='foundationGrid'){if(activeFloor!==1){setTransferStatus('Основание редактируется на первом этаже.');return;}setFoundationGridOpen(true);setTool('select');return;}
     if(id==='frameTerrace'){setActiveLayer('frame');setInspectorTab('element');setSelected(null);setFrameSelection(null);setTool('select');return;}
     if(['structuralFrame','framePost','frameWindow','frameDoor'].includes(id)){setFrameTool({framePost:'post',frameWindow:'window',frameDoor:'door'}[id]||'select');setFrameWall('');setTool('select');return;}
-    if(id==='roofTruss'){
+    if(id==='roofTrussAuto'){
       setTransferStatus('Строю ферму-прогон…');setTool('select');
       Promise.all([import('../calculations/production-cutting.js'),import('../calculations/bearing-truss.js')]).then(([{calculateProductionCutting},{createBearingTruss}])=>{
         const report=calculateProductionCutting(project,projectCalculation),item=createBearingTruss(project,report.assembly);
@@ -5664,7 +5665,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           next.showPiles = true;
         });
     } else if (id === "bindingLine") setActiveLayer("binding");
-    else if(['roofAxis','roofBeam','roofPost'].includes(id))setActiveLayer('roof');
+    else if(['roofAxis','roofBeam','roofTruss','roofPost'].includes(id))setActiveLayer('roof');
     else if (id !== "select" && id !== "delete" && id !== "guide") {
       setActiveLayer("plan");
       if (plan.showPlan === false)

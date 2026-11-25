@@ -42,10 +42,14 @@ export function mergeIdenticalEstimateLines(lines,{acrossGroups=false}={}) {
   const merged = new Map();
   for (const line of lines) {
     const canonical=line.estimateMergeName&&line.name===line.estimateDetailName;
-    const name=canonical?line.estimateMergeName:line.name;
-    const key=JSON.stringify([acrossGroups?'':line.section||'',acrossGroups?'':line.estimateGroup||'',line.catalogId||'',name,line.kind,line.unit,Number(line.price),!!line.pricePending]);
+    const basis=line.catalogName||(canonical?line.estimateMergeName:null);
+    const profile=String((canonical?line.estimateMergeName:null)||basis||line.name).match(/(\d+)\s*[×xх*]\s*(\d+)/i)?.slice(1).map(Number).join('×');
+    const lumber=line.kind==='material'&&line.catalogId&&basis&&profile&&(!line.estimateDetailName||canonical)&&/доск|брус|пиломатериал|мауэрлат|стропил|обреш[её]тк|пакет/iu.test(basis)&&!line.custom&&!line.projectOverride&&['м³','м3','м.п.','м'].includes(line.unit);
+    const name=canonical?line.estimateMergeName:lumber?String(basis).split(' · ')[0]+(String(basis).split(' · ')[0].match(/\d+\s*[×xх*]\s*\d+/i)?'':` · ${profile} мм`):line.name;
+    const unit=lumber?(line.unit==='м3'?'м³':line.unit==='м'?'м.п.':line.unit):line.unit;
+    const key=JSON.stringify([acrossGroups?'':line.section||'',acrossGroups?'':line.estimateGroup||'',line.catalogId||'',lumber?profile:name,line.kind,unit,Number(line.price),!!line.pricePending]);
     const previous=merged.get(key);
-    if(!previous)merged.set(key,{...line,name,qty:Number(line.qty)||0,...(canonical?{source:'Каркас панорамных окон · суммарный расход материала в единицах прайса. Позиции и размеры сохранены в исходной ведомости.'}:{}),includedLineIds:[...(line.includedLineIds||[line.id])]});
+    if(!previous)merged.set(key,{...line,name,unit,qty:Number(line.qty)||0,...(canonical||lumber?{source:'Суммарный расход материала в единицах прайса. Позиции и размеры сохранены в исходной ведомости.'}:{}),includedLineIds:[...(line.includedLineIds||[line.id])]});
     else {
       previous.qty+=Number(line.qty)||0;
       previous.includedLineIds.push(...(line.includedLineIds||[line.id]));
@@ -99,12 +103,7 @@ function compactRoof(lines, section) {
   groups.fasteners.forEach((line) => reserved.add(line.id));
 
   const replacements = new Map([
-    [groups.lumber[0]?.id, aggregateLines(groups.lumber, {
-      id: `client-compact:${section.key}:lumber`,
-      name: "Пиломатериал для сборки крыши",
-      unit: "м³",
-      quantity: (items) => items.reduce((sum, line) => sum + Number(line.qty || 0), 0),
-    })],
+    [groups.lumber[0]?.id, mergeIdenticalEstimateLines(groups.lumber)],
     [groups.fasteners[0]?.id, aggregateLines(groups.fasteners, {
       id: `client-compact:${section.key}:fasteners`,
       name: "Крепёж для сборки крыши",
@@ -122,7 +121,7 @@ function compactRoof(lines, section) {
 
   return lines.flatMap((line) => {
     const replacement = replacements.get(line.id);
-    if (replacement) return [replacement];
+    if (replacement) return Array.isArray(replacement)?replacement:[replacement];
     if (reserved.has(line.id)) return [];
     return [line];
   });

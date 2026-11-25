@@ -589,15 +589,16 @@ test('maximum compact client estimate groups roof lumber, fasteners, trims and l
   });
   const roof = client.sections.find((section) => section.key === 'roof').lines;
   const sourceRoof = calculation.sections.find((section) => section.key === 'roof').lines;
-  const lumber = roof.find((line) => line.name === 'Пиломатериал для сборки крыши');
+  const lumber = roof.filter((line) => line.kind === 'material' && /доск|брус|стропил|обреш[её]тк/iu.test(line.name));
   const fasteners = roof.find((line) => line.name === 'Крепёж для сборки крыши');
   const trim = roof.find((line) => line.name === 'Доборные элементы кровли');
   const labor = roof.find((line) => line.name === 'Сборка крыши');
 
-  assert.ok(lumber);
-  assert.equal(lumber.unit, 'м³');
-  assert.ok(lumber.includedLineIds.includes('roof:rafters'));
-  assert.ok(lumber.includedLineIds.includes('roof:lath'));
+  assert.ok(lumber.length >= 2);
+  assert.ok(lumber.every(line => line.unit === 'м³'));
+  assert.ok(lumber.some(line => line.includedLineIds.includes('roof:rafters')));
+  assert.ok(lumber.some(line => line.includedLineIds.includes('roof:lath')));
+  assert.ok(!lumber.some(line => line.includedLineIds.includes('roof:rafters') && line.includedLineIds.includes('roof:lath')));
   assert.ok(fasteners.includedLineIds.includes('roof:roof-screws'));
   assert.ok(trim.includedLineIds.includes('roof:ridge'));
   assert.ok(trim.includedLineIds.includes('roof:eave-trim'));

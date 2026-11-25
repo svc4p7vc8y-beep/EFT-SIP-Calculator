@@ -4,6 +4,11 @@ import {planIntersection} from './roof-fabrication.js';
 import {roofMemberGeometry} from './roof-rafter-detail.js';
 
 // Saved axes are assembly geometry. Expansion is shared by takeoff and cutting.
+export function configureDrawnBearingTruss(member,project,model){
+ const profile=String(project.settings.roof.rafterSection||'50x150').replace(/[xх]/g,'×'),depth=Number(profile.split('×')[1]);
+ const height=(x,y)=>{const hit=roofAt(model,x,y).sort((a,b)=>b.z-a.z)[0];if(!hit)throw Error('Конец фермы должен находиться под кровлей.');return hit.z-depth/(2*hit.face.normal[2])-depth/2;};
+ return {...member,type:'purlin',name:'Ферма-прогон',planName:'Ферма-прогон',profile,z1:height(member.x1,member.y1),z2:height(member.x2,member.y2),bearingTruss:true,trussDepthMm:Math.max(330,depth+50),trussWebStepMm:600,trussRafterOverhangMm:0,trussOverhangStartMm:0,trussOverhangEndMm:0,estimateEnabled:true,estimateCatalogId:'',referenceOnly:false};
+}
 export function expandBearingTrusses(items,stockLength=6000){
  return items.flatMap(item=>{
   if(!item.bearingTruss)return [item];
