@@ -36,3 +36,7 @@
 /* The lazy window stylesheet caps the compact gallery at 260px. Do not combine that cap with visible overflow. */
 .structural-workspace>aside .window-config-embedded .window-choice-gallery.is-compact .window-gallery-cards{height:auto!important;max-height:none!important;overflow:visible!important;grid-auto-rows:auto}
 .structural-workspace>aside .window-compact-library,.structural-workspace>aside .window-choice-gallery{height:auto;max-height:none}
+
+/* Pointer gestures on the drawing must not start Safari text selection. */
+.structural-viewport,.structural-viewport *,.structural-inspector-resizer,.structural-tool-rail button,.structural-layerbar{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.structural-workspace input,.structural-workspace textarea{user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}

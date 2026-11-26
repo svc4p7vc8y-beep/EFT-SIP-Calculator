@@ -28,7 +28,7 @@ export function editElevationOpening(project,wall,opening,{x=opening.x,z=Number(
 export function moveElevationMember(project,report,wall,member,dx,dz=0){
  if(member.kind==='support'){
   const s=project.settings.productionCutting.roofSupports.find(s=>s.id===member.id);if(!s)return project;
-  if(s.facadeId){const config=wallFacade(project,wall),index=config.postRefs?.indexOf(s.facadeMemberKey);if(!(index>=0)){if(Math.abs(member.a[1]-member.b[1])>1||dx)throw new Error('Горизонтальную перемычку перемещайте вверх/вниз.');return applyFacade(project,moveFacadeRow(config,s.facadeMemberKey,member.a[1]+dz),facadeEnvelope(report,wall.id));}
+  if(s.facadeId){const config=wallFacade(project,wall),index=config.postRefs?.indexOf(s.facadeMemberKey);if(!(index>=0)){if(Math.abs(member.a[1]-member.b[1])>1||dx)throw new Error('Горизонтальную перемычку перемещайте вверх/вниз.');return applyFacade(project,moveFacadeRow(config,s.facadeMemberKey,member.a[1]+dz,facadeEnvelope(report,wall.id)),facadeEnvelope(report,wall.id));}
     const next={...config,posts:config.posts.map((x,i)=>i===index?x+dx:x),memberOverrides:{...config.memberOverrides,[s.facadeMemberKey]:{...config.memberOverrides?.[s.facadeMemberKey],...(dz?{z1:s.z1+dz,z2:s.z2+dz}:{})}}};return applyFacade(project,next,facadeEnvelope(report,wall.id));}
   const delta=wallPoint(wall,dx),origin=wallPoint(wall,0),vx=delta[0]-origin[0],vy=delta[1]-origin[1];
   for(const item of project.settings.productionCutting.roofSupports.filter(i=>i.id===s.id||i.id===s.id+'-foundation')){item.x1+=vx;item.x2+=vx;item.y1+=vy;item.y2+=vy;item.z1+=dz;item.z2+=dz;}return project;

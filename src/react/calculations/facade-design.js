@@ -51,6 +51,8 @@ export function facadeLayout(config,envelope){
   });
   for(let i=0;i<posts.length-1;i++){
     const left=posts[i],right=posts[i+1],x=left+postWidth/2+clearance,w=right-left-postWidth-2*clearance;
+    // An overlapping pair is an editable invalid draft, never a polygon to clip.
+    if(w<=0){errors.push(`Пролёт ${i+1}: стойки пересекаются; раздвиньте их.`);continue;}
     const headerKey=`header-${stations[i].key}-${stations[i+1].key}`,bayTransom=Number(config.transomOverrides?.[headerKey]??transom);
     if(!config.fullHeight)members.push({key:`header-${stations[i].key}-${stations[i+1].key}`,name:`Перемычка ${i+1}`,type:'beam',a:[left,bayTransom],b:[right,bayTransom],profile:`${postWidth}×${depth}`,cutWidth:depth,startKey:stations[i].key,endKey:stations[i+1].key});
     // Roof shape is independent of the number of full-height posts.
@@ -125,7 +127,7 @@ export function facadeLayout(config,envelope){
   return {errors:[...new Set(errors)],warnings,windows,members,shape:envelope.shape};
 }
 export function facadeMemberShapes(config,layout){
-  return layout.members.map(member=>{
+  return layout.members.filter(member=>[...member.a,...member.b,member.cutWidth].every(Number.isFinite)&&Math.hypot(member.b[0]-member.a[0],member.b[1]-member.a[1])>.001).map(member=>{
     const a=member.a,b=member.b,dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy),half=member.cutWidth/2,n=[-dy/l*half,dx/l*half];
     return {key:member.key,shape:[[[a[0]+n[0],a[1]+n[1]],[b[0]+n[0],b[1]+n[1]],[b[0]-n[0],b[1]-n[1]],[a[0]-n[0],a[1]-n[1]]]]};
   });
@@ -235,9 +237,15 @@ export function removeFacade(project,id,floor){
 // A horizontal row shares one elevation across all adjacent bays.
 export function facadeRowKey(config,memberKey){
  const extra=(config.transoms||[]).find(t=>memberKey===`transom:${t.id}`||memberKey.startsWith(`transom-${t.id}-`));
- return extra?`transom:${extra.id}`:memberKey==='main'||memberKey.startsWith('header-')?'main':null;
+ return extra?`transom:${extra.id}`:memberKey==='main'||memberKey.startsWith('header-')?'main':memberKey.startsWith('cap-')?'cap':null;
 }
-export function moveFacadeRow(config,memberKey,zMm){
+export function moveFacadeRow(config,memberKey,zMm,envelope){
  const key=facadeRowKey(config,memberKey);if(!key)throw new Error('Выберите горизонтальный ряд перемычек.');
+ if(key==='cap'){
+  const member=envelope&&facadeLayout(config,envelope).members.find(m=>m.key===memberKey);
+  if(!member||!Number.isFinite(zMm))throw new Error('Выберите верхнюю балку фасада.');
+  const next=resetFacadePanePositions(structuredClone(config));next.autoClip=true;
+  next.headInsetMm=Math.max(Number(config.boardDepthMm)/2,Number(config.headInsetMm)+member.a[1]-zMm);return next;
+ }
  return moveFacadeTransom(config,key,zMm);
 }
