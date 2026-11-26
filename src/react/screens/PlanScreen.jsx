@@ -1,3 +1,4 @@
+import {repeatedWindowOpening,addRepeatedWindow} from '../state/repeat-window.js';
 import {bindingPackageWidthMm} from '../calculations/foundation-reference.js';
 import PlatformBuildControls from './PlatformBuildControls.jsx';
 import {addPlanOpening} from '../state/add-plan-opening.js';
@@ -235,7 +236,7 @@ const TOOLS = [
   ["framePost", "Стойка", BrickWall], ["frameWindow", "Окно", PanelsTopLeft], ["frameDoor", "Дверь", DoorOpen],
   ["roofPan", "Переместить вид", MousePointer2], ["roofAxis", "Прогон", Ruler], ["roofTruss", "Ферма-прогон", BrickWall], ["roofTrussAuto", "Ферма автоматически", RotateCw], ["roofBeam", "Балка", Ruler], ["roofPost", "Стойка кровли", BrickWall], ["roofAuto", "Авторасстановка", RotateCw],
   ["gap", "Разрыв стены", Scissors],
-  ["window", "Окно", PanelsTopLeft],
+  ["window", "Окно", PanelsTopLeft], ["repeatWindow", "Повторить окно", Copy],
   ["door", "Дверь / ворота", DoorOpen],
   ["stairOpening", "Лестничный проём", Grid3X3],
   ["dimension", "Размер", Ruler],
@@ -1749,7 +1750,7 @@ function PlanCanvas({
       selectCreated({ type: "gap", id });
     } else {
       const isGarage = type === "garage";
-      const openingType = isGarage ? "door" : type;
+      const openingType = isGarage ? "door" : type==='repeatWindow'?'window':type;
       const draft = {
         ...common,
         type: openingType,
@@ -1762,8 +1763,10 @@ function PlanCanvas({
         hinge: "right",
         swing: segment.outer ? "out" : "in",
       };
-      const opening = projectOpeningToWall(draft, point, plan, { lockDoorType: isGarage, endInset: (Number(plan.wallThickness)||.174)+(Number(minPanelWidthMm)||250)/1000 });
-      commitPlan((next,project) => addPlanOpening(project,next,opening));
+      let candidate=draft;
+      if(type==='repeatWindow'){try{candidate=repeatedWindowOpening(frameProject,plan,common);}catch(error){onFrameMessage?.(error.message);return;}}
+      const opening = projectOpeningToWall(candidate, point, plan, { lockDoorType: isGarage, endInset: (Number(plan.wallThickness)||.174)+(Number(minPanelWidthMm)||250)/1000 });
+      commitPlan((next,project) => type==='repeatWindow'?addRepeatedWindow(project,next,opening):addPlanOpening(project,next,opening));
       selectCreated({ type: "opening", id });
     }
   };
@@ -1839,7 +1842,7 @@ function PlanCanvas({
       return;
     }
     if (
-      tool === "window" ||
+      tool === "window" || tool === "repeatWindow" ||
       tool === "door" ||
       tool === "garage" ||
       tool === "gap"
@@ -4496,7 +4499,7 @@ const MOBILE_TOOLS = [
   ["bearingWall", "Доски / несущие", BrickWall],
   ["structuralFrame", "Каркас", PanelsTopLeft],
   ["gap", "Разрыв", Scissors],
-  ["window", "Окно", PanelsTopLeft],
+  ["window", "Окно", PanelsTopLeft], ["repeatWindow", "Повторить окно", Copy],
   ["door", "Дверь", DoorOpen],
   ["stairOpening", "Проём лестницы", Grid3X3],
   ["dimension", "Размер", Ruler],

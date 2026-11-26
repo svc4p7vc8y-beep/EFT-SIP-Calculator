@@ -2,6 +2,10 @@ import {generateAutoPileRows,bindingLinesWithManual,calculateFoundation} from '.
 import {bindingPackageWidthMm} from '../calculations/foundation-reference.js';
 import {houseContourPoints,boundsOf} from '../planner/geometry.js';
 
+export function needsBuildingFoundationDatum(project){
+ const s=project.settings.piles;
+ return s.pileType!=='slab'&&!s.buildingEnvelopeDatum&&!(s.pileAxisAuto===false&&!s.pileAxisDatum&&!s.externalBindingDatum);
+}
 // Explicit project action. Existing projects are never moved by migration.
 export function fitFoundationToFloor(project) {
   const settings=project.settings.piles;
@@ -12,6 +16,8 @@ export function fitFoundationToFloor(project) {
   project.plan.pileRows=[...(project.plan.pileRows||[]).filter(r=>!r.auto),...auto];
   project.plan.bindingLines=bindingLinesWithManual(project.plan,project.plan.pileRows);
   settings.layoutReference='floorEdges';settings.externalBindingDatum=true;
+  settings.buildingEnvelopeDatum=true;settings.pileAxisDatum=false;settings.pileAxisAuto=false;
+  delete project.plan.house.pileAxisContour;
   project.plan.showPiles=true;project.plan.showBinding=true;
   return project;
 }

@@ -12,7 +12,7 @@ export function planLayerTools(layer){
  if(layer==='frame')return ['select','structuralFrame','framePost','frameWindow','frameDoor','frameTerrace'];
  if(layer==='piles')return [...shared,'pile','pileRow','foundationGrid'];
  if(layer==='binding')return [...shared,'bindingLine','foundationGrid'];
- return ['select','room','extension','polygon','houseContour','existingContour','attachedContour','wall','bearingWall','gap','window','door','stairOpening','dimension','guide','annotation','terrace','porch','railing','delete'];
+ return ['select','room','extension','polygon','houseContour','existingContour','attachedContour','wall','bearingWall','gap','window','repeatWindow','door','stairOpening','dimension','guide','annotation','terrace','porch','railing','delete'];
 }
 export function editRoofLine(line,dx,dy,endpoint){
  const along=line.axis==='x'?dx:dy,across=line.axis==='x'?dy:dx;

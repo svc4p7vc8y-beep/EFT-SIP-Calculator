@@ -21,7 +21,7 @@ import { useTeam } from "../cloud/TeamContext.jsx";
 import { applySharedPriceCatalog, restoreLocalPrices } from '../cloud/price-catalog.js';
 import { validateImportedProject } from './project-import.js';
 import { createProjectWorkspace, projectWorkspaceReducer, PROJECT_TABS_KEY, restoreProjectWorkspace, serializeProjectWorkspace } from './project-tabs.js';
-import {applyPileAxisEnvelope,canUsePileAxisEnvelope} from './pile-axis-envelope.js';
+import {fitFoundationToFloor,needsBuildingFoundationDatum} from './foundation-fit.js';
 
 const ProjectContext = createContext(null);
 export function ProjectProvider({ children }) {
@@ -99,9 +99,9 @@ export function ProjectProvider({ children }) {
   const recordMarks = useCallback((registry,requests) => dispatch({ type: 'production-registry', tabId: workspace.activeId, expectedPresent: history.present, registry,requests }), [workspace.activeId, history.present]);
   useEffect(()=>{
     const id=`${ownerRef.current}:${activeTab.id}`;
-    if(!hydrated||!team.ready||history.future.length||project.settings.piles.pileAxisDatum||checkedPileDatums.current.has(id)||!canUsePileAxisEnvelope(project))return;
+    if(!hydrated||!team.ready||history.future.length||checkedPileDatums.current.has(id)||!needsBuildingFoundationDatum(project))return;
     checkedPileDatums.current.add(id);
-    try{applyPileAxisEnvelope(structuredClone(project));commit(applyPileAxisEnvelope);}
+    try{fitFoundationToFloor(structuredClone(project));commit(fitFoundationToFloor);}
     catch(error){commit(next=>{next.settings.piles.datumIssue=error.message;return next;});}
   },[hydrated,team.ready,activeTab.id,history.future.length,project,commit]);
   const replace = useCallback(
