@@ -16,6 +16,7 @@ on:
       - 'vite.config.js'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/beget.yml'
 
 permissions:
   contents: read
@@ -34,6 +35,54 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Validate deployment secrets
+        env:
+          BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
+          BEGET_SSH_USER: ${{ secrets.BEGET_SSH_USER }}
+          BEGET_SSH_PASSWORD: ${{ secrets.BEGET_SSH_PASSWORD }}
+          BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+          BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
+        run: |
+          : "${BEGET_SSH_HOST:?Missing BEGET_SSH_HOST secret}"
+          : "${BEGET_SSH_USER:?Missing BEGET_SSH_USER secret}"
+          : "${BEGET_SSH_PASSWORD:?Missing BEGET_SSH_PASSWORD secret}"
+          : "${BEGET_SSH_KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS secret}"
+          : "${BEGET_DEPLOY_PATH:?Missing BEGET_DEPLOY_PATH secret}"
+          [[ "$BEGET_DEPLOY_PATH" = "." || "$BEGET_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]*$ ]] || {
+            echo "::error::BEGET_DEPLOY_PATH must be . or an absolute path without shell characters"
+            exit 1
+          }
+
+      - name: Configure SSH and check access before building
+        env:
+          BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
+          BEGET_SSH_USER: ${{ secrets.BEGET_SSH_USER }}
+          SSHPASS: ${{ secrets.BEGET_SSH_PASSWORD }}
+          BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
+          BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$BEGET_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          sudo apt-get update
+          sudo apt-get install --yes sshpass
+          remote_path="${BEGET_DEPLOY_PATH%/}"
+          [ -n "$remote_path" ] || remote_path="/"
+          status=0
+          sshpass -e ssh -p 22 \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=2 \
+            "${BEGET_SSH_USER}@${BEGET_SSH_HOST}" \
+            "test -f '${remote_path%/}/.htaccess' && test -w '${remote_path}'" || status=$?
+          if [ "$status" -eq 5 ]; then
+            echo "::error::Beget rejected SSH credentials. Update BEGET_SSH_USER and BEGET_SSH_PASSWORD in repository Actions secrets with the current Beget SSH account. Browser login does not update these secrets."
+          elif [ "$status" -ne 0 ]; then
+            echo "::error::Beget SSH/path check failed (code ${status}). Check host, pinned host key and writable calculator deployment directory."
+          fi
+          exit "$status"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -44,7 +93,12 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Check sequential app version
-        run: node scripts/check-app-version.mjs
+        run: |
+          if ! git diff --quiet HEAD^ HEAD -- src/react/data/app-version.js; then
+            node scripts/check-app-version.mjs
+          else
+            echo 'Application version unchanged; deploying the current release.'
+          fi
 
       - name: Run tests
         run: npm test
@@ -60,51 +114,7 @@ jobs:
           test -f dist/react.html
           cp dist/react.html dist/index.html
           grep -q 'React-калькулятор СИП-домов' dist/index.html
-
-      - name: Validate deployment secrets
-        env:
-          BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
-          BEGET_SSH_USER: ${{ secrets.BEGET_SSH_USER }}
-          BEGET_SSH_PASSWORD: ${{ secrets.BEGET_SSH_PASSWORD }}
-          BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
-          BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
-        run: |
-          : "${BEGET_SSH_HOST:?Missing BEGET_SSH_HOST secret}"
-          : "${BEGET_SSH_USER:?Missing BEGET_SSH_USER secret}"
-          : "${BEGET_SSH_PASSWORD:?Missing BEGET_SSH_PASSWORD secret}"
-          : "${BEGET_SSH_KNOWN_HOSTS:?Missing BEGET_SSH_KNOWN_HOSTS secret}"
-          : "${BEGET_DEPLOY_PATH:?Missing BEGET_DEPLOY_PATH secret}"
-          [[ "$BEGET_DEPLOY_PATH" = "." || "$BEGET_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]*$ ]] || {
-            echo "BEGET_DEPLOY_PATH must be . or an absolute path without shell characters" >&2
-            exit 1
-          }
-
-      - name: Configure SSH
-        env:
-          BEGET_SSH_KNOWN_HOSTS: ${{ secrets.BEGET_SSH_KNOWN_HOSTS }}
-        run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$BEGET_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Install SFTP helper
-        run: sudo apt-get update && sudo apt-get install --yes sshpass
-
-      - name: Verify remote deployment path
-        env:
-          BEGET_SSH_HOST: ${{ secrets.BEGET_SSH_HOST }}
-          BEGET_SSH_USER: ${{ secrets.BEGET_SSH_USER }}
-          SSHPASS: ${{ secrets.BEGET_SSH_PASSWORD }}
-          BEGET_DEPLOY_PATH: ${{ secrets.BEGET_DEPLOY_PATH }}
-        run: |
-          remote_path="${BEGET_DEPLOY_PATH%/}"
-          [ -n "$remote_path" ] || remote_path="/"
-          sshpass -e ssh -p 22 \
-            -o PreferredAuthentications=password \
-            -o PubkeyAuthentication=no \
-            -o StrictHostKeyChecking=yes \
-            "${BEGET_SSH_USER}@${BEGET_SSH_HOST}" \
-            "test -f '${remote_path%/}/.htaccess'"
+          node --input-type=module -e "import {writeFileSync} from 'node:fs'; import {APP_VERSION} from './src/react/data/app-version.js'; writeFileSync('dist/build-info.json', JSON.stringify({revision:process.env.GITHUB_SHA,version:APP_VERSION})+'\n');"
 
       - name: Upload build to Beget
         env:
@@ -116,7 +126,7 @@ jobs:
           sshpass -e rsync -az --checksum --omit-dir-times --no-perms --no-owner --no-group \
             --exclude='.htaccess' \
             --exclude='.htpasswd' \
-            -e "ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes" \
+            -e "ssh -p 22 -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=2" \
             dist/ \
             "${BEGET_SSH_USER}@${BEGET_SSH_HOST}:${BEGET_DEPLOY_PATH%/}/"
 
@@ -124,3 +134,6 @@ jobs:
         run: |
           response="$(curl --fail --silent --show-error --max-time 30 https://calc.eftsip.ru/)"
           printf '%s' "$response" | grep -q 'React-калькулятор СИП-домов'
+          curl --fail --silent --show-error --retry 3 --max-time 30 \
+            "https://calc.eftsip.ru/build-info.json?revision=${GITHUB_SHA}" > deployed-build.json
+          node --input-type=module -e "import {readFileSync} from 'node:fs'; const deployed=JSON.parse(readFileSync('deployed-build.json','utf8')); const expected=JSON.parse(readFileSync('dist/build-info.json','utf8')); if(deployed.revision!==expected.revision || deployed.version!==expected.version) throw new Error('Beget is serving a different calculator build'); console.log('Verified Beget calculator version '+deployed.version+' at '+deployed.revision);"
