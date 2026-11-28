@@ -1,3 +1,4 @@
+import Production3DWarnings from './Production3DWarnings.jsx';
 import {repeatedWindowOpening,addRepeatedWindow} from '../state/repeat-window.js';
 import {bindingPackageWidthMm} from '../calculations/foundation-reference.js';
 import PlatformBuildControls from './PlatformBuildControls.jsx';
@@ -1452,6 +1453,7 @@ function PlanCanvas({
   }, [wheelZoomEnabled, viewportZoom, plan.zoom, onViewportZoom]);
   const shownPlan = useMemo(() => previewPlan(plan, gesture), [plan, gesture]);
   const shownIssues = useMemo(() => planIssues(shownPlan), [shownPlan]);
+  const warningScale=view.width/(svgRef.current?.getBoundingClientRect().width||view.width);
   const openingConflicts = shownIssues.filter(issue => issue.type === 'opening-overlap');
   const selectedPlatform = selected?.type === 'platform' ? (shownPlan.platforms || []).find(item => item.id === selected.id) : null;
   const [labelLayer,setLabelLayer]=useState(null);
@@ -3183,12 +3185,13 @@ function PlanCanvas({
       {visibleLayers.frame&&frameProject?<Suspense fallback={null}><g pointerEvents={activeLayer==='frame'?undefined:'none'}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame} selected={frameSelection} onSelect={onSelectFrame} onMessage={onFrameMessage}/></g></Suspense>:null}
       <g ref={setLabelLayer} className="plan-label-foreground" visibility={shownPlan.showLabels===false?"hidden":undefined}/>
       </g>
-      {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={view.height - 148} width="650" height="140">
+      {visibleLayers.plan && openingConflicts.length ? <foreignObject className="desktop-plan-warning" x="12" y={view.height - 148} width="650" height="140">
         <div xmlns="http://www.w3.org/1999/xhtml" role="alert" className="plan-collision-warning" onPointerDown={event => event.stopPropagation()}>
           <strong>Пересечение элементов: {openingConflicts.length}</strong>
           {openingConflicts.map((issue, index) => <button key={index} onClick={() => selectExisting(issue.selections[0])}>{issue.message}</button>)}
         </div>
       </foreignObject> : null}
+      {visibleLayers.plan&&openingConflicts.length?<foreignObject className="mobile-plan-warning" x={10*warningScale} y={view.height-54*warningScale} width={86*warningScale} height={44*warningScale}><div style={{transform:`scale(${warningScale})`,transformOrigin:'top left',width:86}} xmlns="http://www.w3.org/1999/xhtml" onPointerDown={event=>event.stopPropagation()}><Production3DWarnings label="Предупреждения плана" focusLabel="Выбрать" warnings={openingConflicts.map((issue,index)=>({id:String(index),message:issue.message,focusTargets:issue.selections?.length?[{id:String(index),name:'элемент на плане'}]:[]}))} onFocus={index=>selectExisting(openingConflicts[Number(index)].selections[0])}/></div></foreignObject>:null}
     </svg>
   );
 }
@@ -3215,14 +3218,11 @@ function RoomList({ plan, issues, onSelect }) {
       </header>
       <p className="clear-area-note">{clearAreas.reason||`Внутри дома без стен: ${formatNumber(clearAreas.clearArea)} м². Комнаты в свету (без повторного счёта пересечений): ${formatNumber(clearAreas.roomsClearArea)} м². Наружные стены расположены внутри габарита, перегородки — по оси. Дверные проходы включены; чистовая отделка не вычитается. Закупка SIP-пола остаётся по наружному контуру.`}</p>
       {issues.length ? (
-        <div className="plan-warning">
-          <AlertTriangle />
-          {issues.length} несостыковок — отмечены красным
-        </div>
+        <><div className="plan-warning desktop-plan-warning"><AlertTriangle />{issues.length} несостыковок — отмечены красным</div><div className="mobile-plan-warning"><Production3DWarnings label="Предупреждения помещений" warnings={issues.map((issue,index)=>({id:String(index),message:issue.message}))}/></div></>
       ) : (
         <div className="plan-ok">Стыковка помещений корректна</div>
       )}
-      {issues.length ? <ul className="plan-issue-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul> : null}
+      {issues.length ? <ul className="plan-issue-list desktop-plan-warning">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul> : null}
       <div className="room-summary-list">
         {(plan.rooms || []).map((room, index) => (
           <button
@@ -5311,7 +5311,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     if(!button)return;
     const label=button.getAttribute('aria-label')||button.title||button.textContent?.trim();
     if(!label)return;
-    clearTimeout(mobileToolLabelTimer.current);setMobileToolLabel(label.replace(/^Настроить слой /,''));
+    clearTimeout(mobileToolLabelTimer.current);setMobileToolLabel({text:label.replace(/^Настроить слой /,''),id:Date.now()});
     mobileToolLabelTimer.current=setTimeout(()=>setMobileToolLabel(''),1500);
   };
   const [bearingSelection,setBearingSelection]=useState([]),[bearingByLine,setBearingByLine]=useState(true),[bearingProfile,setBearingProfile]=useState("45x145");
@@ -6626,7 +6626,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         <button type="button" className="plan-status-fullscreen" aria-label={isPlanFullscreen ? 'Свернуть план' : 'План во весь экран'} aria-pressed={isPlanFullscreen} onClick={() => { if (!isPlanFullscreen && window.innerWidth <= 760) setShowFullscreenInspector(false); setIsPlanFullscreen((value) => !value); }}>{isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{isPlanFullscreen ? 'Свернуть' : 'Во весь экран'}</span></button>
 
       </div>
-      {isPhone&&mobileToolLabel?<div className="mobile-plan-tool-label" role="status">{mobileToolLabel}</div>:null}
+      {isPhone&&mobileToolLabel?<div key={mobileToolLabel.id} className="mobile-plan-tool-label" role="status">{mobileToolLabel.text}</div>:null}
       <div ref={plannerShellRef} style={{'--plan-inspector-width':`${inspectorWidth}px`,'--plan-model-width':`${modelWidth}px`}} className={`planner-shell${plan3DPlacement==='split'&&showPlan3D&&!isPhone?' three-pane':''}${isPlanFullscreen ? " is-fullscreen" : ""}${!showFullscreenInspector ? " inspector-collapsed" : ""}`}>
         <aside className="planner-tools">
           {TOOLS.filter(([id]) => id === "select").map(([id, label, Icon]) => (

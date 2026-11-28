@@ -1,8 +1,9 @@
+import '../styles/production-warnings.css';
 import {useEffect,useId,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {CircleAlert,X} from 'lucide-react';
 
-export default function Production3DWarnings({warnings,onFocus,onOpen}) {
+export default function Production3DWarnings({warnings,onFocus,onOpen,label='Предупреждения 3D',focusLabel='Показать в 3D'}) {
  const id=useId(),button=useRef(null),panel=useRef(null),[open,setOpen]=useState(false),[position,setPosition]=useState({});
  useEffect(()=>{if(!warnings.length)setOpen(false);},[warnings.length]);
  useEffect(()=>{
@@ -19,6 +20,6 @@ export default function Production3DWarnings({warnings,onFocus,onOpen}) {
   return()=>{window.removeEventListener('resize',fit);window.removeEventListener('scroll',fit,true);document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',key,true);};
  },[open]);
  if(!warnings.length)return null;
- return <><button ref={button} type="button" className="production-3d-warning-button" aria-label={`Предупреждения 3D: ${warnings.length}`} title={`Предупреждения и ошибки: ${warnings.length}`} aria-expanded={open} aria-controls={open?id:undefined} onClick={()=>{if(!open)onOpen?.();setOpen(value=>!value);}}><CircleAlert size={18}/><span>{warnings.length}</span></button>
- {open&&createPortal(<section id={id} ref={panel} className="production-3d-warning-popover" style={position} role="region" aria-label="Предупреждения 3D"><header><strong>Предупреждения и ошибки · {warnings.length}</strong><button type="button" aria-label="Закрыть список предупреждений" onClick={()=>{setOpen(false);button.current?.focus();}}><X size={17}/></button></header><ol>{warnings.map(row=><li key={row.id}><p>{row.message}</p>{row.focusTargets.map(target=><button type="button" key={target.id} onClick={()=>{onFocus(target.id);setOpen(false);}}>Показать в 3D: {target.name}</button>)}</li>)}</ol></section>,document.body)}</>;
+ return <><button ref={button} type="button" className="production-3d-warning-button" aria-label={`${label}: ${warnings.length}`} title={`Предупреждения и ошибки: ${warnings.length}`} aria-expanded={open} aria-controls={open?id:undefined} onClick={()=>{if(!open)onOpen?.();setOpen(value=>!value);}}><CircleAlert size={18}/><span>{warnings.length}</span></button>
+ {open&&createPortal(<section id={id} ref={panel} className="production-3d-warning-popover" style={position} role="region" aria-label={label}><header><strong>Предупреждения и ошибки · {warnings.length}</strong><button type="button" aria-label="Закрыть список предупреждений" onClick={()=>{setOpen(false);button.current?.focus();}}><X size={17}/></button></header><ol>{warnings.map(row=><li key={row.id}><p>{row.message}</p>{(row.focusTargets||[]).map(target=><button type="button" key={target.id} onClick={()=>{onFocus(target.id);setOpen(false);}}>{focusLabel}: {target.name}</button>)}</li>)}</ol></section>,document.body)}</>;
 }

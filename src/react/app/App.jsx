@@ -211,6 +211,9 @@ export function App() {
     () => localStorage.getItem("eft-react-theme") || "light",
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNavLabel,setMobileNavLabel]=useState(''),mobileNavLabelTimer=useRef(null);
+  useEffect(()=>()=>clearTimeout(mobileNavLabelTimer.current),[]);
+  const announceMobileNav=label=>{clearTimeout(mobileNavLabelTimer.current);setMobileNavLabel({text:label,id:Date.now()});mobileNavLabelTimer.current=setTimeout(()=>setMobileNavLabel(''),1500);};
   const [mobileNavigation,setMobileNavigation]=useState(()=>window.matchMedia('(max-width:820px)').matches);
   useEffect(()=>{const query=window.matchMedia('(max-width:820px)'),change=()=>setMobileNavigation(query.matches);query.addEventListener('change',change);return()=>query.removeEventListener('change',change);},[]);
   const edgeSwipeRef=useRef(null);
@@ -886,10 +889,11 @@ export function App() {
           onNavigate={setActive}
         />}
       </div>
+      {mobileNavigation&&mobileNavLabel?<div key={mobileNavLabel.id} role="status" className="mobile-nav-label">{mobileNavLabel.text}</div>:null}
       <nav className="mobile-bottom-nav" aria-label="Основные разделы">
         {[
           ['menu','Разделы',Menu],['plan','План',Home],['visualization','3D',Box],['estimate','Смета',Calculator],
-        ].map(([id,label,Icon])=><button key={id} className={(id==='menu'?menuOpen:active===id)?'active':''} aria-label={label} aria-expanded={id==='menu'?menuOpen:undefined} aria-current={active===id?'page':undefined} onClick={()=>id==='menu'?setMenuOpen(v=>!v):(setActive(id),setMenuOpen(false))}><Icon/><span>{label}</span></button>)}
+        ].map(([id,label,Icon])=><button key={id} className={(id==='menu'?menuOpen:active===id)?'active':''} aria-label={label} aria-expanded={id==='menu'?menuOpen:undefined} aria-current={active===id?'page':undefined} onClick={()=>{announceMobileNav(label);if(id==='menu')setMenuOpen(v=>!v);else{setActive(id);setMenuOpen(false);}}}><Icon/><span>{label}</span></button>)}
       </nav>
       {saveFileOpen ? <div className="modal-backdrop project-save-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saveFileBusy) setSaveFileOpen(false); }}>
         <form className="modal project-save-dialog" role="dialog" aria-modal="true" aria-label="Сохранить проект как" onSubmit={event => { event.preventDefault(); confirmSaveProject(); }}>
