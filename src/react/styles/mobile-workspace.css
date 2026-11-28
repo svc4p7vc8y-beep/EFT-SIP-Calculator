@@ -51,3 +51,73 @@
 }
 
 .plan-3d-element{min-width:0}.plan-3d-element header{display:flex;gap:8px;justify-content:space-between;align-items:start}.plan-3d-element dl{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(0,1fr);gap:7px;margin:10px 0}.plan-3d-element dd{margin:0;overflow-wrap:anywhere}.plan-3d-element dt{color:var(--muted)}.mobile-3d-selection{position:absolute;bottom:0;left:0;right:0;max-height:45%;overflow:auto;padding:12px;background:var(--panel);border-top:1px solid var(--line);z-index:10}
+
+/* Phone plan: one control row, a full-width inspector and icon-only drawing tools. */
+@media(max-width:700px){
+ .plan-screen-v2 .planner-shell .planner-canvas>.plan-canvas-toolbars{flex-direction:row!important;align-items:center;gap:4px;padding:4px;min-height:52px}
+ .plan-screen-v2 .planner-shell .plan-canvas-toolbars>.plan-layer-tabs{flex:1 1 0!important;width:0!important;min-width:0;min-height:44px;padding:0;border:0;box-shadow:none;background:transparent;gap:2px;scrollbar-width:none}
+ .plan-screen-v2 .planner-shell .plan-canvas-toolbars>.canvas-history-controls{flex:0 0 auto!important;width:auto!important;min-width:0;padding:0;gap:0;border:0;box-shadow:none;background:transparent;overflow:visible}
+ .plan-screen-v2 .planner-shell .canvas-history-controls button{width:36px;min-width:36px;min-height:44px;padding:4px;background:transparent;border:0;box-shadow:none}
+ .plan-screen-v2 .canvas-history-controls svg{width:25px;height:25px}
+ .plan-screen-v2 .plan-layer-tabs .plan-layer-tab{flex:none;border:0;background:transparent;box-shadow:none;min-width:0}
+ .plan-screen-v2 .plan-layer-tabs .layer-select{min-width:40px;width:40px;min-height:44px;padding:5px;background:transparent;border:0;box-shadow:none}
+ .plan-screen-v2 .plan-layer-tabs .layer-select svg{width:26px;height:26px}
+ .plan-screen-v2 .plan-layer-tabs .layer-select span{display:none}
+ .plan-screen-v2 .plan-layer-tabs .layer-select.active{color:#397225;outline:1px solid #87a971;outline-offset:-2px;background:transparent}
+ .plan-screen-v2 .plan-layer-tabs .layer-visibility{min-width:25px;width:25px;padding:3px;background:transparent;border:0}
+ .plan-screen-v2 .plan-layer-tabs .layer-visibility svg{width:17px;height:17px}
+ .plan-screen-v2 .planner-shell .planner-tools{padding:calc(var(--plan-toolbar-height,52px) + 2px) 1px 2px!important;background:transparent;border:0;box-shadow:none}
+ .plan-screen-v2 .planner-shell .planner-tools-fixed{background:transparent;border:0;box-shadow:none;padding:0}
+ .plan-screen-v2 .planner-shell .planner-tools button{min-height:48px!important;width:44px!important;padding:6px!important;background:transparent!important;border-color:transparent!important;box-shadow:none!important}
+ .plan-screen-v2 .planner-shell .planner-tools button svg{width:29px;height:29px}
+ .plan-screen-v2 .planner-shell .planner-tools button span{display:none!important}
+ .plan-screen-v2 .planner-shell .planner-tools button.active{color:#397225;outline:1px solid #87a971;outline-offset:-3px}
+ .plan-screen-v2 .planner-shell .planner-tools button.danger{color:#a8382e}
+ .plan-screen-v2 .planner-shell .planner-inspector{display:flex!important;flex-direction:column!important;left:46px!important;right:0!important;top:var(--plan-toolbar-height,52px)!important;bottom:0!important;width:auto!important;max-width:none!important;padding:0!important;overflow:hidden!important;gap:0;grid-template-rows:none!important}
+ .plan-screen-v2 .planner-shell .planner-inspector>.plan-right-tabs{position:relative!important;top:0!important;flex:0 0 auto;min-height:46px;margin:0;padding:5px;box-sizing:border-box;z-index:1}
+ .plan-screen-v2 .planner-inspector>.plan-right-3d{display:none!important}
+ .plan-screen-v2 .planner-inspector>.planner-inspector-detail:not([hidden]){flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+ .plan-screen-v2 .planner-inspector-detail .plan-right-house{min-width:0}
+ .plan-screen-v2 .planner-inspector-detail input,.plan-screen-v2 .planner-inspector-detail select{max-width:100%;box-sizing:border-box}
+ .plan-screen-v2 .planner-inspector-detail input,.plan-screen-v2 .planner-inspector-detail select,.plan-screen-v2 .planner-inspector-detail textarea{font-size:16px!important}
+ .plan-screen-v2 .planner-inspector-detail .numeric-input{grid-template-columns:32px minmax(0,1fr) 32px}
+ .plan-screen-v2 .planner-inspector-detail .numeric-step-button{min-width:32px;min-height:40px}
+ .plan-screen-v2 .planner-inspector-detail .numeric-input-value.has-suffix input{padding-left:3px;padding-right:20px}
+ .plan-screen-v2 .planner-inspector-detail .numeric-input-value em{right:4px;font-size:9px}
+ .plan-screen-v2 .planner-inspector>.plan-inspector-estimate{max-height:35%;overflow:auto}
+ .plan-screen-v2 .planner-shell.inspector-collapsed .planner-inspector{display:none!important}
+ .mobile-plan-tool-label{position:fixed;left:54px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:1100;width:max-content;max-width:calc(100vw - 70px);padding:8px 12px;border-radius:8px;background:#244a37;color:white;box-shadow:0 3px 14px #173b2c25;font-size:13px;line-height:1.4;pointer-events:none;box-sizing:border-box}
+}
+
+@media(max-width:700px){
+ .plan-screen-v2 .planner-tools-fixed,.plan-screen-v2 .planner-tools button,.plan-screen-v2 .plan-layer-tab,.plan-screen-v2 .plan-layer-tabs button,.plan-screen-v2 .canvas-history-controls button,.plan-screen-v2 .plan-right-tabs,.plan-screen-v2 .plan-right-tabs button,.plan-screen-v2 .planner-inspector-detail .parameter-section,.plan-screen-v2 .planner-inspector-detail .parameter-section>header,.plan-screen-v2 .planner-inspector-detail .parameter-section>summary,.plan-screen-v2 .planner-inspector-detail .stat{background:transparent!important;border-color:transparent!important;box-shadow:none!important;color:#000!important;outline-color:transparent!important}
+ .plan-screen-v2 .plan-canvas-toolbars,.plan-screen-v2 .plan-layer-tabs,.plan-screen-v2 .canvas-history-controls{background:transparent!important;border-color:transparent!important;box-shadow:none!important;color:#000!important}
+ .plan-screen-v2 .planner-tools button svg,.plan-screen-v2 .plan-layer-tabs svg,.plan-screen-v2 .canvas-history-controls svg,.plan-screen-v2 .plan-right-tabs svg{color:#000!important}
+ .plan-screen-v2 .planner-tools button.active,.plan-screen-v2 .plan-layer-tabs .layer-select.active,.plan-screen-v2 .plan-right-tabs button[aria-pressed=true]{position:relative}
+ .plan-screen-v2 .planner-tools button.active::after,.plan-screen-v2 .plan-layer-tabs .layer-select.active::after,.plan-screen-v2 .plan-right-tabs button[aria-pressed=true]::after{content:'';position:absolute;right:3px;bottom:3px;width:4px;height:4px;border-radius:50%;background:#000}
+ .plan-screen-v2 .planner-inspector-detail .parameter-section header *, .plan-screen-v2 .planner-inspector-detail .parameter-section summary *, .plan-screen-v2 .planner-inspector-detail .stat *{color:#000!important}
+ .plan-screen-v2 .planner-inspector-detail .parameter-section header svg,.plan-screen-v2 .planner-inspector-detail .parameter-section summary svg{background:transparent!important}
+ .mobile-plan-tool-label{background:transparent;color:#000;box-shadow:none;border-color:transparent;font-weight:600}
+}
+
+@media(max-width:700px){
+ .plan-screen-v2 .planner-inspector-detail .parameter-section-icon,.plan-screen-v2 .planner-inspector-detail .parameter-preset-button,.plan-screen-v2 .planner-inspector-detail .readout,.plan-screen-v2 .planner-inspector-detail .mini-stat,.plan-screen-v2 .planner-inspector-detail .mini-stats>div,.plan-screen-v2 .planner-inspector-detail button{background:transparent!important;border-color:transparent!important;box-shadow:none!important;color:#000!important}
+ .plan-screen-v2 .planner-inspector-detail .parameter-section-icon svg,.plan-screen-v2 .planner-inspector-detail .parameter-preset-button svg,.plan-screen-v2 .planner-inspector-detail .readout *,.plan-screen-v2 .planner-inspector-detail .mini-stats *{color:#000!important}
+}
+
+@media(max-width:700px){
+ .plan-screen-v2 .planner-inspector-detail :is(input,select,textarea){background:transparent!important;border-color:transparent!important;color:#000!important}
+ .plan-screen-v2 .planner-inspector-detail :is(label,summary,strong,span,small,p,h2,h3,button,em){color:#000!important}
+ .plan-screen-v2 .planner-inspector-detail :is(input,select,textarea):focus-visible{outline:1px solid #000;outline-offset:-1px}
+}
+
+@media(max-width:700px){.plan-screen-v2 .planner-inspector-detail .parameter-section-icon svg{stroke:#000!important;width:25px;height:25px}}
+
+.canvas-history-controls>.canvas-undo-redo,.canvas-history-controls>.canvas-view-actions{display:flex;align-items:center;gap:inherit;flex:none}
+@media(max-width:700px){
+ .plan-screen-v2 .planner-shell .planner-canvas>.plan-canvas-toolbars{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:4px}
+ .plan-screen-v2 .planner-shell .plan-canvas-toolbars>.plan-layer-tabs{grid-column:1;grid-row:1;width:100%!important}
+ .plan-screen-v2 .planner-shell .plan-canvas-toolbars>.canvas-history-controls{display:contents!important}
+ .plan-screen-v2 .canvas-history-controls>.canvas-undo-redo{grid-column:2;grid-row:1;gap:0;justify-self:center}
+ .plan-screen-v2 .canvas-history-controls>.canvas-view-actions{grid-column:3;grid-row:1;gap:0;justify-self:end}
+}

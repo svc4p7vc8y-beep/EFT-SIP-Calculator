@@ -1385,6 +1385,7 @@ function PlanCanvas({
   onViewportZoom,
   viewportPan = { x: 0, y: 0 },
   onViewportPan,
+  viewportRotation=0,onViewportRotation,
   wheelZoomEnabled = false,
   middlePanEnabled = false,
   onCreated,
@@ -1404,7 +1405,7 @@ function PlanCanvas({
   onMoveRoofSupport,
   onDeleteRoofSupport,
 }) {
-  const svgRef = useRef(null);
+  const svgRef = useRef(null),cameraRef=useRef(null);
   const [view,setView]=useState(VIEW);
   const pendingTapRef=useRef(null);
   useLayoutEffect(()=>{
@@ -1508,7 +1509,7 @@ function PlanCanvas({
   );
   const rawPlanPoint = (event) => {
     const svg = svgRef.current;
-    const matrix = svg?.getScreenCTM?.();
+    const matrix = cameraRef.current?.getScreenCTM?.()||svg?.getScreenCTM?.();
     if (svg && matrix) {
       const screenPoint = svg.createSVGPoint();
       screenPoint.x = event.clientX;
@@ -1773,7 +1774,7 @@ function PlanCanvas({
   const pointerDownCapture = (event) => {
     // The framing overlay owns its own selection/drag gesture. Do not leave
     // its captured touch pointers in the room editor's pinch state.
-    if(event.target.closest?.('.structural-plan-layer'))return;
+    if(event.target.closest?.('.structural-plan-layer')&&event.pointerType!=='touch')return;
     if (middlePanEnabled && event.button === 1) {
       event.preventDefault();
       event.stopPropagation();
@@ -1794,12 +1795,14 @@ function PlanCanvas({
       y: event.clientY,
     });
     if (activePointersRef.current.size === 2) {
-      pinchRef.current = beginPlanPinch([...activePointersRef.current.values()],viewportZoom ?? plan.zoom ?? 100,viewportPan,svgRef.current?.getScreenCTM?.(),view);
+      pinchRef.current = beginPlanPinch([...activePointersRef.current.values()],viewportZoom ?? plan.zoom ?? 100,viewportPan,svgRef.current?.getScreenCTM?.(),view,viewportRotation);
       pendingTapRef.current=null;panGestureRef.current=null;
       pinchConsumedRef.current = true;
       pendingTouchSelectionRef.current = null;
       setGesture(null);
       setHoverSnap(null);
+      svgRef.current?.dispatchEvent(new Event('eft:plan-pinch'));
+      event.preventDefault();event.stopPropagation();
     }
   };
   const finishPointer = (event) => {
@@ -1907,7 +1910,7 @@ function PlanCanvas({
       });
     if (pinchRef.current && activePointersRef.current.size >= 2) {
       const camera=movePlanPinch(pinchRef.current,[...activePointersRef.current.values()]);
-      onViewportZoom?.(camera.zoom);onViewportPan?.(camera.pan);
+      onViewportZoom?.(camera.zoom);onViewportPan?.(camera.pan);onViewportRotation?.(camera.rotation);
       event.preventDefault();
       return;
     }
@@ -1920,7 +1923,7 @@ function PlanCanvas({
       const dy = event.clientY - panGestureRef.current.y;
       if (Math.hypot(dx, dy) > 4) panGestureRef.current.moved = true;
       if (panGestureRef.current.moved)
-        onViewportPan?.(svgPan(panGestureRef.current.start,dx,dy,svgRef.current?.getScreenCTM?.()));
+        onViewportPan?.(svgPan(panGestureRef.current.start,dx,dy,cameraRef.current?.getScreenCTM?.()||svgRef.current?.getScreenCTM?.()));
       event.preventDefault();
       return;
     }
@@ -2273,7 +2276,9 @@ function PlanCanvas({
       aria-label="Редактор плана дома"
       onPointerDownCapture={pointerDownCapture}
       onPointerDown={canvasDown}
+      onPointerMoveCapture={event=>{if(pinchRef.current&&activePointersRef.current.size>=2){pointerMove(event);event.stopPropagation();}}}
       onPointerMove={pointerMove}
+      onPointerUpCapture={event=>{if(pinchConsumedRef.current){pointerUp(event);event.stopPropagation();}else if(event.target.closest?.('.structural-plan-layer'))finishPointer(event);}}
       onPointerUp={pointerUp}
       onPointerLeave={() => {
         if (!gestureRef.current) setHoverSnap(null);
@@ -2289,6 +2294,7 @@ function PlanCanvas({
       <defs>
         <pattern
           id="planner-grid"
+          patternTransform={`rotate(${viewportRotation} ${view.width/2} ${view.height/2})`}
           x={((layout.ox % layout.scale) + layout.scale) % layout.scale}
           y={((layout.oy % layout.scale) + layout.scale) % layout.scale}
           width={layout.scale}
@@ -2342,6 +2348,7 @@ function PlanCanvas({
         height={view.height}
         fill="url(#planner-grid)"
       />
+      <g ref={cameraRef} data-plan-camera="true" transform={`rotate(${viewportRotation} ${view.width/2} ${view.height/2})`}>
       {!houseDefined && !polygonDraft.length ? (
         <g className="blank-plan-prompt">
           <text x={view.width / 2} y={view.height / 2 - 12}>Чистый план</text>
@@ -3175,6 +3182,7 @@ function PlanCanvas({
       {['piles','binding'].includes(activeLayer)?<FoundationGridLayer plan={shownPlan} p={p}/>:null}
       {visibleLayers.frame&&frameProject?<Suspense fallback={null}><g pointerEvents={activeLayer==='frame'?undefined:'none'}><StructuralPlanLayer project={frameProject} floor={floorKey} p={p} onOpen={onOpenFrame} selected={frameSelection} onSelect={onSelectFrame} onMessage={onFrameMessage}/></g></Suspense>:null}
       <g ref={setLabelLayer} className="plan-label-foreground" visibility={shownPlan.showLabels===false?"hidden":undefined}/>
+      </g>
       {visibleLayers.plan && openingConflicts.length ? <foreignObject x="12" y={view.height - 148} width="650" height="140">
         <div xmlns="http://www.w3.org/1999/xhtml" role="alert" className="plan-collision-warning" onPointerDown={event => event.stopPropagation()}>
           <strong>Пересечение элементов: {openingConflicts.length}</strong>
@@ -5295,6 +5303,17 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const team = useTeam();
   const { project, activeTabId, openTab, attachLibrary, commit, undo:undoProject, redo:redoProject, canUndo, canRedo } = useProject();
   const [tool, setTool] = useState("select");
+  const [mobileToolLabel,setMobileToolLabel]=useState(''),mobileToolLabelTimer=useRef(null);
+  useEffect(()=>()=>clearTimeout(mobileToolLabelTimer.current),[]);
+  const announceMobileTool=event=>{
+    if(!isPhone)return;
+    const button=event.target.closest?.('.planner-tools button,.plan-canvas-toolbars button');
+    if(!button)return;
+    const label=button.getAttribute('aria-label')||button.title||button.textContent?.trim();
+    if(!label)return;
+    clearTimeout(mobileToolLabelTimer.current);setMobileToolLabel(label.replace(/^Настроить слой /,''));
+    mobileToolLabelTimer.current=setTimeout(()=>setMobileToolLabel(''),1500);
+  };
   const [bearingSelection,setBearingSelection]=useState([]),[bearingByLine,setBearingByLine]=useState(true),[bearingProfile,setBearingProfile]=useState("45x145");
   const [mobilePlanEditing, setMobilePlanEditing] = useState(true);
   const [stairPreset,setStairPreset]=useState({stairType:'straight',contourMode:'rectangle'});
@@ -5326,6 +5345,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     Math.max(35, Math.min(2000, Number(project?.plan?.zoom) || 100)),
   );
   const [viewportPan, setViewportPan] = useState({ x: 0, y: 0 });
+  const [viewportRotation,setViewportRotation]=useState(0);
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
   const [sceneSelection,setSceneSelection]=useState(null);
   useEffect(()=>{setSceneSelection(null);},[activeTabId,activeLayer]);
@@ -5365,7 +5385,12 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
   const [stairSetupRequired, setStairSetupRequired] = useState(false);
   const planFileRef = useRef(null);
   const inspectorRef = useRef(null);
-  const plannerCanvasRef = useRef(null);
+  const plannerCanvasRef = useRef(null),planToolbarsRef=useRef(null);
+  useLayoutEffect(()=>{
+    const toolbar=planToolbarsRef.current,shell=plannerShellRef.current;if(!toolbar||!shell)return;
+    const measure=()=>shell.style.setProperty('--plan-toolbar-height',`${Math.ceil(toolbar.getBoundingClientRect().height)}px`);
+    const observer=new ResizeObserver(measure);observer.observe(toolbar);measure();return()=>observer.disconnect();
+  },[viewMode,isPhone,mobilePlanEditing,isPlanFullscreen]);
   useEffect(() => {
     if (selected || activeLayer !== 'plan' || (polygonDraft.length && tool !== 'select')) setInspectorTab('element');
     else setInspectorTab('house');
@@ -6448,6 +6473,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
           issues={issues}
           viewportZoom={viewportZoom}
           onViewportZoom={setViewportZoom}
+          viewportRotation={viewportRotation} onViewportRotation={setViewportRotation}
           viewportPan={viewportPan}
           onViewportPan={setViewportPan}
           onCreated={handleCreated}
@@ -6488,7 +6514,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
     </div>
   );
   const editor = (
-    <div ref={planHeaderRootRef} className={`desktop-plan-editor screen plan-screen-v2${mobilePlanEditing ? ' mobile-plan-editing' : ''}`}>
+    <div onClickCapture={announceMobileTool} ref={planHeaderRootRef} className={`desktop-plan-editor screen plan-screen-v2${mobilePlanEditing ? ' mobile-plan-editing' : ''}`}>
       {selected?.type==='roofSupport'?<aside className="mobile-roof-editor-panel desktop-roof-mobile"><details open><summary>Опора кровли · параметры</summary><Suspense fallback={<p>Загружаю…</p>}><RoofMemberInspector selection={selected} project={project} calculation={projectCalculation} onSelect={setSelected}/></Suspense></details></aside>:null}
       <input ref={planFileRef} className="visually-hidden" type="file" accept=".eft-plan.json,.eft.json,.json" onChange={openPlanFile}/>
       <button type="button" className="mobile-plan-edit-toggle" aria-pressed={mobilePlanEditing} onClick={() => { if (mobilePlanEditing) { setTool('select'); setSelected(null); } setMobilePlanEditing(value => !value); }}>
@@ -6600,6 +6626,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         <button type="button" className="plan-status-fullscreen" aria-label={isPlanFullscreen ? 'Свернуть план' : 'План во весь экран'} aria-pressed={isPlanFullscreen} onClick={() => { if (!isPlanFullscreen && window.innerWidth <= 760) setShowFullscreenInspector(false); setIsPlanFullscreen((value) => !value); }}>{isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{isPlanFullscreen ? 'Свернуть' : 'Во весь экран'}</span></button>
 
       </div>
+      {isPhone&&mobileToolLabel?<div className="mobile-plan-tool-label" role="status">{mobileToolLabel}</div>:null}
       <div ref={plannerShellRef} style={{'--plan-inspector-width':`${inspectorWidth}px`,'--plan-model-width':`${modelWidth}px`}} className={`planner-shell${plan3DPlacement==='split'&&showPlan3D&&!isPhone?' three-pane':''}${isPlanFullscreen ? " is-fullscreen" : ""}${!showFullscreenInspector ? " inspector-collapsed" : ""}`}>
         <aside className="planner-tools">
           {TOOLS.filter(([id]) => id === "select").map(([id, label, Icon]) => (
@@ -6608,6 +6635,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 className={tool === id ? "active" : ""}
                 aria-pressed={tool === id}
                 title={label}
+                aria-label={label}
                 onClick={() => selectTool(id)}
               >
                 <Icon />
@@ -6623,6 +6651,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                   className={tool === id ? "active" : ""}
                   aria-pressed={tool === id}
                   title={label}
+                  aria-label={label}
                   onClick={() => selectTool(id)}
                 >
                   <Icon />
@@ -6654,6 +6683,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
                 className={tool === id ? "active" : ""}
                 aria-pressed={tool === id}
                 title={label}
+                aria-label={label}
                 onClick={() => selectTool(id)}
               >
                 <Icon />
@@ -6664,7 +6694,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
         </aside>
         {plan3DPlacement==='split'&&showPlan3D&&!isPhone?<><aside className="plan-3d-pane" aria-label="Откреплённый 3D вид"><div className="plan-3d-pane-head"><strong>Дом в 3D</strong><div><button type="button" onClick={()=>setPlan3DPlacement('dock')}>Вернуть вправо</button><button type="button" onClick={()=>{setShowPlan3D(false);setPlan3DPlacement('dock');}}>Скрыть</button></div></div><Suspense fallback={<p role="status">Загружаю 3D…</p>}>{frameWall===null&&!isPhone?<PlanFullscreen3D project={project} calculation={projectCalculation} view={plan3DMode} onViewChange={setPlan3DMode} viewerPreferences={plan3DPreferences} onViewerPreferencesChange={setPlan3DPreferences} cameraRef={plan3DCameraRef} onSelectElement={handle3DSelection}/>:<p className="plan-3d-loading">3D приостановлен на время работы с развёрткой.</p>}</Suspense></aside><div className="plan-pane-resizer model-resizer" role="separator" tabIndex={0} aria-label="Изменить ширину 3D вида" aria-orientation="vertical" onPointerDown={event=>startPaneResize(event,'model')} onPointerMove={movePaneResize} onPointerUp={finishPaneResize} onPointerCancel={finishPaneResize} onLostPointerCapture={finishPaneResize} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setModelWidth(value=>Math.max(240,value+(event.key==='ArrowRight'?20:-20)));}}}/></>:null}
         <div className="planner-canvas" ref={plannerCanvasRef}>
-          <div className="plan-canvas-toolbars">
+          <div className="plan-canvas-toolbars" ref={planToolbarsRef}>
           <div className="plan-layer-tabs" role="group" aria-label="Слои проекта">
             {[
               ["piles", "Сваи", CircleDot],
@@ -6700,12 +6730,15 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             {[["showDimensions","Размеры",Ruler],["showLabels","Подписи",MessageSquareText]].map(([field,label,Icon])=><div className="plan-layer-tab" key={field}><button type="button" className="layer-select" aria-label={`Переключить ${label}`} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}><Icon/><span>{label}</span></button><button type="button" className="layer-visibility" aria-label={`${plan[field]!==false?'Скрыть':'Показать'} ${label}`} aria-pressed={plan[field]!==false} onClick={()=>commitPlan(next=>{next[field]=next[field]===false;})}>{plan[field]!==false?<Eye/>:<EyeOff/>}</button></div>)}
           </div>
           <div className="canvas-history-controls" role="toolbar" aria-label="Масштаб и действия плана">
+            <div className="canvas-undo-redo" role="group" aria-label="Отмена и повтор">
             <button title="Отменить" onClick={undo} disabled={!canUndo}>
               <Undo2 />
             </button>
             <button title="Повторить" onClick={redo} disabled={!canRedo}>
               <Redo2 />
             </button>
+            </div>
+            <div className="canvas-view-actions">
             <button title={showFullscreenInspector?'Скрыть параметры':'Показать параметры'} aria-label={showFullscreenInspector?'Скрыть параметры':'Показать параметры'} onClick={()=>setShowFullscreenInspector(v=>!v)}><ListTree/></button>
             <button
               title={isPlanFullscreen ? "Свернуть поле плана" : "Развернуть поле плана на весь экран"}
@@ -6715,6 +6748,7 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             >
               {isPlanFullscreen ? <Minimize2 /> : <Maximize2 />}
             </button>
+            </div>
           </div>
           </div>
 
@@ -6754,7 +6788,8 @@ export default function PlanScreen({ onNavigate, planCommand, onPlanCommandHandl
             issues={issues}
             viewportZoom={viewportZoom}
             onViewportZoom={setViewportZoom}
-            viewportPan={viewportPan}
+            viewportRotation={viewportRotation} onViewportRotation={setViewportRotation}
+          viewportPan={viewportPan}
             onViewportPan={setViewportPan}
             wheelZoomEnabled={isPlanFullscreen}
             middlePanEnabled={isPlanFullscreen}
